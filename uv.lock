@@ -1,0 +1,11 @@
+version = 1
+revision = 3
+requires-python = ">=3.12"
+
+[[package]]
+name = "fio-pskel"
+version = "0.1.0"
+source = { editable = "." }
+
+[package.metadata]
+provides-extras = ["ml", "api", "dev"]
