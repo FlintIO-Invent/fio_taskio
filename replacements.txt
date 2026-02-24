@@ -1,0 +1,2 @@
+regex:pk\.[A-Za-z0-9._-]+==>__REDACTED_MAPBOX_TOKEN__
+regex:sk\.[A-Za-z0-9._-]+==>__REDACTED_MAPBOX_SECRET__
