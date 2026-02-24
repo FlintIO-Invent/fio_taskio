@@ -22,10 +22,3 @@ Thumbs.db
 
 # Logs
 *.log
-
-
-#artifacts/artifacts/
-templates/*
-static/*
-static
-templates
