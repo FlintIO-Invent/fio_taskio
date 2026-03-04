@@ -1,0 +1,545 @@
+{% extends "inheritance/dashboard_parent.html" %}
+{% load static %}
+
+{% block content %}
+  <div class="content">
+
+  <form class="mb-9" method="POST" novalidate>
+    {% csrf_token %}
+
+    <!-- Top bar -->
+    <div class="row g-3 flex-between-end mb-5">
+      <div class="col-auto">
+        <h2 class="mb-2">Create a new client or lead</h2>
+        <h5 class="text-body-tertiary fw-semibold"></h5>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary mb-2 mb-sm-0" type="submit">Create</button>
+      </div>
+    </div>
+
+    <!-- Global form errors -->
+    {% if parcel_form.non_field_errors %}
+      <div class="alert alert-danger">{{ parcel_form.non_field_errors }}</div>
+    {% endif %}
+    {% if customer_form and customer_form.non_field_errors %}
+      <div class="alert alert-danger">{{ customer_form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="row g-5">
+      <div class="col-12 col-xl-8">
+
+        <!-- SECTION 0: Customer status -->
+        <div class="mb-4">
+          <label class="form-label" for="id_customer_return">Creation Type</label>
+          <select class="form-select" name="id_customer_return" id="id_customer_return">
+            <option value="">Choose…</option>
+            <option value="lead">New Lead</option>
+            <option value="client">New Client</option>
+          </select>
+        </div>
+
+        <!-- SECTION 1: New customer form -->
+        <div class="conditional" data-show-when="lead">
+          <div class="row g-3 flex-between-end mb-5">
+            <h4 class="mb-3">Customer Form</h4>
+
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              {{ customer_form.email }}
+              {% if customer_form.email.errors %}<div class="invalid-feedback d-block">{{ customer_form.email.errors|striptags }}</div>{% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">First Name</label>
+              {{ customer_form.first_name }}
+              {% if customer_form.first_name.errors %}<div class="invalid-feedback d-block">{{ customer_form.first_name.errors|striptags }}</div>{% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Last Name</label>
+              {{ customer_form.last_name }}
+              {% if customer_form.last_name.errors %}<div class="invalid-feedback d-block">{{ customer_form.last_name.errors|striptags }}</div>{% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Date of Birth</label>
+              {{ customer_form.date_of_birth }}
+              {% if customer_form.date_of_birth.errors %}<div class="invalid-feedback d-block">{{ customer_form.date_of_birth.errors|striptags }}</div>{% endif %}
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Phone Number</label>
+              {{ customer_form.phone_number }}
+              {% if customer_form.phone_number.errors %}<div class="invalid-feedback d-block">{{ customer_form.phone_number.errors|striptags }}</div>{% endif %}
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Address</label>
+              {{ customer_form.address }}
+              {% if customer_form.address.errors %}<div class="invalid-feedback d-block">{{ customer_form.address.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 2: Existing customer search -->
+        <div class="conditional" data-show-when="registered_user">
+          <h4 class="mb-3">Customer Search</h4>
+
+          <!-- live search -->
+          <div class="position-relative mb-3">
+            <input type="text"
+                   class="form-control"
+                   id="customerSearch"
+                   placeholder="Customer: Name, Username, Email"
+                   autocomplete="off">
+            <div id="customerSearchResults"
+                 class="list-group position-absolute w-100 shadow-sm d-none"
+                 style="max-height:18rem;overflow-y:auto;"></div>
+          </div>
+
+          <!-- selected customer preview -->
+          <input type="hidden" name="customer_id" id="customerIdFinal">
+          <div id="customerPreview" class="alert alert-secondary d-none">
+            <strong id="customerPreviewName"></strong><br>
+            <span id="customerPreviewEmail" class="text-body-secondary"></span>
+            <button type="button" class="btn-close float-end" data-clear-customer></button>
+          </div>
+        </div>
+
+        <!-- SECTION 3: Parcel Tabs -->
+        <h4 class="mb-3">Parcel Form</h4>
+        <div class="row g-0 border-top border-bottom">
+          <div class="col-sm-4">
+            <div class="nav flex-sm-column border-bottom border-bottom-sm-0 border-end-sm fs-9 vertical-tab h-100 justify-content-between"
+                 role="tablist" aria-orientation="vertical">
+
+              <!-- General -->
+              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center active"
+                 id="pricingTab" data-bs-toggle="tab" data-bs-target="#pricingTabContent" role="tab" aria-controls="pricingTabContent" aria-selected="true">
+                <span class="me-sm-2 fs-4 nav-icons" data-feather="tag"></span>
+                <span class="d-none d-sm-inline">General</span>
+              </a>
+
+              <!-- Dimensions -->
+              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
+                 id="restockTab" data-bs-toggle="tab" data-bs-target="#restockTabContent" role="tab" aria-controls="restockTabContent" aria-selected="false">
+                <span class="me-sm-2 fs-4 nav-icons" data-feather="package"></span>
+                <span class="d-none d-sm-inline">Dimensions</span>
+              </a>
+
+              <!-- Logistics & Routing -->
+              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
+                 id="shippingTab" data-bs-toggle="tab" data-bs-target="#shippingTabContent" role="tab" aria-controls="shippingTabContent" aria-selected="false">
+                <span class="me-sm-2 fs-4 nav-icons" data-feather="truck"></span>
+                <span class="d-none d-sm-inline">Logistics & Routing</span>
+              </a>
+
+              <!-- Financials -->
+              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
+                 id="productsTab" data-bs-toggle="tab" data-bs-target="#productsTabContent" role="tab" aria-controls="productsTabContent" aria-selected="false">
+                <span class="me-sm-2 fs-4 nav-icons" data-feather="dollar-sign"></span>
+                <span class="d-none d-sm-inline">Financials</span>
+              </a>
+
+              <!-- Schedules & Dates -->
+              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
+                 id="datesTab" data-bs-toggle="tab" data-bs-target="#datesTabContent" role="tab" aria-controls="datesTabContent" aria-selected="false">
+                <span class="me-sm-2 fs-4 nav-icons" data-feather="calendar"></span>
+                <span class="d-none d-sm-inline">Schedules & Dates</span>
+              </a>
+
+              <!-- Consignor -->
+              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
+                 id="consignorTab" data-bs-toggle="tab" data-bs-target="#consignorTabContent" role="tab" aria-controls="consignorTabContent" aria-selected="false">
+                <span class="me-sm-2 fs-4 nav-icons" data-feather="user"></span>
+                <span class="d-none d-sm-inline">Consignor</span>
+              </a>
+
+              <!-- BL & References -->
+              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
+                 id="blTab" data-bs-toggle="tab" data-bs-target="#blTabContent" role="tab" aria-controls="blTabContent" aria-selected="false">
+                <span class="me-sm-2 fs-4 nav-icons" data-feather="file-text"></span>
+                <span class="d-none d-sm-inline">BL & References</span>
+              </a>
+
+              <!-- Risk & Holds -->
+              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
+                 id="riskTab" data-bs-toggle="tab" data-bs-target="#riskTabContent" role="tab" aria-controls="riskTabContent" aria-selected="false">
+                <span class="me-sm-2 fs-4 nav-icons" data-feather="alert-triangle"></span>
+                <span class="d-none d-sm-inline">Risk & Holds</span>
+              </a>
+
+              <!-- Internal Operations -->
+              <a class="nav-link border-end border-end-sm-0 text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
+                 id="attributesTab" data-bs-toggle="tab" data-bs-target="#attributesTabContent" role="tab" aria-controls="attributesTabContent" aria-selected="false">
+                <span class="me-sm-2 fs-4 nav-icons" data-feather="sliders"></span>
+                <span class="d-none d-sm-inline">Internal Operations</span>
+              </a>
+
+            </div>
+          </div>
+
+          <div class="col-sm-8">
+            <div class="tab-content py-3 ps-sm-4 h-100">
+
+              <!-- GENERAL -->
+              <div class="tab-pane fade show active" id="pricingTabContent" role="tabpanel">
+                <h4 class="mb-3 d-sm-none">General</h4>
+                <div class="row g-3">
+                  <div class="col-12">
+                    <h5 class="mb-2 text-body-highlight">Parcel Description</h5>
+                    {{ parcel_form.description }}
+                    {% if parcel_form.description.errors %}<div class="invalid-feedback d-block">{{ parcel_form.description.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Packages Qty</h5>
+                    {{ parcel_form.packages_qty }}
+                    {% if parcel_form.packages_qty.errors %}<div class="invalid-feedback d-block">{{ parcel_form.packages_qty.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">HS Code</h5>
+                    {{ parcel_form.hs_code }}
+                    {% if parcel_form.hs_code.errors %}<div class="invalid-feedback d-block">{{ parcel_form.hs_code.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12">
+                    <h5 class="mb-2 text-body-highlight">Marks & Numbers</h5>
+                    {{ parcel_form.marks_numbers }}
+                    {% if parcel_form.marks_numbers.errors %}<div class="invalid-feedback d-block">{{ parcel_form.marks_numbers.errors|striptags }}</div>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- DIMENSIONS -->
+              <div class="tab-pane fade h-100" id="restockTabContent" role="tabpanel" aria-labelledby="restockTab">
+                <div class="d-flex flex-column h-100">
+                  <h5 class="mb-3 text-body-highlight">Parcel Dimensions</h5>
+                  <p class="text-body-secondary fs-9 mb-3">Use cm for size and kg for weight.</p>
+
+                  <div class="row g-3 flex-1 mb-4">
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Length (cm)</h5>
+                      {{ parcel_form.length }}
+                      {% if parcel_form.length.errors %}<div class="invalid-feedback d-block">{{ parcel_form.length.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Width (cm)</h5>
+                      {{ parcel_form.width }}
+                      {% if parcel_form.width.errors %}<div class="invalid-feedback d-block">{{ parcel_form.width.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Height (cm)</h5>
+                      {{ parcel_form.height }}
+                      {% if parcel_form.height.errors %}<div class="invalid-feedback d-block">{{ parcel_form.height.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Weight (kg)</h5>
+                      {{ parcel_form.weight }}
+                      {% if parcel_form.weight.errors %}<div class="invalid-feedback d-block">{{ parcel_form.weight.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Gross Weight (kg)</h5>
+                      {{ parcel_form.gross_weight_kg }}
+                      {% if parcel_form.gross_weight_kg.errors %}<div class="invalid-feedback d-block">{{ parcel_form.gross_weight_kg.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Volume (m³)</h5>
+                      {{ parcel_form.volume_m3 }}
+                      {% if parcel_form.volume_m3.errors %}<div class="invalid-feedback d-block">{{ parcel_form.volume_m3.errors|striptags }}</div>{% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- LOGISTICS & ROUTING -->
+              <div class="tab-pane fade h-100" id="shippingTabContent" role="tabpanel" aria-labelledby="shippingTab">
+                <div class="d-flex flex-column h-100">
+                  <h5 class="mb-3 text-body-highlight">Logistics & Routing</h5>
+
+                  <div class="row g-3 flex-1 mb-4">
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Origin</h5>
+                      {{ parcel_form.origin }}
+                      {% if parcel_form.origin.errors %}<div class="invalid-feedback d-block">{{ parcel_form.origin.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Destination</h5>
+                      {{ parcel_form.destination }}
+                      {% if parcel_form.destination.errors %}<div class="invalid-feedback d-block">{{ parcel_form.destination.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Mode of Transport</h5>
+                      {{ parcel_form.mode_of_transport }}
+                      {% if parcel_form.mode_of_transport.errors %}<div class="invalid-feedback d-block">{{ parcel_form.mode_of_transport.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Vessel Name</h5>
+                      {{ parcel_form.vessel_name }}
+                      {% if parcel_form.vessel_name.errors %}<div class="invalid-feedback d-block">{{ parcel_form.vessel_name.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Voyage No.</h5>
+                      {{ parcel_form.voyage_no }}
+                      {% if parcel_form.voyage_no.errors %}<div class="invalid-feedback d-block">{{ parcel_form.voyage_no.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">IMO No.</h5>
+                      {{ parcel_form.imo_no }}
+                      {% if parcel_form.imo_no.errors %}<div class="invalid-feedback d-block">{{ parcel_form.imo_no.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Port of Loading (UN/LOCODE)</h5>
+                      {{ parcel_form.port_load_unlocode }}
+                      {% if parcel_form.port_load_unlocode.errors %}<div class="invalid-feedback d-block">{{ parcel_form.port_load_unlocode.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                      <h5 class="mb-2 text-body-highlight">Port of Discharge (UN/LOCODE)</h5>
+                      {{ parcel_form.port_discharge_unlocode }}
+                      {% if parcel_form.port_discharge_unlocode.errors %}<div class="invalid-feedback d-block">{{ parcel_form.port_discharge_unlocode.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-12">
+                      <h5 class="mb-2 text-body-highlight">UN LOCODE (General)</h5>
+                      {{ parcel_form.UN_LOCODE }}
+                      {% if parcel_form.UN_LOCODE.errors %}<div class="invalid-feedback d-block">{{ parcel_form.UN_LOCODE.errors|striptags }}</div>{% endif %}
+                    </div>
+                  </div>
+
+                  <p class="fs-9 fw-semibold mb-0">See our <a class="fw-bold" href="#!">Delivery terms and conditions</a> for details.</p>
+                </div>
+              </div>
+
+              <!-- FINANCIALS -->
+              <div class="tab-pane fade" id="productsTabContent" role="tabpanel" aria-labelledby="productsTab">
+                <h5 class="mb-3 text-body-highlight">Financials</h5>
+
+                <div class="row g-3 flex-1 mb-4">
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Payment Status</h5>
+                    {{ parcel_form.payment_status }}
+                    {% if parcel_form.payment_status.errors %}<div class="invalid-feedback d-block">{{ parcel_form.payment_status.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Declared Value</h5>
+                    {{ parcel_form.declared_value }}
+                    {% if parcel_form.declared_value.errors %}<div class="invalid-feedback d-block">{{ parcel_form.declared_value.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Insurance Value</h5>
+                    {{ parcel_form.insurance_value }}
+                    {% if parcel_form.insurance_value.errors %}<div class="invalid-feedback d-block">{{ parcel_form.insurance_value.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Shipping Cost</h5>
+                    {{ parcel_form.shipping_cost }}
+                    {% if parcel_form.shipping_cost.errors %}<div class="invalid-feedback d-block">{{ parcel_form.shipping_cost.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Currency</h5>
+                    {{ parcel_form.currency }}
+                    {% if parcel_form.currency.errors %}<div class="invalid-feedback d-block">{{ parcel_form.currency.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Incoterms</h5>
+                    {{ parcel_form.incoterms }}
+                    {% if parcel_form.incoterms.errors %}<div class="invalid-feedback d-block">{{ parcel_form.incoterms.errors|striptags }}</div>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- SCHEDULES & DATES -->
+              <div class="tab-pane fade" id="datesTabContent" role="tabpanel" aria-labelledby="datesTab">
+                <h5 class="mb-3 text-body-highlight">Schedules & Dates</h5>
+
+                <div class="row g-3">
+                  <div class="col-12 col-lg-4">
+                    <h5 class="mb-2 text-body-highlight">ETD</h5>
+                    {{ parcel_form.etd }}
+                    {% if parcel_form.etd.errors %}<div class="invalid-feedback d-block">{{ parcel_form.etd.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-4">
+                    <h5 class="mb-2 text-body-highlight">ETA</h5>
+                    {{ parcel_form.eta }}
+                    {% if parcel_form.eta.errors %}<div class="invalid-feedback d-block">{{ parcel_form.eta.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-4">
+                    <h5 class="mb-2 text-body-highlight">Issue Date</h5>
+                    {{ parcel_form.issue_date }}
+                    {% if parcel_form.issue_date.errors %}<div class="invalid-feedback d-block">{{ parcel_form.issue_date.errors|striptags }}</div>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- CONSIGNOR -->
+              <div class="tab-pane fade" id="consignorTabContent" role="tabpanel" aria-labelledby="consignorTab">
+                <h5 class="mb-3 text-body-highlight">Consignor</h5>
+
+                <div class="row g-3">
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Name</h5>
+                    {{ parcel_form.consignor_name }}
+                    {% if parcel_form.consignor_name.errors %}<div class="invalid-feedback d-block">{{ parcel_form.consignor_name.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Contact</h5>
+                    {{ parcel_form.consignor_contact }}
+                    {% if parcel_form.consignor_contact.errors %}<div class="invalid-feedback d-block">{{ parcel_form.consignor_contact.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12">
+                    <h5 class="mb-2 text-body-highlight">Address</h5>
+                    {{ parcel_form.consignor_address }}
+                    {% if parcel_form.consignor_address.errors %}<div class="invalid-feedback d-block">{{ parcel_form.consignor_address.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Country (ISO)</h5>
+                    {{ parcel_form.consignor_country_iso }}
+                    {% if parcel_form.consignor_country_iso.errors %}<div class="invalid-feedback d-block">{{ parcel_form.consignor_country_iso.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Tax ID Number</h5>
+                    {{ parcel_form.tax_id_number }}
+                    {% if parcel_form.tax_id_number.errors %}<div class="invalid-feedback d-block">{{ parcel_form.tax_id_number.errors|striptags }}</div>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- BL & REFERENCES -->
+              <div class="tab-pane fade" id="blTabContent" role="tabpanel" aria-labelledby="blTab">
+                <h5 class="mb-3 text-body-highlight">Bills of Lading & References</h5>
+
+                <div class="row g-3">
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Master B/L No.</h5>
+                    {{ parcel_form.master_bl_no }}
+                    {% if parcel_form.master_bl_no.errors %}<div class="invalid-feedback d-block">{{ parcel_form.master_bl_no.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">House B/L No.</h5>
+                    {{ parcel_form.house_bl_no }}
+                    {% if parcel_form.house_bl_no.errors %}<div class="invalid-feedback d-block">{{ parcel_form.house_bl_no.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12">
+                    <h5 class="mb-2 text-body-highlight">Marks & Numbers (Repeat)</h5>
+                    {{ parcel_form.marks_numbers }}
+                    {% if parcel_form.marks_numbers.errors %}<div class="invalid-feedback d-block">{{ parcel_form.marks_numbers.errors|striptags }}</div>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- RISK & HOLDS -->
+              <div class="tab-pane fade" id="riskTabContent" role="tabpanel" aria-labelledby="riskTab">
+                <h5 class="mb-3 text-body-highlight">Risk & Holds</h5>
+
+                <div class="row g-3">
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Risk Flag</h5>
+                    {{ parcel_form.risk_flag }}
+                    {% if parcel_form.risk_flag.errors %}<div class="invalid-feedback d-block">{{ parcel_form.risk_flag.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12 col-lg-6">
+                    <h5 class="mb-2 text-body-highlight">Hold Code</h5>
+                    {{ parcel_form.hold_code }}
+                    {% if parcel_form.hold_code.errors %}<div class="invalid-feedback d-block">{{ parcel_form.hold_code.errors|striptags }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-12">
+                    <h5 class="mb-2 text-body-highlight">Hold Reason</h5>
+                    {{ parcel_form.hold_reason }}
+                    {% if parcel_form.hold_reason.errors %}<div class="invalid-feedback d-block">{{ parcel_form.hold_reason.errors|striptags }}</div>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- INTERNAL OPERATIONS -->
+              <div class="tab-pane fade" id="attributesTabContent" role="tabpanel" aria-labelledby="attributesTab">
+                <h5 class="mb-3 text-body-highlight">Internal Operations</h5>
+
+                <div class="form-check mb-2">
+                  {{ parcel_form.fragile_goods }}
+                  <label class="form-check-label text-body fs-8" for="{{ parcel_form.fragile_goods.id_for_label }}">Fragile Goods</label>
+                  {% if parcel_form.fragile_goods.errors %}<div class="invalid-feedback d-block">{{ parcel_form.fragile_goods.errors|striptags }}</div>{% endif %}
+                </div>
+
+                <div class="form-check mb-3">
+                  {{ parcel_form.biodegradbale_goods }}
+                  <label class="form-check-label text-body fs-8" for="{{ parcel_form.biodegradbale_goods.id_for_label }}">Biodegradable</label>
+                  {% if parcel_form.biodegradbale_goods.errors %}<div class="invalid-feedback d-block">{{ parcel_form.biodegradbale_goods.errors|striptags }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label text-body fs-8">Expiry Date</label>
+                  {{ parcel_form.expiry_date }}
+                  {% if parcel_form.expiry_date.errors %}<div class="invalid-feedback d-block">{{ parcel_form.expiry_date.errors|striptags }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label text-body fs-8">Internal Notes</label>
+                  {{ parcel_form.internal_notes }}
+                  {% if parcel_form.internal_notes.errors %}<div class="invalid-feedback d-block">{{ parcel_form.internal_notes.errors|striptags }}</div>{% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column placeholder (kept as template so it doesn't render) -->
+      <template>
+        <!-- (your previous right-side cards omitted, kept as template) -->
+      </template>
+    </div>
+
+    <!-- Raw error dumps (optional) -->
+    {% if form and form.errors %}
+      <pre class="mt-3 small text-danger">{{ form.errors }}</pre>
+    {% endif %}
+    {% if parcel_form and parcel_form.errors %}
+      <pre class="mt-3 small text-danger">{{ parcel_form.errors }}</pre>
+    {% endif %}
+    {% if customer_form and customer_form.errors %}
+      <pre class="mt-3 small text-danger">{{ customer_form.errors }}</pre>
+    {% endif %}
+  </form>
+  <footer class="footer position-absolute">
+    <div class="row g-0 justify-content-between align-items-center h-100">
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 mt-2 mt-sm-0 text-body">
+          Thank you for creating with FlintIO<span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;
+        </p>
+      </div>
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 text-body-tertiary text-opacity-85">v1.0.0</p>
+      </div>
+    </div>
+  </footer>
+</div>
+{% endblock %}

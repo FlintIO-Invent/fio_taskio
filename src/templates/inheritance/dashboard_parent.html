@@ -1,0 +1,322 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en-US" dir="ltr" data-navigation-type="default" data-navbar-horizontal-shape="default">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+    <!-- ===============================================-->
+    <!--    Document Title-->
+    <!-- ===============================================-->
+    <title>TaskIO - Tenant Management System</title>
+
+
+    <!-- ===============================================-->
+    <!--    Favicons-->
+    <!-- ===============================================-->
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/logo2.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/logo2.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/logo2.png' %}">
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/logo2.ico' %}">
+    <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}">
+    <meta name="msapplication-TileImage" content="../assets/img/favicons/mstile-150x150.png">
+    <meta name="theme-color" content="#ffffff">
+    <script src="{% static 'vendors/simplebar/simplebar.min.js' %}"></script>
+    <script src="{% static 'assets/js/config.js' %}"></script>
+
+
+    <!-- ===============================================-->
+    <!--    Stylesheets-->
+    <!-- ===============================================-->
+    <link href="{% static 'vendors/dropzone/dropzone.css' %}"        rel="stylesheet">
+    <link href="{% static 'vendors/choices/choices.min.css' %}"      rel="stylesheet">
+    <link href="{% static 'vendors/flatpickr/flatpickr.min.css' %}"  rel="stylesheet">
+    <link href="{% static 'vendors/mapbox-gl/mapbox-gl.css' %}" rel="stylesheet">
+    <link href="{% static 'vendors/swiper/swiper-bundle.min.css' %}" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700;800;900&amp;display=swap" rel="stylesheet">
+    <link href="{% static 'vendors/simplebar/simplebar.min.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css">
+    <link href="{% static 'assets/css/theme-rtl.min.css' %}" type="text/css" rel="stylesheet" id="style-rtl">
+    <link href="{% static 'assets/css/theme.min.css' %}" type="text/css" rel="stylesheet" id="style-default">
+    <link href="{% static 'assets/css/user-rtl.min.css' %}" type="text/css" rel="stylesheet" id="user-style-rtl">
+    <link href="{% static 'assets/css/user.min.css' %}" type="text/css" rel="stylesheet" id="user-style-default">
+    <script>
+      var phoenixIsRTL = window.config.config.phoenixIsRTL;
+      if (phoenixIsRTL) {
+        var linkDefault = document.getElementById('style-default');
+        var userLinkDefault = document.getElementById('user-style-default');
+        linkDefault.setAttribute('disabled', true);
+        userLinkDefault.setAttribute('disabled', true);
+        document.querySelector('html').setAttribute('dir', 'rtl');
+      } else {
+        var linkRTL = document.getElementById('style-rtl');
+        var userLinkRTL = document.getElementById('user-style-rtl');
+        linkRTL.setAttribute('disabled', true);
+        userLinkRTL.setAttribute('disabled', true);
+      }
+    </script>
+  </head>
+
+  <body>
+    <!-- ===============================================-->
+    <!--    Main Content-->
+    <!-- ===============================================-->
+    <main class="main" id="top">
+      <nav class="navbar navbar-vertical navbar-expand-lg">
+          <div class="collapse navbar-collapse" id="navbarVerticalCollapse">
+              <!-- scrollbar removed-->
+              <div class="navbar-vertical-content">
+                  <ul class="navbar-nav flex-column" id="navbarVerticalNav">
+                        <li class="nav-item">
+                            <!-- parent pages-->
+                            <div class="nav-item-wrapper">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-home" role="button" data-bs-toggle="collapse" aria-expanded="true" aria-controls="nv-home">
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                        <span class="nav-link-icon"><span data-feather="pie-chart"></span></span><span class="nav-link-text">Home</span>
+                                    </div>
+                                </a>
+                                <div class="parent-wrapper label-1">
+                                    <ul class="nav collapse parent show" data-bs-parent="#navbarVerticalCollapse" id="nv-home">
+                                        <li class="collapsed-nav-item-title d-none"></li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="/crm/agent/dashboard/">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
+                                            </a>
+                                            <a class="nav-link" href="/dashboards/employee_dashboard_profile">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text"> {{ request.user.first_name }}'s  Profile</span></div>
+                                            </a>
+                                            <!-- more inner pages-->
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </li>
+
+                        <!-- Customer Management Section -->
+                        <li class="nav-item">
+                            <!-- label-->
+                            <p class="navbar-vertical-label">Customer Management</p>
+                            <hr class="navbar-vertical-line" />
+
+                            <!-- parent pages Parcel Customer Management-->
+                            <div class="nav-item-wrapper">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-parcel-invoice" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-parcel-invoice">
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Invoice</span>
+                                    </div>
+                                </a>
+                                <div class="parent-wrapper label-1">
+                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-parcel-invoice">
+                                        <li class="collapsed-nav-item-title d-none"></li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="/parcels/parcel_registration">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create new invoice</span></div>
+                                            </a>
+                                            <!-- more inner pages-->
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="/parcels/parcel_view">  
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">View All Invoices </span></div>
+                                            </a>
+                                            <!-- more inner pages-->
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- parent pages Client Manifest-->
+                            <div class="nav-item-wrapper">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-client" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-client">
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Clients</span>
+                                    </div>
+                                </a>
+                                <div class="parent-wrapper label-1">
+                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-client">
+                                        <li class="collapsed-nav-item-title d-none"></li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="/crm/staff/clients/create/">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create new client</span></div>
+                                            </a>
+                                            <!-- more inner pages-->
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'staff_client_list' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">View All Clients</span></div>
+                                            </a>
+                                            <!-- more inner pages-->
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'staff_lead_list' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">View All Leads</span></div>
+                                            </a>
+                                            <!-- more inner pages-->
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </li>
+
+                        <!-- Apps Section Employee-->
+                        <li class="nav-item">
+                            <!-- label-->
+                            <p class="navbar-vertical-label">Productivity</p>
+                            <hr class="navbar-vertical-line"/>
+                            
+                            <!-- parent pages-->
+                            <div class="nav-item-wrapper"> 
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-calendar" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-calendar">
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                        <span class="nav-link-icon"><span data-feather="calendar"></span></span><span class="nav-link-text">Quotes</span>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="nav-item-wrapper">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-to-do-list" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="#nv-to-do-list">
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                        <span class="nav-link-icon"><span data-feather="list"></span></span><span class="nav-link-text">Jobs</span>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="nav-item-wrapper"> 
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-calendar" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-calendar">
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                        <span class="nav-link-icon"><span data-feather="calendar"></span></span><span class="nav-link-text">Marketing</span>
+                                    </div>
+                                </a>
+                            </div>
+                            
+                        </li>
+                  </ul>
+              </div>
+          </div>
+          <div class="navbar-vertical-footer">
+              <button class="btn navbar-vertical-toggle border-0 fw-semibold w-100 white-space-nowrap d-flex align-items-center">
+                  <span class="uil uil-left-arrow-to-left fs-8"></span><span class="uil uil-arrow-from-right fs-8"></span><span class="navbar-vertical-footer-text ms-2">Collapsed View</span>
+              </button>
+          </div>
+      </nav>
+
+      <nav class="navbar navbar-top fixed-top navbar-expand" id="navbarDefault">
+          <div class="collapse navbar-collapse justify-content-between">
+              <div class="navbar-logo">
+                  <button
+                      class="btn navbar-toggler navbar-toggler-humburger-icon hover-bg-transparent"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#navbarVerticalCollapse"
+                      aria-controls="navbarVerticalCollapse"
+                      aria-expanded="false"
+                      aria-label="Toggle Navigation"
+                  >
+                      <span class="navbar-toggle-icon"><span class="toggle-line"></span></span>
+                  </button>
+                  <a class="navbar-brand me-1 me-sm-3" href="../index.html">
+                      <div class="d-flex align-items-center">
+                          <div class="d-flex align-items-center">
+                              <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Bera Septic Services" width="27" />
+                              <h5 class="logo-text ms-2 d-none d-sm-block">TaskIO</h5>
+                          </div>
+                      </div>
+                  </a>
+              </div>
+              <ul class="navbar-nav navbar-nav-icons flex-row">
+                    <li class="nav-item">
+                        <div class="theme-control-toggle fa-icon-wait px-2">
+                            <input class="form-check-input ms-0 theme-control-toggle-input" type="checkbox" data-theme-control="phoenixTheme" value="dark" id="themeControlToggle" />
+                            <label class="mb-0 theme-control-toggle-label theme-control-toggle-light" for="themeControlToggle" data-bs-toggle="tooltip" data-bs-placement="left" data-bs-title="Switch theme" style="height: 32px; width: 32px;">
+                                <span class="icon" data-feather="moon"></span>
+                            </label>
+                            <label class="mb-0 theme-control-toggle-label theme-control-toggle-dark" for="themeControlToggle" data-bs-toggle="tooltip" data-bs-placement="left" data-bs-title="Switch theme" style="height: 32px; width: 32px;">
+                                <span class="icon" data-feather="sun"></span>
+                            </label>
+                        </div>
+                    </li>
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#searchBoxModal">
+                            <span class="d-block" style="height: 20px; width: 20px;"><span data-feather="search" style="height: 19px; width: 19px; margin-bottom: 2px;"></span></span>
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link lh-1 pe-0" id="navbarDropdownUser" href="#!" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
+                            <div class="avatar avatar-xl">
+                                <div class="avatar-name rounded-circle"><span>{{ request.user.company_name|slice:":1" }}</span></div>
+                            </div>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end navbar-dropdown-caret py-0 dropdown-profile shadow border" aria-labelledby="navbarDropdownUser">
+                            <div class="card position-relative border-0">
+                                <div class="my-2 text-center fw-bold fs-10 text-body-quaternary">
+                                    <!-- <a class="text-body-quaternary me-1" href="#!">Privacy policy</a>&bull;<a class="text-body-quaternary mx-1" href="#!">Terms</a>&bull;<a class="text-body-quaternary ms-1" href="#!">Cookies</a> -->
+                                </div>
+                                <div class="px-3">
+                                    <a class="btn btn-phoenix-secondary d-flex flex-center w-100" href="/accounts/employee_login"> <span class="me-2" data-feather="log-out"> </span>Log out</a>
+                                </div>
+                                <div class="my-2 text-center fw-bold fs-10 text-body-quaternary">
+                                    <!-- <a class="text-body-quaternary me-1" href="#!">Privacy policy</a>&bull;<a class="text-body-quaternary mx-1" href="#!">Terms</a>&bull;<a class="text-body-quaternary ms-1" href="#!">Cookies</a> -->
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+              </ul>
+          </div>
+      </nav>
+      
+      {% block content %} {% endblock %}
+      
+      <script>
+          var navbarTopStyle = window.config.config.phoenixNavbarTopStyle;
+          var navbarTop = document.querySelector(".navbar-top");
+          if (navbarTopStyle === "darker") {
+              navbarTop.setAttribute("data-navbar-appearance", "darker");
+          }
+
+          var navbarVerticalStyle = window.config.config.phoenixNavbarVerticalStyle;
+          var navbarVertical = document.querySelector(".navbar-vertical");
+          if (navbarVertical && navbarVerticalStyle === "darker") {
+              navbarVertical.setAttribute("data-navbar-appearance", "darker");
+          }
+      </script>
+    
+    </main>
+
+    <!-- ===============================================-->
+    <!--    JavaScripts-->
+    <!-- ===============================================-->
+    <script src="{% static 'vendors/popper/popper.min.js' %}"></script>
+    <script src="{% static 'vendors/bootstrap/bootstrap.min.js' %}"></script>
+    <script src="{% static 'vendors/anchorjs/anchor.min.js' %}"></script>
+    <script src="{% static 'vendors/is/is.min.js' %}"></script>
+    <script src="{% static 'vendors/fontawesome/all.min.js' %}"></script>
+    <script src="{% static 'vendors/lodash/lodash.min.js' %}"></script>
+    <script src="{% static 'vendors/list.js/list.min.js' %}"></script>
+    <script src="{% static 'vendors/feather-icons/feather.min.js' %}"></script>
+    <script src="{% static 'vendors/dayjs/dayjs.min.js' %}"></script>
+    <script src="{% static 'assets/js/phoenix.js' %}"></script>
+    <script src="{% static 'vendors/echarts/echarts.min.js' %}"></script>
+    <script src="{% static 'assets/js/dashboards/travel-agency-dashboard.js' %}"></script>
+    <script src="{% static 'vendors/mapbox-gl/mapbox-gl.js' %}"></script>
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+    <script src="{% static 'vendors/swiper/swiper-bundle.min.js' %}"></script>
+    <script src="{% static 'vendors/tinymce/tinymce.min.js' %}"></script>
+    <script src="{% static 'vendors/dropzone/dropzone-min.js' %}"></script>
+    <script src="{% static 'vendors/choices/choices.min.js' %}"></script>
+    <script src="{% static 'vendors/flatpickr/flatpickr.min.js' %}"></script>
+    <script src="{% static 'assets/js/custom_fucntionality.js' %}"></script>
+    <script src="{% static 'assets/js/jquery-3.7.1.min.js' %}"></script>
+    <script src="{% static 'assets/js/dashboards/crm-dashboard.js' %}"></script>
+
+
+  </body>
+
+</html>

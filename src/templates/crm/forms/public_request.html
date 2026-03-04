@@ -1,0 +1,161 @@
+{% extends 'inheritance/split_forms_parent.html'%}
+{% load static %}
+
+{% block content %}
+<div class="row flex-center position-relative min-vh-100 g-0 py-5">
+  <div class="col-12 col-lg-10 col-xl-8">
+    <div class="card border border-translucent auth-card">
+      <div class="card-body p-5 pe-md-0">
+        <div class="row align-items-center gx-0 gy-7">
+
+          <div class="col-auto bg-body-highlight dark__bg-gray-1100 rounded-3 position-relative overflow-hidden auth-title-box">
+            <div class="bg-holder" style="background-image:url('{% static 'assets/img/bg/38.png' %}');"></div>
+
+            <div class="position-relative px-5 py-9 text-center text-md-start card-sign-up" style="min-height: 640px;">
+              <h3 class="mb-3 text-body-emphasis fs-7">Bera Septic</h3>
+              <p class="text-body-tertiary">
+                Help us serve you better! By filling out this quick form, you’re helping us provide professional invoices and
+                maintain accurate service records. All information provided is kept strictly confidential and will never be shared
+                with anyone.
+              </p>
+            </div>
+
+            <div class="position-relative z-n1 mb-6 d-none d-md-block text-center mt-md-15">
+              <img class="auth-title-box-img d-dark-none" src="{% static 'assets/img/spot-illustrations/auth.png' %}" alt="" />
+              <img class="auth-title-box-img d-light-none" src="{% static 'assets/img/spot-illustrations/auth-dark.png' %}" alt="" />
+            </div>
+          </div>
+
+          <div class="col-8">
+            <div class="auth-form-box mx-auto" style="max-width: 640px;">
+
+              <div class="text-center mb-7">
+                <a class="d-flex flex-center text-decoration-none mb-4" href="{% url 'home' %}">
+                  <div class="d-flex align-items-center fw-bolder fs-3 d-inline-block">
+                    <img src="{% static 'assets/img/icons/berasepticlogo1.png' %}" alt="BS" width="160" />
+                  </div>
+                </a>
+              </div>
+
+              <div class="position-relative mt-4">
+                <hr class="bg-body-secondary" />
+                <div class="divider-content-center bg-body-emphasis">Service Request Form</div>
+              </div>
+
+              <form method="post" action="">
+                {% csrf_token %}
+
+                {# show non-field errors (e.g. form.clean()) #}
+                {% if form.non_field_errors %}
+                  <div class="alert alert-danger">
+                    {{ form.non_field_errors }}
+                  </div>
+                {% endif %}
+
+                <!-- lead_type -->
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.lead_type.id_for_label }}">What can we help with?</label>
+                  {{ form.lead_type }}
+                  {% if form.lead_type.errors %}<div class="text-danger small">{{ form.lead_type.errors }}</div>{% endif %}
+                </div>
+
+                <!-- category -->
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.category.id_for_label }}">Service category</label>
+                  {{ form.category }}
+                  {% if form.category.errors %}
+                    <div class="text-danger small">{{ form.category.errors }}</div>
+                  {% endif %}
+                </div>
+
+                <!-- Company Name -->
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.company_name.id_for_label }}">Company Name</label>
+                  {{ form.company_name }}
+                  {% if form.company_name.errors %}<div class="text-danger small">{{ form.company_name.errors }}</div>{% endif %}
+                </div>
+
+                <!-- first/last name -->
+                <div class="row g-3 mb-3">
+                  <div class="col-sm-6 text-start">
+                    <label class="form-label" for="{{ form.first_name.id_for_label }}">First name</label>
+                    {{ form.first_name }}
+                    {% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors }}</div>{% endif %}
+                  </div>
+                  <div class="col-sm-6 text-start">
+                    <label class="form-label" for="{{ form.last_name.id_for_label }}">Last name</label>
+                    {{ form.last_name }}
+                    {% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors }}</div>{% endif %}
+                  </div>
+                </div>
+
+                <!-- email -->
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.email.id_for_label }}">Email address</label>
+                  {{ form.email }}
+                  {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+                </div>
+
+                <!-- phone -->
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.phone.id_for_label }}">Phone number</label>
+                  {{ form.phone }}
+                  {% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors }}</div>{% endif %}
+                </div>
+
+                <!-- address -->
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.street_address.id_for_label }}">Street Address </label>
+                  {{ form.street_address }}
+                  {% if form.street_address.errors %}<div class="text-danger small">{{ form.street_address.errors }}</div>{% endif %}
+                </div>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-sm-5 text-start">
+                    <label class="form-label" for="{{ form.district.id_for_label }}">District</label>
+                    {{ form.district }}
+                    {% if form.district.errors %}<div class="text-danger small">{{ form.district.errors }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-sm-3 text-start">
+                    <label class="form-label" for="{{ form.country.id_for_label }}">Country / State</label>
+                    {{ form.country }}
+                    {% if form.country.errors %}<div class="text-danger small">{{ form.country.errors }}</div>{% endif %}
+                  </div>
+
+                  <div class="col-sm-4 text-start">
+                    <label class="form-label" for="{{ form.postal_code.id_for_label }}">Postal Code</label>
+                    {{ form.postal_code }}
+                    {% if form.postal_code.errors %}<div class="text-danger small">{{ form.postal_code.errors }}</div>{% endif %}
+                  </div>
+                </div>
+
+                <!-- message -->
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.message.id_for_label }}">Message / Service details</label>
+                  {{ form.message }}
+                  {% if form.message.errors %}<div class="text-danger small">{{ form.message.errors }}</div>{% endif %}
+                </div>
+
+                <!-- consent -->
+                <div class="form-check mb-3">
+                  {{ form.consent_to_contact }}
+                  <label class="form-label fs-9 text-transform-none" for="{{ form.consent_to_contact.id_for_label }}">
+                    I consent to be contacted via email and phone for service requests and updates.
+                    <a href="#!">Terms</a> and <a href="#!">Privacy Policy</a>
+                  </label>
+                  {% if form.consent_to_contact.errors %}<div class="text-danger small">{{ form.consent_to_contact.errors }}</div>{% endif %}
+                </div>
+
+                <button class="btn btn-primary w-100 mb-3" type="submit">Submit</button>
+              </form>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

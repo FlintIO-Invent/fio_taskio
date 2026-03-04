@@ -1,28 +1,32 @@
 [project]
-name = "fio_pskel"
+name = "fio_taskio"
 version = "0.1.0"
-description = " is the skeleton and starting point for all FIO projects"
+description = "TaskIO is a project designed to ingest service requests and "
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "FlintIO" }]
 
 dependencies = [
-]
+    # Core Django
+    "django>=5.0,<6.0",
+    "psycopg[binary]>=3.1.18",
+    "loguru>=0.7.0",
+    "pydantic>=2.12.0",
+    "pydantic-settings>=2.0",
+    ]
 
 [project.optional-dependencies]
-# Machine Learning tooling
-ml = [
-
-]
-
-# API tooling
-api = [
-
-]
 
 # Dev tooling
 dev = [
+    "pytest>=8.2.0",
+    "pytest-django>=4.8.0",
+    "coverage>=7.5.1",
+    "ruff>=0.4.4",
+    "black>=24.4.2",
+    "mypy>=1.10.0",
+    "django-debug-toolbar>=4.3.0",
 ]
 
 [tool.ruff]
@@ -45,10 +49,10 @@ requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/fio_pskel"]
+packages = ["src/fio_taskio"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/fio_pskel", "README.md", "pyproject.toml"]
+include = ["src/fio_taskio", "README.md", "pyproject.toml"]
 
 [browser]
 gatherUsageStats = false

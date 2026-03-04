@@ -1,0 +1,256 @@
+{% extends 'inheritance/dashboard_parent.html'%}
+{% load static %}
+
+{% block content %}
+
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0"></ol>
+  </nav>
+
+  <h2 class="text-bold text-body-emphasis mb-5">Lead List</h2>
+
+  <div class="pb-6">
+    <div id="lealsTable" data-list='{"valueNames":["name","email","phone","status","leadtype","date"],"page":10,"pagination":true}'>
+      <div class="row g-3 justify-content-between mb-4">
+        <div class="col-auto">
+          <div class="d-md-flex justify-content-between">
+            <div>
+              <a class="btn btn-primary me-4" href="{% url 'staff_lead_create' %}">
+                <span class="fas fa-plus me-2"></span>Create Lead
+              </a>
+              <button class="btn btn-link text-body px-0" type="button">
+                <span class="fa-solid fa-file-export fs-9 me-2"></span>Export
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-auto">
+          <!-- FILTERS: server-side GET (status, lead_type, q) -->
+          <form class="d-flex" method="get" action="{% url 'staff_lead_list' %}">
+            <div class="search-box me-2">
+              <div class="position-relative">
+                <input
+                  class="form-control search-input"
+                  type="search"
+                  name="q"
+                  value="{{ filters.q|default:'' }}"
+                  placeholder="Search by name, email, phone"
+                  aria-label="Search"
+                />
+                <span class="fas fa-search search-box-icon"></span>
+              </div>
+            </div>
+
+            <select class="form-select me-2" name="lead_type" aria-label="Lead type">
+              <option value="" {% if not filters.lead_type %}selected{% endif %}>All types</option>
+              <option value="REQUEST" {% if filters.lead_type == "REQUEST" %}selected{% endif %}>Request</option>
+              <option value="INTEREST" {% if filters.lead_type == "INTEREST" %}selected{% endif %}>Interest</option>
+            </select>
+
+            <select class="form-select me-2" name="status" aria-label="Status">
+              <option value="" {% if not filters.status %}selected{% endif %}>All statuses</option>
+              <option value="NEW" {% if filters.status == "NEW" %}selected{% endif %}>New</option>
+              <option value="CONTACTED" {% if filters.status == "CONTACTED" %}selected{% endif %}>Contacted</option>
+              <option value="INVOICED" {% if filters.status == "INVOICED" %}selected{% endif %}>Invoiced</option>
+              <option value="CLOSED" {% if filters.status == "CLOSED" %}selected{% endif %}>Closed</option>
+            </select>
+
+            <button class="btn btn-primary px-3 me-2" type="submit">
+              <span class="fa-solid fa-filter me-2"></span>Apply
+            </button>
+
+            <a class="btn btn-phoenix-secondary px-3" href="{% url 'staff_lead_list' %}">
+              <span class="fas fa-arrows-rotate me-2"></span>Reset
+            </a>
+          </form>
+        </div>
+      </div>
+
+      <div class="table-responsive scrollbar mx-n1 px-1">
+        <table class="table fs-9 mb-0 leads-table border-top border-translucent">
+          <thead>
+            <tr>
+              <th class="white-space-nowrap fs-9 align-middle ps-0" style="max-width:20px; width:18px;">
+                <div class="form-check mb-0 fs-8">
+                  <input class="form-check-input" type="checkbox" data-bulk-select='{"body":"leal-tables-body"}' />
+                </div>
+              </th>
+
+              <th class="sort white-space-nowrap align-middle text-uppercase ps-0" scope="col" data-sort="name" style="width:25%;">Name</th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="email" style="width:20%;">
+                <div class="d-inline-flex flex-center">
+                  <div class="d-flex align-items-center px-1 py-1 bg-success-subtle rounded me-2">
+                    <span class="text-success-dark" data-feather="mail"></span>
+                  </div>
+                  <span>Email</span>
+                </div>
+              </th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="phone" style="width:15%; min-width: 180px;">
+                <div class="d-inline-flex flex-center">
+                  <div class="d-flex align-items-center px-1 py-1 bg-primary-subtle rounded me-2">
+                    <span class="text-primary-dark" data-feather="phone"></span>
+                  </div>
+                  <span>Phone</span>
+                </div>
+              </th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="leadtype" style="width:12%;">
+                <div class="d-inline-flex flex-center">
+                  <div class="d-flex align-items-center px-1 py-1 bg-warning-subtle rounded me-2">
+                    <span class="text-warning-dark" data-feather="tag"></span>
+                  </div>
+                  <span>Type</span>
+                </div>
+              </th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase" scope="col" data-sort="status" style="width:13%;">Status</th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase" scope="col" data-sort="date" style="width:15%;">Create date</th>
+
+              <th class="sort text-end align-middle pe-0 ps-4" scope="col"></th>
+            </tr>
+          </thead>
+
+          <tbody class="list" id="leal-tables-body">
+            {% for lead in leads %}
+            <tr class="hover-actions-trigger btn-reveal-trigger position-static">
+              <td class="fs-9 align-middle">
+                <div class="form-check mb-0 fs-8">
+                  <input class="form-check-input" type="checkbox" />
+                </div>
+              </td>
+
+              <td class="name align-middle white-space-nowrap ps-0">
+                <div class="d-flex align-items-center">
+                  <div class="avatar avatar-xl me-3">
+                    <!-- optional: replace with your avatar field if you have one -->
+                    <div class="rounded-circle bg-body-secondary d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
+                      <span class="fw-bold text-body">{{ lead.first_name|default:""|first }}{{ lead.last_name|default:""|first }}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <a class="fs-8 fw-bold text-body-highlight" href="#!">
+                      {{ lead.first_name }} {{ lead.last_name }}
+                    </a>
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="badge badge-phoenix badge-phoenix-info leadtype">
+                        {{ lead.get_lead_type_display }}
+                      </span>
+
+                      {% if lead.status == "NEW" %}
+                        <span class="badge badge-phoenix badge-phoenix-primary status">{{ lead.get_status_display }}</span>
+                      {% elif lead.status == "CONTACTED" %}
+                        <span class="badge badge-phoenix badge-phoenix-info status">{{ lead.get_status_display }}</span>
+                      {% elif lead.status == "INVOICED" %}
+                        <span class="badge badge-phoenix badge-phoenix-warning status">{{ lead.get_status_display }}</span>
+                      {% elif lead.status == "CLOSED" %}
+                        <span class="badge badge-phoenix badge-phoenix-success status">{{ lead.get_status_display }}</span>
+                      {% else %}
+                        <span class="badge badge-phoenix badge-phoenix-secondary status">{{ lead.get_status_display }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <td class="email align-middle white-space-nowrap fw-semibold ps-4 border-end border-translucent">
+                <a class="text-body-highlight" href="mailto:{{ lead.email }}">{{ lead.email }}</a>
+              </td>
+
+              <td class="phone align-middle white-space-nowrap fw-semibold ps-4 border-end border-translucent">
+                {% if lead.phone %}
+                  <a class="text-body-highlight" href="tel:{{ lead.phone }}">{{ lead.phone }}</a>
+                {% else %}
+                  <span class="text-body-tertiary">—</span>
+                {% endif %}
+              </td>
+
+              <td class="leadtype align-middle white-space-nowrap ps-4 border-end border-translucent fw-semibold text-body-highlight">
+                {{ lead.get_lead_type_display }}
+              </td>
+
+              <td class="status align-middle white-space-nowrap ps-4 fw-semibold text-body-highlight">
+                {{ lead.get_status_display }}
+              </td>
+
+              <td class="date align-middle white-space-nowrap text-body-tertiary text-opacity-85 ps-4">
+                {{ lead.created_at|date:"M d, Y, P" }}
+              </td>
+
+              <td class="align-middle white-space-nowrap text-end pe-0 ps-4">
+                <div class="btn-reveal-trigger position-static">
+                  <button class="btn btn-sm dropdown-toggle dropdown-caret-none transition-none btn-reveal fs-10" type="button" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent">
+                    <span class="fas fa-ellipsis-h fs-10"></span>
+                  </button>
+                  <div class="dropdown-menu dropdown-menu-end py-2">
+                    <!-- wire these up when you add detail/edit/delete urls -->
+                    <a class="dropdown-item" href="#!">View</a>
+                    <a class="dropdown-item" href="#!">Edit</a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item text-danger" href="#!">Remove</a>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center py-6 text-body-tertiary">
+                No leads found for the selected filters.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="row align-items-center justify-content-end py-4 pe-0 fs-9">
+        <div class="col-auto d-flex">
+          <p class="mb-0 d-none d-sm-block me-3 fw-semibold text-body" data-list-info="data-list-info"></p>
+          <a class="fw-semibold" href="#!" data-list-view="*">View all<span class="fas fa-angle-right ms-1" data-fa-transform="down-1"></span></a>
+          <a class="fw-semibold d-none" href="#!" data-list-view="less">View Less<span class="fas fa-angle-right ms-1" data-fa-transform="down-1"></span></a>
+        </div>
+        <div class="col-auto d-flex">
+          <button class="page-link" data-list-pagination="prev"><span class="fas fa-chevron-left"></span></button>
+          <ul class="mb-0 pagination"></ul>
+          <button class="page-link pe-0" data-list-pagination="next"><span class="fas fa-chevron-right"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer position-absolute">
+    <div class="row g-0 justify-content-between align-items-center h-100">
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 mt-2 mt-sm-0 text-body">
+          Thank you for creating with FlintIO<span class="d-none d-sm-inline-block"></span>
+          <span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;
+          <a class="mx-1" href="https://www.flintio.net/"></a>
+        </p>
+      </div>
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 text-body-tertiary text-opacity-85">v1.0.0</p>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  var navbarTopStyle = window.config.config.phoenixNavbarTopStyle;
+  var navbarTop = document.querySelector('.navbar-top');
+  if (navbarTopStyle === 'darker') {
+    navbarTop.setAttribute('data-navbar-appearance', 'darker');
+  }
+
+  var navbarVerticalStyle = window.config.config.phoenixNavbarVerticalStyle;
+  var navbarVertical = document.querySelector('.navbar-vertical');
+  if (navbarVertical && navbarVerticalStyle === 'darker') {
+    navbarVertical.setAttribute('data-navbar-appearance', 'darker');
+  }
+</script>
+
+{% endblock %}

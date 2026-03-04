@@ -1,0 +1,635 @@
+{% extends 'inheritance/dashboard_parent.html'%} 
+{% load static %} 
+{% block content %}
+  
+  
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0"></ol>
+  </nav>
+
+  <section class="pt-1 pb-5">
+    <div class="container">
+      <nav class="mb-3" aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+        
+        </ol>
+      </nav>
+      <div class="row align-items-center justify-content-between g-3 mb-4">
+        <div class="col-auto">
+          <h2 class="mb-0">{{ request.user.first_name }}'s Profile Card</h2>
+        </div>
+        <div class="col-auto">
+        </div>
+      </div>
+      <div class="row g-3 mb-6">
+        <div class="col-12 col-lg-8">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="border-bottom border-dashed pb-4">
+                <div class="row align-items-center g-3 g-sm-5 text-center text-sm-start">
+                  <div class="col-12 col-sm-auto">
+                    <div class="avatar avatar-5xl">
+                      <div class="avatar-name rounded-circle">
+                        <span>{{ request.user.first_name|slice:":1" }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-sm-auto flex-1">
+                    <h3>{{ request.user.first_name }} {{ request.user.last_name }}</h3>
+                    <p class="text-body-secondary">  Hired on {{ request.user.date_joined }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="d-flex flex-between-center pt-4">
+                <div>
+                  <h6 class="mb-2 text-body-secondary">Assigned Location</h6>
+                  <h4 class="fs-7 text-body-highlight mb-0">{{ request.user.assigned_location }}</h4>
+                </div>
+                <div class="text-end">
+                  <h6 class="mb-2 text-body-secondary">Role</h6>
+                  <h4 class="fs-7 text-body-highlight mb-0">{{ request.user.role }}</h4>
+                </div>
+                <div class="text-end">
+                  <h6 class="mb-2 text-body-secondary">Status</h6>
+                  <h4 class="fs-7 text-body-highlight mb-0">{{ request.user.employment_status }}</h4>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-4">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="border-bottom border-dashed">
+                <h4 class="mb-3">Default Address
+                  <button class="btn btn-link p-0" type="button"> <span class="fas fa-edit fs-9 ms-3 text-body-quaternary"></span></button>
+                </h4>
+              </div>
+              <div class="pt-4 mb-7 mb-lg-4 mb-xl-7">
+                <div class="row justify-content-between">
+                  <div class="col-auto">
+                    <h5 class="text-body-highlight">Address</h5>
+                  </div>
+                  <div class="col-auto">
+                    <p class="text-body-secondary">{{ request.user.address  }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="border-top border-dashed pt-4">
+                <div class="row flex-between-center mb-2">
+                  <div class="col-auto">
+                    <h5 class="text-body-highlight mb-0">Email</h5>
+                  </div>
+                  <div class="col-auto"><a class="lh-1" href="mailto:shatinon@jeemail.com">{{request.user.email}}</a></div>
+                </div>
+                <div class="row flex-between-center">
+                  <div class="col-auto">
+                    <h5 class="text-body-highlight mb-0">Phone</h5>
+                  </div>
+                  <div class="col-auto"><a href="tel:+1234567890">{{request.user.phone_number}}</a></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="row pb-9 gx-4">
+    <div class="col-xl-7 pe-lg-2 flex-1">
+      <ul
+        class="nav nav-underline optionChainTableHeader gap-0 flex-nowrap scrollbar mb-4"
+        id="employmentTabs"
+        role="tablist"
+      >
+        <li class="nav-item">
+          <a class="nav-link pt-0 text-nowrap active ps-0 ps-3"
+            id="tab-empProfile"
+            href="#empProfile-tab"
+            data-bs-toggle="tab"
+            role="tab"
+            aria-controls="empProfile-tab"
+            aria-selected="true">Profile</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link pt-0 text-nowrap px-3"
+            id="tab-empJob"
+            href="#empJob-tab"
+            data-bs-toggle="tab"
+            role="tab"
+            aria-controls="empJob-tab"
+            aria-selected="false">Job & Contract</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link pt-0 text-nowrap px-3"
+            id="tab-empComp"
+            href="#empComp-tab"
+            data-bs-toggle="tab"
+            role="tab"
+            aria-controls="empComp-tab"
+            aria-selected="false">Compensation</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link pt-0 text-nowrap px-3"
+            id="tab-empDocs"
+            href="#empDocs-tab"
+            data-bs-toggle="tab"
+            role="tab"
+            aria-controls="empDocs-tab"
+            aria-selected="false">Documents</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link pt-0 text-nowrap px-3"
+            id="tab-empCompliance"
+            href="#empCompliance-tab"
+            data-bs-toggle="tab"
+            role="tab"
+            aria-controls="empCompliance-tab"
+            aria-selected="false">Compliance</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link pt-0 text-nowrap px-3"
+            id="tab-empTimeOff"
+            href="#empTimeOff-tab"
+            data-bs-toggle="tab"
+            role="tab"
+            aria-controls="empTimeOff-tab"
+            aria-selected="false">Time Off</a>
+        </li>
+        <li class="nav-item flex-1 d-none d-md-inline">
+          <a class="nav-link pt-0 text-nowrap px-3"
+            id="tab-empNotes"
+            href="#empNotes-tab"
+            data-bs-toggle="tab"
+            role="tab"
+            aria-controls="empNotes-tab"
+            aria-selected="false">Internal Notes</a>
+        </li>
+      </ul>
+
+      {# PROFILE #}
+      <div class="tab-content" id="EmpProfileTabContent">
+        <div class="tab-pane fade show active" id="empProfile-tab" role="tabpanel" aria-labelledby="tab-empProfile">
+          <div class="col-auto">
+            <div class="card mb-4">
+              <div class="card-body">
+                <h4 class="mb-3 text-body">Profile</h4><hr class="my-4"/>
+                <div class="row g-0">
+                  <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6 pe-md-2">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-user" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Full Name</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.full_name }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-id-badge" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Employee ID</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.employee_id }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-envelope" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Email</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.email }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-phone" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Phone</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.phone }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-top-md-0 border-start-md">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-briefcase" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Employment Status</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.employment_status }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-location-dot" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Work Location</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.work_location }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-user-tie" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Manager</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.manager }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div> <!-- row -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# JOB & CONTRACT #}
+      <div class="tab-content" id="EmpJobTabContent">
+        <div class="tab-pane fade" id="empJob-tab" role="tabpanel" aria-labelledby="tab-empJob">
+          <div class="col-auto">
+            <div class="card mb-4">
+              <div class="card-body">
+                <h4 class="mb-3 text-body">Job & Contract</h4><hr class="my-4"/>
+                <div class="row g-0">
+                  <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6 pe-md-2">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-briefcase" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Job Title</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.job_title }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-sitemap" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Department</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.department }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-user-clock" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Employment Type</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.employment_type }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-calendar-plus" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Hire Date</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.hire_date }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-top-md-0 border-start-md">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-file-contract" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Contract Type</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.contract_type }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-hourglass-start" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Contract Start</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.contract_start }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-hourglass-end" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Contract End</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.contract_end }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-user-check" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Probation End</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.probation_end }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div> <!-- row -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# COMPENSATION #}
+      <div class="tab-content" id="EmpCompTabContent">
+        <div class="tab-pane fade" id="empComp-tab" role="tabpanel" aria-labelledby="tab-empComp">
+          <div class="col-auto">
+            <div class="card mb-4">
+              <div class="card-body">
+                <h4 class="mb-3 text-body">Compensation</h4><hr class="my-4"/>
+                <div class="row g-0">
+                  <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6 pe-md-2">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-money-bill" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Base Salary</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.salary }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-coins" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Currency</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.currency }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-calendar" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Pay Frequency</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.pay_frequency }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-top-md-0 border-start-md">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-gift" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Bonus Eligible</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.bonus_eligible }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-calendar-check" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Last Raise Date</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.last_raise_date }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div> <!-- row -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# DOCUMENTS #}
+      <div class="tab-content" id="EmpDocsTabContent">
+        <div class="tab-pane fade" id="empDocs-tab" role="tabpanel" aria-labelledby="tab-empDocs">
+          <div class="col-auto">
+            <div class="card mb-4">
+              <div class="card-body">
+                <h4 class="mb-3 text-body">Documents</h4><hr class="my-4"/>
+                <div class="row g-0">
+                  <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6 pe-md-2">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-file-contract" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Contract #</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.contract_number }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-id-card" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">ID Type / Number</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.id_type }} {{ employee.id_number }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-calendar" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">ID Issue / Expiry</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.id_issue_date }} — {{ employee.id_expiry_date }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-top-md-0 border-start-md">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-file" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Contract File</h5>
+                          </div>
+                          <div class="ps-4">
+                            <p class="mb-0 text-body-secondary">
+                              {% if employee.contract_file %}<a href="{{ employee.contract_file.url }}" target="_blank">View</a>{% else %}—{% endif %}
+                            </p>
+                          </div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-file-shield" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Work Permit # / Expiry</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.work_permit_number }} — {{ employee.work_permit_expiry }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div> <!-- row -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# COMPLIANCE #}
+      <div class="tab-content" id="EmpComplianceTabContent">
+        <div class="tab-pane fade" id="empCompliance-tab" role="tabpanel" aria-labelledby="tab-empCompliance">
+          <div class="col-auto">
+            <div class="card mb-4">
+              <div class="card-body">
+                <h4 class="mb-3 text-body">Compliance</h4><hr class="my-4"/>
+                <div class="row g-0">
+                  <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6 pe-md-2">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-shield-halved" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Background Check</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.background_check_status }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-graduation-cap" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Required Trainings</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.training_summary }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-top-md-0 border-start-md">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-passport" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Tax ID / Country</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.tax_id }} — {{ employee.country_iso }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-user-shield" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Emergency Contact</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.emergency_contact }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div> <!-- row -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# TIME OFF #}
+      <div class="tab-content" id="EmpTimeOffTabContent">
+        <div class="tab-pane fade" id="empTimeOff-tab" role="tabpanel" aria-labelledby="tab-empTimeOff">
+          <div class="col-auto">
+            <div class="card mb-4">
+              <div class="card-body">
+                <h4 class="mb-3 text-body">Time Off</h4><hr class="my-4"/>
+                <div class="row g-0">
+                  <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6 pe-md-2">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-umbrella-beach" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">PTO Balance</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.pto_balance }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-notes-medical" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Sick Balance</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.sick_balance }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-top-md-0 border-start-md">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-calendar-day" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Last PTO Taken</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.last_pto_date }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-calendar-plus" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Next PTO</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.next_pto_date }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div> <!-- row -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# INTERNAL NOTES #}
+      <div class="tab-content" id="EmpNotesTabContent">
+        <div class="tab-pane fade" id="empNotes-tab" role="tabpanel" aria-labelledby="tab-empNotes">
+          <div class="col-auto">
+            <div class="card mb-4">
+              <div class="card-body">
+                <h4 class="mb-3 text-body">Internal Notes</h4><hr class="my-4"/>
+                <div class="row g-0">
+                  <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6 pe-md-2">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-note-sticky" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Notes</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.internal_notes }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-top-md-0 border-start-md">
+                    <div class="row gx-5 gx-md-3 gx-lg-1 gx-xl-3 gx-xxl-5">
+                      <div class="col-sm-6 col-md-6 col-xl-12 col-xxl-6">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-clock-rotate-left" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Last Updated</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.last_updated }}</p></div>
+                        </div>
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-calendar-plus" style="width:16px;"></span>
+                            <h5 class="my-2 ms-2">Created</h5>
+                          </div>
+                          <div class="ps-4"><p class="mb-0 text-body-secondary">{{ employee.created_at }}</p></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div> <!-- row -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div> <!-- /.col-xl-7 -->
+  </div> 
+
+  <footer class="footer position-absolute">
+    <div class="row g-0 justify-content-between align-items-center h-100">
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 mt-2 mt-sm-0 text-body">
+          Thank you for creating with FlintIO<span class="d-none d-sm-inline-block"></span><span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />
+          2025 &copy;
+        </p>
+      </div>
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 text-body-tertiary text-opacity-85">v1.0.0</p>
+      </div>
+    </div>
+  </footer>
+</div>
+
+{% endblock content %}
