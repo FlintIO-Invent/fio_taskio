@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from django.conf import settings
 from django.db import models
 
@@ -72,10 +71,10 @@ class Lead(TimeStampedModel):
     status              = models.CharField(max_length=20,choices=Status.choices,default=Status.NEW, db_index=True)
     category            = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="leads",)
     first_name          = models.CharField(max_length=80)
-    last_name           = models.CharField(max_length=80, blank=True)
+    last_name           = models.CharField(max_length=80)
     email               = models.EmailField()
-    phone               = models.CharField(max_length=40, blank=True)
-    company_name        = models.CharField(max_length=120, blank=False)
+    phone               = models.CharField(max_length=40)
+    company_name        = models.CharField(max_length=120)
     message             = models.TextField(blank=True)
     street_address      = models.CharField(max_length=255, blank=True)
     district            = models.CharField( max_length=100, choices=DistrictChoices.choices,  blank=True)
@@ -123,26 +122,122 @@ class Client(TimeStampedModel):
         SIMPSON_BAY = "SIMPSON_BAY", "Simpson Bay"
         MAHO = "MAHO", "Maho"
 
-    first_name          = models.CharField(max_length=80)
-    last_name           = models.CharField(max_length=80, blank=True)
-    email               = models.EmailField()
-    phone               = models.CharField(max_length=40, blank=True)
-    company_name        = models.CharField(max_length=120, blank=True)
-    message             = models.TextField(blank=True)
-    street_address      = models.CharField(max_length=255, blank=True)
-    district            = models.CharField( max_length=100, choices=DistrictChoices.choices,  blank=True)
-    state               = models.CharField(max_length=100, blank=True, default="Sint Maarten")
-    postal_code         = models.CharField(max_length=20, blank=True, default="00000")
-    notes               = models.TextField(blank=True)
-    consent_to_contact  = models.BooleanField(default=True)
-    is_active           = models.BooleanField(default=True)
-   
+    class ClientType(models.TextChoices):
+        INDIVIDUAL = "INDIVIDUAL", "Individual"
+        BUSINESS = "BUSINESS", "Business"
+
+    class ClientStatus(models.TextChoices):
+        LEAD = "LEAD", "Lead"
+        PROSPECT = "PROSPECT", "Prospect"
+        ACTIVE = "ACTIVE", "Active Client"
+        INACTIVE = "INACTIVE", "Inactive"
+        ARCHIVED = "ARCHIVED", "Archived"
+
+    class Priority(models.TextChoices):
+        LOW = "LOW", "Low"
+        MEDIUM = "MEDIUM", "Medium"
+        HIGH = "HIGH", "High"
+
+    class PreferredContactMethod(models.TextChoices):
+        EMAIL = "EMAIL", "Email"
+        PHONE = "PHONE", "Phone"
+        WHATSAPP = "WHATSAPP", "WhatsApp"
+
+    class LeadSource(models.TextChoices):
+        WEBSITE = "WEBSITE", "Website"
+        REFERRAL = "REFERRAL", "Referral"
+        WALK_IN = "WALK_IN", "Walk-in"
+        INSTAGRAM = "INSTAGRAM", "Instagram"
+        FACEBOOK = "FACEBOOK", "Facebook"
+        LINKEDIN = "LINKEDIN", "LinkedIn"
+        PHONE = "PHONE", "Phone Inquiry"
+        OTHER = "OTHER", "Other"
+
+    first_name = models.CharField(max_length=80)
+    last_name = models.CharField(max_length=80)
+    email = models.EmailField()
+    phone = models.CharField(max_length=40)
+
+    # CRM business identity
+    client_type = models.CharField(
+        max_length=20,
+        choices=ClientType.choices,
+        default=ClientType.BUSINESS,
+    )
+    company_name = models.CharField(max_length=120)
+    business_legal_name = models.CharField(max_length=160, blank=True)
+    trade_name = models.CharField(max_length=160, blank=True)
+    industry = models.CharField(max_length=100, blank=True)
+    business_description = models.TextField(blank=True)
+    website = models.URLField(blank=True)
+    registration_number = models.CharField(max_length=60, blank=True)
+
+    # CRM contact context
+    job_title = models.CharField(max_length=100, blank=True)
+    department = models.CharField(max_length=100, blank=True)
+    secondary_email = models.EmailField(blank=True)
+    secondary_phone = models.CharField(max_length=40, blank=True)
+    whatsapp_number = models.CharField(max_length=40, blank=True)
+    preferred_contact_method = models.CharField(
+        max_length=20,
+        choices=PreferredContactMethod.choices,
+        default=PreferredContactMethod.EMAIL,
+    )
+    preferred_language = models.CharField(max_length=50, blank=True)
+
+    # CRM relationship / sales context
+    client_status = models.CharField(
+        max_length=20,
+        choices=ClientStatus.choices,
+        default=ClientStatus.LEAD,
+    )
+    lead_source = models.CharField(
+        max_length=20,
+        choices=LeadSource.choices,
+        blank=True,
+    )
+    priority = models.CharField(
+        max_length=10,
+        choices=Priority.choices,
+        default=Priority.MEDIUM,
+    )
+    interested_services = models.TextField(blank=True)
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_clients",
+    )
+    last_contacted_at = models.DateTimeField(null=True, blank=True)
+    next_follow_up_at = models.DateTimeField(null=True, blank=True)
+
+    # Address / location
+    street_address = models.CharField(max_length=255)
+    district = models.CharField(
+        max_length=100,
+        choices=DistrictChoices.choices,
+        blank=True,
+    )
+    country = models.CharField(max_length=100, blank=True, default="Sint Maarten")
+    postal_code = models.CharField(max_length=20, blank=True, default="N/A")
+
+    # Notes / communication
+    message = models.TextField(blank=True)
+    communication_notes = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+
+    consent_to_contact = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["first_name", "last_name"]
 
     def __str__(self) -> str:
-        return f"{self.first_name} {self.last_name}".strip()
+        name = f"{self.first_name} {self.last_name}".strip()
+        if self.company_name:
+            return f"{name} - {self.company_name}"
+        return name
 
 
 class ActivityLog(TimeStampedModel):
@@ -166,3 +261,6 @@ class ActivityLog(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.action_type} {self.created_at:%Y-%m-%d %H:%M}"
+    
+
+    

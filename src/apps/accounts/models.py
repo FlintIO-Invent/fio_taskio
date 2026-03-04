@@ -12,10 +12,10 @@ class TaskIOUserManager(BaseUserManager):
         first_name: str = "",
         last_name: str = "",
         password: str | None = None,
-        role: str = "EMPLOYEE",
-        employment_status: str = "EMPLOYED",
-        assigned_location: str = "WORLD",
+        incorporation_status: str = "CORPORATED",
+        assigned_location: str = "CARIBBEAN",
         date_of_birth=None,
+        company_name: str = "",
         **extra_fields,
     ):
         """
@@ -30,8 +30,8 @@ class TaskIOUserManager(BaseUserManager):
             email=email,
             first_name=first_name,
             last_name=last_name,
-            role=role,
-            employment_status=employment_status,
+            company_name=company_name,
+            incorporation_status=incorporation_status,
             assigned_location=assigned_location,
             date_of_birth=date_of_birth,
             **extra_fields,
@@ -52,9 +52,8 @@ class TaskIOUserManager(BaseUserManager):
         """
         Create and return a superuser.
         """
-        extra_fields.setdefault("role", "MANAGEMENT")
-        extra_fields.setdefault("employment_status", "EMPLOYED")
-        extra_fields.setdefault("assigned_location", "WORLD")
+        extra_fields.setdefault("incorporation_status", "INCORPORATED")
+        extra_fields.setdefault("assigned_location", "CARIBBEAN")
 
         user = self.create_user(
             email=email,
@@ -71,9 +70,9 @@ class TaskIOUserManager(BaseUserManager):
 
 
 class TaskIOUser(AbstractBaseUser, PermissionsMixin):
-    ROLE_CHOICES = (
-        ("MANAGEMENT", "Management"),
-        ("EMPLOYEE", "Employee"),
+    INCORPORATION_STATUS_CHOICES = (
+        ("CORPORATED", "Corporated"),
+        ("UNINCORPORATED", "Unincorporated"),
     )
 
     EMPLOYMENT_LOCATION_CHOICES = (
@@ -83,25 +82,17 @@ class TaskIOUser(AbstractBaseUser, PermissionsMixin):
         ("DOMINICA", "Dominica"),
     )
 
-    EMPLOYMENT_STATUS_CHOICES = (
-        ("EMPLOYED", "Employed"),
-        ("UNEMPLOYED", "Unemployed"),
-        ("TERMINATED", "Terminated"),
-        ("RETIRED", "Retired"),
-        ("LEAVE_OF_ABSENCE", "Leave of Absence"),
-        ("INACTIVE", "Inactive"),
-    )
-
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
     assigned_location = models.CharField(choices=EMPLOYMENT_LOCATION_CHOICES, max_length=20, default="CARIBBEAN")
     date_of_birth = models.DateField(null=True, blank=True)
-    role = models.CharField(max_length=15, choices=ROLE_CHOICES, default="EMPLOYEE")
-    employment_status = models.CharField(choices=EMPLOYMENT_STATUS_CHOICES, default="EMPLOYED", max_length=20)
+    incoporation_date = models.DateField(null=True, blank=True)
+    company_name = models.CharField(max_length=100, blank=True, null=True)
+    incorporation_status = models.CharField(choices=INCORPORATION_STATUS_CHOICES, default="CORPORATED", max_length=20)
     phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
-    date_hired = models.DateTimeField(blank=True, null=True)
+    date_operational = models.DateTimeField(blank=True, null=True)
     last_updated = models.DateTimeField(auto_now=True)
     date_joined = models.DateTimeField(default=timezone.now)
     is_active = models.BooleanField(default=True)
@@ -110,7 +101,7 @@ class TaskIOUser(AbstractBaseUser, PermissionsMixin):
     objects = TaskIOUserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["first_name", "last_name"]
+    REQUIRED_FIELDS = ["first_name", "last_name", "incorporation_status", "company_name", "assigned_location"]
 
     def __str__(self) -> str:
         return self.email

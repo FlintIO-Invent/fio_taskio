@@ -39,7 +39,7 @@
 
               <div class="position-relative mt-4">
                 <hr class="bg-body-secondary" />
-                <div class="divider-content-center bg-body-emphasis">Contact details</div>
+                <div class="divider-content-center bg-body-emphasis">Service Request Form</div>
               </div>
 
               <form method="post" action="">
@@ -68,6 +68,13 @@
                   {% endif %}
                 </div>
 
+                <!-- Company Name -->
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.company_name.id_for_label }}">Company Name</label>
+                  {{ form.company_name }}
+                  {% if form.company_name.errors %}<div class="text-danger small">{{ form.company_name.errors }}</div>{% endif %}
+                </div>
+
                 <!-- first/last name -->
                 <div class="row g-3 mb-3">
                   <div class="col-sm-6 text-start">
@@ -76,7 +83,7 @@
                     {% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors }}</div>{% endif %}
                   </div>
                   <div class="col-sm-6 text-start">
-                    <label class="form-label" for="{{ form.last_name.id_for_label }}">Last name (optional)</label>
+                    <label class="form-label" for="{{ form.last_name.id_for_label }}">Last name</label>
                     {{ form.last_name }}
                     {% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors }}</div>{% endif %}
                   </div>
@@ -91,14 +98,14 @@
 
                 <!-- phone -->
                 <div class="mb-3 text-start">
-                  <label class="form-label" for="{{ form.phone.id_for_label }}">Phone number (optional)</label>
+                  <label class="form-label" for="{{ form.phone.id_for_label }}">Phone number</label>
                   {{ form.phone }}
                   {% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors }}</div>{% endif %}
                 </div>
 
                 <!-- address -->
                 <div class="mb-3 text-start">
-                  <label class="form-label" for="{{ form.street_address.id_for_label }}">Street Address (optional)</label>
+                  <label class="form-label" for="{{ form.street_address.id_for_label }}">Street Address </label>
                   {{ form.street_address }}
                   {% if form.street_address.errors %}<div class="text-danger small">{{ form.street_address.errors }}</div>{% endif %}
                 </div>

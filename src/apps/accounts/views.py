@@ -2,100 +2,112 @@ from apps.accounts.models import TaskIOUser
 from .forms import CustomerForm
 from django.shortcuts import render
 from django.shortcuts import redirect
+from django.http import HttpRequest, HttpResponse
+from typing import Any, Optional
+from django.views.decorators.http import require_http_methods
 from django.contrib.auth import authenticate, login
 from loguru import logger
 
 
-def agent_login(request):
+@require_http_methods(["GET", "POST"])
+def agent_login(request: HttpRequest) -> HttpResponse:
     """
     Authenticate and log in an internal agent user (Employee or Management).
 
-    This view handles authentication for users with internal roles.
-    It validates submitted credentials, checks the user's role, and
-    logs them into the system if authorized.
+    This view handles authentication for users with internal roles. It validates
+    submitted credentials, checks the user's role, and logs them into the system
+    if authorized.
 
     Args:
-        request (HttpRequest):
-            The incoming Django HTTP request object. Supports both
-            GET (renders login page) and POST (processes login form).
+        request: Incoming Django HTTP request object. Supports GET (render login)
+            and POST (process credentials).
 
     Returns:
-        HttpResponse:
-            - Renders the login template on GET requests.
-            - Renders the login template again if authentication fails.
-            - (Future implementation) Redirects to the appropriate
-              dashboard upon successful login.
+        The rendered login page on GET or failed authentication, or a redirect
+        to the appropriate dashboard on successful login.
 
     Notes:
-        - Uses Django's `authenticate()` and `login()` functions.
+        - Uses Django's `authenticate()` and `login()`.
         - Assumes a custom user model with a `role` field.
-        - Only users with roles:
-            * 'EMPLOYEE'
-            * 'MANAGEMENT'
-          are permitted to log in via this endpoint.
-        - Logging is performed for successful and failed login attempts.
-        - Redirects are currently commented out and should be implemented
-          once dashboard URLs are finalized.
-
-    Example:
-        >>> response = client.post("/accounts/agent-login/", {
-        ...     "email": "agent@example.com",
-        ...     "password": "securepassword123"
-        ... })
-        >>> response.status_code
-        200  # or 302 if redirect is enabled
+        - Only users with roles 'EMPLOYEE' or 'MANAGEMENT' may log in here.
     """
-    if request.method == 'POST':
-        email = request.POST.get('email')
-        password = request.POST.get('password')
+    context: dict[str, Any] = {}
+
+    if request.method == "POST":
+        email: str = (request.POST.get("email") or "").strip().lower()
+        password: str = request.POST.get("password") or ""
+
+        if not email or not password:
+            logger.warning("Agent login attempt with missing email or password.")
+            context["error"] = "Please enter both email and password."
+            return render(request, "accounts/forms/agent_login.html", context)
 
         user = authenticate(request, email=email, password=password)
 
-        if user is not None:
-            if hasattr(user, 'role') and user.role == 'EMPLOYEE':
-                login(request, user)
-                logger.info(f"User {user.email} logged in successfully as an employee.")
-                # return redirect('/dashboards/employee_dashboard')
-            elif user.role == 'MANAGEMENT':
-                login(request, user)
-                logger.info(f"User {user.email} logged in successfully as management.")
-                # return redirect('/dashboards/management_dashboard')
-            else:
-                logger.warning(f"User {user.email} is not an employee or management.")
-        else:
-            logger.warning("Invalid login credentials.")
+        if user is None:
+            logger.warning("Invalid login credentials for email=%s", email)
+            context["error"] = "Invalid email or password."
+            return render(request, "accounts/forms/agent_login.html", context)
+
+        incorporation_status: Optional[str] = getattr(user, "incorporation_status", None)
+
+        if incorporation_status == "CORPORATED":
+            login(request, user)
+            logger.info("User %s logged in successfully as MANAGEMENT.", user.email)
+            return redirect("/crm/agent/dashboard/")
+
+        logger.warning("User %s denied agent login due to incorporation_status=%s", user.email, incorporation_status)
+        context["error"] = "You are not authorized to access this portal."
+        return render(request, "accounts/forms/agent_login.html", context)
+
+    return render(request, "accounts/forms/agent_login.html", context)
 
 
-    context = {}
 
-    return render(request, 'accounts/forms/agent_login.html', context)
+# def customer_view(request: HttpRequest) -> HttpResponse:
+#     """
+#     Display a list of customers ordered by most recent creation date.
 
+#     Args:
+#         request: Incoming HTTP request.
 
-
-# def customer_view(request):
+#     Returns:
+#         Rendered customer list page.
+#     """
 #     customer_list = (
 #         TaskIOUser.objects
-#         .only( "first_name", "last_name", "email", "created_at")     
-#         .order_by("-created_at") 
+#         .only("first_name", "last_name", "email", "created_at")
+#         .order_by("-created_at")
 #     )
 
-#     context = {'customer_list': customer_list}
-
-#     return render(request, 'main/customer_view.html', context)
-
+#     context: dict[str, Any] = {"customer_list": customer_list}
+#     return render(request, "main/customer_view.html", context)
 
 
-# def customer_registration(request):
-#     if request.method == 'POST':
-#         customer_form = CustomerForm(request.POST)
-#         if customer_form.is_valid():
-#             customer_form.save()
-#             return redirect('customer_view')
-#     else: 
-#         customer_form = CustomerForm()
+# @require_http_methods(["GET", "POST"])
+# def customer_registration(request: HttpRequest) -> HttpResponse:
+#     """
+#     Render and handle the customer registration form.
 
-#     context = {'customer_form': customer_form}
-#     return render(request, 'main/customer_registration.html', context)
+#     - GET: Show empty form.
+#     - POST: Validate and save, then redirect to customer list.
+
+#     Args:
+#         request: Incoming HTTP request.
+
+#     Returns:
+#         Rendered registration page or redirect on success.
+#     """
+#     if request.method == "POST":
+#         form = CustomerForm(request.POST)
+#         if form.is_valid():
+#             form.save()
+#             return redirect("customer_view")
+#     else:
+#         form = CustomerForm()
+
+#     context: dict[str, Any] = {"customer_form": form}
+#     return render(request, "main/customer_registration.html", context)
 
 
 

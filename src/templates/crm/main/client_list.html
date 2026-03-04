@@ -1,0 +1,266 @@
+{% extends 'inheritance/dashboard_parent.html'%}
+{% load static %}
+
+{% block content %}
+
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0"></ol>
+  </nav>
+
+  <h2 class="text-bold text-body-emphasis mb-5">Client List</h2>
+
+  <div class="pb-6">
+    <!-- updated valueNames to match NEW columns -->
+    <div id="clientsTable" data-list='{"valueNames":["name","email","phone","company","district","active"],"page":10,"pagination":true}'>
+      <div class="row g-3 justify-content-between mb-4">
+        <div class="col-auto">
+          <div class="d-md-flex justify-content-between">
+            <div>
+              <a class="btn btn-primary me-4" href="{% url 'staff_client_create' %}">
+                <span class="fas fa-plus me-2"></span>Create Client
+              </a>
+              <button class="btn btn-link text-body px-0" type="button">
+                <span class="fa-solid fa-file-export fs-9 me-2"></span>Export
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-auto">
+          <!-- FILTERS: server-side GET (is_active, district, q) -->
+          <form class="d-flex" method="get" action="{% url 'staff_client_list' %}">
+            <div class="search-box me-2">
+              <div class="position-relative">
+                <input
+                  class="form-control search-input"
+                  type="search"
+                  name="q"
+                  value="{{ filters.q|default:'' }}"
+                  placeholder="Search by name, email, phone, company"
+                  aria-label="Search"
+                />
+                <span class="fas fa-search search-box-icon"></span>
+              </div>
+            </div>
+
+            <!-- District -->
+            <select class="form-select me-2" name="district" aria-label="District">
+              <option value="" {% if not filters.district %}selected{% endif %}>All districts</option>
+              {% for value,label in district_choices %}
+                <option value="{{ value }}" {% if filters.district == value %}selected{% endif %}>
+                  {{ label }}
+                </option>
+              {% endfor %}
+            </select>
+
+            <!-- Active -->
+            <select class="form-select me-2" name="is_active" aria-label="Active status">
+              <option value="" {% if not filters.is_active %}selected{% endif %}>All clients</option>
+              <option value="true" {% if filters.is_active == "true" or filters.is_active == "1" %}selected{% endif %}>Active</option>
+              <option value="false" {% if filters.is_active == "false" or filters.is_active == "0" %}selected{% endif %}>Inactive</option>
+            </select>
+
+            <button class="btn btn-primary px-3 me-2" type="submit">
+              <span class="fa-solid fa-filter me-2"></span>Apply
+            </button>
+
+            <!-- Reset should go back to CLIENT list, not lead list -->
+            <a class="btn btn-phoenix-secondary px-3" href="{% url 'staff_client_list' %}">
+              <span class="fas fa-arrows-rotate me-2"></span>Reset
+            </a>
+          </form>
+        </div>
+      </div>
+
+      <div class="table-responsive scrollbar mx-n1 px-1">
+        <table class="table fs-9 mb-0 leads-table border-top border-translucent">
+          <thead>
+            <tr>
+              <th class="white-space-nowrap fs-9 align-middle ps-0" style="max-width:20px; width:18px;">
+                <div class="form-check mb-0 fs-8">
+                  <input class="form-check-input" type="checkbox" data-bulk-select='{"body":"clients-tables-body"}' />
+                </div>
+              </th>
+
+              <th class="sort white-space-nowrap align-middle text-uppercase ps-0" scope="col" data-sort="name" style="width:22%;">Name</th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="email" style="width:20%;">
+                <div class="d-inline-flex flex-center">
+                  <div class="d-flex align-items-center px-1 py-1 bg-success-subtle rounded me-2">
+                    <span class="text-success-dark" data-feather="mail"></span>
+                  </div>
+                  <span>Email</span>
+                </div>
+              </th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="phone" style="width:15%; min-width: 180px;">
+                <div class="d-inline-flex flex-center">
+                  <div class="d-flex align-items-center px-1 py-1 bg-primary-subtle rounded me-2">
+                    <span class="text-primary-dark" data-feather="phone"></span>
+                  </div>
+                  <span>Phone</span>
+                </div>
+              </th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="company" style="width:16%;">
+                <div class="d-inline-flex flex-center">
+                  <div class="d-flex align-items-center px-1 py-1 bg-warning-subtle rounded me-2">
+                    <span class="text-warning-dark" data-feather="grid"></span>
+                  </div>
+                  <span>Company</span>
+                </div>
+              </th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="district" style="width:15%;">
+                <div class="d-inline-flex flex-center">
+                  <div class="d-flex align-items-center px-1 py-1 bg-info-subtle rounded me-2">
+                    <span class="text-info-dark" data-feather="map-pin"></span>
+                  </div>
+                  <span>District</span>
+                </div>
+              </th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase" scope="col" data-sort="active" style="width:12%;">Active</th>
+
+              <th class="sort text-end align-middle pe-0 ps-4" scope="col"></th>
+            </tr>
+          </thead>
+
+          <tbody class="list" id="clients-tables-body">
+            {% for client in clients %}
+            <tr class="hover-actions-trigger btn-reveal-trigger position-static">
+              <td class="fs-9 align-middle">
+                <div class="form-check mb-0 fs-8">
+                  <input class="form-check-input" type="checkbox" />
+                </div>
+              </td>
+
+              <td class="name align-middle white-space-nowrap ps-0">
+                <div class="d-flex align-items-center">
+                  <div class="avatar avatar-xl me-3">
+                    <div class="rounded-circle bg-body-secondary d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
+                      <span class="fw-bold text-body">
+                        {{ client.first_name|default:""|first }}{{ client.last_name|default:""|first }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <a class="fs-8 fw-bold text-body-highlight" href="#!">
+                      {{ client.first_name }} {{ client.last_name }}
+                    </a>
+                    <div class="text-body-tertiary fs-9">
+                      {% if client.company_name %}
+                        <span class="company">{{ client.company_name }}</span>
+                      {% else %}
+                        <span class="company">—</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <td class="email align-middle white-space-nowrap fw-semibold ps-4 border-end border-translucent">
+                <a class="text-body-highlight" href="mailto:{{ client.email }}">{{ client.email }}</a>
+              </td>
+
+              <td class="phone align-middle white-space-nowrap fw-semibold ps-4 border-end border-translucent">
+                {% if client.phone %}
+                  <a class="text-body-highlight" href="tel:{{ client.phone }}">{{ client.phone }}</a>
+                {% else %}
+                  <span class="text-body-tertiary">—</span>
+                {% endif %}
+              </td>
+
+              <td class="company align-middle white-space-nowrap ps-4 border-end border-translucent fw-semibold text-body-highlight">
+                {% if client.company_name %}{{ client.company_name }}{% else %}<span class="text-body-tertiary">—</span>{% endif %}
+              </td>
+
+              <td class="district align-middle white-space-nowrap ps-4 border-end border-translucent fw-semibold text-body-highlight">
+                {% if client.district %}
+                  {{ client.get_district_display }}
+                {% else %}
+                  <span class="text-body-tertiary">—</span>
+                {% endif %}
+              </td>
+
+              <td class="active align-middle white-space-nowrap ps-4 fw-semibold">
+                {% if client.is_active %}
+                  <span class="badge badge-phoenix badge-phoenix-success">Active</span>
+                {% else %}
+                  <span class="badge badge-phoenix badge-phoenix-secondary">Inactive</span>
+                {% endif %}
+              </td>
+
+              <td class="align-middle white-space-nowrap text-end pe-0 ps-4">
+                <div class="btn-reveal-trigger position-static">
+                  <button class="btn btn-sm dropdown-toggle dropdown-caret-none transition-none btn-reveal fs-10" type="button" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent">
+                    <span class="fas fa-ellipsis-h fs-10"></span>
+                  </button>
+                  <div class="dropdown-menu dropdown-menu-end py-2">
+                    <a class="dropdown-item" href="#!">View</a>
+                    <a class="dropdown-item" href="#!">Edit</a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item text-danger" href="#!">Remove</a>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center py-6 text-body-tertiary">
+                No clients found for the selected filters.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="row align-items-center justify-content-end py-4 pe-0 fs-9">
+        <div class="col-auto d-flex">
+          <p class="mb-0 d-none d-sm-block me-3 fw-semibold text-body" data-list-info="data-list-info"></p>
+          <a class="fw-semibold" href="#!" data-list-view="*">View all<span class="fas fa-angle-right ms-1" data-fa-transform="down-1"></span></a>
+          <a class="fw-semibold d-none" href="#!" data-list-view="less">View Less<span class="fas fa-angle-right ms-1" data-fa-transform="down-1"></span></a>
+        </div>
+        <div class="col-auto d-flex">
+          <button class="page-link" data-list-pagination="prev"><span class="fas fa-chevron-left"></span></button>
+          <ul class="mb-0 pagination"></ul>
+          <button class="page-link pe-0" data-list-pagination="next"><span class="fas fa-chevron-right"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer position-absolute">
+    <div class="row g-0 justify-content-between align-items-center h-100">
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 mt-2 mt-sm-0 text-body">
+          Thank you for creating with FlintIO<span class="d-none d-sm-inline-block"></span>
+          <span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;
+          <a class="mx-1" href="https://www.flintio.net/"></a>
+        </p>
+      </div>
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 text-body-tertiary text-opacity-85">v1.0.0</p>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  var navbarTopStyle = window.config.config.phoenixNavbarTopStyle;
+  var navbarTop = document.querySelector('.navbar-top');
+  if (navbarTopStyle === 'darker') {
+    navbarTop.setAttribute('data-navbar-appearance', 'darker');
+  }
+
+  var navbarVerticalStyle = window.config.config.phoenixNavbarVerticalStyle;
+  var navbarVertical = document.querySelector('.navbar-vertical');
+  if (navbarVertical && navbarVerticalStyle === 'darker') {
+    navbarVertical.setAttribute('data-navbar-appearance', 'darker');
+  }
+</script>
+
+{% endblock %}
