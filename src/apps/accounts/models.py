@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 
 
 class TaskIOUserManager(BaseUserManager):
@@ -106,3 +108,88 @@ class TaskIOUser(AbstractBaseUser, PermissionsMixin):
     def __str__(self) -> str:
         return self.email
 
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}".strip()
+
+    @property
+    def initials(self) -> str:
+        if self.first_name or self.last_name:
+            return f"{self.first_name[:1]}{self.last_name[:1]}".upper()
+        return self.email[:2].upper()
+
+
+class SaaSUserProfile(models.Model):
+    CURRENCY_CHOICES = (
+        ("USD", "US Dollar (USD)"),
+        ("XCD", "East Caribbean Dollar (XCD)"),
+        ("EUR", "Euro (EUR)"),
+        ("ANG", "Netherlands Antillean Guilder (ANG)"),
+    )
+
+    invoice_prefix_validator = RegexValidator(
+        regex=r"^[A-Z0-9-]{2,12}$",
+        message="Use 2-12 uppercase letters, numbers, or hyphens for the invoice prefix.",
+    )
+    hex_color_validator = RegexValidator(
+        regex=r"^#[0-9A-Fa-f]{6}$",
+        message="Enter a valid hex color such as #2C7BE5.",
+    )
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="saas_profile",
+    )
+    workspace_name = models.CharField(max_length=120, blank=True)
+    billing_email = models.EmailField(blank=True)
+    support_email = models.EmailField(blank=True)
+    website = models.URLField(blank=True)
+    tax_id = models.CharField(max_length=60, blank=True)
+    currency_code = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default="USD")
+    invoice_prefix = models.CharField(
+        max_length=12,
+        default="INV",
+        validators=[invoice_prefix_validator],
+    )
+    invoice_default_due_days = models.PositiveSmallIntegerField(
+        default=14,
+        validators=[MinValueValidator(1), MaxValueValidator(90)],
+    )
+    invoice_accent_color = models.CharField(
+        max_length=7,
+        default="#2C7BE5",
+        validators=[hex_color_validator],
+    )
+    show_company_address_on_invoice = models.BooleanField(default=True)
+    show_tax_id_on_invoice = models.BooleanField(default=True)
+    payment_instructions = models.TextField(blank=True)
+    invoice_footer_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "SaaS User Profile"
+        verbose_name_plural = "SaaS User Profiles"
+
+    def __str__(self) -> str:
+        return f"{self.user.email} settings"
+
+    @classmethod
+    def get_or_create_for_user(cls, user: TaskIOUser) -> "SaaSUserProfile":
+        profile, _ = cls.objects.get_or_create(
+            user=user,
+            defaults={
+                "workspace_name": user.company_name or user.full_name or user.email.split("@")[0],
+                "billing_email": user.email,
+            },
+        )
+        return profile
+
+    @property
+    def brand_name(self) -> str:
+        return self.user.company_name or self.workspace_name or self.user.full_name or self.user.email
+
+    @property
+    def invoice_preview_number(self) -> str:
+        return f"{self.invoice_prefix}-{timezone.localtime():%Y%m%d}-001"

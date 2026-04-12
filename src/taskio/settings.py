@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 from pathlib import Path
 import sys
 import os
+# import dj_database_url
+# import src.config
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,6 +23,7 @@ try:
     from src.config import settings
 except ImportError:
     from config import settings
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -63,6 +66,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # 'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = "taskio.urls"
@@ -88,7 +92,6 @@ WSGI_APPLICATION = "taskio.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
-
 DATABASES = {
     "default": {
         "ENGINE": settings.db_engine,
@@ -99,6 +102,25 @@ DATABASES = {
         "PORT": settings.db_port,
     }
 }
+
+# DJ_DATABASES = {
+#     'default': dj_database_url.config(
+#         "ENGINE": settings.db_engine,
+#         "NAME": settings.db_name,
+#         "USER": settings.db_user,
+#         "PASSWORD": settings.db_password,
+#         "HOST": settings.db_host,
+#         "PORT": settings.db_port,
+#         default='postgresql://postgres:postgres@localhost:5432/mysite',
+#         conn_max_age=600
+#     )
+# }
+
+# if src.config.settings.debug:
+#     DATABASES
+# else:    DATABASES = DJ_DATABASES
+
+
 
 
 # Password validation
