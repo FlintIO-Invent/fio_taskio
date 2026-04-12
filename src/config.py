@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import ClassVar
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,6 +47,17 @@ class Settings(BaseSettings):
         description="Enable debug mode (avoid True in production).",
     )
 
+    @field_validator("debug", mode="before")
+    @classmethod
+    def normalize_debug(cls, value: object) -> object:
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"release", "production", "prod"}:
+                return False
+            if normalized in {"development", "dev"}:
+                return True
+        return value
+
     # ---- Paths ----
     base_dir: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parent.parent,
@@ -79,6 +90,10 @@ class Settings(BaseSettings):
     db_password: str = Field(default="self.taskio")
     db_host: str = Field(default="localhost")
     db_port: str = Field(default="5432")
+    database_url: str | None = Field(
+        default=None,
+        description="Full database connection URL. Overrides the individual db_* settings when set.",
+    )
 
 
 
