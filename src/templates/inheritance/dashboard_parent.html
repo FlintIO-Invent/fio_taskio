@@ -88,8 +88,8 @@
                                             <a class="nav-link" href="/crm/agent/dashboard/">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
-                                            <a class="nav-link" href="/dashboards/employee_dashboard_profile">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text"> {{ request.user.first_name }}'s  Profile</span></div>
+                                            <a class="nav-link" href="{% url 'saas_profile' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Workspace Settings</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>

@@ -1,13 +1,22 @@
-from apps.accounts.models import TaskIOUser
-from .forms import CustomerForm
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpRequest, HttpResponse
-from typing import Any, Optional
-from django.views.decorators.http import require_http_methods
+from typing import Any
+
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.views.decorators.http import require_http_methods
 from loguru import logger
 
+from apps.accounts.models import SaaSUserProfile, TaskIOUser
+
+from .forms import (
+    CustomerRegistrationForm,
+    SaaSBasicInfoForm,
+    SaaSInvoiceSettingsForm,
+    SaaSWorkspaceSettingsForm,
+)
 
 @require_http_methods(["GET", "POST"])
 def agent_login(request: HttpRequest) -> HttpResponse:
@@ -28,8 +37,7 @@ def agent_login(request: HttpRequest) -> HttpResponse:
 
     Notes:
         - Uses Django's `authenticate()` and `login()`.
-        - Assumes a custom user model with a `role` field.
-        - Only users with roles 'EMPLOYEE' or 'MANAGEMENT' may log in here.
+        - Uses staff or superuser status as the access gate for the agent portal.
     """
     context: dict[str, Any] = {}
 
@@ -61,19 +69,98 @@ def agent_login(request: HttpRequest) -> HttpResponse:
     return render(request, "accounts/forms/agent_login.html", context)
 
 
-@login_required
 @require_http_methods(["GET", "POST"])
-def company_update(request: HttpRequest, company_id: int) -> HttpResponse:
-    company = get_object_or_404(CompanyProfile, pk=company_id)
+def customer_registration(request: HttpRequest) -> HttpResponse:
+    """
+    Register a new SaaS customer account.
+
+    This first onboarding step captures the customer's account details and
+    creates a login-ready user record with a hashed password.
+
+    Args:
+        request: Incoming Django HTTP request object.
+
+    Returns:
+        The rendered registration form or a redirect back to the form after
+        successful account creation.
+    """
+    if request.method == "POST":
+        form = CustomerRegistrationForm(request.POST)
+
+        if form.is_valid():
+            user: TaskIOUser = form.save()
+            SaaSUserProfile.get_or_create_for_user(user)
+            logger.info("New customer registered with email={}", user.email)
+            messages.success(
+                request,
+                "Your account has been created. We can now use it for customer onboarding.",
+            )
+            return redirect("customer_registration")
+
+        logger.warning(
+            "Customer registration failed for email={}: {}",
+            request.POST.get("email", ""),
+            form.errors.as_json(),
+        )
+
+    else:
+        form = CustomerRegistrationForm()
+
+    return render(request, "accounts/forms/customer_registration.html", {"form": form})
+
+
+@login_required(login_url="agent_login")
+@require_http_methods(["GET", "POST"])
+def saas_profile(request: HttpRequest) -> HttpResponse:
+    """
+    View and update the SaaS account profile, workspace defaults, and invoice settings.
+    """
+    profile = SaaSUserProfile.get_or_create_for_user(request.user)
+    active_section = (request.GET.get("section") or "basic").strip().lower()
+
+    basic_form = SaaSBasicInfoForm(instance=request.user)
+    workspace_form = SaaSWorkspaceSettingsForm(instance=profile)
+    invoice_form = SaaSInvoiceSettingsForm(instance=profile)
 
     if request.method == "POST":
-        form = CompanyProfileForm(request.POST, instance=company)
-        if form.is_valid():
-            form.save()
-            return redirect("company_detail", company_id=company.id)
-    else:
-        form = CompanyProfileForm(instance=company)
+        section = (request.POST.get("section") or "basic").strip().lower()
+        active_section = section
 
-    context: dict[str, Any] = {"form": form, "company": company, "mode": "Edit"}
-    return render(request, "accounts/main/company_form.html", context)
+        if section == "basic":
+            basic_form = SaaSBasicInfoForm(request.POST, instance=request.user)
+            if basic_form.is_valid():
+                basic_form.save()
+                messages.success(request, "Basic profile details updated.")
+                return redirect(f"{reverse('saas_profile')}?section=basic")
 
+        elif section == "workspace":
+            workspace_form = SaaSWorkspaceSettingsForm(request.POST, instance=profile)
+            if workspace_form.is_valid():
+                workspace_form.save()
+                messages.success(request, "Workspace and billing settings updated.")
+                return redirect(f"{reverse('saas_profile')}?section=workspace")
+
+        elif section == "invoice":
+            invoice_form = SaaSInvoiceSettingsForm(request.POST, instance=profile)
+            if invoice_form.is_valid():
+                invoice_form.save()
+                messages.success(request, "Invoice defaults updated.")
+                return redirect(f"{reverse('saas_profile')}?section=invoice")
+
+        logger.warning(
+            "SaaS profile update failed for user={} in section={}: basic={}, workspace={}, invoice={}",
+            request.user.email,
+            section,
+            basic_form.errors.as_json(),
+            workspace_form.errors.as_json(),
+            invoice_form.errors.as_json(),
+        )
+
+    context: dict[str, Any] = {
+        "active_section": active_section,
+        "basic_form": basic_form,
+        "workspace_form": workspace_form,
+        "invoice_form": invoice_form,
+        "profile": profile,
+    }
+    return render(request, "accounts/main/saas_profile.html", context)
