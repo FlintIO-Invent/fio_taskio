@@ -1,5 +1,6 @@
 from django import forms
-from .models import Lead, Client
+from .models import Client, Lead
+
 
 class PrivateClientForm(forms.ModelForm):
     class Meta:
@@ -13,23 +14,29 @@ class PrivateClientForm(forms.ModelForm):
             "email",
             "phone",
 
-            # crm context
-            "job_title",
-            "preferred_contact_method",
-            "lead_source",
-            "client_status",
-            "priority",
-            "interested_services",
+            # business details
+            "business_legal_name",
+            "trade_name",
             "industry",
+            "business_description",
             "website",
             "registration_number",
+
+            # contact context
+            "job_title",
             "department",
             "secondary_email",
             "secondary_phone",
             "whatsapp_number",
-            "message",
-            "communication_notes",
-    
+            "preferred_language",
+            "preferred_contact_method",
+
+            # relationship / crm
+            "lead_source",
+            "client_status",
+            "priority",
+            "assigned_to",
+            "interested_services",
 
             # location
             "street_address",
@@ -39,6 +46,7 @@ class PrivateClientForm(forms.ModelForm):
 
             # notes / consent
             "message",
+            "communication_notes",
             "consent_to_contact",
             "notes",
         ]
@@ -50,125 +58,122 @@ class PrivateClientForm(forms.ModelForm):
             "lead_source": forms.Select(attrs={"class": "form-select mb-3"}),
             "client_status": forms.Select(attrs={"class": "form-select mb-3"}),
             "priority": forms.Select(attrs={"class": "form-select mb-3"}),
+            "assigned_to": forms.Select(attrs={"class": "form-select mb-3"}),
             "district": forms.Select(attrs={"class": "form-select"}),
 
-            # Text Inputs
-            "company_name": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "SimonSays N.V.",
-            }),
-            "registration_number": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Registration number",
-            }),
+            # Text inputs
+            "company_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "SimonSays N.V."}
+            ),
+            "business_legal_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "SimonSays N.V."}
+            ),
+            "trade_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "SimonSays"}
+            ),
+            "registration_number": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Registration number"}
+            ),
+            "first_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "First name"}
+            ),
+            "last_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Last name"}
+            ),
+            "department": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Department"}
+            ),
+            "preferred_language": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "English, Dutch, Spanish..."}
+            ),
+            "website": forms.URLInput(
+                attrs={"class": "form-control", "placeholder": "https://www.simonsays.com"}
+            ),
+            "secondary_email": forms.EmailInput(
+                attrs={"class": "form-control", "placeholder": "secondary@example.com"}
+            ),
+            "secondary_phone": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "+1 (721) 456-7890"}
+            ),
+            "whatsapp_number": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "+1 (721) 456-7890"}
+            ),
+            "industry": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "RETAIL, HOSPITALITY, etc."}
+            ),
+            "email": forms.EmailInput(
+                attrs={"class": "form-control", "placeholder": "name@example.com"}
+            ),
+            "phone": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "+1 (721) 456-7890"}
+            ),
+            "job_title": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Owner / Manager / Operations"}
+            ),
+            "street_address": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Street address"}
+            ),
+            "country": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Country"}
+            ),
+            "postal_code": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Postal code"}
+            ),
 
-            "first_name": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "First name",
-            }),
-
-            "last_name": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Last name",
-            }),
-
-            "department": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Department",
-            }),
-
-            "website": forms.URLInput(attrs={
-                "class": "form-control",
-                "placeholder": "https://www.simonsays.com",
-            }),
-            "secondary_email": forms.EmailInput(attrs={
-                "class": "form-control",
-                "placeholder": "secondary@example.com",
-            }),
-            "secondary_phone": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "+1 (721) 456-7890",
-            }),
-            "whatsapp_number": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "+1 (721) 456-7890",
-            }),
-            "industry": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "RETAIL, HOSPITALITY, etc.",
-            }),
-
-            "email": forms.EmailInput(attrs={
-                "class": "form-control",
-                "placeholder": "name@example.com",
-            }),
-
-            "phone": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "+1 (721) 456-7890",
-            }),
-
-            "job_title": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Owner / Manager / Operations",
-            }),
-
-            "street_address": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Street address",
-            }),
-
-            "country": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Country",
-            }),
-
-            "postal_code": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Postal code",
-            }),
-
-            "communication_notes": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 3,
-                "placeholder": "Internal communication notes about the client...",
-            }),
-
-            "notes": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 3,
-                "placeholder": "Internal notes about the client...",
-            }),
-
-            # Textarea
-            "interested_services": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 3,
-                "placeholder": "What services are they interested in?",
-            }),
-
-            "message": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 4,
-                "placeholder": "Notes about the request / context...",
-            }),
+            # Textareas
+            "business_description": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Describe the client's business...",
+                }
+            ),
+            "communication_notes": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Internal communication notes about the client...",
+                }
+            ),
+            "notes": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Internal notes about the client...",
+                }
+            ),
+            "interested_services": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "What services are they interested in?",
+                }
+            ),
+            "message": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Notes about the request / context...",
+                }
+            ),
 
             # Checkbox
-            "consent_to_contact": forms.CheckboxInput(attrs={
-                "class": "form-check-input",
-            }),
-
-
+            "consent_to_contact": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
         labels = {
             "client_type": "Client type",
             "company_name": "Company name",
+            "business_legal_name": "Business legal name",
+            "trade_name": "Trade name",
+            "business_description": "Business description",
             "job_title": "Job title / role",
+            "preferred_language": "Preferred language",
             "preferred_contact_method": "Preferred contact method",
             "lead_source": "Lead source",
             "client_status": "Client status",
             "priority": "Priority",
+            "assigned_to": "Assigned to",
             "interested_services": "Interested services",
             "street_address": "Street Address",
             "postal_code": "Postal Code",
@@ -273,4 +278,3 @@ class PublicLeadForm(forms.ModelForm):
             "postal_code": "Postal Code",
             "consent_to_contact": "I consent to be contacted via email and phone for service requests and updates.",
         }
-

@@ -6,7 +6,7 @@
   <div class="row g-3 mb-4 justify-content-between align-items-center">
     <div class="col-lg-8">
       <h2 class="mb-2 text-body-emphasis">Workspace Settings</h2>
-      <p class="text-body-tertiary mb-0">View your current SaaS profile, update customer-facing business details, and shape the invoice defaults your team will rely on.</p>
+      <p class="text-body-tertiary mb-0">View your company profile and update customer-facing business details, shape the invoice defaults your team will rely on.</p>
     </div>
     <div class="col-auto">
       <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
@@ -60,7 +60,7 @@
     <div class="col-12 col-xxl-4">
       <div class="card h-100">
         <div class="card-body">
-          <h4 class="mb-3">Invoice Snapshot</h4>
+          <h4 class="mb-3">Billing Defaults</h4>
           <div class="rounded-3 p-4 mb-4" style="background-color: {{ profile.invoice_accent_color }}12; border: 1px solid {{ profile.invoice_accent_color }}33;">
             <div class="d-flex justify-content-between align-items-start mb-4">
               <div>
@@ -146,11 +146,11 @@
                 {{ basic_form.company_name }}
                 {% if basic_form.company_name.errors %}<div class="invalid-feedback d-block">{{ basic_form.company_name.errors|striptags }}</div>{% endif %}
               </div>
-              <div class="col-md-6">
+              <!-- <div class="col-md-6">
                 <label class="form-label" for="{{ basic_form.assigned_location.id_for_label }}">Assigned location</label>
                 {{ basic_form.assigned_location }}
                 {% if basic_form.assigned_location.errors %}<div class="invalid-feedback d-block">{{ basic_form.assigned_location.errors|striptags }}</div>{% endif %}
-              </div>
+              </div> -->
               <div class="col-md-6">
                 <label class="form-label" for="{{ basic_form.date_of_birth.id_for_label }}">Date of birth</label>
                 {{ basic_form.date_of_birth }}

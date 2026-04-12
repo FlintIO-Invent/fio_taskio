@@ -6,7 +6,9 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from apps.billings.models import Invoice
 from .forms import PublicLeadForm, PrivateClientForm
 from .models import Lead, Client
 from .services import send_lead_email
@@ -17,7 +19,19 @@ from helpers import upsert_client_from_lead
 @require_http_methods(["GET"])
 def agent_dashboard(request: HttpRequest) -> HttpResponse:
     """Render the agent dashboard."""
-    context: dict[str, Any] = {}
+    today = timezone.localdate()
+    invoices = Invoice.objects.all()
+    invoices_this_month = invoices.filter(created_at__year=today.year, created_at__month=today.month)
+    unpaid_statuses = [Invoice.Status.DRAFT, Invoice.Status.SENT]
+
+    context: dict[str, Any] = {
+        "invoice_count": invoices.count(),
+        "invoices_this_month_count": invoices_this_month.count(),
+        "paid_invoice_count": invoices.filter(status=Invoice.Status.PAID).count(),
+        "paid_invoices_this_month_count": invoices_this_month.filter(status=Invoice.Status.PAID).count(),
+        "unpaid_invoice_count": invoices.filter(status__in=unpaid_statuses).count(),
+        "unpaid_invoices_this_month_count": invoices_this_month.filter(status__in=unpaid_statuses).count(),
+    }
     return render(request, "crm/agent_dashboard/agent_dashboard.html", context)
 
 
@@ -103,49 +117,6 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
         "filters": {"status": status, "lead_type": lead_type, "q": query},
     }
     return render(request, "crm/main/lead_list.html", context)
-
-
-@login_required
-@require_http_methods(["GET"])
-def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
-    """Display staff-facing details for a single lead."""
-    lead = get_object_or_404(Lead, pk=lead_id)
-    return render(request, "staff/lead_detail.html", {"lead": lead})
-
-
-@login_required
-@require_http_methods(["GET", "POST"])
-def staff_lead_email(request: HttpRequest, lead_id: int) -> HttpResponse:
-    """
-    Compose and send an email to a lead.
-
-    - GET: Show compose form with sensible defaults.
-    - POST: Validate and send, then redirect back to lead detail.
-    """
-    lead = get_object_or_404(Lead, pk=lead_id)
-
-    if request.method == "POST":
-        form = StaffEmailForm(request.POST)
-        if form.is_valid():
-            send_lead_email(
-                actor=request.user,
-                lead=lead,
-                subject=form.cleaned_data["subject"],
-                body=form.cleaned_data["body"],
-            )
-            return redirect("staff_lead_detail", lead_id=lead.id)
-    else:
-        form = StaffEmailForm(
-            initial={
-                "subject": f"Re: {lead.category.name}",
-                "body": f"Hi {lead.first_name},\n\n",
-            }
-        )
-
-    context: dict[str, Any] = {"lead": lead, "form": form}
-    return render(request, "staff/email_compose.html", context)
-
-
 
 
 @login_required
@@ -248,6 +219,17 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
         "single_client": client,
     }
     return render(request, "crm/main/client_detail.html", context)
+
+
+@login_required
+@require_http_methods(["GET"])
+def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
+    """Display staff-facing details for a single lead."""
+    lead = get_object_or_404(Lead.objects.select_related("category"), pk=lead_id)
+    context: dict[str, Any] = {
+        "lead": lead,
+    }
+    return render(request, "crm/main/lead_detail.html", context)
 
 
 @login_required

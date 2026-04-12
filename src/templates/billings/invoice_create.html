@@ -2,6 +2,45 @@
 {% load static %}
 {% block content %}
 
+<style>
+  .invoice-create-detail-item {
+    display: flex;
+    gap: 0.9rem;
+    align-items: flex-start;
+  }
+
+  .invoice-create-detail-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--phoenix-primary-bg-subtle);
+    color: var(--phoenix-primary);
+  }
+
+  .invoice-create-detail-content {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .invoice-create-detail-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--phoenix-secondary-color);
+    margin-bottom: 0.25rem;
+  }
+
+  .invoice-create-detail-value {
+    margin-bottom: 0;
+    color: var(--phoenix-body-color);
+    word-break: break-word;
+  }
+</style>
+
 <div class="content">
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
@@ -37,30 +76,72 @@
           <h5 class="mb-0">Client Details</h5>
         </div>
         <div class="card-body">
-          <div class="row g-3">
+          <div class="row g-4">
             <div class="col-md-6">
-              <label class="form-label">Name</label>
-              <p class="mb-0">{{ client.first_name }} {{ client.last_name }}</p>
+              <div class="invoice-create-detail-item">
+                <div class="invoice-create-detail-icon">
+                  <span class="fa-solid fa-user"></span>
+                </div>
+                <div class="invoice-create-detail-content">
+                  <div class="invoice-create-detail-label">Name</div>
+                  <p class="invoice-create-detail-value fw-semibold">{{ client.first_name }} {{ client.last_name }}</p>
+                </div>
+              </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Company</label>
-              <p class="mb-0">{{ client.company_name|default:"N/A" }}</p>
+              <div class="invoice-create-detail-item">
+                <div class="invoice-create-detail-icon">
+                  <span class="fa-solid fa-building"></span>
+                </div>
+                <div class="invoice-create-detail-content">
+                  <div class="invoice-create-detail-label">Company</div>
+                  <p class="invoice-create-detail-value">{{ client.company_name|default:"N/A" }}</p>
+                </div>
+              </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Email</label>
-              <p class="mb-0">{{ client.email }}</p>
+              <div class="invoice-create-detail-item">
+                <div class="invoice-create-detail-icon">
+                  <span class="fa-solid fa-envelope"></span>
+                </div>
+                <div class="invoice-create-detail-content">
+                  <div class="invoice-create-detail-label">Email</div>
+                  <p class="invoice-create-detail-value">{{ client.email }}</p>
+                </div>
+              </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Phone</label>
-              <p class="mb-0">{{ client.phone }}</p>
+              <div class="invoice-create-detail-item">
+                <div class="invoice-create-detail-icon">
+                  <span class="fa-solid fa-phone"></span>
+                </div>
+                <div class="invoice-create-detail-content">
+                  <div class="invoice-create-detail-label">Phone</div>
+                  <p class="invoice-create-detail-value">{{ client.phone }}</p>
+                </div>
+              </div>
             </div>
             <div class="col-12">
-              <label class="form-label">Service Category</label>
-              <p class="mb-0">{{ client.category.name|default:"Not specified" }}</p>
+              <div class="invoice-create-detail-item">
+                <div class="invoice-create-detail-icon">
+                  <span class="fa-solid fa-briefcase"></span>
+                </div>
+                <div class="invoice-create-detail-content">
+                  <div class="invoice-create-detail-label">Interested Services</div>
+                  <p class="invoice-create-detail-value">{{ client.interested_services|default:"Not specified" }}</p>
+                </div>
+              </div>
             </div>
             <div class="col-12">
-              <label class="form-label">Message</label>
-              <p class="mb-0">{{ client.message|default:"No message provided" }}</p>
+              <div class="invoice-create-detail-item">
+                <div class="invoice-create-detail-icon">
+                  <span class="fa-solid fa-message"></span>
+                </div>
+                <div class="invoice-create-detail-content">
+                  <div class="invoice-create-detail-label">Message</div>
+                  <p class="invoice-create-detail-value">{{ client.message|default:"No message provided" }}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

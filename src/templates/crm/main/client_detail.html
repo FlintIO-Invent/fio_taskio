@@ -50,7 +50,6 @@
                   <td>
                     <div class="d-flex align-items-center gap-2">
                       <div class="avatar avatar-sm">
-                        <span class="avatar-initials bg-phoenix-primary">{{ client.first_name|first|upper }}{{ client.last_name|first|upper }}</span>
                       </div>
                       <span class="fw-semibold">{{ client.first_name }} {{ client.last_name }}</span>
                     </div>
@@ -87,7 +86,7 @@
           <h4 class="mb-4">Client Details</h4>
           {% for client in clients %}
             <div class="card mb-4">
-              <div class="card-header bg-light d-flex justify-content-between align-items-center">
+              <div class="card-header bg-dark d-flex justify-content-between align-items-center">
                 <div>
                   <h5 class="mb-0">{{ client.first_name }} {{ client.last_name }}</h5>
                   <p class="text-body-secondary mb-0">{{ client.company_name }} • {{ client.get_client_type_display }}</p>
@@ -536,7 +535,7 @@
                       <div class="col-12">
                         <div class="mb-4">
                           <h6 class="text-body mb-2">General Notes</h6>
-                          <div class="card bg-light">
+                          <div class="card bg-dark">
                             <div class="card-body">
                               <p class="mb-0 text-body-secondary">{{ client.notes|default:"No notes added yet" }}</p>
                             </div>
@@ -545,7 +544,7 @@
 
                         <div class="mb-4">
                           <h6 class="text-body mb-2">Communication Notes</h6>
-                          <div class="card bg-light">
+                          <div class="card bg-dark">
                             <div class="card-body">
                               <p class="mb-0 text-body-secondary">{{ client.communication_notes|default:"No communication notes added yet" }}</p>
                             </div>
@@ -554,7 +553,7 @@
 
                         <div class="mb-4">
                           <h6 class="text-body mb-2">Message / Initial Inquiry</h6>
-                          <div class="card bg-light">
+                          <div class="card bg-dark">
                             <div class="card-body">
                               <p class="mb-0 text-body-secondary">{{ client.message|default:"No message provided" }}</p>
                             </div>

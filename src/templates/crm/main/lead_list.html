@@ -3,6 +3,17 @@
 
 {% block content %}
 
+<style>
+  .lead-list-search-box {
+    width: min(100%, var(--lead-search-width, 22rem));
+  }
+
+  .lead-list-search-box .search-input {
+    min-height: var(--lead-search-height, 2.75rem);
+    font-size: var(--lead-search-font-size, 0.95rem);
+  }
+</style>
+
 <div class="content">
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0"></ol>
@@ -29,7 +40,14 @@
         <div class="col-auto">
           <!-- FILTERS: server-side GET (status, lead_type, q) -->
           <form class="d-flex" method="get" action="{% url 'staff_lead_list' %}">
-            <div class="search-box me-2">
+            <div
+              class="search-box me-2 lead-list-search-box"
+              style="
+                --lead-search-width: 35rem;
+                --lead-search-height: 3.5rem;
+                --lead-search-font-size: 0.95rem;
+              "
+            >
               <div class="position-relative">
                 <input
                   class="form-control search-input"

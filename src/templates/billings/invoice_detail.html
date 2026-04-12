@@ -2,6 +2,45 @@
 {% load static %}
 {% block content %}
 
+<style>
+  .invoice-detail-item {
+    display: flex;
+    gap: 0.9rem;
+    align-items: flex-start;
+  }
+
+  .invoice-detail-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--phoenix-primary-bg-subtle);
+    color: var(--phoenix-primary);
+  }
+
+  .invoice-detail-content {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .invoice-detail-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--phoenix-secondary-color);
+    margin-bottom: 0.25rem;
+  }
+
+  .invoice-detail-value {
+    margin-bottom: 0;
+    color: var(--phoenix-body-color);
+    word-break: break-word;
+  }
+</style>
+
 <div class="content">
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
@@ -33,38 +72,73 @@
           <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
         </div>
         <div class="card-body">
-          <div class="row g-3 mb-4">
+          <div class="row g-4 mb-4">
             <div class="col-md-6">
-              <label class="form-label">Invoice Number</label>
-              <p class="mb-0 fw-bold">{{ invoice.invoice_number }}</p>
+              <div class="invoice-detail-item">
+                <div class="invoice-detail-icon">
+                  <span class="fa-solid fa-file-invoice"></span>
+                </div>
+                <div class="invoice-detail-content">
+                  <div class="invoice-detail-label">Invoice Number</div>
+                  <p class="invoice-detail-value fw-semibold">{{ invoice.invoice_number }}</p>
+                </div>
+              </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Status</label>
-              <p class="mb-0">
-                <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
-              </p>
+              <div class="invoice-detail-item">
+                <div class="invoice-detail-icon">
+                  <span class="fa-solid fa-signal"></span>
+                </div>
+                <div class="invoice-detail-content">
+                  <div class="invoice-detail-label">Status</div>
+                  <p class="invoice-detail-value">
+                    <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+                  </p>
+                </div>
+              </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Client</label>
-              <p class="mb-0">{{ invoice.client.first_name }} {{ invoice.client.last_name }}</p>
-              {% if invoice.client.company_name %}
-                <small class="text-muted">{{ invoice.client.company_name }}</small>
-              {% endif %}
+              <div class="invoice-detail-item">
+                <div class="invoice-detail-icon">
+                  <span class="fa-solid fa-user"></span>
+                </div>
+                <div class="invoice-detail-content">
+                  <div class="invoice-detail-label">Client</div>
+                  <p class="invoice-detail-value fw-semibold">{{ invoice.client.first_name }} {{ invoice.client.last_name }}</p>
+                  {% if invoice.client.company_name %}
+                    <small class="text-body-secondary">{{ invoice.client.company_name }}</small>
+                  {% endif %}
+                </div>
+              </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Created</label>
-              <p class="mb-0">{{ invoice.created_at|date:"M d, Y" }}</p>
+              <div class="invoice-detail-item">
+                <div class="invoice-detail-icon">
+                  <span class="fa-solid fa-calendar-days"></span>
+                </div>
+                <div class="invoice-detail-content">
+                  <div class="invoice-detail-label">Created</div>
+                  <p class="invoice-detail-value">{{ invoice.created_at|date:"M d, Y" }}</p>
+                </div>
+              </div>
             </div>
           </div>
 
           {% if invoice.lead %}
-          <div class="row g-3 mb-4">
+          <div class="row g-4 mb-4">
             <div class="col-12">
-              <label class="form-label">Related Lead</label>
-              <p class="mb-0">
-                <a href="{% url 'staff_lead_detail' invoice.lead.pk %}">{{ invoice.lead.first_name }} {{ invoice.lead.last_name }}</a>
-                <small class="text-muted">({{ invoice.lead.category.name|default:"No category" }})</small>
-              </p>
+              <div class="invoice-detail-item">
+                <div class="invoice-detail-icon">
+                  <span class="fa-solid fa-user-plus"></span>
+                </div>
+                <div class="invoice-detail-content">
+                  <div class="invoice-detail-label">Related Lead</div>
+                  <p class="invoice-detail-value">
+                    <a href="{% url 'staff_lead_detail' invoice.lead.pk %}">{{ invoice.lead.first_name }} {{ invoice.lead.last_name }}</a>
+                    <small class="text-body-secondary">({{ invoice.lead.category.name|default:"No category" }})</small>
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
           {% endif %}
@@ -117,8 +191,15 @@
 
           {% if invoice.notes %}
           <div class="mt-4">
-            <label class="form-label">Notes</label>
-            <p class="mb-0">{{ invoice.notes }}</p>
+            <div class="invoice-detail-item">
+              <div class="invoice-detail-icon">
+                <span class="fa-solid fa-note-sticky"></span>
+              </div>
+              <div class="invoice-detail-content">
+                <div class="invoice-detail-label">Notes</div>
+                <p class="invoice-detail-value">{{ invoice.notes }}</p>
+              </div>
+            </div>
           </div>
           {% endif %}
         </div>
@@ -173,22 +254,52 @@
           <h5 class="mb-0">Client Information</h5>
         </div>
         <div class="card-body">
-          <div class="mb-2">
-            <strong>{{ invoice.client.first_name }} {{ invoice.client.last_name }}</strong>
+          <div class="invoice-detail-item mb-3">
+            <div class="invoice-detail-icon">
+              <span class="fa-solid fa-user"></span>
+            </div>
+            <div class="invoice-detail-content">
+              <div class="invoice-detail-label">Name</div>
+              <p class="invoice-detail-value fw-semibold">{{ invoice.client.first_name }} {{ invoice.client.last_name }}</p>
+            </div>
           </div>
-          <div class="mb-2">
-            <span class="fa-solid fa-envelope me-2"></span>{{ invoice.client.email }}
+          <div class="invoice-detail-item mb-3">
+            <div class="invoice-detail-icon">
+              <span class="fa-solid fa-envelope"></span>
+            </div>
+            <div class="invoice-detail-content">
+              <div class="invoice-detail-label">Email</div>
+              <p class="invoice-detail-value">{{ invoice.client.email }}</p>
+            </div>
           </div>
-          <div class="mb-2">
-            <span class="fa-solid fa-phone me-2"></span>{{ invoice.client.phone }}
+          <div class="invoice-detail-item mb-3">
+            <div class="invoice-detail-icon">
+              <span class="fa-solid fa-phone"></span>
+            </div>
+            <div class="invoice-detail-content">
+              <div class="invoice-detail-label">Phone</div>
+              <p class="invoice-detail-value">{{ invoice.client.phone }}</p>
+            </div>
           </div>
           {% if invoice.client.company_name %}
-          <div class="mb-2">
-            <span class="fa-solid fa-building me-2"></span>{{ invoice.client.company_name }}
+          <div class="invoice-detail-item mb-3">
+            <div class="invoice-detail-icon">
+              <span class="fa-solid fa-building"></span>
+            </div>
+            <div class="invoice-detail-content">
+              <div class="invoice-detail-label">Company</div>
+              <p class="invoice-detail-value">{{ invoice.client.company_name }}</p>
+            </div>
           </div>
           {% endif %}
-          <div>
-            <span class="fa-solid fa-map-marker-alt me-2"></span>{{ invoice.client.street_address }}, {{ invoice.client.district }}
+          <div class="invoice-detail-item">
+            <div class="invoice-detail-icon">
+              <span class="fa-solid fa-location-dot"></span>
+            </div>
+            <div class="invoice-detail-content">
+              <div class="invoice-detail-label">Address</div>
+              <p class="invoice-detail-value">{{ invoice.client.street_address }}, {{ invoice.client.district }}</p>
+            </div>
           </div>
         </div>
       </div>
