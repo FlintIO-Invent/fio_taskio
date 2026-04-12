@@ -3,6 +3,17 @@
 
 {% block content %}
 
+<style>
+  .client-list-search-box {
+    width: min(100%, var(--client-search-width, 22rem));
+  }
+
+  .client-list-search-box .search-input {
+    min-height: var(--client-search-height, 2.75rem);
+    font-size: var(--client-search-font-size, 0.95rem);
+  }
+</style>
+
 <div class="content">
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0"></ol>
@@ -30,14 +41,21 @@
         <div class="col-auto">
           <!-- FILTERS: server-side GET (is_active, district, q) -->
           <form class="d-flex" method="get" action="{% url 'staff_client_list' %}">
-            <div class="search-box me-2">
+            <div
+              class="search-box me-2 client-list-search-box"
+              style="
+                --client-search-width: 35rem;
+                --client-search-height: 3.5rem;
+                --client-search-font-size: 0.95rem;
+              "
+            >
               <div class="position-relative">
                 <input
                   class="form-control search-input"
                   type="search"
                   name="q"
                   value="{{ filters.q|default:'' }}"
-                  placeholder="Search by name, email, phone, company"
+                  placeholder="Search "
                   aria-label="Search"
                 />
                 <span class="fas fa-search search-box-icon"></span>

@@ -27,69 +27,12 @@
       <div class="col-xxl-6">
         <h2 class="mb-2 text-body-emphasis">CRM Dashboard</h2>
         <h5 class="text-body-tertiary fw-semibold mb-4">
-          Check your business growth in one place
+          Track your business growth in one place
         </h5>
 
         <div class="row g-3 mb-3">
-          <!-- Card 1 -->
-          <div class="col-sm-6 col-md-4 col-xl-3 col-xxl-4">
-            <div class="card h-100">
-              <div class="card-body">
-                <div class="d-flex d-sm-block justify-content-between">
-                  <div class="border-bottom-sm border-translucent mb-sm-4">
-                    <div class="d-flex align-items-center">
-                      <div
-                        class="d-flex align-items-center icon-wrapper-sm shadow-primary-100"
-                        style="transform: rotate(-7.45deg);"
-                      >
-                        <span class="fa-solid fa-phone-alt text-primary fs-7 z-1 ms-2"></span>
-                      </div>
-                      <p class="text-body-tertiary fs-9 mb-0 ms-2 mt-3">Outgoing call</p>
-                    </div>
-                    <p class="text-primary mt-2 fs-6 fw-bold mb-0 mb-sm-4">
-                      3 <span class="fs-8 text-body lh-lg">Leads Today</span>
-                    </p>
-                  </div>
 
-                  <div class="d-flex flex-column justify-content-center flex-between-end d-sm-block text-end text-sm-start">
-                    <span class="badge badge-phoenix badge-phoenix-success fs-10 mb-2">+24.5%</span>
-                    <p class="mb-0 fs-9 text-body-tertiary">Than Yesterday</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 2 -->
-          <div class="col-sm-6 col-md-4 col-xl-3 col-xxl-4">
-            <div class="card h-100">
-              <div class="card-body">
-                <div class="d-flex d-sm-block justify-content-between">
-                  <div class="border-bottom-sm border-translucent mb-sm-4">
-                    <div class="d-flex align-items-center">
-                      <div
-                        class="d-flex align-items-center icon-wrapper-sm shadow-info-100"
-                        style="transform: rotate(-7.45deg);"
-                      >
-                        <span class="fa-solid fa-calendar text-info fs-7 z-1 ms-2"></span>
-                      </div>
-                      <p class="text-body-tertiary fs-9 mb-0 ms-2 mt-3">Outgoing meeting</p>
-                    </div>
-                    <p class="text-info mt-2 fs-6 fw-bold mb-0 mb-sm-4">
-                      12 <span class="fs-8 text-body lh-lg">This Week</span>
-                    </p>
-                  </div>
-
-                  <div class="d-flex flex-column justify-content-center flex-between-end d-sm-block text-end text-sm-start">
-                    <span class="badge badge-phoenix badge-phoenix-warning fs-10 mb-2">+24.5%</span>
-                    <p class="mb-0 fs-9 text-body-tertiary">Than last week</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 3 - Invoice Stats -->
+          <!-- Card 1 - Total Invoice Stats -->
           <div class="col-sm-6 col-md-4 col-xl-3 col-xxl-4">
             <div class="card h-100">
               <div class="card-body">
@@ -105,21 +48,80 @@
                       <p class="text-body-tertiary fs-9 mb-0 ms-2 mt-3">Invoices</p>
                     </div>
                     <p class="text-success mt-2 fs-6 fw-bold mb-0 mb-sm-4">
-                      8 <span class="fs-8 text-body lh-lg">This Month</span>
+                      {{ invoices_this_month_count }} <span class="fs-8 text-body lh-lg">This Month</span>
                     </p>
                   </div>
 
                   <div class="d-flex flex-column justify-content-center flex-between-end d-sm-block text-end text-sm-start">
-                    <span class="badge badge-phoenix badge-phoenix-success fs-10 mb-2">+15.3%</span>
-                    <p class="mb-0 fs-9 text-body-tertiary">Than last month</p>
+                    <span class="badge badge-phoenix badge-phoenix-success fs-10 mb-2">{{ invoice_count }} total</span>
+                    <p class="mb-0 fs-9 text-body-tertiary">All invoices on record</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
+          <!-- Card 2 - Paid Invoices Stats -->
+          <div class="col-sm-6 col-md-4 col-xl-3 col-xxl-4">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex d-sm-block justify-content-between">
+                  <div class="border-bottom-sm border-translucent mb-sm-4">
+                    <div class="d-flex align-items-center">
+                      <div
+                        class="d-flex align-items-center icon-wrapper-sm shadow-success-100"
+                        style="transform: rotate(-7.45deg);"
+                      >
+                        <span class="fa-solid fa-circle-check text-success fs-7 z-1 ms-2"></span>
+                      </div>
+                      <p class="text-body-tertiary fs-9 mb-0 ms-2 mt-3">Paid Invoices</p>
+                    </div>
+                    <p class="text-success mt-2 fs-6 fw-bold mb-0 mb-sm-4">
+                      {{ paid_invoices_this_month_count }} <span class="fs-8 text-body lh-lg">This Month</span>
+                    </p>
+                  </div>
+
+                  <div class="d-flex flex-column justify-content-center flex-between-end d-sm-block text-end text-sm-start">
+                    <span class="badge badge-phoenix badge-phoenix-success fs-10 mb-2">{{ paid_invoice_count }} total</span>
+                    <p class="mb-0 fs-9 text-body-tertiary">Invoices marked as paid</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3 - Unpaid Invoices Stats -->
+          <div class="col-sm-6 col-md-4 col-xl-3 col-xxl-4">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex d-sm-block justify-content-between">
+                  <div class="border-bottom-sm border-translucent mb-sm-4">
+                    <div class="d-flex align-items-center">
+                      <div
+                        class="d-flex align-items-center icon-wrapper-sm shadow-warning-100"
+                        style="transform: rotate(-7.45deg);"
+                      >
+                        <span class="fa-solid fa-file-circle-exclamation text-warning fs-7 z-1 ms-2"></span>
+                      </div>
+                      <p class="text-body-tertiary fs-9 mb-0 ms-2 mt-3">Unpaid Invoices</p>
+                    </div>
+                    <p class="text-warning mt-2 fs-6 fw-bold mb-0 mb-sm-4">
+                      {{ unpaid_invoices_this_month_count }} <span class="fs-8 text-body lh-lg">This Month</span>
+                    </p>
+                  </div>
+
+                  <div class="d-flex flex-column justify-content-center flex-between-end d-sm-block text-end text-sm-start">
+                    <span class="badge badge-phoenix badge-phoenix-warning fs-10 mb-2">{{ unpaid_invoice_count }} total</span>
+                    <p class="mb-0 fs-9 text-body-tertiary">Draft and sent invoices</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          
           <!-- Top 5 Lead Sources -->
-          <div class="col-md-4 col-xl-6 col-xxl-4 gy-5 gy-md-3">
+          <!-- <div class="col-md-4 col-xl-6 col-xxl-4 gy-5 gy-md-3">
             <div class="border-bottom border-translucent">
               <h5 class="pb-4 border-bottom border-translucent">Top 5 Lead Sources</h5>
               <ul class="list-group list-group-flush">
@@ -155,39 +157,41 @@
                 </li>
               </ul>
             </div>
-          </div>
+          </div> -->
 
-          <!-- Quick Invoice Actions -->
-          <div class="col-md-4 col-xl-6 col-xxl-4 gy-5 gy-md-3">
-            <div class="border-bottom border-translucent">
-              <h5 class="pb-4 border-bottom border-translucent">Quick Invoice Actions</h5>
-              <div class="d-grid gap-2">
-                <a href="{% url 'invoice_list' %}" class="btn btn-outline-primary btn-sm">
-                  <span class="fa-solid fa-list me-2"></span>View All Invoices
-                </a>
-                <a href="{% url 'staff_lead_list' %}" class="btn btn-outline-success btn-sm">
-                  <span class="fa-solid fa-plus me-2"></span>Create from Lead
-                </a>
-                <a href="{% url 'invoice_list' %}?status=DRAFT" class="btn btn-outline-warning btn-sm">
-                  <span class="fa-solid fa-edit me-2"></span>Draft Invoices
-                </a>
-                <a href="{% url 'invoice_list' %}?status=SENT" class="btn btn-outline-info btn-sm">
-                  <span class="fa-solid fa-paper-plane me-2"></span>Sent Invoices
-                </a>
-                <a href="{% url 'invoice_list' %}?status=PAID" class="btn btn-outline-success btn-sm">
-                  <span class="fa-solid fa-check me-2"></span>Paid Invoices
-                </a>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
       <!-- Contacts Created -->
-      <div class="col-xxl-6 mb-6">
+      <!-- <div class="col-xxl-6 mb-6">
         <h3>Contacts Created</h3>
         <p class="text-body-tertiary mb-1">Payment received across all channels</p>
         <div class="echart-contacts-created" style="min-height:270px; width:100%"></div>
+      </div> -->
+
+
+      <!-- Quick Invoice Actions -->
+      <div class="col-xxl-6 mb-6">
+        <div class="border-bottom border-translucent">
+          <h5 class="pb-11 border-bottom border-translucent"></h5>
+          <div class="d-grid gap-2">
+            <a href="{% url 'invoice_list' %}" class="btn btn-outline-primary btn-sm">
+              <span class="fa-solid fa-list me-2"></span>View All Invoices
+            </a>
+            <a href="{% url 'staff_lead_list' %}" class="btn btn-outline-success btn-sm">
+              <span class="fa-solid fa-plus me-2"></span>Create from Lead
+            </a>
+            <a href="{% url 'invoice_list' %}?status=DRAFT" class="btn btn-outline-warning btn-sm">
+              <span class="fa-solid fa-edit me-2"></span>Draft Invoices
+            </a>
+            <a href="{% url 'invoice_list' %}?status=SENT" class="btn btn-outline-info btn-sm">
+              <span class="fa-solid fa-paper-plane me-2"></span>Sent Invoices
+            </a>
+            <a href="{% url 'invoice_list' %}?status=PAID" class="btn btn-outline-success btn-sm">
+              <span class="fa-solid fa-check me-2"></span>Paid Invoices
+            </a>
+          </div>
+        </div>
       </div>
 
       <!-- New Contacts by Source + Pie -->
