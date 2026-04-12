@@ -50,6 +50,7 @@ uv run python scripts/example.py
 - http://127.0.0.1:8000/home/
 - http://127.0.0.1:8000/accounts/agent_login
 - sudo fuser -k 8000/tcp
+- uv run --frozen python -m gunicorn taskio.asgi:application -k uvicorn.workers.UvicornWorker --chdir src
 
 
 

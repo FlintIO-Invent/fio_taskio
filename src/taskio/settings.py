@@ -66,7 +66,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # 'whitenoise.middleware.WhiteNoiseMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = "taskio.urls"
@@ -102,25 +102,6 @@ DATABASES = {
         "PORT": settings.db_port,
     }
 }
-
-# DJ_DATABASES = {
-#     'default': dj_database_url.config(
-#         "ENGINE": settings.db_engine,
-#         "NAME": settings.db_name,
-#         "USER": settings.db_user,
-#         "PASSWORD": settings.db_password,
-#         "HOST": settings.db_host,
-#         "PORT": settings.db_port,
-#         default='postgresql://postgres:postgres@localhost:5432/mysite',
-#         conn_max_age=600
-#     )
-# }
-
-# if src.config.settings.debug:
-#     DATABASES
-# else:    DATABASES = DJ_DATABASES
-
-
 
 
 # Password validation
@@ -159,6 +140,11 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [settings.django_base_dir / "static"]
+
+if not DEBUG:
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
