@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     )
 
     allowed_hosts: list[str] = Field(
-        default=["127.0.0.1", "localhost"],
+        default=["127.0.0.1", "localhost", "fio-taskio.onrender.com"],
         description="List of allowed hosts for Django."
     )  
 
