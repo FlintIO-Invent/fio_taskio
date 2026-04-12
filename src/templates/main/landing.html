@@ -17,12 +17,12 @@
     <!-- ===============================================-->
     <!--    Favicons-->
     <!-- ===============================================-->
-    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/logo2.png' %}">
-    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/logo2.png' %}">
-    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/logo2.png' %}">
-    <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/logo2.ico' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/apple-touch-icon.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/favicon-16x16.png' %}">
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/favicon.ico' %}">
     <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}">
-    <meta name="msapplication-TileImage" content="../assets/img/favicons/mstile-150x150.png">
+    <meta name="msapplication-TileImage" content="{% static 'assets/img/favicons/mstile-150x150.png' %}"  >
     <meta name="theme-color" content="#ffffff">
     <script src="{% static 'vendors/simplebar/simplebar.min.js' %}"></script>
     <script src="{% static 'assets/js/config.js' %}"></script>
@@ -56,7 +56,7 @@
         userLinkRTL.setAttribute('disabled', true);
       }
     </script>
-    <link href="../../vendors/swiper/swiper-bundle.min.css" rel="stylesheet">
+    <link href="{% static 'vendors/swiper/swiper-bundle.min.css' %}" rel="stylesheet">
   </head>
 
 
@@ -218,7 +218,7 @@
 
           <div class="container-medium">
             <div class="row gy-3 justify-content-between align-items-center">
-              <div class="col-auto"><a href="#!"><img src="../../assets/img/icons/logo-1.png" alt="" /></a></div>
+              <div class="col-auto"><a href="#!"><img src="{% static 'assets/img/icons/logo-1.png' %}" alt="" /></a></div>
               <div class="col-auto">
                 <ul class="mb-0 list-unstyled d-flex flex-wrap">
                   <li class="me-3 me-sm-5"><a class="fs-8 fw-bold text-white" href="#!">Home</a></li>

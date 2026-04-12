@@ -53,7 +53,7 @@ uv run python scripts/example.py
 
 
 
-
+public_request/
 
 
 python manage.py makemigrations crm --empty --name seed_service_categories

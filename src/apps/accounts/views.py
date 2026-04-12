@@ -1,10 +1,10 @@
 from apps.accounts.models import TaskIOUser
 from .forms import CustomerForm
-from django.shortcuts import render
-from django.shortcuts import redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpRequest, HttpResponse
 from typing import Any, Optional
 from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login
 from loguru import logger
 
@@ -49,65 +49,31 @@ def agent_login(request: HttpRequest) -> HttpResponse:
             context["error"] = "Invalid email or password."
             return render(request, "accounts/forms/agent_login.html", context)
 
-        incorporation_status: Optional[str] = getattr(user, "incorporation_status", None)
-
-        if incorporation_status == "CORPORATED":
+        if user.is_staff or user.is_superuser:
             login(request, user)
-            logger.info("User %s logged in successfully as MANAGEMENT.", user.email)
+            logger.info("User %s logged in successfully.", user.email)
             return redirect("/crm/agent/dashboard/")
 
-        logger.warning("User %s denied agent login due to incorporation_status=%s", user.email, incorporation_status)
+        logger.warning("User %s denied agent login - not staff or superuser", user.email)
         context["error"] = "You are not authorized to access this portal."
         return render(request, "accounts/forms/agent_login.html", context)
 
     return render(request, "accounts/forms/agent_login.html", context)
 
 
+@login_required
+@require_http_methods(["GET", "POST"])
+def company_update(request: HttpRequest, company_id: int) -> HttpResponse:
+    company = get_object_or_404(CompanyProfile, pk=company_id)
 
-# def customer_view(request: HttpRequest) -> HttpResponse:
-#     """
-#     Display a list of customers ordered by most recent creation date.
+    if request.method == "POST":
+        form = CompanyProfileForm(request.POST, instance=company)
+        if form.is_valid():
+            form.save()
+            return redirect("company_detail", company_id=company.id)
+    else:
+        form = CompanyProfileForm(instance=company)
 
-#     Args:
-#         request: Incoming HTTP request.
-
-#     Returns:
-#         Rendered customer list page.
-#     """
-#     customer_list = (
-#         TaskIOUser.objects
-#         .only("first_name", "last_name", "email", "created_at")
-#         .order_by("-created_at")
-#     )
-
-#     context: dict[str, Any] = {"customer_list": customer_list}
-#     return render(request, "main/customer_view.html", context)
-
-
-# @require_http_methods(["GET", "POST"])
-# def customer_registration(request: HttpRequest) -> HttpResponse:
-#     """
-#     Render and handle the customer registration form.
-
-#     - GET: Show empty form.
-#     - POST: Validate and save, then redirect to customer list.
-
-#     Args:
-#         request: Incoming HTTP request.
-
-#     Returns:
-#         Rendered registration page or redirect on success.
-#     """
-#     if request.method == "POST":
-#         form = CustomerForm(request.POST)
-#         if form.is_valid():
-#             form.save()
-#             return redirect("customer_view")
-#     else:
-#         form = CustomerForm()
-
-#     context: dict[str, Any] = {"customer_form": form}
-#     return render(request, "main/customer_registration.html", context)
-
-
+    context: dict[str, Any] = {"form": form, "company": company, "mode": "Edit"}
+    return render(request, "accounts/main/company_form.html", context)
 

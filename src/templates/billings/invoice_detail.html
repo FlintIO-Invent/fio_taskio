@@ -1,0 +1,199 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+{% block content %}
+
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'invoice_list' %}">Invoices</a></li>
+      <li class="breadcrumb-item active">{{ invoice.invoice_number }}</li>
+    </ol>
+  </nav>
+
+  <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
+    <div class="col-auto">
+      <h2 class="mb-0 text-body-emphasis">Invoice {{ invoice.invoice_number }}</h2>
+    </div>
+    <div class="col-auto">
+      <div class="d-flex gap-3">
+        <a class="btn btn-phoenix-secondary" href="{% url 'invoice_list' %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to List</a>
+        <button class="btn btn-phoenix-primary" onclick="window.print()">
+          <span class="fa-solid fa-print me-2"></span>Print
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row gx-4">
+    <div class="col-12 col-lg-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Invoice Details</h5>
+          <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label">Invoice Number</label>
+              <p class="mb-0 fw-bold">{{ invoice.invoice_number }}</p>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Status</label>
+              <p class="mb-0">
+                <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+              </p>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Client</label>
+              <p class="mb-0">{{ invoice.client.first_name }} {{ invoice.client.last_name }}</p>
+              {% if invoice.client.company_name %}
+                <small class="text-muted">{{ invoice.client.company_name }}</small>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Created</label>
+              <p class="mb-0">{{ invoice.created_at|date:"M d, Y" }}</p>
+            </div>
+          </div>
+
+          {% if invoice.lead %}
+          <div class="row g-3 mb-4">
+            <div class="col-12">
+              <label class="form-label">Related Lead</label>
+              <p class="mb-0">
+                <a href="{% url 'staff_lead_detail' invoice.lead.pk %}">{{ invoice.lead.first_name }} {{ invoice.lead.last_name }}</a>
+                <small class="text-muted">({{ invoice.lead.category.name|default:"No category" }})</small>
+              </p>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if invoice.lines.all %}
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead class="text-body-secondary">
+                <tr>
+                  <th>Description</th>
+                  <th class="text-end">Quantity</th>
+                  <th class="text-end">Unit Price</th>
+                  <th class="text-end">Line Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for line in invoice.lines.all %}
+                <tr>
+                  <td>{{ line.description }}</td>
+                  <td class="text-end">{{ line.quantity }}</td>
+                  <td class="text-end">${{ line.unit_price }}</td>
+                  <td class="text-end">${{ line.line_total }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" class="text-end fw-bold">Subtotal:</td>
+                  <td class="text-end fw-bold">${{ invoice.subtotal }}</td>
+                </tr>
+                {% if invoice.tax %}
+                <tr>
+                  <td colspan="3" class="text-end">Tax:</td>
+                  <td class="text-end">${{ invoice.tax }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                  <td colspan="3" class="text-end fw-bold">Total:</td>
+                  <td class="text-end fw-bold">${{ invoice.total }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          {% else %}
+          <div class="alert alert-warning">
+            <h6 class="alert-heading">No invoice lines added yet</h6>
+            <p class="mb-0">Add line items to this invoice to calculate totals.</p>
+          </div>
+          {% endif %}
+
+          {% if invoice.notes %}
+          <div class="mt-4">
+            <label class="form-label">Notes</label>
+            <p class="mb-0">{{ invoice.notes }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Actions</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            {% if invoice.status == 'DRAFT' %}
+            <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-phoenix-warning">
+              <span class="fa-solid fa-edit me-2"></span>Edit Invoice
+            </a>
+            <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="SENT">
+              <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as sent?')">
+                <span class="fa-solid fa-paper-plane me-2"></span>Mark as Sent
+              </button>
+            </form>
+            {% endif %}
+
+            {% if invoice.status == 'SENT' %}
+            <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="PAID">
+              <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as paid?')">
+                <span class="fa-solid fa-check me-2"></span>Mark as Paid
+              </button>
+            </form>
+            {% endif %}
+
+            {% if invoice.status != 'CANCELLED' %}
+            <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="CANCELLED">
+              <button type="submit" class="btn btn-phoenix-danger w-100" onclick="return confirm('Cancel this invoice? This action cannot be undone.')">
+                <span class="fa-solid fa-times me-2"></span>Cancel Invoice
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-header">
+          <h5 class="mb-0">Client Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-2">
+            <strong>{{ invoice.client.first_name }} {{ invoice.client.last_name }}</strong>
+          </div>
+          <div class="mb-2">
+            <span class="fa-solid fa-envelope me-2"></span>{{ invoice.client.email }}
+          </div>
+          <div class="mb-2">
+            <span class="fa-solid fa-phone me-2"></span>{{ invoice.client.phone }}
+          </div>
+          {% if invoice.client.company_name %}
+          <div class="mb-2">
+            <span class="fa-solid fa-building me-2"></span>{{ invoice.client.company_name }}
+          </div>
+          {% endif %}
+          <div>
+            <span class="fa-solid fa-map-marker-alt me-2"></span>{{ invoice.client.street_address }}, {{ invoice.client.district }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -20,6 +20,16 @@ class PrivateClientForm(forms.ModelForm):
             "client_status",
             "priority",
             "interested_services",
+            "industry",
+            "website",
+            "registration_number",
+            "department",
+            "secondary_email",
+            "secondary_phone",
+            "whatsapp_number",
+            "message",
+            "communication_notes",
+    
 
             # location
             "street_address",
@@ -30,6 +40,7 @@ class PrivateClientForm(forms.ModelForm):
             # notes / consent
             "message",
             "consent_to_contact",
+            "notes",
         ]
 
         widgets = {
@@ -46,6 +57,10 @@ class PrivateClientForm(forms.ModelForm):
                 "class": "form-control",
                 "placeholder": "SimonSays N.V.",
             }),
+            "registration_number": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Registration number",
+            }),
 
             "first_name": forms.TextInput(attrs={
                 "class": "form-control",
@@ -55,6 +70,32 @@ class PrivateClientForm(forms.ModelForm):
             "last_name": forms.TextInput(attrs={
                 "class": "form-control",
                 "placeholder": "Last name",
+            }),
+
+            "department": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Department",
+            }),
+
+            "website": forms.URLInput(attrs={
+                "class": "form-control",
+                "placeholder": "https://www.simonsays.com",
+            }),
+            "secondary_email": forms.EmailInput(attrs={
+                "class": "form-control",
+                "placeholder": "secondary@example.com",
+            }),
+            "secondary_phone": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "+1 (721) 456-7890",
+            }),
+            "whatsapp_number": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "+1 (721) 456-7890",
+            }),
+            "industry": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "RETAIL, HOSPITALITY, etc.",
             }),
 
             "email": forms.EmailInput(attrs={
@@ -87,6 +128,18 @@ class PrivateClientForm(forms.ModelForm):
                 "placeholder": "Postal code",
             }),
 
+            "communication_notes": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Internal communication notes about the client...",
+            }),
+
+            "notes": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Internal notes about the client...",
+            }),
+
             # Textarea
             "interested_services": forms.Textarea(attrs={
                 "class": "form-control",
@@ -104,6 +157,8 @@ class PrivateClientForm(forms.ModelForm):
             "consent_to_contact": forms.CheckboxInput(attrs={
                 "class": "form-check-input",
             }),
+
+
         }
 
         labels = {
@@ -119,6 +174,7 @@ class PrivateClientForm(forms.ModelForm):
             "postal_code": "Postal Code",
             "consent_to_contact": "I consent to be contacted via email, phone, or WhatsApp for requests and updates.",
         }
+  
 
 class PublicLeadForm(forms.ModelForm):
     class Meta:
@@ -218,90 +274,3 @@ class PublicLeadForm(forms.ModelForm):
             "consent_to_contact": "I consent to be contacted via email and phone for service requests and updates.",
         }
 
-
-    class Meta:
-        model = Client
-        fields = [
-            "first_name",
-            "last_name",
-            "company_name", 
-            "email",
-            "phone",
-            "street_address",
-            "district",
-            "country",        # make sure this exists in your model
-            "postal_code",
-            "message",
-            "consent_to_contact",
-        ]
-
-        widgets = {
-
-            # Dropdowns
-            "district": forms.Select(attrs={
-                "class": "form-select",
-            }),
-
-            "company_name": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "SimonSays N.V.",
-            }),
-          
-
-            # Text Inputs
-            "first_name": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "First name",
-            }),
-
-            "last_name": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Last name",
-            }),
-
-            "email": forms.EmailInput(attrs={
-                "class": "form-control",
-                "placeholder": "name@example.com",
-            }),
-
-            "phone": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "+1 (721) 456-7890",
-            }),
-
-            "street_address": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Street address",
-            }),
-
-            "country": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Country",
-                "value": "SXM",   
-            }),
-
-            "postal_code": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Postal code",
-            }),
-
-            # Textarea
-            "message": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 4,
-                "placeholder": "Tell us what you need...",
-            }),
-
-            # Checkbox
-            "consent_to_contact": forms.CheckboxInput(attrs={
-                "class": "form-check-input",
-            }),
-        }
-
-        labels = {
-            "lead_type": "What can we help with?",
-            "category": "Service category",
-            "street_address": "Street Address",
-            "postal_code": "Postal Code",
-            "consent_to_contact": "I consent to be contacted via email and phone for service requests and updates.",
-        }

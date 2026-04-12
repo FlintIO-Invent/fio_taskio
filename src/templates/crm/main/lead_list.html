@@ -11,7 +11,7 @@
   <h2 class="text-bold text-body-emphasis mb-5">Lead List</h2>
 
   <div class="pb-6">
-    <div id="lealsTable" data-list='{"valueNames":["name","email","phone","status","leadtype","date"],"page":10,"pagination":true}'>
+    <div id="lealsTable" data-list='{"valueNames":["name","email","phone","status","date"],"page":10,"pagination":true}'>
       <div class="row g-3 justify-content-between mb-4">
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
@@ -107,9 +107,17 @@
                 </div>
               </th>
 
-              <th class="sort align-middle ps-4 pe-5 text-uppercase" scope="col" data-sort="status" style="width:13%;">Status</th>
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="status" style="width:20%;">
+                <div class="d-inline-flex flex-center">
+                  <div class="d-flex align-items-center px-1 py-1 bg-info-subtle rounded me-2">
+                    <span class="text-warning-dark" data-feather="tag"></span>
+                  </div>
+                  <span>Status</span>
+                </div>
+              </th>
 
-              <th class="sort align-middle ps-4 pe-5 text-uppercase" scope="col" data-sort="date" style="width:15%;">Create date</th>
+          
+              <th class="sort align-middle ps-4 pe-5 text-uppercase" scope="col" data-sort="active" style="width:12%;">Create date</th>
 
               <th class="sort text-end align-middle pe-0 ps-4" scope="col"></th>
             </tr>

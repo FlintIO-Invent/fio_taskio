@@ -147,7 +147,7 @@
                   </div>
 
                   <div>
-                    <a class="fs-8 fw-bold text-body-highlight" href="#!">
+                    <a class="fs-8 fw-bold text-body-highlight" href="{% url 'staff_client_detail' client.id %}">
                       {{ client.first_name }} {{ client.last_name }}
                     </a>
                     <div class="text-body-tertiary fs-9">
@@ -199,8 +199,8 @@
                     <span class="fas fa-ellipsis-h fs-10"></span>
                   </button>
                   <div class="dropdown-menu dropdown-menu-end py-2">
-                    <a class="dropdown-item" href="#!">View</a>
-                    <a class="dropdown-item" href="#!">Edit</a>
+                    <a class="dropdown-item" href="{% url 'staff_client_detail' client.id %}">View</a>
+                    <a class="dropdown-item" href="{% url 'staff_client_update' client.id %}">Edit</a>
                     <div class="dropdown-divider"></div>
                     <a class="dropdown-item text-danger" href="#!">Remove</a>
                   </div>

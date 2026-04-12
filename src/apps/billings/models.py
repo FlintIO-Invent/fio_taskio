@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from django.db import models
 
-from apps.crm.models import TimeStampedModel, Client, Lead
+from apps.crm.models import TimeStampedModel, Client
 
 
 class Invoice(TimeStampedModel):
@@ -15,7 +15,6 @@ class Invoice(TimeStampedModel):
 
     invoice_number = models.CharField(max_length=40, unique=True)
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="invoices")
-    lead = models.ForeignKey(Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoices")
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     notes = models.TextField(blank=True)

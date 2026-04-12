@@ -1,5 +1,7 @@
 from __future__ import annotations
+from loguru import logger
 from typing import Any
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, QuerySet
 from django.http import HttpRequest, HttpResponse
@@ -31,11 +33,13 @@ def public_request(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         form = PublicLeadForm(request.POST)
         if form.is_valid():
-            lead: Lead = form.save()  # get the saved lead object
-
-            if lead.lead_type == Lead.LeadType.REQUEST:
-                upsert_client_from_lead(lead)
-
+            lead = form.cleaned_data
+            if lead["lead_type"] == Lead.LeadType.REQUEST:
+                logger.info("Lead is of type REQUEST; creating/updating client")
+                upsert_client_from_lead(Lead(**lead))
+            elif lead["lead_type"] == Lead.LeadType.INTEREST:
+                logger.debug("Lead is of type INTEREST; creating lead without client")
+                lead: Lead = form.save()
             return redirect("public_thank_you")
     else:
         form = PublicLeadForm()
@@ -50,43 +54,23 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
 
 
 # Functions below relate to client/leads management for staff users. 
-
 @login_required
 @require_http_methods(["GET", "POST"])
 def staff_lead_create(request: HttpRequest) -> HttpResponse:
     """
     Create a new lead for staff.
     """
-    # if request.method == "POST":
-    #     form = PublicLeadForm(request.POST)
-    #     if form.is_valid():
-    #         form.save()
-    #         return redirect("staff_lead_list")
-    # else:
-    #     form = PublicLeadForm()
+    if request.method == "POST":
+        form = PublicLeadForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("staff_lead_list")
+    else:
+        form = PrivateClientForm()
 
-    context={}
+    context={"form": form}
 
     return render(request, "crm/forms/lead_create.html", context)    
-
-
-@login_required
-@require_http_methods(["GET"])
-def staff_client_create(request: HttpRequest) -> HttpResponse:
-    """
-    Create a new client for staff.
-    """
-    # customer_form = CustomerForm(request.POST, prefix="customer") if customer_status == "unregistered_user" else None
-    # if request.method == "POST":
-    #     form = PublicLeadForm(request.POST)
-    #     if form.is_valid():
-    #         form.save()
-    #         return redirect("staff_client_list")
-    # else:
-    #     form = PublicLeadForm()
-
-    context={}
-    return render(request, "crm/forms/client_create.html", context)
 
 
 @login_required
@@ -96,6 +80,7 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
     List leads for staff with optional filtering by status, lead type, and search query.
     """
     qs: QuerySet[Lead] = Lead.objects.select_related("category").all()
+
 
     status: str = (request.GET.get("status") or "").strip()
     lead_type: str = (request.GET.get("lead_type") or "").strip()
@@ -118,6 +103,67 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
         "filters": {"status": status, "lead_type": lead_type, "q": query},
     }
     return render(request, "crm/main/lead_list.html", context)
+
+
+@login_required
+@require_http_methods(["GET"])
+def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
+    """Display staff-facing details for a single lead."""
+    lead = get_object_or_404(Lead, pk=lead_id)
+    return render(request, "staff/lead_detail.html", {"lead": lead})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def staff_lead_email(request: HttpRequest, lead_id: int) -> HttpResponse:
+    """
+    Compose and send an email to a lead.
+
+    - GET: Show compose form with sensible defaults.
+    - POST: Validate and send, then redirect back to lead detail.
+    """
+    lead = get_object_or_404(Lead, pk=lead_id)
+
+    if request.method == "POST":
+        form = StaffEmailForm(request.POST)
+        if form.is_valid():
+            send_lead_email(
+                actor=request.user,
+                lead=lead,
+                subject=form.cleaned_data["subject"],
+                body=form.cleaned_data["body"],
+            )
+            return redirect("staff_lead_detail", lead_id=lead.id)
+    else:
+        form = StaffEmailForm(
+            initial={
+                "subject": f"Re: {lead.category.name}",
+                "body": f"Hi {lead.first_name},\n\n",
+            }
+        )
+
+    context: dict[str, Any] = {"lead": lead, "form": form}
+    return render(request, "staff/email_compose.html", context)
+
+
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def staff_client_create(request: HttpRequest) -> HttpResponse:
+    """
+    Create a new client for staff.
+    """
+    if request.method == "POST":
+        form = PrivateClientForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("staff_client_list")
+    else:
+        form = PrivateClientForm()
+
+    context={"form": form}
+    return render(request, "crm/forms/client_create.html", context)
 
 
 @login_required
@@ -168,41 +214,61 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
-@require_http_methods(["GET"])
-def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
-    """Display staff-facing details for a single lead."""
-    lead = get_object_or_404(Lead, pk=lead_id)
-    return render(request, "staff/lead_detail.html", {"lead": lead})
+@require_http_methods(["GET", "POST"])
+def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
+    """Update a client record with tabbed form interface."""
+    client = get_object_or_404(Client, pk=client_id)
+
+    if request.method == "POST":
+        form = PrivateClientForm(request.POST, instance=client)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Client updated successfully.")
+            return redirect("staff_client_detail", client_id=client.id)
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = PrivateClientForm(instance=client)
+
+    context: dict[str, Any] = {
+        "client": client,
+        "form": form,
+    }
+    return render(request, "crm/forms/client_update.html", context)
 
 
 @login_required
-@require_http_methods(["GET", "POST"])
-def staff_lead_email(request: HttpRequest, lead_id: int) -> HttpResponse:
+@require_http_methods(["GET"])
+def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
+    """Display staff-facing details for a single client."""
+    client = get_object_or_404(Client, pk=client_id)
+    context: dict[str, Any] = {
+        "clients": [client],
+        "total_clients": 1,
+        "single_client": client,
+    }
+    return render(request, "crm/main/client_detail.html", context)
+
+
+@login_required
+@require_http_methods(["GET"])
+def client_detail_view(request: HttpRequest) -> HttpResponse:
     """
-    Compose and send an email to a lead.
-
-    - GET: Show compose form with sensible defaults.
-    - POST: Validate and send, then redirect back to lead detail.
+    Display a detailed view of all active clients with full information.
+    
+    - Accessible only to logged-in users
+    - Shows all active clients with comprehensive details
+    - Includes contact info, business details, and status information
     """
-    lead = get_object_or_404(Lead, pk=lead_id)
+    clients = (
+        Client.objects
+        .filter(is_active=True)
+        .order_by("-created_at")
+    )
 
-    if request.method == "POST":
-        form = StaffEmailForm(request.POST)
-        if form.is_valid():
-            send_lead_email(
-                actor=request.user,
-                lead=lead,
-                subject=form.cleaned_data["subject"],
-                body=form.cleaned_data["body"],
-            )
-            return redirect("staff_lead_detail", lead_id=lead.id)
-    else:
-        form = StaffEmailForm(
-            initial={
-                "subject": f"Re: {lead.category.name}",
-                "body": f"Hi {lead.first_name},\n\n",
-            }
-        )
+    context: dict[str, Any] = {
+        "clients": clients,
+        "total_clients": clients.count(),
+    }
 
-    context: dict[str, Any] = {"lead": lead, "form": form}
-    return render(request, "staff/email_compose.html", context)
+    return render(request, "crm/main/client_detail.html", context)

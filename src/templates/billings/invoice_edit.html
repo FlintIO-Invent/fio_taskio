@@ -1,0 +1,235 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+{% block content %}
+
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'invoice_list' %}">Invoices</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'invoice_detail' invoice.pk %}">{{ invoice.invoice_number }}</a></li>
+      <li class="breadcrumb-item active">Edit</li>
+    </ol>
+  </nav>
+
+  <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
+    <div class="col-auto">
+      <h2 class="mb-0 text-body-emphasis">Edit Invoice {{ invoice.invoice_number }}</h2>
+    </div>
+    <div class="col-auto">
+      <div class="d-flex gap-3">
+        <a class="btn btn-phoenix-secondary" href="{% url 'invoice_detail' invoice.pk %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to Invoice</a>
+      </div>
+    </div>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="row gx-4">
+      <div class="col-12 col-lg-8">
+        <!-- Invoice Lines -->
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Line Items</h5>
+            <button type="button" class="btn btn-sm btn-phoenix-primary" onclick="addLineItem()">
+              <span class="fa-solid fa-plus me-2"></span>Add Line
+            </button>
+          </div>
+          <div class="card-body">
+            <div id="line-items">
+              {% for line in invoice.lines.all %}
+              <div class="line-item row g-3 mb-3 pb-3 border-bottom">
+                <input type="hidden" name="line_id" value="{{ line.pk }}">
+                <div class="col-md-5">
+                  <label class="form-label">Description</label>
+                  <input type="text" class="form-control" name="description" value="{{ line.description }}" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Quantity</label>
+                  <input type="number" class="form-control" name="quantity" value="{{ line.quantity }}" step="0.01" min="0" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Unit Price</label>
+                  <input type="number" class="form-control" name="unit_price" value="{{ line.unit_price }}" step="0.01" min="0" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Line Total</label>
+                  <input type="text" class="form-control" value="${{ line.line_total }}" readonly>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                  <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
+                    <span class="fa-solid fa-trash"></span>
+                  </button>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+
+            <!-- Template for new line items -->
+            <div id="line-item-template" class="line-item row g-3 mb-3 pb-3 border-bottom" style="display: none;">
+              <div class="col-md-5">
+                <label class="form-label">Description</label>
+                <input type="text" class="form-control" name="new_description" disabled>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Quantity</label>
+                <input type="number" class="form-control" name="new_quantity" value="1" step="0.01" min="0" disabled>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Unit Price</label>
+                <input type="number" class="form-control" name="new_unit_price" step="0.01" min="0" disabled>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Line Total</label>
+                <input type="text" class="form-control" value="$0.00" readonly disabled>
+              </div>
+              <div class="col-md-1 d-flex align-items-end">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
+                  <span class="fa-solid fa-trash"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Invoice Notes -->
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Invoice Notes</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <textarea class="form-control" name="notes" rows="4" placeholder="Add any notes for this invoice...">{{ invoice.notes }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-4">
+        <!-- Invoice Summary -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Invoice Summary</h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label">Invoice #</label>
+                <p class="mb-0 fw-bold">{{ invoice.invoice_number }}</p>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Status</label>
+                <p class="mb-0">
+                  <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+                </p>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Client</label>
+                <p class="mb-0">{{ invoice.client.first_name }} {{ invoice.client.last_name }}</p>
+              </div>
+            </div>
+
+            <hr>
+
+            <div class="d-flex justify-content-between mb-2">
+              <span>Subtotal:</span>
+              <span id="subtotal-display">${{ invoice.subtotal }}</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+              <span>Tax:</span>
+              <span>${{ invoice.tax }}</span>
+            </div>
+            <div class="d-flex justify-content-between fw-bold">
+              <span>Total:</span>
+              <span id="total-display">${{ invoice.total }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card">
+          <div class="card-body">
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-phoenix-primary">
+                <span class="fa-solid fa-save me-2"></span>Save Changes
+              </button>
+              <a href="{% url 'invoice_detail' invoice.pk %}" class="btn btn-phoenix-secondary">
+                <span class="fa-solid fa-times me-2"></span>Cancel
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+let lineItemCount = {{ invoice.lines.count }};
+
+function addLineItem() {
+  const template = document.getElementById('line-item-template');
+  const container = document.getElementById('line-items');
+  const newItem = template.cloneNode(true);
+  newItem.id = '';
+  newItem.style.display = 'flex';
+  newItem.querySelectorAll('input').forEach(input => {
+    input.disabled = false;
+    if (!input.readOnly) {
+      input.required = true;
+    }
+  });
+  container.appendChild(newItem);
+  lineItemCount++;
+  updateTotals();
+}
+
+function removeLineItem(button) {
+  const lineItem = button.closest('.line-item');
+  if (lineItem.querySelector('input[name="line_id"]')) {
+    // Existing line - mark for deletion (you'd need to handle this in the backend)
+    if (confirm('Are you sure you want to remove this line item?')) {
+      lineItem.remove();
+      updateTotals();
+    }
+  } else {
+    // New line - just remove
+    lineItem.remove();
+    updateTotals();
+  }
+}
+
+function updateTotals() {
+  let subtotal = 0;
+  const lineItems = document.querySelectorAll('.line-item:not(#line-item-template)');
+
+  lineItems.forEach(item => {
+    const quantity = parseFloat(item.querySelector('input[name="quantity"], input[name="new_quantity"]').value) || 0;
+    const unitPrice = parseFloat(item.querySelector('input[name="unit_price"], input[name="new_unit_price"]').value) || 0;
+    const lineTotal = quantity * unitPrice;
+
+    const totalInput = item.querySelector('input[readonly]');
+    if (totalInput) {
+      totalInput.value = '$' + lineTotal.toFixed(2);
+    }
+
+    subtotal += lineTotal;
+  });
+
+  document.getElementById('subtotal-display').textContent = '$' + subtotal.toFixed(2);
+  document.getElementById('total-display').textContent = '$' + (subtotal + {{ invoice.tax|default:0 }}).toFixed(2);
+}
+
+// Update totals on input change
+document.addEventListener('input', function(e) {
+  if (e.target.matches('input[name="quantity"], input[name="unit_price"], input[name="new_quantity"], input[name="new_unit_price"]')) {
+    updateTotals();
+  }
+});
+
+// Initialize totals
+updateTotals();
+</script>
+
+{% endblock %}

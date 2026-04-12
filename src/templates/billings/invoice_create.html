@@ -1,0 +1,102 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+{% block content %}
+
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      {% if client %}
+        <li class="breadcrumb-item"><a href="{% url 'staff_client_detail' client.id %}">Client</a></li>
+      {% else %}
+        <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Leads</a></li>
+      {% endif %}
+      <li class="breadcrumb-item active">Create Invoice</li>
+    </ol>
+  </nav>
+
+  <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
+    <div class="col-auto">
+      <h2 class="mb-0 text-body-emphasis">Create Invoice from {% if client %}Client{% else %}Lead{% endif %}</h2>
+    </div>
+    <div class="col-auto">
+      <div class="d-flex gap-3">
+        {% if client %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'staff_client_detail' client.id %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to Client</a>
+        {% else %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_detail' lead.pk %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to Lead</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="row gx-4">
+    <div class="col-12 col-xl-8">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Client Details</h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Name</label>
+              <p class="mb-0">{{ client.first_name }} {{ client.last_name }}</p>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Company</label>
+              <p class="mb-0">{{ client.company_name|default:"N/A" }}</p>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <p class="mb-0">{{ client.email }}</p>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Phone</label>
+              <p class="mb-0">{{ client.phone }}</p>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Service Category</label>
+              <p class="mb-0">{{ client.category.name|default:"Not specified" }}</p>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Message</label>
+              <p class="mb-0">{{ client.message|default:"No message provided" }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Invoice Preview</h5>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <h6 class="alert-heading">Invoice will be created with:</h6>
+            <ul class="mb-0">
+              <li>Status: Draft</li>
+              <li>Client: {% if client %}{{ client.first_name }} {{ client.last_name }}{% else %}{{ lead.first_name }} {{ lead.last_name }}{% endif %}</li>
+              <li>Auto-generated invoice number</li>
+              {% if lead %}
+              <li>Lead reference: {{ lead.pk }}</li>
+              {% endif %}
+            </ul>
+          </div>
+
+          <form method="post">
+            {% csrf_token %}
+            <div class="d-grid">
+              <button type="submit" class="btn btn-phoenix-primary">
+                <span class="fa-solid fa-file-invoice me-2"></span>Create Invoice
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

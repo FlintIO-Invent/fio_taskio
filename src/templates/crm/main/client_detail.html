@@ -1,0 +1,635 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+{% block content %}
+
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Clients</li>
+    </ol>
+  </nav>
+
+  <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
+    <div class="col-auto">
+      <h2 class="mb-0 text-body-emphasis">Client Management</h2>
+    </div>
+    <div class="col-auto">
+      <div class="d-flex gap-3">
+        <a class="btn btn-phoenix-primary" href="{% url 'staff_client_list' %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to List</a>
+        {% if single_client %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'invoice_create_from_client' single_client.id %}"><span class="fa-solid fa-file-invoice me-2"></span>Create Invoice</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  
+
+  <!-- Clients Table/List -->
+  <div class="row pb-9 gx-4">
+    <div class="col-12">
+      {% if clients %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="text-body-secondary">
+              <tr>
+                <th>Name</th>
+                <th>Company</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Last Contacted</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for client in clients %}
+                <tr>
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="avatar avatar-sm">
+                        <span class="avatar-initials bg-phoenix-primary">{{ client.first_name|first|upper }}{{ client.last_name|first|upper }}</span>
+                      </div>
+                      <span class="fw-semibold">{{ client.first_name }} {{ client.last_name }}</span>
+                    </div>
+                  </td>
+                  <td>{{ client.company_name|default:"—" }}</td>
+                  <td>
+                    <a href="mailto:{{ client.email }}">{{ client.email }}</a>
+                  </td>
+                  <td>{{ client.phone|default:"—" }}</td>
+                  <td>
+                    <span class="badge bg-{% if client.client_status == 'ACTIVE' %}success{% elif client.client_status == 'INACTIVE' %}secondary{% elif client.client_status == 'LEAD' %}info{% else %}warning{% endif %}">
+                      {{ client.get_client_status_display }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge bg-{% if client.priority == 'HIGH' %}danger{% elif client.priority == 'MEDIUM' %}warning{% else %}secondary{% endif %}">
+                      {{ client.get_priority_display }}
+                    </span>
+                  </td>
+                  <td>{{ client.last_contacted_at|date:"M d, Y"|default:"Never" }}</td>
+                  <td>
+                    <a href="{% url 'staff_client_detail' client.id %}" class="btn btn-phoenix-primary btn-sm">
+                      <span class="fa-solid fa-arrow-right"></span>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Detailed Client Cards Section -->
+        <div class="mt-5">
+          <h4 class="mb-4">Client Details</h4>
+          {% for client in clients %}
+            <div class="card mb-4">
+              <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <div>
+                  <h5 class="mb-0">{{ client.first_name }} {{ client.last_name }}</h5>
+                  <p class="text-body-secondary mb-0">{{ client.company_name }} • {{ client.get_client_type_display }}</p>
+                </div>
+                <a href="{% url 'staff_client_update' client.id %}" class="btn btn-phoenix-primary btn-sm">
+                  <span class="fa-solid fa-edit me-2"></span>Edit
+                </a>
+              </div>
+
+              <div class="card-body">
+                <!-- Display Mode Only -->
+                <ul class="nav nav-underline gap-0 flex-nowrap scrollbar mb-4" role="tablist">
+                  <li class="nav-item">
+                    <a class="nav-link pt-0 text-nowrap active ps-0 ps-3" href="#basic-{{ client.id }}" data-bs-toggle="tab" role="tab">
+                      Basic Info
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link pt-0 text-nowrap px-3" href="#business-{{ client.id }}" data-bs-toggle="tab" role="tab">
+                      Business Details
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link pt-0 text-nowrap px-3" href="#contact-{{ client.id }}" data-bs-toggle="tab" role="tab">
+                      Contact Info
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link pt-0 text-nowrap px-3" href="#relationship-{{ client.id }}" data-bs-toggle="tab" role="tab">
+                      Relationship
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link pt-0 text-nowrap px-3" href="#notes-{{ client.id }}" data-bs-toggle="tab" role="tab">
+                      Notes & History
+                    </a>
+                  </li>
+                </ul>
+
+                <div class="tab-content">
+                  <!-- Basic Info Tab -->
+                  <div class="tab-pane fade show active" id="basic-{{ client.id }}" role="tabpanel">
+                    <div class="row g-0">
+                      <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                        <div class="row gx-5 gx-md-3">
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-user" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">First Name</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.first_name }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-envelope" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Email</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary"><a href="mailto:{{ client.email }}">{{ client.email }}</a></p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-phone" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Phone</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary"><a href="tel:{{ client.phone }}">{{ client.phone }}</a></p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-user" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Last Name</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.last_name }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-building" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Company</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.company_name|default:"—" }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-map-pin" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">District</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.get_district_display|default:"—" }}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-md-0 border-start-md">
+                        <div class="row gx-5 gx-md-3">
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-road" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Street Address</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.street_address|default:"—" }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-globe" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Country</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.country|default:"—" }}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-hashtag" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Postal Code</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.postal_code|default:"—" }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-user-tie" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Client Type</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.get_client_type_display }}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Business Details Tab -->
+                  <div class="tab-pane fade" id="business-{{ client.id }}" role="tabpanel">
+                    <div class="row g-0">
+                      <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                        <div class="row gx-5 gx-md-3">
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-briefcase" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Business Legal Name</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.business_legal_name|default:"—" }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-tag" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Trade Name</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.trade_name|default:"—" }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-industry" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Industry</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.industry|default:"—" }}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-file-contract" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Registration Number</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.registration_number|default:"—" }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-link" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Website</h6>
+                              </div>
+                              <div class="ps-4">
+                                {% if client.website %}
+                                  <p class="mb-0 text-body-secondary"><a href="{{ client.website }}" target="_blank">{{ client.website }}</a></p>
+                                {% else %}
+                                  <p class="mb-0 text-body-secondary">—</p>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-md-0 border-start-md">
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="fa-solid fs-8 fa-info-circle" style="width: 16px;"></span>
+                            <h6 class="my-2 ms-2 mb-0">Business Description</h6>
+                          </div>
+                          <div class="ps-4">
+                            <p class="mb-0 text-body-secondary">{{ client.business_description|default:"—" }}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Contact Info Tab -->
+                  <div class="tab-pane fade" id="contact-{{ client.id }}" role="tabpanel">
+                    <div class="row g-0">
+                      <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                        <div class="row gx-5 gx-md-3">
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-briefcase" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Job Title</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.job_title|default:"—" }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-envelope" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Secondary Email</h6>
+                              </div>
+                              <div class="ps-4">
+                                {% if client.secondary_email %}
+                                  <p class="mb-0 text-body-secondary"><a href="mailto:{{ client.secondary_email }}">{{ client.secondary_email }}</a></p>
+                                {% else %}
+                                  <p class="mb-0 text-body-secondary">—</p>
+                                {% endif %}
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-phone" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Secondary Phone</h6>
+                              </div>
+                              <div class="ps-4">
+                                {% if client.secondary_phone %}
+                                  <p class="mb-0 text-body-secondary"><a href="tel:{{ client.secondary_phone }}">{{ client.secondary_phone }}</a></p>
+                                {% else %}
+                                  <p class="mb-0 text-body-secondary">—</p>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-sitemap" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Department</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.department|default:"—" }}</p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fab fs-8 fa-whatsapp" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">WhatsApp</h6>
+                              </div>
+                              <div class="ps-4">
+                                {% if client.whatsapp_number %}
+                                  <p class="mb-0 text-body-secondary"><a href="https://wa.me/{{ client.whatsapp_number|stringformat:'s'|slice:'-15:' }}" target="_blank">{{ client.whatsapp_number }}</a></p>
+                                {% else %}
+                                  <p class="mb-0 text-body-secondary">—</p>
+                                {% endif %}
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-language" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Preferred Language</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.preferred_language|default:"—" }}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-md-0 border-start-md">
+                        <div class="row gx-5 gx-md-3">
+                          <div class="col-12">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-hand-holding-heart" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Preferred Contact Method</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.get_preferred_contact_method_display }}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Relationship Tab -->
+                  <div class="tab-pane fade" id="relationship-{{ client.id }}" role="tabpanel">
+                    <div class="row g-0">
+                      <div class="col-12 col-md-6 pe-md-4 pb-4 pb-md-0">
+                        <div class="row gx-5 gx-md-3">
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-flag" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Status</h6>
+                              </div>
+                              <div class="ps-4">
+                                <span class="badge bg-{% if client.client_status == 'ACTIVE' %}success{% elif client.client_status == 'INACTIVE' %}secondary{% elif client.client_status == 'LEAD' %}info{% else %}warning{% endif %}">
+                                  {{ client.get_client_status_display }}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-chart-line" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Priority</h6>
+                              </div>
+                              <div class="ps-4">
+                                <span class="badge bg-{% if client.priority == 'HIGH' %}danger{% elif client.priority == 'MEDIUM' %}warning{% else %}secondary{% endif %}">
+                                  {{ client.get_priority_display }}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-people-arrows" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Lead Source</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.get_lead_source_display|default:"—" }}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-user-check" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Assigned To</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">
+                                  {% if client.assigned_to %}
+                                    {{ client.assigned_to.get_full_name|default:client.assigned_to.username }}
+                                  {% else %}
+                                    Unassigned
+                                  {% endif %}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-heart" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Interested Services</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.interested_services|default:"—"|truncatewords:10 }}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="col-12 col-md-6 ps-md-4 pt-4 pt-md-0 border-top border-md-0 border-start-md">
+                        <div class="row gx-5 gx-md-3">
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-phone" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Last Contacted</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.last_contacted_at|date:"M d, Y H:i"|default:"Never" }}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-calendar" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Next Follow-up</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.next_follow_up_at|date:"M d, Y H:i"|default:"Not scheduled" }}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Notes & History Tab -->
+                  <div class="tab-pane fade" id="notes-{{ client.id }}" role="tabpanel">
+                    <div class="row g-0">
+                      <div class="col-12">
+                        <div class="mb-4">
+                          <h6 class="text-body mb-2">General Notes</h6>
+                          <div class="card bg-light">
+                            <div class="card-body">
+                              <p class="mb-0 text-body-secondary">{{ client.notes|default:"No notes added yet" }}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="mb-4">
+                          <h6 class="text-body mb-2">Communication Notes</h6>
+                          <div class="card bg-light">
+                            <div class="card-body">
+                              <p class="mb-0 text-body-secondary">{{ client.communication_notes|default:"No communication notes added yet" }}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="mb-4">
+                          <h6 class="text-body mb-2">Message / Initial Inquiry</h6>
+                          <div class="card bg-light">
+                            <div class="card-body">
+                              <p class="mb-0 text-body-secondary">{{ client.message|default:"No message provided" }}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="row">
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-calendar-plus" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Created Date</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.created_at|date:"M d, Y H:i" }}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-sm-6">
+                            <div class="mb-3">
+                              <div class="d-flex align-items-center mb-1">
+                                <span class="fa-solid fs-8 fa-calendar-check" style="width: 16px;"></span>
+                                <h6 class="my-2 ms-2 mb-0">Last Updated</h6>
+                              </div>
+                              <div class="ps-4">
+                                <p class="mb-0 text-body-secondary">{{ client.updated_at|date:"M d, Y H:i" }}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-info" role="alert">
+          <h5>No active clients found</h5>
+          <p class="mb-0">Start by <a href="{% url 'staff_client_create' %}" class="alert-link">creating a new client</a>.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <footer class="footer position-absolute">
+    <div class="row g-0 justify-content-between align-items-center h-100">
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 mt-2 mt-sm-0 text-body">
+          Thank you for creating with FlintIO<span class="d-none d-sm-inline-block"></span>
+          <span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;
+          <a class="mx-1" href="https://www.flintio.net/"></a>
+        </p>
+      </div>
+      <div class="col-12 col-sm-auto text-center">
+        <p class="mb-0 text-body-tertiary text-opacity-85">v1.0.0</p>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  var navbarTopStyle = window.config.config.phoenixNavbarTopStyle;
+  var navbarTop = document.querySelector('.navbar-top');
+  if (navbarTopStyle === 'darker') {
+    navbarTop.setAttribute('data-navbar-appearance', 'darker');
+  }
+
+  var navbarVerticalStyle = window.config.config.phoenixNavbarVerticalStyle;
+  var navbarVertical = document.querySelector('.navbar-vertical');
+  if (navbarVertical && navbarVerticalStyle === 'darker') {
+    navbarVertical.setAttribute('data-navbar-appearance', 'darker');
+  }
+</script>
+{% endblock %}
