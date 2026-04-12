@@ -1,0 +1,128 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+{% block content %}
+
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Invoices</li>
+    </ol>
+  </nav>
+
+  <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
+    <div class="col-auto">
+      <h2 class="mb-0 text-body-emphasis">Invoice Management</h2>
+    </div>
+    <div class="col-auto">
+      <div class="d-flex gap-3">
+        <a class="btn btn-phoenix-primary" href="{% url 'staff_client_list' %}">
+          <span class="fa-solid fa-plus me-2"></span>Create from Client
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Filter -->
+  <div class="row mb-3">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'invoice_list' %}" class="btn btn-sm {% if not current_status %}btn-phoenix-primary{% else %}btn-outline-primary{% endif %}">
+              All
+            </a>
+            {% for status_value, status_label in status_choices %}
+            <a href="?status={{ status_value }}" class="btn btn-sm {% if current_status == status_value %}btn-phoenix-primary{% else %}btn-outline-primary{% endif %}">
+              {{ status_label }}
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invoices Table -->
+  <div class="row gx-4">
+    <div class="col-12">
+      {% if invoices %}
+        <div class="card">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead class="text-body-secondary">
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Client</th>
+                    <th>Status</th>
+                    <th>Total</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for invoice in invoices %}
+                    <tr>
+                      <td>
+                        <a href="{% url 'invoice_detail' invoice.pk %}" class="fw-bold text-decoration-none">
+                          {{ invoice.invoice_number }}
+                        </a>
+                      </td>
+                      <td>
+                        <div>
+                          <div class="fw-bold">{{ invoice.client.first_name }} {{ invoice.client.last_name }}</div>
+                          {% if invoice.client.company_name %}
+                            <small class="text-muted">{{ invoice.client.company_name }}</small>
+                          {% endif %}
+                        </div>
+                      </td>
+                      <td>
+                        <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+                      </td>
+                      <td class="fw-bold">${{ invoice.total }}</td>
+                      <td>{{ invoice.created_at|date:"M d, Y" }}</td>
+                      <td>
+                        <div class="d-flex gap-2">
+                          <a href="{% url 'invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary">
+                            <span class="fa-solid fa-eye"></span>
+                          </a>
+                          {% if invoice.status == 'DRAFT' %}
+                          <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-sm btn-outline-warning">
+                            <span class="fa-solid fa-edit"></span>
+                          </a>
+                          {% endif %}
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="card">
+          <div class="card-body text-center py-5">
+            <div class="avatar avatar-4xl bg-phoenix-secondary mb-3 mx-auto">
+              <span class="fa-solid fa-file-invoice text-phoenix-primary fs-2"></span>
+            </div>
+            <h4 class="mb-3">No invoices found</h4>
+            <p class="mb-4 text-body-secondary">
+              {% if current_status %}
+                No invoices with status "{{ current_status }}" found.
+              {% else %}
+                No invoices have been created yet.
+              {% endif %}
+            </p>
+            <a href="{% url 'staff_client_list' %}" class="btn btn-phoenix-primary">
+              <span class="fa-solid fa-plus me-2"></span>Create Your First Invoice
+            </a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
