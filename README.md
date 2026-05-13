@@ -39,11 +39,6 @@ uv run python scripts/example.py
 
 ---
 
-# SXM Mobility Graph Lab — Step-by-Step Project Overview
-
-
-## Key concepts
-
 
 ## Pipeline steps (in order)
 
