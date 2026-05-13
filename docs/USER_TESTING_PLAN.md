@@ -16,12 +16,12 @@ Based on the codebase, the product currently supports:
 
 ## Current URL Inventory
 
-### Public routes
+### Public routes --- URL (https://fio-taskio.onrender.com)
 
 | URL | Access | Purpose | Notes |
 | --- | --- | --- | --- |
 | `/` | Public | Redirects to home | Redirects to `/home/` |
-| `/home/` | Public | Landing page | Main marketing and entry page |
+| `(https://fio-taskio.onrender.com)/home/` | Public | Landing page | Main marketing and entry page |
 | `/crm/public_request/` | Public | Public lead or service request form | Accepts service requests and general interest submissions |
 | `/crm/thanks/` | Public | Submission success page | Shown after public form submission |
 | `/accounts/customer_registration` | Public | Customer account registration | Creates a non-staff user account and SaaS profile (Not for you) |
