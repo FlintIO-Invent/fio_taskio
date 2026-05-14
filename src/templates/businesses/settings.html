@@ -1,0 +1,171 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+
+{% block content %}
+<div class="content">
+  <div class="row g-3 mb-4 justify-content-between align-items-center">
+    <div class="col-lg-8">
+      <h2 class="mb-2 text-body-emphasis">Workspace Settings</h2>
+      <p class="text-body-tertiary mb-0">Manage the business-level details, invoice defaults, and operational settings for your Clarivo workspace.</p>
+    </div>
+    <div class="col-auto d-flex gap-2">
+      <a class="btn btn-phoenix-secondary" href="{% url 'saas_profile' %}">Account Profile</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-xxl-8">
+      <div class="card border-0 overflow-hidden">
+        <div class="position-relative p-4 p-sm-5" style="background: linear-gradient(135deg, #1d4ed8, #101828);">
+          <div class="row align-items-center g-4 position-relative">
+            <div class="col-auto">
+              <div class="avatar avatar-5xl border border-white border-opacity-25">
+                <div class="avatar-name rounded-circle fs-4 text-white" style="background-color: rgba(255,255,255,.14);">
+                  <span>{{ business.name|slice:":1"|upper }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <span class="badge badge-phoenix badge-phoenix-light mb-3">{{ membership.get_role_display }}</span>
+              <h2 class="text-white mb-1">{{ business.name }}</h2>
+              <p class="text-white text-opacity-75 mb-3">{{ business.email|default:"No business email configured yet." }}</p>
+              <div class="d-flex flex-wrap gap-4 text-white text-opacity-75">
+                <div>
+                  <div class="fs-10 text-uppercase">Workspace slug</div>
+                  <div class="fw-semibold text-white">{{ business.slug }}</div>
+                </div>
+                <div>
+                  <div class="fs-10 text-uppercase">Country</div>
+                  <div class="fw-semibold text-white">{{ business.country|default:"Not set" }}</div>
+                </div>
+                <div>
+                  <div class="fs-10 text-uppercase">Timezone</div>
+                  <div class="fw-semibold text-white">{{ business.timezone }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xxl-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h4 class="mb-3">Invoice Defaults</h4>
+          <div class="rounded-3 p-4 mb-4" style="background-color: #1d4ed812; border: 1px solid #1d4ed833;">
+            <div class="d-flex justify-content-between align-items-start mb-4">
+              <div>
+                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Preview Number</p>
+                <h4 class="mb-0">{{ business.invoice_prefix }}-{{ business.invoice_start_number }}</h4>
+              </div>
+              <span class="badge badge-phoenix badge-phoenix-primary">{{ business.currency }}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <div>
+                <p class="text-body-tertiary fs-10 mb-1">Tax Rate</p>
+                <p class="mb-0 fw-semibold">{{ business.tax_rate }}%</p>
+              </div>
+              <div class="text-end">
+                <p class="text-body-tertiary fs-10 mb-1">Status</p>
+                <p class="mb-0 fw-semibold">{% if business.is_active %}Active{% else %}Inactive{% endif %}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-info mb-0" role="alert">
+            Only workspace owners and admins can update these business-level settings.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4 p-lg-5">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+            <div>
+              <h4 class="mb-1">Business Details</h4>
+              <p class="text-body-tertiary mb-0">These settings apply to the current Clarivo workspace and will become the source of truth for workspace defaults.</p>
+            </div>
+            <span class="badge badge-phoenix badge-phoenix-primary">{{ membership.get_role_display }}</span>
+          </div>
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors|striptags }}</div>
+          {% endif %}
+
+          <form method="POST" novalidate>
+            {% csrf_token %}
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.name.id_for_label }}">Business name</label>
+                {{ form.name }}
+                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.email.id_for_label }}">Business email</label>
+                {{ form.email }}
+                {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.phone.id_for_label }}">Phone</label>
+                {{ form.phone }}
+                {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.country.id_for_label }}">Country</label>
+                {{ form.country }}
+                {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.currency.id_for_label }}">Currency</label>
+                {{ form.currency }}
+                {% if form.currency.errors %}<div class="invalid-feedback d-block">{{ form.currency.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.timezone.id_for_label }}">Timezone</label>
+                {{ form.timezone }}
+                {% if form.timezone.errors %}<div class="invalid-feedback d-block">{{ form.timezone.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.tax_rate.id_for_label }}">Tax rate</label>
+                {{ form.tax_rate }}
+                {% if form.tax_rate.errors %}<div class="invalid-feedback d-block">{{ form.tax_rate.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.invoice_prefix.id_for_label }}">Invoice prefix</label>
+                {{ form.invoice_prefix }}
+                {% if form.invoice_prefix.errors %}<div class="invalid-feedback d-block">{{ form.invoice_prefix.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.invoice_start_number.id_for_label }}">Invoice start number</label>
+                {{ form.invoice_start_number }}
+                {% if form.invoice_start_number.errors %}<div class="invalid-feedback d-block">{{ form.invoice_start_number.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ form.address.id_for_label }}">Address</label>
+                {{ form.address }}
+                {% if form.address.errors %}<div class="invalid-feedback d-block">{{ form.address.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+
+            <button class="btn btn-primary mt-4" type="submit">Save business settings</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

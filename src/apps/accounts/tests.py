@@ -101,7 +101,7 @@ class BusinessRegistrationViewTests(TestCase):
         membership = BusinessUser.objects.get(user=user, business=business)
         profile = SaaSUserProfile.objects.get(user=user)
 
-        self.assertRedirects(response, reverse("saas_profile"))
+        self.assertRedirects(response, reverse("business_settings"))
         self.assertTrue(user.check_password("StrongPass123!"))
         self.assertEqual(user.company_name, "Acme Freight")
         self.assertEqual(business.email, "hello@acmefreight.com")

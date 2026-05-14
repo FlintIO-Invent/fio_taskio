@@ -4,6 +4,7 @@ from functools import wraps
 from typing import Any, Callable, TypeVar
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.utils.text import slugify
@@ -14,6 +15,7 @@ from .models import Business, BusinessUser
 CURRENT_BUSINESS_SESSION_KEY = "current_business_id"
 _CURRENT_BUSINESS_RESOLVED_ATTR = "_current_business_resolved"
 _CURRENT_BUSINESS_CACHE_ATTR = "_cached_current_business"
+_CURRENT_BUSINESS_MEMBERSHIP_CACHE_ATTR = "_cached_current_business_membership"
 
 ViewFunc = TypeVar("ViewFunc", bound=Callable[..., HttpResponse])
 
@@ -68,6 +70,30 @@ def get_current_business(request: HttpRequest) -> Business | None:
     return business
 
 
+def get_current_business_membership(request: HttpRequest) -> BusinessUser | None:
+    if hasattr(request, _CURRENT_BUSINESS_MEMBERSHIP_CACHE_ATTR):
+        return getattr(request, _CURRENT_BUSINESS_MEMBERSHIP_CACHE_ATTR)
+
+    membership: BusinessUser | None = None
+    business = get_current_business(request)
+
+    if getattr(request.user, "is_authenticated", False) and business is not None:
+        membership = (
+            BusinessUser.objects.select_related("business", "user")
+            .filter(
+                user=request.user,
+                business=business,
+                is_active=True,
+                business__is_active=True,
+            )
+            .first()
+        )
+
+    setattr(request, _CURRENT_BUSINESS_MEMBERSHIP_CACHE_ATTR, membership)
+    request.current_business_membership = membership
+    return membership
+
+
 def generate_business_slug(name: str) -> str:
     base_slug = slugify(name).strip("-") or "business"
     max_base_length = 150
@@ -103,3 +129,31 @@ def business_required(
     if view_func is None:
         return decorator
     return decorator(view_func)
+
+
+def business_role_required(
+    *allowed_roles: str,
+    login_url: str = "agent_login",
+    setup_url_name: str = "business_setup",
+) -> Callable[[ViewFunc], ViewFunc]:
+    allowed_role_set = set(allowed_roles)
+
+    def decorator(func: ViewFunc) -> ViewFunc:
+        @wraps(func)
+        def wrapped(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+            membership = get_current_business_membership(request)
+            if membership is None:
+                return redirect(setup_url_name)
+
+            if membership.role not in allowed_role_set:
+                raise PermissionDenied("You do not have permission to manage this workspace.")
+
+            request.current_business_membership = membership
+            return func(request, *args, **kwargs)
+
+        return business_required(
+            login_url=login_url,
+            setup_url_name=setup_url_name,
+        )(wrapped)
+
+    return decorator

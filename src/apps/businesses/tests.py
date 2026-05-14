@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from django.test import RequestFactory, TestCase
@@ -6,7 +9,13 @@ from django.urls import reverse
 from apps.accounts.models import TaskIOUser
 
 from .models import Business, BusinessUser
-from .utils import CURRENT_BUSINESS_SESSION_KEY, business_required, get_current_business
+from .utils import (
+    CURRENT_BUSINESS_SESSION_KEY,
+    business_required,
+    business_role_required,
+    get_current_business,
+    get_current_business_membership,
+)
 
 
 class BusinessModelTests(TestCase):
@@ -107,3 +116,119 @@ class CurrentBusinessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"ok")
+
+    def test_get_current_business_membership_returns_current_workspace_membership(self):
+        business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
+        membership = BusinessUser.objects.create(
+            user=self.user,
+            business=business,
+            role=BusinessUser.Role.ADMIN,
+        )
+
+        request = self._build_request()
+
+        resolved_membership = get_current_business_membership(request)
+
+        self.assertEqual(resolved_membership, membership)
+        self.assertEqual(request.current_business_membership, membership)
+
+    def test_business_role_required_blocks_non_allowed_roles(self):
+        business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
+        BusinessUser.objects.create(
+            user=self.user,
+            business=business,
+            role=BusinessUser.Role.STAFF,
+        )
+
+        @business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+        def sample_view(request):
+            return HttpResponse("ok")
+
+        request = self._build_request()
+
+        with self.assertRaises(PermissionDenied):
+            sample_view(request)
+
+
+class BusinessSettingsViewTests(TestCase):
+    def setUp(self):
+        self.user = TaskIOUser.objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        self.business = Business.objects.create(
+            name="Clarivo HQ",
+            slug="clarivo-hq",
+            email="hello@clarivo.test",
+            country="Sint Maarten",
+        )
+
+    def _login_with_role(self, role: str):
+        BusinessUser.objects.create(
+            user=self.user,
+            business=self.business,
+            role=role,
+        )
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+        self.client.force_login(self.user)
+
+    def test_owner_can_view_business_settings(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        response = self.client.get(reverse("business_settings"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Business Details")
+        self.assertContains(response, "Clarivo HQ")
+
+    def test_admin_can_update_business_settings(self):
+        self._login_with_role(BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_settings"),
+            {
+                "name": "Clarivo Caribbean",
+                "email": "billing@clarivo.test",
+                "phone": "+1 721 555 0100",
+                "address": "Front Street, Philipsburg",
+                "country": "Sint Maarten",
+                "currency": "XCD",
+                "timezone": "America/Lower_Princes",
+                "tax_rate": "6.50",
+                "invoice_prefix": "CLR",
+                "invoice_start_number": "250",
+            },
+            follow=True,
+        )
+
+        self.business.refresh_from_db()
+
+        self.assertRedirects(response, reverse("business_settings"))
+        self.assertEqual(self.business.name, "Clarivo Caribbean")
+        self.assertEqual(self.business.currency, "XCD")
+        self.assertEqual(self.business.timezone, "America/Lower_Princes")
+        self.assertEqual(self.business.tax_rate, Decimal("6.50"))
+        self.assertEqual(self.business.invoice_prefix, "CLR")
+        self.assertEqual(self.business.invoice_start_number, 250)
+        self.assertContains(response, "Business settings updated.")
+
+    def test_staff_viewer_and_accountant_cannot_edit_business_settings(self):
+        restricted_roles = [
+            BusinessUser.Role.STAFF,
+            BusinessUser.Role.VIEWER,
+            BusinessUser.Role.ACCOUNTANT,
+        ]
+
+        for role in restricted_roles:
+            with self.subTest(role=role):
+                BusinessUser.objects.all().delete()
+                self.client.logout()
+                self._login_with_role(role)
+
+                response = self.client.get(reverse("business_settings"))
+
+                self.assertEqual(response.status_code, 403)

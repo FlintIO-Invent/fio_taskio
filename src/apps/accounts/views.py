@@ -133,7 +133,7 @@ def register_business(request: HttpRequest) -> HttpResponse:
                 request,
                 "Your Clarivo workspace has been created. You can now review your workspace settings.",
             )
-            return redirect("saas_profile")
+            return redirect("business_settings")
 
         logger.warning(
             "Business registration failed for email={}: {}",
