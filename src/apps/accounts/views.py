@@ -10,8 +10,10 @@ from django.views.decorators.http import require_http_methods
 from loguru import logger
 
 from apps.accounts.models import SaaSUserProfile, TaskIOUser
+from apps.businesses.utils import set_current_business
 
 from .forms import (
+    BusinessRegistrationForm,
     CustomerRegistrationForm,
     SaaSBasicInfoForm,
     SaaSInvoiceSettingsForm,
@@ -107,6 +109,41 @@ def customer_registration(request: HttpRequest) -> HttpResponse:
         form = CustomerRegistrationForm()
 
     return render(request, "accounts/forms/customer_registration.html", {"form": form})
+
+
+@require_http_methods(["GET", "POST"])
+def register_business(request: HttpRequest) -> HttpResponse:
+    """
+    Register a new Clarivo business owner and create the initial workspace.
+    """
+    if request.method == "POST":
+        form = BusinessRegistrationForm(request.POST)
+
+        if form.is_valid():
+            user, business, _membership = form.save()
+
+            login(request, user)
+            set_current_business(request, business)
+            logger.info(
+                "New Clarivo business registered with owner_email={} and business_slug={}",
+                user.email,
+                business.slug,
+            )
+            messages.success(
+                request,
+                "Your Clarivo workspace has been created. You can now review your workspace settings.",
+            )
+            return redirect("saas_profile")
+
+        logger.warning(
+            "Business registration failed for email={}: {}",
+            request.POST.get("email", ""),
+            form.errors.as_json(),
+        )
+    else:
+        form = BusinessRegistrationForm()
+
+    return render(request, "accounts/forms/business_registration.html", {"form": form})
 
 
 @login_required(login_url="agent_login")

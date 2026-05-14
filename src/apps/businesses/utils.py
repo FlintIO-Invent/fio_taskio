@@ -6,6 +6,7 @@ from typing import Any, Callable, TypeVar
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
+from django.utils.text import slugify
 
 from .models import Business, BusinessUser
 
@@ -65,6 +66,21 @@ def get_current_business(request: HttpRequest) -> Business | None:
 
     set_current_business(request, business)
     return business
+
+
+def generate_business_slug(name: str) -> str:
+    base_slug = slugify(name).strip("-") or "business"
+    max_base_length = 150
+    candidate = base_slug[:max_base_length]
+    suffix = 2
+
+    while Business.objects.filter(slug=candidate).exists():
+        suffix_text = f"-{suffix}"
+        trimmed_base = base_slug[: max_base_length - len(suffix_text)].strip("-") or "business"
+        candidate = f"{trimmed_base}{suffix_text}"
+        suffix += 1
+
+    return candidate
 
 
 def business_required(

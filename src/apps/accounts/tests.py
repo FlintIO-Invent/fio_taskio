@@ -2,6 +2,9 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from apps.businesses.models import Business, BusinessUser
+from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
+
 from .models import SaaSUserProfile
 
 
@@ -68,6 +71,82 @@ class CustomerRegistrationViewTests(TestCase):
             form.errors["email"],
             ["An account with this email already exists."],
         )
+
+
+class BusinessRegistrationViewTests(TestCase):
+    def test_get_renders_business_registration_page(self):
+        response = self.client.get(reverse("register_business"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Register your business")
+
+    def test_post_creates_user_business_membership_and_logs_in(self):
+        response = self.client.post(
+            reverse("register_business"),
+            {
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email": "owner@example.com",
+                "business_name": "Acme Freight",
+                "business_email": "hello@acmefreight.com",
+                "country": "Sint Maarten",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+            follow=True,
+        )
+
+        user = get_user_model().objects.get(email="owner@example.com")
+        business = Business.objects.get(name="Acme Freight")
+        membership = BusinessUser.objects.get(user=user, business=business)
+        profile = SaaSUserProfile.objects.get(user=user)
+
+        self.assertRedirects(response, reverse("saas_profile"))
+        self.assertTrue(user.check_password("StrongPass123!"))
+        self.assertEqual(user.company_name, "Acme Freight")
+        self.assertEqual(business.email, "hello@acmefreight.com")
+        self.assertEqual(business.country, "Sint Maarten")
+        self.assertEqual(membership.role, BusinessUser.Role.OWNER)
+        self.assertEqual(profile.workspace_name, "Acme Freight")
+        self.assertEqual(profile.billing_email, "hello@acmefreight.com")
+        self.assertEqual(int(self.client.session[CURRENT_BUSINESS_SESSION_KEY]), business.id)
+        self.assertContains(response, "Your Clarivo workspace has been created.")
+
+    def test_post_generates_unique_slug_for_duplicate_business_names(self):
+        existing_owner = get_user_model().objects.create_user(
+            email="existing@example.com",
+            password="StrongPass123!",
+            first_name="Existing",
+            last_name="Owner",
+        )
+        existing_business = Business.objects.create(
+            name="Acme Freight",
+            slug="acme-freight",
+            email="existing@acmefreight.com",
+            country="Sint Maarten",
+        )
+        BusinessUser.objects.create(
+            user=existing_owner,
+            business=existing_business,
+            role=BusinessUser.Role.OWNER,
+        )
+
+        response = self.client.post(
+            reverse("register_business"),
+            {
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email": "new-owner@example.com",
+                "business_name": "Acme Freight",
+                "business_email": "hello@acmefreight.com",
+                "country": "Sint Maarten",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Business.objects.filter(slug="acme-freight-2").exists())
 
 
 class SaaSProfileViewTests(TestCase):
