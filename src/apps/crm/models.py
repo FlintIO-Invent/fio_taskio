@@ -67,6 +67,13 @@ class Lead(TimeStampedModel):
         SIMPSON_BAY = "SIMPSON_BAY", "Simpson Bay"
         MAHO = "MAHO", "Maho"
 
+    business = models.ForeignKey(
+        "businesses.Business",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="leads",
+    )
     lead_type           = models.CharField(max_length=20, choices=LeadType.choices, db_index=True)
     status              = models.CharField(max_length=20,choices=Status.choices,default=Status.NEW, db_index=True)
     category            = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="leads",)
@@ -153,6 +160,13 @@ class Client(TimeStampedModel):
         PHONE = "PHONE", "Phone Inquiry"
         OTHER = "OTHER", "Other"
 
+    business = models.ForeignKey(
+        "businesses.Business",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="clients",
+    )
     first_name = models.CharField(max_length=80)
     last_name = models.CharField(max_length=80)
     email = models.EmailField()
@@ -248,6 +262,13 @@ class ActivityLog(TimeStampedModel):
 
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs"
+    )
+    business = models.ForeignKey(
+        "businesses.Business",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="activity_logs",
     )
     lead = models.ForeignKey(Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs")
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs")
