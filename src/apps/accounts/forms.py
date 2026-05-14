@@ -187,7 +187,7 @@ class SaaSWorkspaceSettingsForm(forms.ModelForm):
         ]
         widgets = {
             "workspace_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "TaskIO Caribbean Workspace"}
+                attrs={"class": "form-control", "placeholder": "Clarivo Workspace"}
             ),
             "billing_email": forms.EmailInput(
                 attrs={"class": "form-control", "placeholder": "billing@example.com"}
