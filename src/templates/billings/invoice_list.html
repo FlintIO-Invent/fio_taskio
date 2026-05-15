@@ -80,7 +80,7 @@
                       <td>
                         <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
                       </td>
-                      <td class="fw-bold">${{ invoice.total }}</td>
+                      <td class="fw-bold">{{ invoice.currency_code }} {{ invoice.total }}</td>
                       <td>{{ invoice.created_at|date:"M d, Y" }}</td>
                       <td>
                         <div class="d-flex gap-2">

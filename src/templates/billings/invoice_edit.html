@@ -55,7 +55,7 @@
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Line Total</label>
-                  <input type="text" class="form-control" value="${{ line.line_total }}" readonly>
+                  <input type="text" class="form-control" value="{{ invoice.currency_code }} {{ line.line_total }}" readonly>
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
                   <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
@@ -82,7 +82,7 @@
               </div>
               <div class="col-md-2">
                 <label class="form-label">Line Total</label>
-                <input type="text" class="form-control" value="$0.00" readonly disabled>
+                <input type="text" class="form-control" value="{{ invoice.currency_code }} 0.00" readonly disabled>
               </div>
               <div class="col-md-1 d-flex align-items-end">
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
@@ -124,6 +124,10 @@
                   <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
                 </p>
               </div>
+              <div class="col-6">
+                <label class="form-label">Currency</label>
+                <p class="mb-0">{{ invoice.currency_code }}</p>
+              </div>
               <div class="col-12">
                 <label class="form-label">Client</label>
                 <p class="mb-0">{{ invoice.client.first_name }} {{ invoice.client.last_name }}</p>
@@ -134,15 +138,15 @@
 
             <div class="d-flex justify-content-between mb-2">
               <span>Subtotal:</span>
-              <span id="subtotal-display">${{ invoice.subtotal }}</span>
+              <span id="subtotal-display">{{ invoice.currency_code }} {{ invoice.subtotal }}</span>
             </div>
             <div class="d-flex justify-content-between mb-2">
-              <span>Tax:</span>
-              <span>${{ invoice.tax }}</span>
+              <span>Tax ({{ invoice.tax_rate_percentage }}%):</span>
+              <span id="tax-display">{{ invoice.currency_code }} {{ invoice.tax }}</span>
             </div>
             <div class="d-flex justify-content-between fw-bold">
               <span>Total:</span>
-              <span id="total-display">${{ invoice.total }}</span>
+              <span id="total-display">{{ invoice.currency_code }} {{ invoice.total }}</span>
             </div>
           </div>
         </div>
@@ -167,6 +171,8 @@
 
 <script>
 let lineItemCount = {{ invoice.lines.count }};
+const currencyCode = "{{ invoice.currency_code }}";
+const taxRate = parseFloat("{{ invoice.tax_rate_percentage }}") || 0;
 
 function addLineItem() {
   const template = document.getElementById('line-item-template');
@@ -211,14 +217,16 @@ function updateTotals() {
 
     const totalInput = item.querySelector('input[readonly]');
     if (totalInput) {
-      totalInput.value = '$' + lineTotal.toFixed(2);
+      totalInput.value = currencyCode + ' ' + lineTotal.toFixed(2);
     }
 
     subtotal += lineTotal;
   });
 
-  document.getElementById('subtotal-display').textContent = '$' + subtotal.toFixed(2);
-  document.getElementById('total-display').textContent = '$' + (subtotal + {{ invoice.tax|default:0 }}).toFixed(2);
+  const taxAmount = subtotal * (taxRate / 100);
+  document.getElementById('subtotal-display').textContent = currencyCode + ' ' + subtotal.toFixed(2);
+  document.getElementById('tax-display').textContent = currencyCode + ' ' + taxAmount.toFixed(2);
+  document.getElementById('total-display').textContent = currencyCode + ' ' + (subtotal + taxAmount).toFixed(2);
 }
 
 // Update totals on input change

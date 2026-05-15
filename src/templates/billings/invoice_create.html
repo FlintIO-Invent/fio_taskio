@@ -159,11 +159,23 @@
             <ul class="mb-0">
               <li>Status: Draft</li>
               <li>Client: {% if client %}{{ client.first_name }} {{ client.last_name }}{% else %}{{ lead.first_name }} {{ lead.last_name }}{% endif %}</li>
-              <li>Auto-generated invoice number</li>
+              <li>Invoice number: {{ invoice_number_preview }}</li>
+              <li>Currency: {{ current_business.currency }}</li>
+              <li>Tax rate: {{ current_business.tax_rate }}%</li>
               {% if lead %}
               <li>Lead reference: {{ lead.pk }}</li>
               {% endif %}
             </ul>
+          </div>
+
+          <div class="rounded-3 border p-3 mb-4">
+            <div class="fw-semibold mb-2">Workspace defaults</div>
+            <div class="small text-body-secondary">Prefix</div>
+            <div class="mb-2">{{ current_business.invoice_prefix }}</div>
+            <div class="small text-body-secondary">Start number</div>
+            <div class="mb-2">{{ current_business.invoice_start_number }}</div>
+            <div class="small text-body-secondary">Workspace</div>
+            <div>{{ current_business.name }}</div>
           </div>
 
           <form method="post">

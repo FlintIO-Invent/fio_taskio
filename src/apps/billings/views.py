@@ -12,7 +12,7 @@ from apps.crm.models import ActivityLog, Client
 from apps.crm.services import log_activity
 
 from .models import Invoice, InvoiceLine
-from .services import create_invoice_for_client
+from .services import calculate_tax_amount, create_invoice_for_client, generate_invoice_number
 
 
 STATUS_TRANSITIONS: dict[str, set[str]] = {
@@ -35,9 +35,13 @@ def _recalculate_invoice_totals(invoice: Invoice) -> None:
         (line.line_total for line in InvoiceLine.objects.filter(invoice=invoice).only("line_total")),
         start=Decimal("0.00"),
     )
+    business = invoice.business
+    tax_rate = business.tax_rate if business is not None else Decimal("0.00")
+
     invoice.subtotal = subtotal
-    invoice.total = subtotal + (invoice.tax or Decimal("0.00"))
-    invoice.save()
+    invoice.tax = calculate_tax_amount(subtotal=subtotal, tax_rate=tax_rate)
+    invoice.total = invoice.subtotal + invoice.tax
+    invoice.save(update_fields=["subtotal", "tax", "total"])
 
 
 def _client_queryset_for_business(business: Business):
@@ -58,7 +62,11 @@ def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResp
         invoice = create_invoice_for_client(actor=request.user, client=client)
         return redirect("invoice_detail", invoice_id=invoice.id)
 
-    context: dict[str, Any] = {"client": client, "current_business": current_business}
+    context: dict[str, Any] = {
+        "client": client,
+        "current_business": current_business,
+        "invoice_number_preview": generate_invoice_number(business=current_business),
+    }
     return render(request, "billings/invoice_create.html", context)
 
 

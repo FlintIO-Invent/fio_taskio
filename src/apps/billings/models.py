@@ -13,7 +13,7 @@ class Invoice(TimeStampedModel):
         PAID = "PAID", "Paid"
         CANCELLED = "CANCELLED", "Cancelled"
 
-    invoice_number = models.CharField(max_length=40, unique=True)
+    invoice_number = models.CharField(max_length=40)
     business = models.ForeignKey(
         "businesses.Business",
         on_delete=models.SET_NULL,
@@ -32,9 +32,27 @@ class Invoice(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "invoice_number"],
+                name="billings_invoice_unique_business_number",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.invoice_number
+
+    @property
+    def currency_code(self) -> str:
+        if self.business_id and self.business:
+            return self.business.currency
+        return "USD"
+
+    @property
+    def tax_rate_percentage(self) -> Decimal:
+        if self.business_id and self.business:
+            return self.business.tax_rate
+        return Decimal("0.00")
 
 
 class InvoiceLine(TimeStampedModel):

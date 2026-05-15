@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from django.utils import timezone
+from decimal import Decimal, ROUND_HALF_UP
 
 from apps.crm.models import ActivityLog, Client, Lead
 from apps.crm.services import log_activity
@@ -8,10 +8,25 @@ from apps.crm.services import log_activity
 from .models import Invoice
 
 
-def generate_invoice_number() -> str:
-    # Simple deterministic format: INV-YYYYMMDD-HHMMSS
-    now = timezone.now()
-    return f"INV-{now:%Y%m%d-%H%M%S}"
+def _quantize_money(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def calculate_tax_amount(*, subtotal: Decimal, tax_rate: Decimal) -> Decimal:
+    return _quantize_money(subtotal * (tax_rate / Decimal("100")))
+
+
+def generate_invoice_number(*, business) -> str:
+    prefix = (business.invoice_prefix or "INV").strip().upper()
+    start_number = max(int(business.invoice_start_number or 1), 1)
+    width = max(4, len(str(start_number)))
+    next_number = start_number
+
+    while True:
+        candidate = f"{prefix}-{next_number:0{width}d}"
+        if not Invoice.objects.filter(business=business, invoice_number=candidate).exists():
+            return candidate
+        next_number += 1
 
 
 def _client_defaults_for_lead(lead: Lead) -> dict[str, str]:
@@ -55,11 +70,15 @@ def _client_from_lead(lead: Lead) -> Client:
 
 def create_invoice_for_client(*, actor, client: Client, lead: Lead | None = None) -> Invoice:
     business = client.business or (lead.business if lead is not None else None)
+    if business is None:
+        raise ValueError("Invoices require a business-scoped client or lead.")
+
     invoice = Invoice.objects.create(
-        invoice_number=generate_invoice_number(),
+        invoice_number=generate_invoice_number(business=business),
         business=business,
         client=client,
         status=Invoice.Status.DRAFT,
+        tax=calculate_tax_amount(subtotal=Decimal("0.00"), tax_rate=business.tax_rate),
     )
 
     if lead is not None:

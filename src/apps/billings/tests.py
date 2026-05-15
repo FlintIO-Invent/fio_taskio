@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -10,8 +13,22 @@ from .models import Invoice
 
 class BillingBusinessScopingTests(TestCase):
     def setUp(self):
-        self.business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
-        self.other_business = Business.objects.create(name="Bravo Workspace", slug="bravo-workspace")
+        self.business = Business.objects.create(
+            name="Alpha Workspace",
+            slug="alpha-workspace",
+            currency="XCD",
+            tax_rate=Decimal("6.50"),
+            invoice_prefix="CLR",
+            invoice_start_number=250,
+        )
+        self.other_business = Business.objects.create(
+            name="Bravo Workspace",
+            slug="bravo-workspace",
+            currency="USD",
+            tax_rate=Decimal("10.00"),
+            invoice_prefix="BRV",
+            invoice_start_number=100,
+        )
 
         self.user = TaskIOUser.objects.create_user(
             email="owner@example.com",
@@ -88,10 +105,15 @@ class BillingBusinessScopingTests(TestCase):
 
         response = self.client.post(reverse("invoice_create_from_client", args=[self.client_record.id]))
 
-        created_invoice = Invoice.objects.exclude(pk=self.invoice.pk).get()
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
         self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
         self.assertEqual(created_invoice.business, self.business)
         self.assertEqual(created_invoice.client, self.client_record)
+        self.assertEqual(created_invoice.invoice_number, "CLR-0250")
+        self.assertEqual(created_invoice.tax, Decimal("0.00"))
 
     def test_invoice_status_change_logs_activity_for_current_business(self):
         self.client.force_login(self.user)
@@ -107,3 +129,44 @@ class BillingBusinessScopingTests(TestCase):
         self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
         self.assertEqual(self.invoice.status, Invoice.Status.SENT)
         self.assertEqual(activity_log.business, self.business)
+
+    def test_invoice_numbers_are_unique_per_business(self):
+        Invoice.objects.create(
+            invoice_number="SHARED-0001",
+            business=self.business,
+            client=self.client_record,
+        )
+        cross_business_invoice = Invoice.objects.create(
+            invoice_number="SHARED-0001",
+            business=self.other_business,
+            client=self.other_client_record,
+        )
+
+        self.assertEqual(cross_business_invoice.business, self.other_business)
+
+        with self.assertRaises(IntegrityError):
+            Invoice.objects.create(
+                invoice_number="SHARED-0001",
+                business=self.business,
+                client=self.client_record,
+            )
+
+    def test_invoice_edit_recalculates_tax_from_business_rate(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_edit", args=[self.invoice.id]),
+            data={
+                "notes": "Updated invoice",
+                "new_description": ["Service call"],
+                "new_quantity": ["2"],
+                "new_unit_price": ["100.00"],
+            },
+        )
+
+        self.invoice.refresh_from_db()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
+        self.assertEqual(self.invoice.subtotal, Decimal("200.00"))
+        self.assertEqual(self.invoice.tax, Decimal("13.00"))
+        self.assertEqual(self.invoice.total, Decimal("213.00"))
