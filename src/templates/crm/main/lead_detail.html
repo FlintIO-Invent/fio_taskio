@@ -16,9 +16,14 @@
       <h2 class="mb-0 text-body-emphasis">Lead Details</h2>
     </div>
     <div class="col-auto">
-      <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_list' %}">
-        <span class="fa-solid fa-arrow-left me-2"></span>Back to Leads
-      </a>
+      <div class="d-flex gap-2">
+        <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_update' lead.id %}">
+          <span class="fa-solid fa-pen me-2"></span>Edit Lead
+        </a>
+        <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_list' %}">
+          <span class="fa-solid fa-arrow-left me-2"></span>Back to Leads
+        </a>
+      </div>
     </div>
   </div>
 

@@ -13,6 +13,7 @@
 
             <div class="position-relative px-5 py-9 text-center text-md-start card-sign-up" style="min-height: 640px;">
               <h3 class="mb-3 text-body-emphasis fs-7">Clarivo</h3>
+              <h4 class="mb-3 text-body-emphasis">{{ public_business.name }}</h4>
               <p class="text-body-tertiary">
                 A clear workspace for clients, service requests, invoices, appointments, and memberships.
                 Use this form to share the details we need so your team can respond quickly and keep records organized.
@@ -41,7 +42,7 @@
                 <div class="divider-content-center bg-body-emphasis">Service Request Form</div>
               </div>
 
-              <form method="post" action="">
+              <form method="post" action="{% url 'public_request' public_business.slug %}">
                 {% csrf_token %}
 
                 {# show non-field errors (e.g. form.clean()) #}

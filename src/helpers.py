@@ -47,6 +47,7 @@ def upsert_client_from_lead(lead: Lead) -> Tuple[Client, bool]:
     """
 
     defaults = {
+        "business": lead.business,
         # Basic identity
         "first_name": lead.first_name,
         "last_name": lead.last_name,
@@ -81,6 +82,7 @@ def upsert_client_from_lead(lead: Lead) -> Tuple[Client, bool]:
 
     client, created = Client.objects.update_or_create(
         email=lead.email,
+        business=lead.business,
         defaults=defaults,
     )
 

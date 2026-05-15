@@ -4,15 +4,26 @@ from typing import Any
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, QuerySet
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from apps.businesses.models import Business
+from apps.businesses.utils import business_required, get_current_business
 from apps.billings.models import Invoice
-from .forms import PublicLeadForm, PrivateClientForm
+from .forms import PrivateClientForm, PrivateLeadForm, PublicLeadForm
 from .models import Lead, Client
 from .services import send_lead_email
 from helpers import upsert_client_from_lead
+
+
+def _client_queryset_for_business(business: Business) -> QuerySet[Client]:
+    return Client.objects.filter(business=business).select_related("assigned_to")
+
+
+def _lead_queryset_for_business(business: Business) -> QuerySet[Lead]:
+    return Lead.objects.filter(business=business).select_related("category")
+
 
 # Fucntions below relate to public-facing lead capture and agent dashboard
 @login_required
@@ -35,8 +46,16 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/agent_dashboard/agent_dashboard.html", context)
 
 
+@require_http_methods(["GET"])
+def public_request_entry(request: HttpRequest) -> HttpResponse:
+    current_business = get_current_business(request)
+    if current_business is None:
+        raise Http404("A business-specific request link is required.")
+    return redirect("public_request", business_slug=current_business.slug)
+
+
 @require_http_methods(["GET", "POST"])
-def public_request(request: HttpRequest) -> HttpResponse:
+def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
     """
     Create a public lead request.
 
@@ -44,21 +63,29 @@ def public_request(request: HttpRequest) -> HttpResponse:
     - If lead_type == REQUEST: auto-create/update Client.
     - If lead_type == INTEREST: keep as Lead only.
     """
+    business = get_object_or_404(Business, slug=business_slug, is_active=True)
+
     if request.method == "POST":
         form = PublicLeadForm(request.POST)
         if form.is_valid():
-            lead = form.cleaned_data
-            if lead["lead_type"] == Lead.LeadType.REQUEST:
+            lead = form.save(commit=False)
+            lead.business = business
+            lead.save()
+
+            if lead.lead_type == Lead.LeadType.REQUEST:
                 logger.info("Lead is of type REQUEST; creating/updating client")
-                upsert_client_from_lead(Lead(**lead))
-            elif lead["lead_type"] == Lead.LeadType.INTEREST:
+                upsert_client_from_lead(lead)
+            elif lead.lead_type == Lead.LeadType.INTEREST:
                 logger.debug("Lead is of type INTEREST; creating lead without client")
-                lead: Lead = form.save()
             return redirect("public_thank_you")
     else:
         form = PublicLeadForm()
 
-    return render(request, "crm/forms/public_request.html", {"form": form})
+    return render(
+        request,
+        "crm/forms/public_request.html",
+        {"form": form, "public_business": business},
+    )
 
 
 @require_http_methods(["GET"])
@@ -68,32 +95,42 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
 
 
 # Functions below relate to client/leads management for staff users. 
-@login_required
+@business_required()
 @require_http_methods(["GET", "POST"])
 def staff_lead_create(request: HttpRequest) -> HttpResponse:
     """
     Create a new lead for staff.
     """
+    current_business = request.current_business
+
     if request.method == "POST":
-        form = PublicLeadForm(request.POST)
+        form = PrivateLeadForm(request.POST)
         if form.is_valid():
-            form.save()
+            lead = form.save(commit=False)
+            lead.business = current_business
+            lead.save()
+            messages.success(request, "Lead created successfully.")
             return redirect("staff_lead_list")
     else:
-        form = PrivateClientForm()
+        form = PrivateLeadForm()
 
-    context={"form": form}
+    context = {
+        "form": form,
+        "page_title": "Create a new lead",
+        "submit_label": "Create lead",
+    }
 
-    return render(request, "crm/forms/lead_create.html", context)    
+    return render(request, "crm/forms/lead_create.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["GET", "POST"])
 def staff_lead_list(request: HttpRequest) -> HttpResponse:
     """
     List leads for staff with optional filtering by status, lead type, and search query.
     """
-    qs: QuerySet[Lead] = Lead.objects.select_related("category").all()
+    current_business = request.current_business
+    qs: QuerySet[Lead] = _lead_queryset_for_business(current_business)
 
 
     status: str = (request.GET.get("status") or "").strip()
@@ -119,25 +156,31 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/main/lead_list.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["GET", "POST"])
 def staff_client_create(request: HttpRequest) -> HttpResponse:
     """
     Create a new client for staff.
     """
+    current_business = request.current_business
+
     if request.method == "POST":
-        form = PrivateClientForm(request.POST)
+        form = PrivateClientForm(request.POST, business=current_business)
         if form.is_valid():
-            form.save()
+            client = form.save(commit=False)
+            client.business = current_business
+            client.save()
+            form.save_m2m()
+            messages.success(request, "Client created successfully.")
             return redirect("staff_client_list")
     else:
-        form = PrivateClientForm()
+        form = PrivateClientForm(business=current_business)
 
     context={"form": form}
     return render(request, "crm/forms/client_create.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["GET"])
 def staff_client_list(request: HttpRequest) -> HttpResponse:
     """
@@ -146,7 +189,8 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
       - district
       - search query (first/last/email/phone/company)
     """
-    qs: QuerySet[Client] = Client.objects.all()
+    current_business = request.current_business
+    qs: QuerySet[Client] = _client_queryset_for_business(current_business)
 
     # filters
     is_active_param: str = (request.GET.get("is_active") or "").strip().lower()
@@ -184,22 +228,26 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/main/client_list.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["GET", "POST"])
 def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
     """Update a client record with tabbed form interface."""
-    client = get_object_or_404(Client, pk=client_id)
+    current_business = request.current_business
+    client = get_object_or_404(_client_queryset_for_business(current_business), pk=client_id)
 
     if request.method == "POST":
-        form = PrivateClientForm(request.POST, instance=client)
+        form = PrivateClientForm(request.POST, instance=client, business=current_business)
         if form.is_valid():
-            form.save()
+            client = form.save(commit=False)
+            client.business = current_business
+            client.save()
+            form.save_m2m()
             messages.success(request, "Client updated successfully.")
             return redirect("staff_client_detail", client_id=client.id)
         else:
             messages.error(request, "Please correct the errors below.")
     else:
-        form = PrivateClientForm(instance=client)
+        form = PrivateClientForm(instance=client, business=current_business)
 
     context: dict[str, Any] = {
         "client": client,
@@ -208,11 +256,12 @@ def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
     return render(request, "crm/forms/client_update.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["GET"])
 def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     """Display staff-facing details for a single client."""
-    client = get_object_or_404(Client, pk=client_id)
+    current_business = request.current_business
+    client = get_object_or_404(_client_queryset_for_business(current_business), pk=client_id)
     context: dict[str, Any] = {
         "clients": [client],
         "total_clients": 1,
@@ -221,32 +270,53 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     return render(request, "crm/main/client_detail.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["GET"])
 def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     """Display staff-facing details for a single lead."""
-    lead = get_object_or_404(Lead.objects.select_related("category"), pk=lead_id)
+    current_business = request.current_business
+    lead = get_object_or_404(_lead_queryset_for_business(current_business), pk=lead_id)
     context: dict[str, Any] = {
         "lead": lead,
     }
     return render(request, "crm/main/lead_detail.html", context)
 
 
-@login_required
+@business_required()
+@require_http_methods(["GET", "POST"])
+def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
+    current_business = request.current_business
+    lead = get_object_or_404(_lead_queryset_for_business(current_business), pk=lead_id)
+
+    if request.method == "POST":
+        form = PrivateLeadForm(request.POST, instance=lead)
+        if form.is_valid():
+            lead = form.save(commit=False)
+            lead.business = current_business
+            lead.save()
+            messages.success(request, "Lead updated successfully.")
+            return redirect("staff_lead_detail", lead_id=lead.id)
+        messages.error(request, "Please correct the errors below.")
+    else:
+        form = PrivateLeadForm(instance=lead)
+
+    context: dict[str, Any] = {
+        "form": form,
+        "lead": lead,
+        "page_title": f"Edit lead: {lead.first_name} {lead.last_name}",
+        "submit_label": "Save changes",
+    }
+    return render(request, "crm/forms/lead_create.html", context)
+
+
+@business_required()
 @require_http_methods(["GET"])
 def client_detail_view(request: HttpRequest) -> HttpResponse:
     """
-    Display a detailed view of all active clients with full information.
-    
-    - Accessible only to logged-in users
-    - Shows all active clients with comprehensive details
-    - Includes contact info, business details, and status information
+    Display a detailed view of active clients for the current business only.
     """
-    clients = (
-        Client.objects
-        .filter(is_active=True)
-        .order_by("-created_at")
-    )
+    current_business = request.current_business
+    clients = _client_queryset_for_business(current_business).filter(is_active=True).order_by("-created_at")
 
     context: dict[str, Any] = {
         "clients": clients,

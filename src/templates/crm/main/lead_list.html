@@ -160,7 +160,7 @@
                   </div>
 
                   <div>
-                    <a class="fs-8 fw-bold text-body-highlight" href="#!">
+                    <a class="fs-8 fw-bold text-body-highlight" href="{% url 'staff_lead_detail' lead.id %}">
                       {{ lead.first_name }} {{ lead.last_name }}
                     </a>
                     <div class="d-flex align-items-center gap-2">
@@ -214,9 +214,8 @@
                     <span class="fas fa-ellipsis-h fs-10"></span>
                   </button>
                   <div class="dropdown-menu dropdown-menu-end py-2">
-                    <!-- wire these up when you add detail/edit/delete urls -->
-                    <a class="dropdown-item" href="#!">View</a>
-                    <a class="dropdown-item" href="#!">Edit</a>
+                    <a class="dropdown-item" href="{% url 'staff_lead_detail' lead.id %}">View</a>
+                    <a class="dropdown-item" href="{% url 'staff_lead_update' lead.id %}">Edit</a>
                     <div class="dropdown-divider"></div>
                     <a class="dropdown-item text-danger" href="#!">Remove</a>
                   </div>

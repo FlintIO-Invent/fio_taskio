@@ -25,9 +25,25 @@ def lead_to_client(lead: Lead) -> Client:
     return client
 
 
-def log_activity(*, actor, lead=None, client=None, action_type: str, summary: str = "", payload: dict | None = None):
+def log_activity(
+    *,
+    actor,
+    lead=None,
+    client=None,
+    business=None,
+    action_type: str,
+    summary: str = "",
+    payload: dict | None = None,
+):
+    resolved_business = business
+    if resolved_business is None and client is not None:
+        resolved_business = client.business
+    if resolved_business is None and lead is not None:
+        resolved_business = lead.business
+
     ActivityLog.objects.create(
         actor=actor if getattr(actor, "is_authenticated", False) else None,
+        business=resolved_business,
         lead=lead,
         client=client,
         action_type=action_type,
