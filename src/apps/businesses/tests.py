@@ -8,11 +8,14 @@ from django.urls import reverse
 
 from apps.accounts.models import TaskIOUser
 
-from .models import Business, BusinessUser
+from .models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from .utils import (
     CURRENT_BUSINESS_SESSION_KEY,
     business_required,
     business_role_required,
+    business_has_active_subscription,
+    business_is_trialing,
+    can_use_module,
     get_current_business,
     get_current_business_membership,
 )
@@ -39,6 +42,55 @@ class BusinessUserModelTests(TestCase):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.ADMIN)
+
+
+class SubscriptionAccessTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(name="Clarivo HQ", slug="clarivo-hq")
+        self.plan = ClarivoPlan.objects.create(
+            name="Growth",
+            slug="growth",
+            price_monthly=Decimal("49.00"),
+            price_yearly=Decimal("490.00"),
+            allow_invoicing=True,
+            allow_public_request_form=True,
+        )
+
+    def test_active_subscription_exposes_access_helpers(self):
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        self.assertTrue(self.business.has_active_subscription)
+        self.assertFalse(self.business.is_trialing)
+        self.assertTrue(business_has_active_subscription(self.business))
+        self.assertTrue(can_use_module(self.business, "invoicing"))
+        self.assertTrue(can_use_module(self.business, "clients"))
+        self.assertFalse(can_use_module(self.business, "appointments"))
+
+    def test_trialing_subscription_keeps_enabled_modules_available(self):
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.TRIALING,
+        )
+
+        self.assertTrue(self.business.is_trialing)
+        self.assertTrue(business_is_trialing(self.business))
+        self.assertTrue(can_use_module(self.business, "public_request_form"))
+
+    def test_cancelled_subscription_has_no_module_access(self):
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.CANCELLED,
+        )
+
+        self.assertFalse(self.business.has_active_subscription)
+        self.assertFalse(business_has_active_subscription(self.business))
+        self.assertFalse(can_use_module(self.business, "invoicing"))
 
 
 class CurrentBusinessTests(TestCase):

@@ -9,7 +9,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.utils.text import slugify
 
-from .models import Business, BusinessUser
+from .models import Business, BusinessSubscription, BusinessUser
 
 
 CURRENT_BUSINESS_SESSION_KEY = "current_business_id"
@@ -157,3 +157,28 @@ def business_role_required(
         )(wrapped)
 
     return decorator
+
+
+def get_business_subscription(business: Business | None) -> BusinessSubscription | None:
+    if business is None:
+        return None
+
+    try:
+        return business.subscription
+    except BusinessSubscription.DoesNotExist:
+        return None
+
+
+def business_has_active_subscription(business: Business | None) -> bool:
+    subscription = get_business_subscription(business)
+    return bool(subscription and subscription.has_access)
+
+
+def business_is_trialing(business: Business | None) -> bool:
+    subscription = get_business_subscription(business)
+    return bool(subscription and subscription.is_trialing)
+
+
+def can_use_module(business: Business | None, module_name: str) -> bool:
+    subscription = get_business_subscription(business)
+    return bool(subscription and subscription.can_use_module(module_name))

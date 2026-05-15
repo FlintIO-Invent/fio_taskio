@@ -8,13 +8,13 @@
     {% csrf_token %}
     <div class="row g-3 flex-between-end mb-5">
         <div class="col-auto">
-          <h2 class="mb-2">Register New Customer</h2>
-          <h5 class="text-body-tertiary fw-semibold"></h5>
+          <h2 class="mb-2">Create Client</h2>
+          <h5 class="text-body-tertiary fw-semibold">A clear workspace for clients, service requests, invoices, appointments, and memberships.</h5>
         </div>
         <div class="col-auto">
-          <!-- <button class="btn btn-phoenix-secondary me-2 mb-2 mb-sm-0" type="button">Discard parcel</button> -->
+          <!-- <button class="btn btn-phoenix-secondary me-2 mb-2 mb-sm-0" type="button">Discard client draft</button> -->
           <!-- <button class="btn btn-phoenix-primary me-2 mb-2 mb-sm-0" type="button">Save draft</button> -->
-          <button class="btn btn-primary mb-2 mb-sm-0" type="submit">Register customer</button>
+          <button class="btn btn-primary mb-2 mb-sm-0" type="submit">Create client</button>
         </div>
     </div>
     <div class="row g-5">
@@ -22,7 +22,7 @@
 
         <!-- SECTION 1 -->
           <div class="row g-3 flex-between-end mb-5">
-            <h4 class="mb-3">Register new customer</h4>
+            <h4 class="mb-3">Client details</h4>
             <div class="col-md-6">
               <label class="form-label" for="inputEmail4">Email</label>
               {{customer_form.email}}
@@ -57,7 +57,7 @@
   <footer class="footer position-absolute">
     <div class="row g-0 justify-content-between align-items-center h-100">
       <div class="col-12 col-sm-auto text-center">
-        <p class="mb-0 mt-2 mt-sm-0 text-body">Thank you for creating with FlintIO<span class="d-none d-sm-inline-block"></span><span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;</p>
+        <p class="mb-0 mt-2 mt-sm-0 text-body">Built with Clarivo<span class="d-none d-sm-inline-block"></span><span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;</p>
       </div>
       <div class="col-12 col-sm-auto text-center">
         <p class="mb-0 text-body-tertiary text-opacity-85">v1.0.0</p>
