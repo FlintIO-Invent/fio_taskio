@@ -120,7 +120,7 @@ def register_business(request: HttpRequest) -> HttpResponse:
         form = BusinessRegistrationForm(request.POST)
 
         if form.is_valid():
-            user, business, _membership = form.save()
+            user, business, _membership, subscription = form.save()
 
             login(request, user)
             set_current_business(request, business)
@@ -129,10 +129,20 @@ def register_business(request: HttpRequest) -> HttpResponse:
                 user.email,
                 business.slug,
             )
-            messages.success(
-                request,
-                "Your Clarivo workspace has been created. You can now review your workspace settings.",
-            )
+            if subscription is not None:
+                messages.success(
+                    request,
+                    "Your Clarivo workspace has been created with a 14-day trial. You can now review your workspace settings.",
+                )
+            else:
+                logger.warning(
+                    "Business {} created without a default trial subscription because no active Clarivo plan is configured.",
+                    business.slug,
+                )
+                messages.success(
+                    request,
+                    "Your Clarivo workspace has been created. Subscription setup is pending because no active trial plan is configured yet.",
+                )
             return redirect("business_settings")
 
         logger.warning(

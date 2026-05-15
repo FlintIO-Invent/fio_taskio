@@ -3,8 +3,8 @@ from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from apps.businesses.models import Business, BusinessUser
-from apps.businesses.utils import generate_business_slug
+from apps.businesses.models import Business, BusinessSubscription, BusinessUser
+from apps.businesses.utils import create_default_trial_subscription, generate_business_slug
 
 from .models import SaaSUserProfile, TaskIOUser
 
@@ -218,7 +218,7 @@ class BusinessRegistrationForm(forms.Form):
         return cleaned_data
 
     @transaction.atomic
-    def save(self) -> tuple[TaskIOUser, Business, BusinessUser]:
+    def save(self) -> tuple[TaskIOUser, Business, BusinessUser, BusinessSubscription | None]:
         user = TaskIOUser.objects.create_user(
             email=self.cleaned_data["email"],
             first_name=self.cleaned_data["first_name"],
@@ -241,13 +241,14 @@ class BusinessRegistrationForm(forms.Form):
             business=business,
             role=BusinessUser.Role.OWNER,
         )
+        subscription = create_default_trial_subscription(business)
 
         profile = SaaSUserProfile.get_or_create_for_user(user)
         profile.workspace_name = business.name
         profile.billing_email = business.email or user.email
         profile.save(update_fields=["workspace_name", "billing_email", "updated_at"])
 
-        return user, business, membership
+        return user, business, membership, subscription
 
 
 class SaaSBasicInfoForm(forms.ModelForm):

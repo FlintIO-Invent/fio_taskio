@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from functools import wraps
 from typing import Any, Callable, TypeVar
 
@@ -7,9 +8,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.utils.text import slugify
 
-from .models import Business, BusinessSubscription, BusinessUser
+from .models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 
 
 CURRENT_BUSINESS_SESSION_KEY = "current_business_id"
@@ -182,3 +184,43 @@ def business_is_trialing(business: Business | None) -> bool:
 def can_use_module(business: Business | None, module_name: str) -> bool:
     subscription = get_business_subscription(business)
     return bool(subscription and subscription.can_use_module(module_name))
+
+
+def create_default_trial_subscription(
+    business: Business,
+    *,
+    trial_days: int = 14,
+) -> BusinessSubscription | None:
+    existing_subscription = get_business_subscription(business)
+    if existing_subscription is not None:
+        return existing_subscription
+
+    plan = ClarivoPlan.objects.filter(
+        is_active=True,
+        slug="pro",
+    ).first()
+    if plan is None:
+        plan = (
+            ClarivoPlan.objects.filter(is_active=True)
+            .order_by("created_at", "pk")
+            .first()
+        )
+
+    if plan is None:
+        return None
+
+    trial_start = timezone.now()
+    trial_end = trial_start + timedelta(days=trial_days)
+
+    subscription, _created = BusinessSubscription.objects.get_or_create(
+        business=business,
+        defaults={
+            "plan": plan,
+            "status": BusinessSubscription.Status.TRIALING,
+            "trial_start": trial_start,
+            "trial_end": trial_end,
+            "current_period_start": trial_start,
+            "current_period_end": trial_end,
+        },
+    )
+    return subscription

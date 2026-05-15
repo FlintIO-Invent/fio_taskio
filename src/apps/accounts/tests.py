@@ -1,8 +1,11 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from apps.businesses.models import Business, BusinessUser
+from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 
 from .models import SaaSUserProfile
@@ -80,7 +83,7 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Register your business")
 
-    def test_post_creates_user_business_membership_and_logs_in(self):
+    def test_post_creates_user_business_membership_trial_subscription_and_logs_in(self):
         response = self.client.post(
             reverse("register_business"),
             {
@@ -99,6 +102,7 @@ class BusinessRegistrationViewTests(TestCase):
         user = get_user_model().objects.get(email="owner@example.com")
         business = Business.objects.get(name="Acme Freight")
         membership = BusinessUser.objects.get(user=user, business=business)
+        subscription = BusinessSubscription.objects.get(business=business)
         profile = SaaSUserProfile.objects.get(user=user)
 
         self.assertRedirects(response, reverse("business_settings"))
@@ -107,10 +111,16 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(business.email, "hello@acmefreight.com")
         self.assertEqual(business.country, "Sint Maarten")
         self.assertEqual(membership.role, BusinessUser.Role.OWNER)
+        self.assertEqual(subscription.plan.slug, "pro")
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertIsNotNone(subscription.trial_start)
+        self.assertIsNotNone(subscription.trial_end)
+        self.assertEqual(subscription.trial_end - subscription.trial_start, timedelta(days=14))
+        self.assertLessEqual(subscription.trial_start, timezone.now())
         self.assertEqual(profile.workspace_name, "Acme Freight")
         self.assertEqual(profile.billing_email, "hello@acmefreight.com")
         self.assertEqual(int(self.client.session[CURRENT_BUSINESS_SESSION_KEY]), business.id)
-        self.assertContains(response, "Your Clarivo workspace has been created.")
+        self.assertContains(response, "14-day trial")
 
     def test_post_generates_unique_slug_for_duplicate_business_names(self):
         existing_owner = get_user_model().objects.create_user(
@@ -147,6 +157,55 @@ class BusinessRegistrationViewTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Business.objects.filter(slug="acme-freight-2").exists())
+
+    def test_post_falls_back_to_first_active_plan_when_pro_is_unavailable(self):
+        ClarivoPlan.objects.filter(slug="pro").update(is_active=False)
+
+        response = self.client.post(
+            reverse("register_business"),
+            {
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email": "starter-owner@example.com",
+                "business_name": "Starter Workspace",
+                "business_email": "hello@starter.test",
+                "country": "Sint Maarten",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+            follow=True,
+        )
+
+        business = Business.objects.get(name="Starter Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        self.assertRedirects(response, reverse("business_settings"))
+        self.assertEqual(subscription.plan.slug, "starter")
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+
+    def test_post_keeps_registration_working_when_no_active_plan_exists(self):
+        ClarivoPlan.objects.update(is_active=False)
+
+        response = self.client.post(
+            reverse("register_business"),
+            {
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email": "no-plan-owner@example.com",
+                "business_name": "No Plan Workspace",
+                "business_email": "hello@noplans.test",
+                "country": "Sint Maarten",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+            follow=True,
+        )
+
+        business = Business.objects.get(name="No Plan Workspace")
+
+        self.assertRedirects(response, reverse("business_settings"))
+        self.assertFalse(BusinessSubscription.objects.filter(business=business).exists())
+        self.assertContains(response, "Subscription setup is pending")
 
 
 class SaaSProfileViewTests(TestCase):
