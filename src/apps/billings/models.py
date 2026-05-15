@@ -16,9 +16,7 @@ class Invoice(TimeStampedModel):
     invoice_number = models.CharField(max_length=40)
     business = models.ForeignKey(
         "businesses.Business",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.PROTECT,
         related_name="invoices",
     )
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="invoices")
