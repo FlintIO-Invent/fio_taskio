@@ -1,13 +1,15 @@
 from __future__ import annotations
-from loguru import logger
+
+from decimal import Decimal
 from typing import Any
+
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.db.models import Q, QuerySet
+from django.db.models import Q, QuerySet, Sum
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from loguru import logger
+
 from apps.businesses.models import Business
 from apps.businesses.utils import business_required, get_current_business
 from apps.billings.models import Invoice
@@ -26,22 +28,34 @@ def _lead_queryset_for_business(business: Business) -> QuerySet[Lead]:
 
 
 # Fucntions below relate to public-facing lead capture and agent dashboard
-@login_required
+@business_required()
 @require_http_methods(["GET"])
 def agent_dashboard(request: HttpRequest) -> HttpResponse:
     """Render the agent dashboard."""
-    today = timezone.localdate()
-    invoices = Invoice.objects.all()
-    invoices_this_month = invoices.filter(created_at__year=today.year, created_at__month=today.month)
+    current_business = request.current_business
+    clients = _client_queryset_for_business(current_business)
+    service_requests = _lead_queryset_for_business(current_business).filter(
+        lead_type=Lead.LeadType.REQUEST
+    )
+    invoices = Invoice.objects.filter(business=current_business).select_related("client", "business")
     unpaid_statuses = [Invoice.Status.DRAFT, Invoice.Status.SENT]
+    paid_invoices = invoices.filter(status=Invoice.Status.PAID)
+    paid_invoice_total = paid_invoices.aggregate(total=Sum("total"))["total"] or Decimal("0.00")
+    recent_service_requests = service_requests.select_related("category")[:5]
+    recent_invoices = invoices.order_by("-created_at")[:5]
 
     context: dict[str, Any] = {
+        "current_business": current_business,
+        "client_count": clients.count(),
+        "service_request_count": service_requests.count(),
+        "open_service_request_count": service_requests.exclude(status=Lead.Status.CLOSED).count(),
+        "new_service_request_count": service_requests.filter(status=Lead.Status.NEW).count(),
+        "recent_service_requests": recent_service_requests,
         "invoice_count": invoices.count(),
-        "invoices_this_month_count": invoices_this_month.count(),
-        "paid_invoice_count": invoices.filter(status=Invoice.Status.PAID).count(),
-        "paid_invoices_this_month_count": invoices_this_month.filter(status=Invoice.Status.PAID).count(),
         "unpaid_invoice_count": invoices.filter(status__in=unpaid_statuses).count(),
-        "unpaid_invoices_this_month_count": invoices_this_month.filter(status__in=unpaid_statuses).count(),
+        "paid_invoice_count": paid_invoices.count(),
+        "paid_invoice_total": paid_invoice_total,
+        "recent_invoices": recent_invoices,
     }
     return render(request, "crm/agent_dashboard/agent_dashboard.html", context)
 

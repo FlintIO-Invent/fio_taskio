@@ -1,7 +1,10 @@
+from decimal import Decimal
+
 from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.models import TaskIOUser
+from apps.billings.models import Invoice
 from apps.businesses.models import Business, BusinessUser
 
 from .forms import PrivateClientForm
@@ -90,3 +93,80 @@ class CRMBusinessScopingTests(TestCase):
                 email="jamie@example.com",
             ).exists()
         )
+
+    def test_agent_dashboard_scopes_metrics_to_current_business(self):
+        current_client = Client.objects.create(
+            business=self.business,
+            first_name="Casey",
+            last_name="Client",
+            email="casey@example.com",
+            phone="+1 721 555 0100",
+            company_name="Alpha Co",
+            street_address="11 Main Street",
+        )
+        other_client = Client.objects.create(
+            business=self.other_business,
+            first_name="Robin",
+            last_name="Client",
+            email="robin@example.com",
+            phone="+1 721 555 0101",
+            company_name="Bravo Co",
+            street_address="12 Main Street",
+        )
+
+        current_request = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            first_name="Jamie",
+            last_name="Requester",
+            email="jamie-request@example.com",
+            phone="+1 721 555 0102",
+            company_name="Alpha Request",
+        )
+        Lead.objects.create(
+            business=self.other_business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.CONTACTED,
+            first_name="Morgan",
+            last_name="Requester",
+            email="morgan-request@example.com",
+            phone="+1 721 555 0103",
+            company_name="Bravo Request",
+        )
+
+        Invoice.objects.create(
+            business=self.business,
+            client=current_client,
+            invoice_number="ALPHA-1000",
+            status=Invoice.Status.PAID,
+            total=Decimal("125.00"),
+        )
+        Invoice.objects.create(
+            business=self.business,
+            client=current_client,
+            invoice_number="ALPHA-1001",
+            status=Invoice.Status.SENT,
+            total=Decimal("50.00"),
+        )
+        Invoice.objects.create(
+            business=self.other_business,
+            client=other_client,
+            invoice_number="BRAVO-1000",
+            status=Invoice.Status.PAID,
+            total=Decimal("900.00"),
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["client_count"], 1)
+        self.assertEqual(response.context["service_request_count"], 1)
+        self.assertEqual(response.context["open_service_request_count"], 1)
+        self.assertEqual(response.context["new_service_request_count"], 1)
+        self.assertEqual(response.context["invoice_count"], 2)
+        self.assertEqual(response.context["unpaid_invoice_count"], 1)
+        self.assertEqual(response.context["paid_invoice_count"], 1)
+        self.assertEqual(response.context["paid_invoice_total"], Decimal("125"))
+        self.assertEqual(list(response.context["recent_service_requests"]), [current_request])

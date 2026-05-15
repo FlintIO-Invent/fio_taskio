@@ -89,7 +89,7 @@
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
                                             <a class="nav-link" href="{% url 'business_settings' %}">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">Workspace Settings</span></div>
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
@@ -101,19 +101,19 @@
                         <!-- Customer Management Section -->
                         <li class="nav-item">
                             <!-- label-->
-                            <p class="navbar-vertical-label">Customer Management</p>
+                            <p class="navbar-vertical-label">Workspace</p>
                             <hr class="navbar-vertical-line" />
 
-                            <!-- parent pages Parcel Customer Management-->
+                            <!-- billing navigation -->
                             <div class="nav-item-wrapper">
-                                <a class="nav-link dropdown-indicator label-1" href="#nv-parcel-invoice" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-parcel-invoice">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-billing" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-billing">
                                     <div class="d-flex align-items-center">
                                         <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Invoice</span>
+                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Invoices</span>
                                     </div>
                                 </a>
                                 <div class="parent-wrapper label-1">
-                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-parcel-invoice">
+                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-billing">
                                         <li class="collapsed-nav-item-title d-none"></li>
                                         <li class="nav-item">
                                             <a class="nav-link" href="/billings/">
@@ -125,7 +125,7 @@
                                 </div>
                             </div>
 
-                            <!-- parent pages Client Manifest-->
+                            <!-- client navigation -->
                             <div class="nav-item-wrapper">
                                 <a class="nav-link dropdown-indicator label-1" href="#nv-client" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-client">
                                     <div class="d-flex align-items-center">
@@ -150,7 +150,7 @@
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link" href="{% url 'staff_lead_list' %}">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">View All Leads</span></div>
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
