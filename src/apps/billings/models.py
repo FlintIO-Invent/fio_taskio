@@ -14,6 +14,13 @@ class Invoice(TimeStampedModel):
         CANCELLED = "CANCELLED", "Cancelled"
 
     invoice_number = models.CharField(max_length=40, unique=True)
+    business = models.ForeignKey(
+        "businesses.Business",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoices",
+    )
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="invoices")
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
