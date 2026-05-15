@@ -32,7 +32,12 @@ def _client_defaults_for_lead(lead: Lead) -> dict[str, str]:
 
 def _client_from_lead(lead: Lead) -> Client:
     defaults = _client_defaults_for_lead(lead)
-    client, _created = Client.objects.get_or_create(email=lead.email, defaults=defaults)
+    defaults["business"] = lead.business
+    client, _created = Client.objects.get_or_create(
+        email=lead.email,
+        business=lead.business,
+        defaults=defaults,
+    )
 
     updated_fields: list[str] = []
     for field_name, new_value in defaults.items():
@@ -49,8 +54,10 @@ def _client_from_lead(lead: Lead) -> Client:
 
 
 def create_invoice_for_client(*, actor, client: Client, lead: Lead | None = None) -> Invoice:
+    business = client.business or (lead.business if lead is not None else None)
     invoice = Invoice.objects.create(
         invoice_number=generate_invoice_number(),
+        business=business,
         client=client,
         status=Invoice.Status.DRAFT,
     )
@@ -63,6 +70,7 @@ def create_invoice_for_client(*, actor, client: Client, lead: Lead | None = None
         actor=actor,
         lead=lead,
         client=client,
+        business=business,
         action_type=ActivityLog.ActionType.INVOICE_CREATED,
         summary=f"Invoice {invoice.invoice_number} created",
         payload={"invoice_number": invoice.invoice_number},

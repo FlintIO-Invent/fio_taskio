@@ -1,13 +1,15 @@
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
+from apps.businesses.models import Business
+from apps.businesses.utils import business_required
 from apps.crm.models import ActivityLog, Client
+from apps.crm.services import log_activity
 
 from .models import Invoice, InvoiceLine
 from .services import create_invoice_for_client
@@ -38,20 +40,29 @@ def _recalculate_invoice_totals(invoice: Invoice) -> None:
     invoice.save()
 
 
-@login_required
+def _client_queryset_for_business(business: Business):
+    return Client.objects.filter(business=business)
+
+
+def _invoice_queryset_for_business(business: Business):
+    return Invoice.objects.filter(business=business).select_related("client", "business")
+
+
+@business_required()
 @require_http_methods(["GET", "POST"])
 def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResponse:
-    client = get_object_or_404(Client, pk=client_id)
+    current_business = request.current_business
+    client = get_object_or_404(_client_queryset_for_business(current_business), pk=client_id)
 
     if request.method == "POST":
         invoice = create_invoice_for_client(actor=request.user, client=client)
         return redirect("invoice_detail", invoice_id=invoice.id)
 
-    context: dict[str, Any] = {"client": client}
+    context: dict[str, Any] = {"client": client, "current_business": current_business}
     return render(request, "billings/invoice_create.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["GET"])
 def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     """
@@ -64,8 +75,9 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     Returns:
         Rendered invoice detail page.
     """
+    current_business = request.current_business
     invoice = get_object_or_404(
-        Invoice.objects.select_related("client").prefetch_related("lines"),
+        _invoice_queryset_for_business(current_business).prefetch_related("lines"),
         pk=invoice_id,
     )
 
@@ -73,7 +85,7 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     return render(request, "billings/invoice_detail.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["GET"])
 def invoice_list(request: HttpRequest) -> HttpResponse:
     """
@@ -85,7 +97,8 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
     Returns:
         Rendered invoice list page.
     """
-    invoices = Invoice.objects.select_related("client").order_by("-created_at")
+    current_business = request.current_business
+    invoices = _invoice_queryset_for_business(current_business).order_by("-created_at")
 
     # Filter by status if provided
     status_filter = request.GET.get("status")
@@ -100,11 +113,12 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
     return render(request, "billings/invoice_list.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["GET", "POST"])
 def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
+    current_business = request.current_business
     invoice = get_object_or_404(
-        Invoice.objects.select_related("client").prefetch_related("lines"),
+        _invoice_queryset_for_business(current_business).prefetch_related("lines"),
         pk=invoice_id,
     )
 
@@ -164,10 +178,11 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
     return render(request, "billings/invoice_edit.html", context)
 
 
-@login_required
+@business_required()
 @require_http_methods(["POST"])
 def invoice_change_status(request: HttpRequest, invoice_id: int) -> HttpResponse:
-    invoice = get_object_or_404(Invoice.objects.select_related("client"), pk=invoice_id)
+    current_business = request.current_business
+    invoice = get_object_or_404(_invoice_queryset_for_business(current_business), pk=invoice_id)
     next_status = request.POST.get("status", "")
     allowed_statuses = STATUS_TRANSITIONS.get(invoice.status, set())
 
@@ -178,10 +193,11 @@ def invoice_change_status(request: HttpRequest, invoice_id: int) -> HttpResponse
     invoice.status = next_status
     invoice.save()
 
-    ActivityLog.objects.create(
-        actor=request.user if request.user.is_authenticated else None,
-        client=invoice.client,
+    log_activity(
+        actor=request.user,
         action_type=ActivityLog.ActionType.STATUS_CHANGED,
+        business=invoice.business,
+        client=invoice.client,
         summary=(
             f"Invoice {invoice.invoice_number} status changed from "
             f"{Invoice.Status(previous_status).label} to {Invoice.Status(next_status).label}"
