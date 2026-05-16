@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from apps.accounts.models import TaskIOUser
 from apps.billings.models import Invoice
-from apps.businesses.models import Business, BusinessUser
+from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 
 from .forms import PrivateClientForm
 from .models import Client, Lead
@@ -170,3 +170,44 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.context["paid_invoice_count"], 1)
         self.assertEqual(response.context["paid_invoice_total"], Decimal("125"))
         self.assertEqual(list(response.context["recent_service_requests"]), [current_request])
+
+    def test_dashboard_shows_invoicing_links_when_plan_allows_module(self):
+        plan = ClarivoPlan.objects.create(
+            name="Pro",
+            slug="pro",
+            allow_invoicing=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("invoice_list"))
+        self.assertContains(response, "Open Invoices")
+        self.assertContains(response, "Included")
+
+    def test_dashboard_hides_invoicing_links_when_plan_disables_module(self):
+        plan = ClarivoPlan.objects.create(
+            name="Starter",
+            slug="starter",
+            allow_invoicing=False,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, reverse("invoice_list"))
+        self.assertContains(response, "Invoices Locked")
+        self.assertContains(response, "Billing Module")
+        self.assertContains(response, "Locked")
