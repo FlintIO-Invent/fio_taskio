@@ -251,6 +251,23 @@ class BusinessRegistrationForm(forms.Form):
         return user, business, membership, subscription
 
 
+class BusinessLoginForm(forms.Form):
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={"class": "form-control form-icon-input", "placeholder": "name@example.com"}
+        ),
+    )
+    password = forms.CharField(
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control form-icon-input pe-6", "placeholder": "Password"}
+        ),
+    )
+
+    def clean_email(self) -> str:
+        return (self.cleaned_data.get("email") or "").strip().lower()
+
+
 class SaaSBasicInfoForm(forms.ModelForm):
     class Meta:
         model = TaskIOUser

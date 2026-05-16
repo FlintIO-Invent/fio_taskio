@@ -208,6 +208,91 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertContains(response, "Subscription setup is pending")
 
 
+class BusinessLoginViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        self.business = Business.objects.create(
+            name="Acme Freight",
+            slug="acme-freight",
+            email="hello@acmefreight.com",
+            country="Sint Maarten",
+        )
+        BusinessUser.objects.create(
+            user=self.user,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+
+    def test_get_renders_business_login_page(self):
+        response = self.client.get(reverse("business_login"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sign in to your workspace")
+
+    def test_post_logs_in_business_user_and_redirects_to_dashboard(self):
+        response = self.client.post(
+            reverse("business_login"),
+            {
+                "email": "owner@example.com",
+                "password": "StrongPass123!",
+            },
+        )
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertEqual(int(self.client.session[CURRENT_BUSINESS_SESSION_KEY]), self.business.id)
+        self.assertEqual(self.client.session.get("_auth_user_id"), str(self.user.id))
+
+    def test_post_rejects_user_without_active_business_membership(self):
+        user_without_workspace = get_user_model().objects.create_user(
+            email="orphan@example.com",
+            password="StrongPass123!",
+            first_name="Orphan",
+            last_name="User",
+        )
+
+        response = self.client.post(
+            reverse("business_login"),
+            {
+                "email": user_without_workspace.email,
+                "password": "StrongPass123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "does not have an active Clarivo workspace yet")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_agent_login_remains_staff_only_for_business_owners(self):
+        response = self.client.post(
+            reverse("agent_login"),
+            {
+                "email": "owner@example.com",
+                "password": "StrongPass123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "not authorized to access this portal")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_logout_signs_out_and_redirects_to_business_login(self):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.get(reverse("logout"), follow=True)
+
+        self.assertRedirects(response, reverse("business_login"))
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertContains(response, "You have been signed out.")
+
+
 class SaaSProfileViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
@@ -224,7 +309,7 @@ class SaaSProfileViewTests(TestCase):
 
         self.assertRedirects(
             response,
-            f"{reverse('agent_login')}?next={reverse('saas_profile')}",
+            f"{reverse('business_login')}?next={reverse('saas_profile')}",
         )
 
     def test_get_creates_profile_and_renders_page(self):

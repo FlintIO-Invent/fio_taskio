@@ -114,7 +114,7 @@ def generate_business_slug(name: str) -> str:
 def business_required(
     view_func: ViewFunc | None = None,
     *,
-    login_url: str = "agent_login",
+    login_url: str = "business_login",
     setup_url_name: str = "business_setup",
 ) -> ViewFunc | Callable[[ViewFunc], ViewFunc]:
     def decorator(func: ViewFunc) -> ViewFunc:
@@ -135,7 +135,7 @@ def business_required(
 
 def business_role_required(
     *allowed_roles: str,
-    login_url: str = "agent_login",
+    login_url: str = "business_login",
     setup_url_name: str = "business_setup",
 ) -> Callable[[ViewFunc], ViewFunc]:
     allowed_role_set = set(allowed_roles)

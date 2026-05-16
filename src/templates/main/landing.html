@@ -64,13 +64,15 @@
     <main class="main" id="top">
       <div class="bg-primary-subtle py-2">
         <div class="container-medium d-flex align-items-center justify-content-between">
-          <a class="btn btn-link p-0 text-body" href="/accounts/agent_login">
-            <span class="fa-solid fa-arrow-right-to-bracket me-2" data-fa-transform="down-1"></span>Agent Login
+          <a class="btn btn-link p-0 text-body" href="{% url 'business_login' %}">
+            <span class="fa-solid fa-arrow-right-to-bracket me-2" data-fa-transform="down-1"></span>Sign In
           </a>
           <div class="dropdown">
             <button class="btn btn-sm p-0 d-md-none fs-8" type="button" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h"></span></button>
             <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999">
               <li><a class="dropdown-item" href="{% url 'register_business' %}">Start with Clarivo</a></li>
+              <li><a class="dropdown-item" href="{% url 'business_login' %}">Business Login</a></li>
+              <li><a class="dropdown-item" href="{% url 'agent_login' %}">Staff Login</a></li>
               <li><a class="dropdown-item" href="#!">Blog</a></li>
               <li><a class="dropdown-item" href="#!">Career</a></li>
               <li><a class="dropdown-item" href="#!">Support</a></li>
@@ -79,6 +81,8 @@
           </div>
           <ul class="d-none d-md-flex gap-5 list-unstyled mb-0">
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="{% url 'register_business' %}">Start with Clarivo</a></li>
+            <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="{% url 'business_login' %}">Business Login</a></li>
+            <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="{% url 'agent_login' %}">Staff Login</a></li>
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="#!">Blog</a></li>
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="#!">Career</a></li>
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="mailto:example@gmail.com"> <span class="fa-regular fa-envelope me-2" data-fa-transform="down-1"></span>Support</a></li>

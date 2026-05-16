@@ -9,7 +9,7 @@ from .models import BusinessUser
 from .utils import business_role_required, get_current_business
 
 
-@login_required(login_url="agent_login")
+@login_required(login_url="business_login")
 @require_http_methods(["GET"])
 def business_setup(request: HttpRequest) -> HttpResponse:
     current_business = get_current_business(request)

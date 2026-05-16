@@ -2,7 +2,7 @@ from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -10,15 +10,79 @@ from django.views.decorators.http import require_http_methods
 from loguru import logger
 
 from apps.accounts.models import SaaSUserProfile, TaskIOUser
-from apps.businesses.utils import set_current_business
+from apps.businesses.models import BusinessUser
+from apps.businesses.utils import get_current_business, set_current_business
 
 from .forms import (
+    BusinessLoginForm,
     BusinessRegistrationForm,
     CustomerRegistrationForm,
     SaaSBasicInfoForm,
     SaaSInvoiceSettingsForm,
     SaaSWorkspaceSettingsForm,
 )
+
+
+@require_http_methods(["GET", "POST"])
+def business_login(request: HttpRequest) -> HttpResponse:
+    """
+    Authenticate and log in a Clarivo business user with an active workspace membership.
+    """
+    if request.user.is_authenticated and get_current_business(request) is not None:
+        return redirect("agent_dashboard")
+
+    if request.method == "POST":
+        form = BusinessLoginForm(request.POST)
+
+        if form.is_valid():
+            email = form.cleaned_data["email"]
+            password = form.cleaned_data["password"]
+            user_record = TaskIOUser.objects.filter(email__iexact=email).first()
+
+            if user_record is not None and not user_record.is_active:
+                logger.warning("Inactive business login attempt for email=%s", email)
+                form.add_error(None, "This account is inactive. Please contact support.")
+            else:
+                user = authenticate(request, email=email, password=password)
+
+                if user is None:
+                    logger.warning("Invalid business login credentials for email=%s", email)
+                    form.add_error(None, "Invalid email or password.")
+                else:
+                    membership = (
+                        BusinessUser.objects.filter(
+                            user=user,
+                            is_active=True,
+                            business__is_active=True,
+                        )
+                        .select_related("business")
+                        .order_by("created_at", "pk")
+                        .first()
+                    )
+
+                    if membership is None:
+                        logger.warning(
+                            "User %s denied business login - no active business membership",
+                            user.email,
+                        )
+                        form.add_error(
+                            None,
+                            "This account does not have an active Clarivo workspace yet.",
+                        )
+                    else:
+                        login(request, user)
+                        set_current_business(request, membership.business)
+                        logger.info(
+                            "Business user %s logged in successfully for business %s.",
+                            user.email,
+                            membership.business.slug,
+                        )
+                        return redirect("agent_dashboard")
+    else:
+        form = BusinessLoginForm()
+
+    return render(request, "accounts/forms/business_login.html", {"form": form})
+
 
 @require_http_methods(["GET", "POST"])
 def agent_login(request: HttpRequest) -> HttpResponse:
@@ -156,7 +220,14 @@ def register_business(request: HttpRequest) -> HttpResponse:
     return render(request, "accounts/forms/business_registration.html", {"form": form})
 
 
-@login_required(login_url="agent_login")
+@require_http_methods(["GET", "POST"])
+def account_logout(request: HttpRequest) -> HttpResponse:
+    logout(request)
+    messages.success(request, "You have been signed out.")
+    return redirect("business_login")
+
+
+@login_required(login_url="business_login")
 @require_http_methods(["GET", "POST"])
 def saas_profile(request: HttpRequest) -> HttpResponse:
     """
