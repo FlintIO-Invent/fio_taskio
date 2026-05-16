@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Business
+from .models import Business, ClarivoPlan
 
 
 class BusinessSettingsForm(forms.ModelForm):
@@ -52,3 +52,16 @@ class BusinessSettingsForm(forms.ModelForm):
                 attrs={"class": "form-control", "min": 1}
             ),
         }
+
+
+class BusinessSubscriptionPlanForm(forms.Form):
+    plan = forms.ModelChoiceField(
+        queryset=ClarivoPlan.objects.none(),
+        empty_label=None,
+        widget=forms.HiddenInput(),
+    )
+
+    def __init__(self, *args, plans=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        queryset = plans if plans is not None else ClarivoPlan.objects.filter(is_active=True)
+        self.fields["plan"].queryset = queryset

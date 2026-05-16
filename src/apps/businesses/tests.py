@@ -284,3 +284,104 @@ class BusinessSettingsViewTests(TestCase):
                 response = self.client.get(reverse("business_settings"))
 
                 self.assertEqual(response.status_code, 403)
+
+
+class BusinessSubscriptionViewTests(TestCase):
+    def setUp(self):
+        self.user = TaskIOUser.objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        self.business = Business.objects.create(
+            name="Clarivo HQ",
+            slug="clarivo-hq",
+            email="hello@clarivo.test",
+            country="Sint Maarten",
+        )
+        self.starter_plan = ClarivoPlan.objects.create(
+            name="Starter",
+            slug="starter",
+            allow_invoicing=True,
+        )
+        self.pro_plan = ClarivoPlan.objects.create(
+            name="Pro",
+            slug="pro",
+            allow_invoicing=True,
+            allow_appointments=True,
+            allow_public_booking=True,
+        )
+
+    def _login_with_role(self, role: str):
+        BusinessUser.objects.create(
+            user=self.user,
+            business=self.business,
+            role=role,
+        )
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+        self.client.force_login(self.user)
+
+    def test_owner_can_view_subscription_page(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.pro_plan,
+            status=BusinessSubscription.Status.TRIALING,
+        )
+
+        response = self.client.get(reverse("business_subscription"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Subscription")
+        self.assertContains(response, "Clarivo HQ")
+        self.assertContains(response, "Current Plan")
+        self.assertContains(response, "Pro")
+
+    def test_owner_can_change_subscription_plan_and_keep_trialing_status(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.starter_plan,
+            status=BusinessSubscription.Status.TRIALING,
+        )
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {"plan": self.pro_plan.id},
+            follow=True,
+        )
+
+        subscription.refresh_from_db()
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertEqual(subscription.plan, self.pro_plan)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertTrue(subscription.can_use_module("appointments"))
+        self.assertContains(response, "Workspace plan updated to Pro")
+
+    def test_owner_can_start_trial_from_subscription_page_if_missing(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {"plan": self.pro_plan.id},
+            follow=True,
+        )
+
+        subscription = BusinessSubscription.objects.get(business=self.business)
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertEqual(subscription.plan, self.pro_plan)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertIsNotNone(subscription.trial_start)
+        self.assertIsNotNone(subscription.trial_end)
+
+    def test_admin_cannot_access_subscription_page(self):
+        self._login_with_role(BusinessUser.Role.ADMIN)
+
+        response = self.client.get(reverse("business_subscription"))
+
+        self.assertEqual(response.status_code, 403)

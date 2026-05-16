@@ -8,6 +8,9 @@
       <p class="text-body-tertiary mb-0">Manage the business-level details, invoice defaults, and operational settings for your Clarivo workspace.</p>
     </div>
     <div class="col-auto d-flex gap-2">
+      {% if membership.role == "owner" %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Subscription</a>
+      {% endif %}
       <a class="btn btn-phoenix-secondary" href="{% url 'saas_profile' %}">Account Profile</a>
       <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
     </div>

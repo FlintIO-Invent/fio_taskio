@@ -35,6 +35,11 @@
               <span class="fa-solid fa-file-invoice-dollar me-2"></span>Invoices
             </a>
           {% endif %}
+          {% if current_business_membership and current_business_membership.role == "owner" %}
+            <a class="btn btn-outline-secondary" href="{% url 'business_subscription' %}">
+              <span class="fa-solid fa-layer-group me-2"></span>Upgrade Plan
+            </a>
+          {% endif %}
           <a class="btn btn-outline-secondary" href="{% url 'business_settings' %}">
             <span class="fa-solid fa-gear me-2"></span>Business Settings
           </a>

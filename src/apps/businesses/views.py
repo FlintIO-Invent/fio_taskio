@@ -4,9 +4,14 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
-from .forms import BusinessSettingsForm
-from .models import BusinessUser
-from .utils import business_role_required, get_current_business
+from .forms import BusinessSettingsForm, BusinessSubscriptionPlanForm
+from .models import BusinessUser, ClarivoPlan
+from .utils import (
+    assign_business_subscription_plan,
+    business_role_required,
+    get_business_subscription,
+    get_current_business,
+)
 
 
 @login_required(login_url="business_login")
@@ -40,3 +45,44 @@ def business_settings(request: HttpRequest) -> HttpResponse:
         "form": form,
     }
     return render(request, "businesses/settings.html", context)
+
+
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["GET", "POST"])
+def business_subscription(request: HttpRequest) -> HttpResponse:
+    business = request.current_business
+    membership = request.current_business_membership
+    subscription = get_business_subscription(business)
+    available_plans = ClarivoPlan.objects.filter(is_active=True).order_by("created_at", "pk")
+
+    if request.method == "POST":
+        form = BusinessSubscriptionPlanForm(request.POST, plans=available_plans)
+        if form.is_valid():
+            selected_plan = form.cleaned_data["plan"]
+
+            if subscription is not None and subscription.plan_id == selected_plan.id:
+                messages.info(request, f"{selected_plan.name} is already the active plan for this workspace.")
+            else:
+                updated_subscription = assign_business_subscription_plan(business, selected_plan)
+                if updated_subscription.status == updated_subscription.Status.TRIALING:
+                    messages.success(
+                        request,
+                        f"Workspace plan updated to {selected_plan.name}. The current trial remains active.",
+                    )
+                else:
+                    messages.success(
+                        request,
+                        f"Workspace plan updated to {selected_plan.name}.",
+                    )
+            return redirect("business_subscription")
+    else:
+        form = BusinessSubscriptionPlanForm(plans=available_plans)
+
+    context = {
+        "business": business,
+        "membership": membership,
+        "subscription": subscription,
+        "available_plans": available_plans,
+        "plan_form": form,
+    }
+    return render(request, "businesses/subscription.html", context)

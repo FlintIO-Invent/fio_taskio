@@ -224,3 +224,55 @@ def create_default_trial_subscription(
         },
     )
     return subscription
+
+
+def assign_business_subscription_plan(
+    business: Business,
+    plan: ClarivoPlan,
+    *,
+    trial_days: int = 14,
+) -> BusinessSubscription:
+    subscription = get_business_subscription(business)
+    now = timezone.now()
+
+    if subscription is None:
+        trial_end = now + timedelta(days=trial_days)
+        return BusinessSubscription.objects.create(
+            business=business,
+            plan=plan,
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=now,
+            trial_end=trial_end,
+            current_period_start=now,
+            current_period_end=trial_end,
+        )
+
+    subscription.plan = plan
+    subscription.cancel_at_period_end = False
+
+    if subscription.status == BusinessSubscription.Status.TRIALING:
+        if subscription.trial_start is None:
+            subscription.trial_start = now
+        if subscription.trial_end is None:
+            subscription.trial_end = subscription.trial_start + timedelta(days=trial_days)
+        if subscription.current_period_start is None:
+            subscription.current_period_start = subscription.trial_start
+        if subscription.current_period_end is None:
+            subscription.current_period_end = subscription.trial_end
+    else:
+        if subscription.current_period_start is None:
+            subscription.current_period_start = now
+
+    # TODO: Replace direct plan swaps with Stripe Checkout and webhook-driven subscription updates.
+    subscription.save(
+        update_fields=[
+            "plan",
+            "cancel_at_period_end",
+            "trial_start",
+            "trial_end",
+            "current_period_start",
+            "current_period_end",
+            "updated_at",
+        ]
+    )
+    return subscription
