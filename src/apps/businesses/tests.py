@@ -235,6 +235,7 @@ class BusinessSettingsViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Business Details")
+        self.assertContains(response, "Business type / industry")
         self.assertContains(response, "Clarivo HQ")
 
     def test_admin_can_update_business_settings(self):
@@ -244,6 +245,7 @@ class BusinessSettingsViewTests(TestCase):
             reverse("business_settings"),
             {
                 "name": "Clarivo Caribbean",
+                "business_type": "Cleaning Service",
                 "email": "billing@clarivo.test",
                 "phone": "+1 721 555 0100",
                 "address": "Front Street, Philipsburg",
@@ -261,6 +263,7 @@ class BusinessSettingsViewTests(TestCase):
 
         self.assertRedirects(response, reverse("business_settings"))
         self.assertEqual(self.business.name, "Clarivo Caribbean")
+        self.assertEqual(self.business.business_type, "Cleaning Service")
         self.assertEqual(self.business.currency, "XCD")
         self.assertEqual(self.business.timezone, "America/Lower_Princes")
         self.assertEqual(self.business.tax_rate, Decimal("6.50"))

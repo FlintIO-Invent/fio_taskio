@@ -8,6 +8,7 @@ class BusinessSettingsForm(forms.ModelForm):
         model = Business
         fields = [
             "name",
+            "business_type",
             "email",
             "phone",
             "address",
@@ -21,6 +22,9 @@ class BusinessSettingsForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Acme Freight"}
+            ),
+            "business_type": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Electrician, Cleaning Service, Consultant..."}
             ),
             "email": forms.EmailInput(
                 attrs={"class": "form-control", "placeholder": "hello@example.com"}

@@ -51,6 +51,10 @@
                   <div class="fw-semibold text-white">{{ business.country|default:"Not set" }}</div>
                 </div>
                 <div>
+                  <div class="fs-10 text-uppercase">Business Type</div>
+                  <div class="fw-semibold text-white">{{ business.business_type|default:"Not set" }}</div>
+                </div>
+                <div>
                   <div class="fs-10 text-uppercase">Timezone</div>
                   <div class="fw-semibold text-white">{{ business.timezone }}</div>
                 </div>
@@ -153,6 +157,11 @@
                 <label class="form-label" for="{{ form.email.id_for_label }}">Business email</label>
                 {{ form.email }}
                 {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.business_type.id_for_label }}">Business type / industry</label>
+                {{ form.business_type }}
+                {% if form.business_type.errors %}<div class="invalid-feedback d-block">{{ form.business_type.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="{{ form.phone.id_for_label }}">Phone</label>

@@ -24,6 +24,7 @@ class Business(TimeStampedModel):
 
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=150, unique=True)
+    business_type = models.CharField(max_length=120, blank=True, default="")
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
     address = models.TextField(blank=True)
