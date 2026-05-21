@@ -1,6 +1,8 @@
 from django import forms
+from django.core.exceptions import ValidationError
 
-from .models import Business, ClarivoPlan
+from .models import Business, BusinessUser, ClarivoPlan
+from .utils import can_assign_business_role, get_assignable_business_roles
 
 
 class BusinessSettingsForm(forms.ModelForm):
@@ -116,3 +118,37 @@ class BusinessSubscriptionPlanForm(forms.Form):
         super().__init__(*args, **kwargs)
         queryset = plans if plans is not None else ClarivoPlan.objects.filter(is_active=True)
         self.fields["plan"].queryset = queryset
+
+
+class BusinessInvitationForm(forms.Form):
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "employee@example.com"}
+        ),
+    )
+    role = forms.ChoiceField(
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    def __init__(self, *args, business: Business, membership: BusinessUser, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.business = business
+        self.membership = membership
+        assignable_roles = set(get_assignable_business_roles(membership))
+        self.fields["role"].choices = [
+            (role_value, role_label)
+            for role_value, role_label in BusinessUser.Role.choices
+            if role_value in assignable_roles
+        ]
+
+    def clean_email(self) -> str:
+        return (self.cleaned_data.get("email") or "").strip().lower()
+
+    def clean_role(self) -> str:
+        role = (self.cleaned_data.get("role") or "").strip()
+        if not can_assign_business_role(self.membership, role):
+            raise ValidationError("You do not have permission to invite that workspace role.")
+        return role
+
+    def clean(self):
+        return super().clean()

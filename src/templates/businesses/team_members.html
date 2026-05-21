@@ -1,0 +1,162 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+
+{% block content %}
+<div class="content">
+  <div class="row g-3 mb-4 justify-content-between align-items-center">
+    <div class="col-lg-8">
+      <h2 class="mb-2 text-body-emphasis">Team Members</h2>
+      <p class="text-body-tertiary mb-0">Invite employees into {{ business.name }} without creating a new business workspace.</p>
+    </div>
+    <div class="col-auto d-flex gap-2">
+      {% if membership.role == "owner" %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Subscription</a>
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>
+      {% endif %}
+      
+      <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-xxl-5">
+      <div class="card h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start mb-4">
+            <div>
+              <h4 class="mb-1">Invite Team Member</h4>
+              <p class="text-body-tertiary mb-0">Only owners and admins can send workspace invitations.</p>
+            </div>
+            <span class="badge badge-phoenix badge-phoenix-primary">{{ membership.get_role_display }}</span>
+          </div>
+
+          {% if invite_form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">{{ invite_form.non_field_errors|striptags }}</div>
+          {% endif %}
+
+          <form method="POST" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ invite_form.email.id_for_label }}">Email</label>
+              {{ invite_form.email }}
+              {% if invite_form.email.errors %}<div class="invalid-feedback d-block">{{ invite_form.email.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="{{ invite_form.role.id_for_label }}">Role</label>
+              {{ invite_form.role }}
+              {% if invite_form.role.errors %}<div class="invalid-feedback d-block">{{ invite_form.role.errors|striptags }}</div>{% endif %}
+            </div>
+            <button class="btn btn-primary w-100" type="submit">Create invitation</button>
+          </form>
+
+          <div class="alert alert-info mt-4 mb-0" role="alert">
+            Invitation links stay tied to this business only and expire automatically after 7 days.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xxl-7">
+      <div class="card h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h4 class="mb-1">Pending Invitations</h4>
+              <p class="text-body-tertiary mb-0">Share these links locally for testing or copy them into your own email flow.</p>
+            </div>
+            <span class="badge badge-phoenix badge-phoenix-secondary">{{ pending_invitations|length }}</span>
+          </div>
+
+          {% if pending_invitations %}
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Expires</th>
+                    <th>Invite Link</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for invitation in pending_invitations %}
+                    <tr>
+                      <td>
+                        <div class="fw-semibold">{{ invitation.email }}</div>
+                        <div class="fs-10 text-body-tertiary">Invited by {{ invitation.invited_by.full_name|default:invitation.invited_by.email|default:"Workspace admin" }}</div>
+                      </td>
+                      <td>{{ invitation.get_role_display }}</td>
+                      <td>{{ invitation.expires_at|date:"M j, Y, g:i a" }}</td>
+                      <td>
+                        <code class="small">{% url 'accept_business_invitation' invitation.token %}</code>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="alert alert-light border mb-0" role="alert">
+              No pending invitations for this workspace right now.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h4 class="mb-1">Current Team</h4>
+              <p class="text-body-tertiary mb-0">Members already attached to {{ business.name }} through BusinessUser.</p>
+            </div>
+            <span class="badge badge-phoenix badge-phoenix-primary">{{ team_memberships|length }}</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for team_membership in team_memberships %}
+                  <tr>
+                    <td>{{ team_membership.user.full_name|default:"-" }}</td>
+                    <td>{{ team_membership.user.email }}</td>
+                    <td>{{ team_membership.get_role_display }}</td>
+                    <td>
+                      <span class="badge badge-phoenix {% if team_membership.is_active %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
+                        {% if team_membership.is_active %}Active{% else %}Inactive{% endif %}
+                      </span>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="4" class="text-body-tertiary">No team members are attached to this workspace yet.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

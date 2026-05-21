@@ -1,0 +1,126 @@
+{% extends 'inheritance/authentication_parent.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container">
+  <div class="row flex-center min-vh-100 py-5">
+    <div class="col-sm-11 col-md-9 col-lg-7 col-xl-6">
+      <a class="d-flex flex-center text-decoration-none mb-4" href="{% url 'home' %}">
+        <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Clarivo" width="58">
+      </a>
+
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4 p-sm-5">
+          <div class="text-center mb-5">
+            <h3 class="text-body-highlight mb-2">Join {{ invitation.business.name }}</h3>
+            <p class="text-body-tertiary mb-0">
+              You were invited to join this Clarivo workspace as {{ invitation.get_role_display }}.
+            </p>
+          </div>
+
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags|default:'info' }}" role="alert">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+
+          <div class="rounded-3 border p-4 mb-4">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="fs-10 text-uppercase text-body-tertiary">Workspace</div>
+                <div class="fw-semibold">{{ invitation.business.name }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="fs-10 text-uppercase text-body-tertiary">Invited email</div>
+                <div class="fw-semibold">{{ invitation.email }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="fs-10 text-uppercase text-body-tertiary">Role</div>
+                <div class="fw-semibold">{{ invitation.get_role_display }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="fs-10 text-uppercase text-body-tertiary">Expires</div>
+                <div class="fw-semibold">{{ invitation.expires_at|date:"M j, Y, g:i a" }}</div>
+              </div>
+            </div>
+          </div>
+
+          {% if not invitation_is_available %}
+            <div class="alert alert-warning mb-0" role="alert">
+              This invitation is no longer available.
+            </div>
+          {% elif wrong_authenticated_user %}
+            <div class="alert alert-warning mb-3" role="alert">
+              You are signed in as {{ request.user.email }}. Please <a href="{% url 'logout' %}">sign out</a> and accept this invitation with {{ invitation.email }}.
+            </div>
+          {% elif existing_user %}
+            {% if request.user.is_authenticated and request.user.email|lower == invitation.email %}
+              <div class="alert alert-info mb-3" role="alert">
+                You are signed in as the invited user. Confirm below to join this workspace.
+              </div>
+              <form method="POST">
+                {% csrf_token %}
+                <button class="btn btn-primary w-100" type="submit">Accept invitation</button>
+              </form>
+            {% else %}
+              {% if login_form.non_field_errors %}
+                <div class="alert alert-danger" role="alert">{{ login_form.non_field_errors|striptags }}</div>
+              {% endif %}
+              <form method="POST" novalidate>
+                {% csrf_token %}
+                <div class="mb-3">
+                  <label class="form-label">Existing account</label>
+                  <input class="form-control" type="email" value="{{ invitation.email }}" disabled>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label" for="{{ login_form.password.id_for_label }}">Password</label>
+                  {{ login_form.password }}
+                  {% if login_form.password.errors %}<div class="invalid-feedback d-block">{{ login_form.password.errors|striptags }}</div>{% endif %}
+                </div>
+                <button class="btn btn-primary w-100" type="submit">Sign in and join workspace</button>
+              </form>
+            {% endif %}
+          {% else %}
+            {% if signup_form.non_field_errors %}
+              <div class="alert alert-danger" role="alert">{{ signup_form.non_field_errors|striptags }}</div>
+            {% endif %}
+            <form method="POST" novalidate>
+              {% csrf_token %}
+              <div class="mb-3">
+                <label class="form-label">Email address</label>
+                <input class="form-control" type="email" value="{{ invitation.email }}" disabled>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ signup_form.first_name.id_for_label }}">First name</label>
+                  {{ signup_form.first_name }}
+                  {% if signup_form.first_name.errors %}<div class="invalid-feedback d-block">{{ signup_form.first_name.errors|striptags }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ signup_form.last_name.id_for_label }}">Last name</label>
+                  {{ signup_form.last_name }}
+                  {% if signup_form.last_name.errors %}<div class="invalid-feedback d-block">{{ signup_form.last_name.errors|striptags }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ signup_form.password1.id_for_label }}">Password</label>
+                  {{ signup_form.password1 }}
+                  {% if signup_form.password1.help_text %}<div class="form-text">{{ signup_form.password1.help_text|safe }}</div>{% endif %}
+                  {% if signup_form.password1.errors %}<div class="invalid-feedback d-block">{{ signup_form.password1.errors|striptags }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ signup_form.password2.id_for_label }}">Confirm password</label>
+                  {{ signup_form.password2 }}
+                  {% if signup_form.password2.errors %}<div class="invalid-feedback d-block">{{ signup_form.password2.errors|striptags }}</div>{% endif %}
+                </div>
+              </div>
+              <button class="btn btn-primary w-100 mt-4" type="submit">Create account and join workspace</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

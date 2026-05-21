@@ -3,7 +3,7 @@ from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from apps.businesses.models import Business, BusinessSubscription, BusinessUser
+from apps.businesses.models import Business, BusinessInvitation, BusinessSubscription, BusinessUser
 from apps.businesses.utils import create_default_trial_subscription, generate_business_slug
 
 from .models import SaaSUserProfile, TaskIOUser
@@ -266,6 +266,78 @@ class BusinessLoginForm(forms.Form):
 
     def clean_email(self) -> str:
         return (self.cleaned_data.get("email") or "").strip().lower()
+
+
+class InvitationExistingUserLoginForm(forms.Form):
+    password = forms.CharField(
+        label="Password",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Enter your password"}
+        ),
+    )
+
+
+class InvitationAcceptanceSignupForm(forms.Form):
+    first_name = forms.CharField(
+        label="First name",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Jane"}
+        ),
+    )
+    last_name = forms.CharField(
+        label="Last name",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Doe"}
+        ),
+    )
+    password1 = forms.CharField(
+        label="Password",
+        strip=False,
+        help_text=password_validation.password_validators_help_text_html(),
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Create a password"}
+        ),
+    )
+    password2 = forms.CharField(
+        label="Confirm password",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Repeat your password"}
+        ),
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get("password1")
+        password2 = cleaned_data.get("password2")
+
+        if password1 and password2 and password1 != password2:
+            self.add_error("password2", "Passwords do not match.")
+
+        if password1:
+            user = TaskIOUser(
+                first_name=cleaned_data.get("first_name", ""),
+                last_name=cleaned_data.get("last_name", ""),
+            )
+            try:
+                password_validation.validate_password(password1, user=user)
+            except ValidationError as exc:
+                self.add_error("password1", exc)
+
+        return cleaned_data
+
+    def save(self, invitation: BusinessInvitation) -> TaskIOUser:
+        user = TaskIOUser.objects.create_user(
+            email=invitation.email,
+            first_name=self.cleaned_data["first_name"],
+            last_name=self.cleaned_data["last_name"],
+            password=self.cleaned_data["password1"],
+            incorporation_status="UNINCORPORATED",
+            assigned_location="CARIBBEAN",
+            company_name=invitation.business.name,
+        )
+        return user
 
 
 class SaaSBasicInfoForm(forms.ModelForm):

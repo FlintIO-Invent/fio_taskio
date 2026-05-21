@@ -2,13 +2,15 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .forms import BusinessSettingsForm, BusinessSubscriptionPlanForm
-from .models import BusinessUser, ClarivoPlan
+from .forms import BusinessInvitationForm, BusinessSettingsForm, BusinessSubscriptionPlanForm
+from .models import BusinessInvitation, BusinessUser, ClarivoPlan
 from .utils import (
     assign_business_subscription_plan,
     business_role_required,
+    create_or_refresh_business_invitation,
     get_business_subscription,
     get_current_business,
 )
@@ -90,3 +92,58 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
         "plan_form": form,
     }
     return render(request, "businesses/subscription.html", context)
+
+
+@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@require_http_methods(["GET", "POST"])
+def business_team_members(request: HttpRequest) -> HttpResponse:
+    business = request.current_business
+    membership = request.current_business_membership
+
+    BusinessInvitation.objects.filter(
+        business=business,
+        status=BusinessInvitation.Status.PENDING,
+        expires_at__lte=timezone.now(),
+    ).update(status=BusinessInvitation.Status.EXPIRED, updated_at=timezone.now())
+
+    if request.method == "POST":
+        invite_form = BusinessInvitationForm(
+            request.POST,
+            business=business,
+            membership=membership,
+        )
+        if invite_form.is_valid():
+            if BusinessUser.objects.filter(
+                business=business,
+                user__email__iexact=invite_form.cleaned_data["email"],
+                is_active=True,
+            ).exists():
+                messages.info(request, "This user already belongs to the current workspace.")
+                return redirect("business_team_members")
+
+            invitation, created = create_or_refresh_business_invitation(
+                business=business,
+                email=invite_form.cleaned_data["email"],
+                role=invite_form.cleaned_data["role"],
+                invited_by=request.user,
+            )
+            if created:
+                messages.success(request, "Invitation created successfully.")
+            else:
+                messages.info(request, "A pending invitation was refreshed for this email.")
+            return redirect("business_team_members")
+    else:
+        invite_form = BusinessInvitationForm(business=business, membership=membership)
+
+    context = {
+        "business": business,
+        "membership": membership,
+        "invite_form": invite_form,
+        "team_memberships": business.memberships.select_related("user").order_by(
+            "user__first_name", "user__last_name", "user__email"
+        ),
+        "pending_invitations": business.invitations.select_related("invited_by").filter(
+            status=BusinessInvitation.Status.PENDING,
+        ),
+    }
+    return render(request, "businesses/team_members.html", context)

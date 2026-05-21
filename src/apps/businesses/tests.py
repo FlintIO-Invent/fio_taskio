@@ -8,7 +8,13 @@ from django.urls import reverse
 
 from apps.accounts.models import TaskIOUser
 
-from .models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
+from .models import (
+    Business,
+    BusinessInvitation,
+    BusinessSubscription,
+    BusinessUser,
+    ClarivoPlan,
+)
 from .utils import (
     CURRENT_BUSINESS_SESSION_KEY,
     business_required,
@@ -430,3 +436,73 @@ class BusinessSubscriptionViewTests(TestCase):
         response = self.client.get(reverse("business_subscription"))
 
         self.assertEqual(response.status_code, 403)
+
+
+class BusinessInvitationViewTests(TestCase):
+    def setUp(self):
+        self.owner = TaskIOUser.objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+            first_name="Owner",
+            last_name="User",
+        )
+        self.admin = TaskIOUser.objects.create_user(
+            email="admin@example.com",
+            password="StrongPass123!",
+            first_name="Admin",
+            last_name="User",
+        )
+        self.business = Business.objects.create(
+            name="Clarivo HQ",
+            slug="clarivo-hq-team",
+            email="hello@clarivo.test",
+            country="Sint Maarten",
+        )
+
+    def _login(self, user: TaskIOUser, role: str):
+        BusinessUser.objects.create(
+            user=user,
+            business=self.business,
+            role=role,
+        )
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+        self.client.force_login(user)
+
+    def test_owner_can_create_workspace_invitation(self):
+        self._login(self.owner, BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_team_members"),
+            {
+                "email": "employee@example.com",
+                "role": BusinessUser.Role.STAFF,
+            },
+            follow=True,
+        )
+
+        invitation = BusinessInvitation.objects.get(email="employee@example.com")
+
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertEqual(invitation.business, self.business)
+        self.assertEqual(invitation.role, BusinessUser.Role.STAFF)
+        self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
+        self.assertEqual(invitation.invited_by, self.owner)
+        self.assertContains(response, "Invitation created successfully.")
+        self.assertContains(response, reverse("accept_business_invitation", args=[invitation.token]))
+
+    def test_admin_cannot_invite_owner_role(self):
+        self._login(self.admin, BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_team_members"),
+            {
+                "email": "owner-2@example.com",
+                "role": BusinessUser.Role.OWNER,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(BusinessInvitation.objects.filter(email="owner-2@example.com").exists())
+        self.assertContains(response, "Select a valid choice")

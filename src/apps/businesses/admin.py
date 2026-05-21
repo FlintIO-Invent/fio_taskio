@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from .models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
+from .models import (
+    Business,
+    BusinessInvitation,
+    BusinessSubscription,
+    BusinessUser,
+    ClarivoPlan,
+)
 
 
 @admin.register(Business)
@@ -99,3 +105,21 @@ class BusinessUserAdmin(admin.ModelAdmin):
     search_fields = ("user__email", "business__name", "business__slug")
     autocomplete_fields = ("user", "business")
     list_select_related = ("user", "business")
+
+
+@admin.register(BusinessInvitation)
+class BusinessInvitationAdmin(admin.ModelAdmin):
+    list_display = (
+        "email",
+        "business",
+        "role",
+        "status",
+        "invited_by",
+        "expires_at",
+        "accepted_by",
+        "updated_at",
+    )
+    list_filter = ("status", "role", "business")
+    search_fields = ("email", "business__name", "business__slug", "token")
+    autocomplete_fields = ("business", "invited_by", "accepted_by")
+    list_select_related = ("business", "invited_by", "accepted_by")

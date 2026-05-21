@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    accept_business_invitation,
     account_logout,
     agent_login,
     business_login,
@@ -10,6 +11,11 @@ from .views import (
 )
 
 urlpatterns = [
+    path(
+        "invitations/accept/<str:token>/",
+        accept_business_invitation,
+        name="accept_business_invitation",
+    ),
     path("login/", business_login, name="business_login"),
     path("logout/", account_logout, name="logout"),
     path('agent_login', agent_login, name='agent_login'),

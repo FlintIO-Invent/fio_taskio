@@ -5,7 +5,13 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
+from apps.businesses.models import (
+    Business,
+    BusinessInvitation,
+    BusinessSubscription,
+    BusinessUser,
+    ClarivoPlan,
+)
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 
 from .models import SaaSUserProfile
@@ -291,6 +297,111 @@ class BusinessLoginViewTests(TestCase):
         self.assertRedirects(response, reverse("business_login"))
         self.assertNotIn("_auth_user_id", self.client.session)
         self.assertContains(response, "You have been signed out.")
+
+
+class BusinessInvitationAcceptanceTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+            first_name="Owner",
+            last_name="User",
+        )
+        self.business = Business.objects.create(
+            name="Acme Freight",
+            slug="acme-freight-team",
+            email="hello@acmefreight.com",
+            country="Sint Maarten",
+        )
+        BusinessUser.objects.create(
+            user=self.owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+
+    def test_accept_invitation_creates_employee_account_and_membership(self):
+        invitation = BusinessInvitation.objects.create(
+            business=self.business,
+            email="employee@example.com",
+            role=BusinessUser.Role.STAFF,
+            token="new-user-token",
+            invited_by=self.owner,
+        )
+
+        response = self.client.post(
+            reverse("accept_business_invitation", args=[invitation.token]),
+            {
+                "first_name": "New",
+                "last_name": "Employee",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
+
+        user = get_user_model().objects.get(email="employee@example.com")
+        invitation.refresh_from_db()
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertEqual(Business.objects.count(), 1)
+        self.assertTrue(BusinessUser.objects.filter(user=user, business=self.business).exists())
+        self.assertEqual(invitation.status, BusinessInvitation.Status.ACCEPTED)
+        self.assertEqual(invitation.accepted_by, user)
+        self.assertEqual(int(self.client.session[CURRENT_BUSINESS_SESSION_KEY]), self.business.id)
+
+    def test_accept_invitation_for_existing_user_attaches_membership(self):
+        existing_user = get_user_model().objects.create_user(
+            email="employee@example.com",
+            password="StrongPass123!",
+            first_name="Existing",
+            last_name="Employee",
+        )
+        invitation = BusinessInvitation.objects.create(
+            business=self.business,
+            email=existing_user.email,
+            role=BusinessUser.Role.ACCOUNTANT,
+            token="existing-user-token",
+            invited_by=self.owner,
+        )
+
+        response = self.client.post(
+            reverse("accept_business_invitation", args=[invitation.token]),
+            {
+                "password": "StrongPass123!",
+            },
+        )
+
+        invitation.refresh_from_db()
+        membership = BusinessUser.objects.get(user=existing_user, business=self.business)
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertEqual(membership.role, BusinessUser.Role.ACCOUNTANT)
+        self.assertTrue(membership.is_active)
+        self.assertEqual(invitation.status, BusinessInvitation.Status.ACCEPTED)
+        self.assertEqual(invitation.accepted_by, existing_user)
+
+    def test_accepted_invitation_cannot_be_reused(self):
+        accepted_user = get_user_model().objects.create_user(
+            email="accepted@example.com",
+            password="StrongPass123!",
+            first_name="Accepted",
+            last_name="User",
+        )
+        invitation = BusinessInvitation.objects.create(
+            business=self.business,
+            email=accepted_user.email,
+            role=BusinessUser.Role.STAFF,
+            token="accepted-token",
+            invited_by=self.owner,
+            status=BusinessInvitation.Status.ACCEPTED,
+            accepted_by=accepted_user,
+            accepted_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse("accept_business_invitation", args=[invitation.token]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already been accepted")
+        self.assertFalse(BusinessUser.objects.filter(user=accepted_user, business=self.business).exists())
 
 
 class SaaSProfileViewTests(TestCase):

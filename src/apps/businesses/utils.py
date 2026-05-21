@@ -1,17 +1,25 @@
 from __future__ import annotations
 
+import secrets
 from datetime import timedelta
 from functools import wraps
 from typing import Any, Callable, TypeVar
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.utils.text import slugify
 
-from .models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
+from .models import (
+    Business,
+    BusinessInvitation,
+    BusinessSubscription,
+    BusinessUser,
+    ClarivoPlan,
+)
 
 
 CURRENT_BUSINESS_SESSION_KEY = "current_business_id"
@@ -276,3 +284,122 @@ def assign_business_subscription_plan(
         ]
     )
     return subscription
+
+
+def get_assignable_business_roles(membership: BusinessUser | None) -> tuple[str, ...]:
+    if membership is None:
+        return ()
+
+    if membership.role == BusinessUser.Role.OWNER:
+        return tuple(role for role, _label in BusinessUser.Role.choices)
+
+    if membership.role == BusinessUser.Role.ADMIN:
+        return (
+            BusinessUser.Role.STAFF,
+            BusinessUser.Role.ACCOUNTANT,
+            BusinessUser.Role.VIEWER,
+        )
+
+    return ()
+
+
+def can_assign_business_role(membership: BusinessUser | None, role: str) -> bool:
+    return role in get_assignable_business_roles(membership)
+
+
+def generate_business_invitation_token() -> str:
+    while True:
+        token = secrets.token_urlsafe(32)
+        if not BusinessInvitation.objects.filter(token=token).exists():
+            return token
+
+
+def expire_business_invitation_if_needed(invitation: BusinessInvitation) -> bool:
+    if invitation.is_expired:
+        invitation.status = BusinessInvitation.Status.EXPIRED
+        invitation.save(update_fields=["status", "updated_at"])
+        return True
+    return invitation.status == BusinessInvitation.Status.EXPIRED
+
+
+def create_or_refresh_business_invitation(
+    *,
+    business: Business,
+    email: str,
+    role: str,
+    invited_by,
+    expiry_days: int = 7,
+) -> tuple[BusinessInvitation, bool]:
+    normalized_email = email.strip().lower()
+    expires_at = timezone.now() + timedelta(days=expiry_days)
+    invitation = (
+        BusinessInvitation.objects.filter(
+            business=business,
+            email__iexact=normalized_email,
+            status=BusinessInvitation.Status.PENDING,
+        )
+        .order_by("-created_at", "-pk")
+        .first()
+    )
+
+    if invitation is not None and expire_business_invitation_if_needed(invitation):
+        invitation = None
+
+    if invitation is not None:
+        invitation.role = role
+        invitation.invited_by = invited_by
+        invitation.expires_at = expires_at
+        invitation.save(update_fields=["role", "invited_by", "expires_at", "updated_at"])
+        return invitation, False
+
+    invitation = BusinessInvitation.objects.create(
+        business=business,
+        email=normalized_email,
+        role=role,
+        token=generate_business_invitation_token(),
+        invited_by=invited_by,
+        status=BusinessInvitation.Status.PENDING,
+        expires_at=expires_at,
+    )
+    return invitation, True
+
+
+@transaction.atomic
+def accept_business_invitation_for_user(
+    invitation: BusinessInvitation,
+    user,
+) -> tuple[BusinessUser, bool, bool]:
+    if expire_business_invitation_if_needed(invitation):
+        raise ValueError("This invitation has expired.")
+
+    if invitation.status != BusinessInvitation.Status.PENDING:
+        raise ValueError("This invitation is no longer available.")
+
+    membership = BusinessUser.objects.filter(
+        user=user,
+        business=invitation.business,
+    ).first()
+    created = False
+    already_member = False
+
+    if membership is None:
+        membership = BusinessUser.objects.create(
+            user=user,
+            business=invitation.business,
+            role=invitation.role,
+            is_active=True,
+        )
+        created = True
+    elif membership.is_active:
+        already_member = True
+    else:
+        membership.role = invitation.role
+        membership.is_active = True
+        membership.save(update_fields=["role", "is_active", "updated_at"])
+
+    invitation.status = BusinessInvitation.Status.ACCEPTED
+    invitation.accepted_at = timezone.now()
+    invitation.accepted_by = user
+    invitation.save(update_fields=["status", "accepted_at", "accepted_by", "updated_at"])
+
+    return membership, created, already_member

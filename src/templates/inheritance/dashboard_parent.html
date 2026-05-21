@@ -91,6 +91,13 @@
                                             <a class="nav-link" href="{% url 'business_settings' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                             </a>
+                                            {% if current_business_membership %}
+                                                {% if current_business_membership.role == "owner" or current_business_membership.role == "admin" %}
+                                                    <a class="nav-link" href="{% url 'business_team_members' %}">
+                                                        <div class="d-flex align-items-center"><span class="nav-link-text">Team Members</span></div>
+                                                    </a>
+                                                {% endif %}
+                                            {% endif %}
                                             {% if current_business_membership and current_business_membership.role == "owner" %}
                                                 <a class="nav-link" href="{% url 'business_subscription' %}">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Subscription</span></div>

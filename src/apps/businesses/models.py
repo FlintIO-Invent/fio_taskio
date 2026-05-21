@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import secrets
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
+
+
+def default_business_invitation_expiry():
+    return timezone.now() + timedelta(days=7)
 
 
 class TimeStampedModel(models.Model):
@@ -262,3 +269,61 @@ class BusinessUser(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.user} @ {self.business} ({self.get_role_display()})"
+
+
+class BusinessInvitation(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        EXPIRED = "expired", "Expired"
+        CANCELLED = "cancelled", "Cancelled"
+
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="invitations",
+    )
+    email = models.EmailField()
+    role = models.CharField(
+        max_length=20,
+        choices=BusinessUser.Role.choices,
+        default=BusinessUser.Role.STAFF,
+    )
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sent_business_invitations",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    expires_at = models.DateTimeField(default=default_business_invitation_expiry)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="accepted_business_invitations",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.email} -> {self.business} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        self.email = (self.email or "").strip().lower()
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self) -> bool:
+        return self.status == self.Status.PENDING and self.expires_at <= timezone.now()

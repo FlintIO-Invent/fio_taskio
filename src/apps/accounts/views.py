@@ -3,20 +3,28 @@ from typing import Any
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 from loguru import logger
 
 from apps.accounts.models import SaaSUserProfile, TaskIOUser
-from apps.businesses.models import BusinessUser
-from apps.businesses.utils import get_current_business, set_current_business
+from apps.businesses.models import BusinessInvitation, BusinessUser
+from apps.businesses.utils import (
+    accept_business_invitation_for_user,
+    expire_business_invitation_if_needed,
+    get_current_business,
+    set_current_business,
+)
 
 from .forms import (
     BusinessLoginForm,
     BusinessRegistrationForm,
     CustomerRegistrationForm,
+    InvitationAcceptanceSignupForm,
+    InvitationExistingUserLoginForm,
     SaaSBasicInfoForm,
     SaaSInvoiceSettingsForm,
     SaaSWorkspaceSettingsForm,
@@ -218,6 +226,130 @@ def register_business(request: HttpRequest) -> HttpResponse:
         form = BusinessRegistrationForm()
 
     return render(request, "accounts/forms/business_registration.html", {"form": form})
+
+
+@require_http_methods(["GET", "POST"])
+def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse:
+    invitation = get_object_or_404(
+        BusinessInvitation.objects.select_related("business", "invited_by", "accepted_by"),
+        token=token,
+    )
+    existing_user = TaskIOUser.objects.filter(email__iexact=invitation.email).first()
+
+    if expire_business_invitation_if_needed(invitation):
+        messages.error(request, "This invitation has expired. Please ask your workspace owner for a new invite.")
+    elif invitation.status == BusinessInvitation.Status.ACCEPTED:
+        messages.info(request, "This invitation has already been accepted.")
+    elif invitation.status == BusinessInvitation.Status.CANCELLED:
+        messages.error(request, "This invitation has been cancelled.")
+
+    invitation_is_available = invitation.status == BusinessInvitation.Status.PENDING
+    wrong_authenticated_user = (
+        request.user.is_authenticated
+        and request.user.email.lower() != invitation.email.lower()
+    )
+
+    login_form = None
+    signup_form = None
+
+    if invitation_is_available and request.method == "POST":
+        if wrong_authenticated_user:
+            messages.error(
+                request,
+                "You are signed in as a different user. Please sign out and accept this invite with the invited email address.",
+            )
+        elif existing_user is not None:
+            if not existing_user.is_active:
+                messages.error(
+                    request,
+                    "This invited account is inactive. Please contact support or your workspace owner.",
+                )
+            elif request.user.is_authenticated:
+                try:
+                    membership, created, already_member = accept_business_invitation_for_user(
+                        invitation,
+                        request.user,
+                    )
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    return redirect("accept_business_invitation", token=invitation.token)
+                SaaSUserProfile.get_or_create_for_user(request.user)
+                set_current_business(request, membership.business)
+                if already_member:
+                    messages.info(request, "You already belong to this workspace.")
+                elif created:
+                    messages.success(request, "You have joined the workspace successfully.")
+                else:
+                    messages.success(request, "Your workspace access has been restored successfully.")
+                return redirect("agent_dashboard")
+            else:
+                login_form = InvitationExistingUserLoginForm(request.POST)
+                if login_form.is_valid():
+                    user = authenticate(
+                        request,
+                        email=invitation.email,
+                        password=login_form.cleaned_data["password"],
+                    )
+                    if user is None:
+                        login_form.add_error("password", "Invalid password.")
+                    elif not user.is_active:
+                        login_form.add_error(None, "This account is inactive. Please contact support.")
+                    else:
+                        try:
+                            membership, created, already_member = accept_business_invitation_for_user(
+                                invitation,
+                                user,
+                            )
+                        except ValueError as exc:
+                            messages.error(request, str(exc))
+                            return redirect("accept_business_invitation", token=invitation.token)
+                        login(request, user)
+                        SaaSUserProfile.get_or_create_for_user(user)
+                        set_current_business(request, membership.business)
+                        if already_member:
+                            messages.info(request, "You already belong to this workspace.")
+                        elif created:
+                            messages.success(request, "You have joined the workspace successfully.")
+                        else:
+                            messages.success(request, "Your workspace access has been restored successfully.")
+                        return redirect("agent_dashboard")
+        else:
+            signup_form = InvitationAcceptanceSignupForm(request.POST)
+            if signup_form.is_valid():
+                try:
+                    with transaction.atomic():
+                        user = signup_form.save(invitation)
+                        membership, _created, already_member = accept_business_invitation_for_user(
+                            invitation,
+                            user,
+                        )
+                        SaaSUserProfile.get_or_create_for_user(user)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    return redirect("accept_business_invitation", token=invitation.token)
+                login(request, user)
+                set_current_business(request, membership.business)
+                if already_member:
+                    messages.info(request, "You already belong to this workspace.")
+                else:
+                    messages.success(request, "Your account has been created and joined to the workspace.")
+                return redirect("agent_dashboard")
+
+    if login_form is None and invitation_is_available and existing_user is not None and not request.user.is_authenticated:
+        login_form = InvitationExistingUserLoginForm()
+
+    if signup_form is None and invitation_is_available and existing_user is None:
+        signup_form = InvitationAcceptanceSignupForm()
+
+    context = {
+        "invitation": invitation,
+        "existing_user": existing_user,
+        "invitation_is_available": invitation_is_available,
+        "wrong_authenticated_user": wrong_authenticated_user,
+        "login_form": login_form,
+        "signup_form": signup_form,
+    }
+    return render(request, "accounts/forms/accept_business_invitation.html", context)
 
 
 @require_http_methods(["GET", "POST"])
