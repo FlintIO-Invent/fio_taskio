@@ -39,6 +39,9 @@
             <a class="btn btn-outline-secondary" href="{% url 'business_subscription' %}">
               <span class="fa-solid fa-layer-group me-2"></span>Upgrade Plan
             </a>
+            <a class="btn btn-outline-secondary" href="{% url 'business_settings' %}">
+            <span class="fa-solid fa-gear me-2"></span>Business Settings
+          </a>
           {% endif %}
           {% if current_business_membership %}
             {% if current_business_membership.role == "owner" or current_business_membership.role == "admin" %}
@@ -47,9 +50,7 @@
               </a>
             {% endif %}
           {% endif %}
-          <a class="btn btn-outline-secondary" href="{% url 'business_settings' %}">
-            <span class="fa-solid fa-gear me-2"></span>Business Settings
-          </a>
+          
         </div>
       </div>
     </div>

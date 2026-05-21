@@ -19,8 +19,11 @@ from loguru import logger
 from apps.businesses.models import Business, BusinessUser
 from apps.businesses.utils import (
     business_required,
+    can_use_module,
     business_role_required,
+    get_business_module_unavailable_message,
     get_current_business,
+    redirect_for_unavailable_business_module,
 )
 from apps.billings.models import Invoice
 from .forms import (
@@ -260,6 +263,8 @@ def public_request_entry(request: HttpRequest) -> HttpResponse:
     current_business = get_current_business(request)
     if current_business is None:
         raise Http404("A business-specific request link is required.")
+    if not can_use_module(current_business, "public_request_form"):
+        return redirect_for_unavailable_business_module(request, "public_request_form")
     return redirect("public_request", business_slug=current_business.slug)
 
 
@@ -273,6 +278,19 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
     - If lead_type == INTEREST: keep as Lead only.
     """
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
+    if not can_use_module(business, "public_request_form"):
+        return render(
+            request,
+            "crm/success_fail/public_request_unavailable.html",
+            {
+                "public_business": business,
+                "availability_message": get_business_module_unavailable_message(
+                    business,
+                    "public_request_form",
+                ),
+            },
+            status=403,
+        )
 
     if request.method == "POST":
         form = PublicLeadForm(request.POST, business=business)

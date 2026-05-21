@@ -5,6 +5,7 @@ from datetime import timedelta
 from functools import wraps
 from typing import Any, Callable, TypeVar
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
@@ -192,6 +193,88 @@ def business_is_trialing(business: Business | None) -> bool:
 def can_use_module(business: Business | None, module_name: str) -> bool:
     subscription = get_business_subscription(business)
     return bool(subscription and subscription.can_use_module(module_name))
+
+
+def get_module_display_name(module_name: str) -> str:
+    normalized_name = module_name.strip().lower().replace("-", "_")
+    display_names = {
+        "invoicing": "Invoicing",
+        "public_request_form": "Public Request Form",
+        "public_request": "Public Request Form",
+        "public_booking": "Public Booking",
+        "appointments": "Appointments",
+        "memberships": "Memberships",
+    }
+    if normalized_name in display_names:
+        return display_names[normalized_name]
+    return normalized_name.replace("_", " ").title()
+
+
+def get_business_module_unavailable_message(
+    business: Business | None,
+    module_name: str,
+) -> str:
+    module_label = get_module_display_name(module_name)
+
+    if business is None or not business.is_active:
+        return f"{module_label} is not available for this workspace."
+
+    subscription = get_business_subscription(business)
+    if subscription is None:
+        return (
+            f"{module_label} is not available because this workspace does not have "
+            "an active Clarivo subscription yet."
+        )
+
+    if not subscription.has_access:
+        return (
+            f"{module_label} is not available because this workspace subscription "
+            "is not active."
+        )
+
+    return f"{module_label} is not included in the current workspace plan."
+
+
+def redirect_for_unavailable_business_module(
+    request: HttpRequest,
+    module_name: str,
+) -> HttpResponse:
+    membership = get_current_business_membership(request)
+    message = get_business_module_unavailable_message(
+        getattr(request, "current_business", None),
+        module_name,
+    )
+
+    if membership is not None and membership.role == BusinessUser.Role.OWNER:
+        messages.error(request, f"{message} Review your subscription to upgrade access.")
+        return redirect("business_subscription")
+
+    messages.error(request, f"{message} Please contact your workspace owner.")
+    return redirect("agent_dashboard")
+
+
+def business_module_required(
+    module_name: str,
+    *,
+    login_url: str = "business_login",
+    setup_url_name: str = "business_setup",
+) -> Callable[[ViewFunc], ViewFunc]:
+    def decorator(func: ViewFunc) -> ViewFunc:
+        @wraps(func)
+        def wrapped(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+            # UI hiding helps discovery, but it is not a security boundary.
+            # Route handlers must enforce plan access on the backend as well.
+            if not can_use_module(request.current_business, module_name):
+                return redirect_for_unavailable_business_module(request, module_name)
+
+            return func(request, *args, **kwargs)
+
+        return business_required(
+            login_url=login_url,
+            setup_url_name=setup_url_name,
+        )(wrapped)
+
+    return decorator
 
 
 def create_default_trial_subscription(

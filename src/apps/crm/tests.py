@@ -26,6 +26,21 @@ class CRMBusinessScopingTests(TestCase):
             slug="bravo-workspace",
             tax_rate=Decimal("8.00"),
         )
+        self.public_request_plan = ClarivoPlan.objects.create(
+            name="Requests Enabled",
+            slug="requests-enabled-tests",
+            allow_public_request_form=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.public_request_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessSubscription.objects.create(
+            business=self.other_business,
+            plan=self.public_request_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
 
         self.user = TaskIOUser.objects.create_user(
             email="owner@example.com",
@@ -179,6 +194,39 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(invalid_response.status_code, 200)
         self.assertContains(invalid_response, "Select a valid choice")
         self.assertFalse(Lead.objects.filter(email="blocked@example.com").exists())
+
+    def test_public_request_returns_unavailable_page_when_plan_disables_form(self):
+        locked_plan = ClarivoPlan.objects.create(
+            name="No Public Requests",
+            slug="no-public-requests-tests",
+            allow_public_request_form=False,
+        )
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = locked_plan
+        subscription.save(update_fields=["plan", "updated_at"])
+
+        response = self.client.post(
+            reverse("public_request", args=[self.business.slug]),
+            data={
+                "lead_type": Lead.LeadType.REQUEST,
+                "first_name": "Blocked",
+                "last_name": "Requester",
+                "company_name": "Blocked Co",
+                "email": "blocked-plan@example.com",
+                "phone": "+1 721 555 9999",
+                "street_address": "45 Front Street",
+                "district": "",
+                "country": "Sint Maarten",
+                "postal_code": "00000",
+                "message": "Need a service visit this week.",
+                "consent_to_contact": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Request Form Unavailable")
+        self.assertContains(response, "Public Request Form is not included in the current workspace plan")
+        self.assertFalse(Lead.objects.filter(email="blocked-plan@example.com").exists())
 
     def test_agent_dashboard_scopes_metrics_to_current_business(self):
         current_client = Client.objects.create(

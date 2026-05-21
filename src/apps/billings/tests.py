@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.models import TaskIOUser
-from apps.businesses.models import Business, BusinessUser
+from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.crm.models import ActivityLog, BusinessService, Client
 
 from .models import Invoice, InvoiceLine
@@ -28,6 +28,21 @@ class BillingBusinessScopingTests(TestCase):
             tax_rate=Decimal("10.00"),
             invoice_prefix="BRV",
             invoice_start_number=100,
+        )
+        self.invoicing_plan = ClarivoPlan.objects.create(
+            name="Billing Enabled",
+            slug="billing-enabled-tests",
+            allow_invoicing=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.invoicing_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessSubscription.objects.create(
+            business=self.other_business,
+            plan=self.invoicing_plan,
+            status=BusinessSubscription.Status.ACTIVE,
         )
 
         self.user = TaskIOUser.objects.create_user(
@@ -203,6 +218,23 @@ class BillingBusinessScopingTests(TestCase):
         self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
         self.assertEqual(self.invoice.status, Invoice.Status.SENT)
         self.assertEqual(activity_log.business, self.business)
+
+    def test_invoice_routes_redirect_owner_to_subscription_when_invoicing_is_not_included(self):
+        locked_plan = ClarivoPlan.objects.create(
+            name="CRM Only",
+            slug="crm-only-billing-tests",
+            allow_invoicing=False,
+        )
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = locked_plan
+        subscription.save(update_fields=["plan", "updated_at"])
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_list"), follow=True)
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertContains(response, "Invoicing is not included in the current workspace plan")
 
     def test_invoice_numbers_are_unique_per_business(self):
         Invoice.objects.create(

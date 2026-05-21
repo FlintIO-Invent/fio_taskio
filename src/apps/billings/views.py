@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 from apps.businesses.models import Business
-from apps.businesses.utils import business_required
+from apps.businesses.utils import business_module_required
 from apps.crm.models import ActivityLog, BusinessService, Client
 from apps.crm.services import log_activity
 
@@ -184,7 +184,7 @@ def _clean_line_rows(
     return cleaned_rows, errors
 
 
-@business_required()
+@business_module_required("invoicing")
 @require_http_methods(["GET", "POST"])
 def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -232,7 +232,7 @@ def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResp
     return render(request, "billings/invoice_create.html", context)
 
 
-@business_required()
+@business_module_required("invoicing")
 @require_http_methods(["GET"])
 def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     """
@@ -255,7 +255,7 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     return render(request, "billings/invoice_detail.html", context)
 
 
-@business_required()
+@business_module_required("invoicing")
 @require_http_methods(["GET"])
 def invoice_list(request: HttpRequest) -> HttpResponse:
     """
@@ -283,7 +283,7 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
     return render(request, "billings/invoice_list.html", context)
 
 
-@business_required()
+@business_module_required("invoicing")
 @require_http_methods(["GET", "POST"])
 def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -368,7 +368,7 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
     return render(request, "billings/invoice_edit.html", context)
 
 
-@business_required()
+@business_module_required("invoicing")
 @require_http_methods(["POST"])
 def invoice_change_status(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
