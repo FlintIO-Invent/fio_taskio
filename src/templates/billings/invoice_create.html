@@ -45,151 +45,328 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      {% if client %}
-        <li class="breadcrumb-item"><a href="{% url 'staff_client_detail' client.id %}">Client</a></li>
-      {% else %}
-        <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Leads</a></li>
-      {% endif %}
+      <li class="breadcrumb-item"><a href="{% url 'staff_client_detail' client.id %}">Client</a></li>
       <li class="breadcrumb-item active">Create Invoice</li>
     </ol>
   </nav>
 
   <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
     <div class="col-auto">
-      <h2 class="mb-0 text-body-emphasis">Create Invoice from {% if client %}Client{% else %}Lead{% endif %}</h2>
+      <h2 class="mb-0 text-body-emphasis">Create Invoice from Client</h2>
     </div>
     <div class="col-auto">
       <div class="d-flex gap-3">
-        {% if client %}
         <a class="btn btn-phoenix-secondary" href="{% url 'staff_client_detail' client.id %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to Client</a>
-        {% else %}
-        <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_detail' lead.pk %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to Lead</a>
-        {% endif %}
       </div>
     </div>
   </div>
 
-  <div class="row gx-4">
-    <div class="col-12 col-xl-8">
-      <div class="card">
-        <div class="card-header">
-          <h5 class="mb-0">Client Details</h5>
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-4">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="row gx-4">
+      <div class="col-12 col-xl-8">
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Client Details</h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-4">
+              <div class="col-md-6">
+                <div class="invoice-create-detail-item">
+                  <div class="invoice-create-detail-icon">
+                    <span class="fa-solid fa-user"></span>
+                  </div>
+                  <div class="invoice-create-detail-content">
+                    <div class="invoice-create-detail-label">Name</div>
+                    <p class="invoice-create-detail-value fw-semibold">{{ client.first_name }} {{ client.last_name }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="invoice-create-detail-item">
+                  <div class="invoice-create-detail-icon">
+                    <span class="fa-solid fa-building"></span>
+                  </div>
+                  <div class="invoice-create-detail-content">
+                    <div class="invoice-create-detail-label">Company</div>
+                    <p class="invoice-create-detail-value">{{ client.company_name|default:"N/A" }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="invoice-create-detail-item">
+                  <div class="invoice-create-detail-icon">
+                    <span class="fa-solid fa-envelope"></span>
+                  </div>
+                  <div class="invoice-create-detail-content">
+                    <div class="invoice-create-detail-label">Email</div>
+                    <p class="invoice-create-detail-value">{{ client.email }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="invoice-create-detail-item">
+                  <div class="invoice-create-detail-icon">
+                    <span class="fa-solid fa-phone"></span>
+                  </div>
+                  <div class="invoice-create-detail-content">
+                    <div class="invoice-create-detail-label">Phone</div>
+                    <p class="invoice-create-detail-value">{{ client.phone }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="invoice-create-detail-item">
+                  <div class="invoice-create-detail-icon">
+                    <span class="fa-solid fa-message"></span>
+                  </div>
+                  <div class="invoice-create-detail-content">
+                    <div class="invoice-create-detail-label">Message</div>
+                    <p class="invoice-create-detail-value">{{ client.message|default:"No message provided" }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="card-body">
-          <div class="row g-4">
-            <div class="col-md-6">
-              <div class="invoice-create-detail-item">
-                <div class="invoice-create-detail-icon">
-                  <span class="fa-solid fa-user"></span>
+
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-0">Line Items</h5>
+              <p class="mb-0 text-body-secondary small">Select a saved service or add a custom line item. Saved invoice lines keep their own snapshot values.</p>
+            </div>
+            <button type="button" class="btn btn-sm btn-phoenix-primary" onclick="addLineItem()">
+              <span class="fa-solid fa-plus me-2"></span>Add Line
+            </button>
+          </div>
+          <div class="card-body">
+            <div id="line-items">
+              {% for line in line_rows %}
+              <div class="line-item row g-3 mb-3 pb-3 border-bottom">
+                <div class="col-md-5">
+                  <label class="form-label">Service</label>
+                  <select class="form-select service-select" name="service_id">
+                    <option value="">Custom line item</option>
+                    {% for service in available_services %}
+                    <option
+                      value="{{ service.id }}"
+                      data-name="{{ service.name }}"
+                      data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
+                      data-unit-price="{{ service.unit_price }}"
+                      data-tax-rate="{{ service.tax_rate }}"
+                      {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
+                    >
+                      {{ service.name }} - {{ current_business.currency }} {{ service.unit_price }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  <label class="form-label mt-2">Description</label>
+                  <input type="text" class="form-control" name="description" value="{{ line.description }}">
                 </div>
-                <div class="invoice-create-detail-content">
-                  <div class="invoice-create-detail-label">Name</div>
-                  <p class="invoice-create-detail-value fw-semibold">{{ client.first_name }} {{ client.last_name }}</p>
+                <div class="col-md-2">
+                  <label class="form-label">Quantity</label>
+                  <input type="number" class="form-control" name="quantity" value="{{ line.quantity }}" step="0.01" min="0">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Unit Price</label>
+                  <input type="number" class="form-control" name="unit_price" value="{{ line.unit_price }}" step="0.01" min="0">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Line Total</label>
+                  <input type="text" class="form-control line-total-display" value="{{ current_business.currency }} 0.00" readonly>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                  <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
+                    <span class="fa-solid fa-trash"></span>
+                  </button>
                 </div>
               </div>
+              {% endfor %}
             </div>
-            <div class="col-md-6">
-              <div class="invoice-create-detail-item">
-                <div class="invoice-create-detail-icon">
-                  <span class="fa-solid fa-building"></span>
-                </div>
-                <div class="invoice-create-detail-content">
-                  <div class="invoice-create-detail-label">Company</div>
-                  <p class="invoice-create-detail-value">{{ client.company_name|default:"N/A" }}</p>
-                </div>
+
+            <div id="line-item-template" class="line-item row g-3 mb-3 pb-3 border-bottom" style="display: none;">
+              <div class="col-md-5">
+                <label class="form-label">Service</label>
+                <select class="form-select service-select" name="service_id" disabled>
+                  <option value="">Custom line item</option>
+                  {% for service in available_services %}
+                  <option
+                    value="{{ service.id }}"
+                    data-name="{{ service.name }}"
+                    data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
+                    data-unit-price="{{ service.unit_price }}"
+                    data-tax-rate="{{ service.tax_rate }}"
+                  >
+                    {{ service.name }} - {{ current_business.currency }} {{ service.unit_price }}
+                  </option>
+                  {% endfor %}
+                </select>
+                <label class="form-label mt-2">Description</label>
+                <input type="text" class="form-control" name="description" disabled>
               </div>
-            </div>
-            <div class="col-md-6">
-              <div class="invoice-create-detail-item">
-                <div class="invoice-create-detail-icon">
-                  <span class="fa-solid fa-envelope"></span>
-                </div>
-                <div class="invoice-create-detail-content">
-                  <div class="invoice-create-detail-label">Email</div>
-                  <p class="invoice-create-detail-value">{{ client.email }}</p>
-                </div>
+              <div class="col-md-2">
+                <label class="form-label">Quantity</label>
+                <input type="number" class="form-control" name="quantity" step="0.01" min="0" disabled>
               </div>
-            </div>
-            <div class="col-md-6">
-              <div class="invoice-create-detail-item">
-                <div class="invoice-create-detail-icon">
-                  <span class="fa-solid fa-phone"></span>
-                </div>
-                <div class="invoice-create-detail-content">
-                  <div class="invoice-create-detail-label">Phone</div>
-                  <p class="invoice-create-detail-value">{{ client.phone }}</p>
-                </div>
+              <div class="col-md-2">
+                <label class="form-label">Unit Price</label>
+                <input type="number" class="form-control" name="unit_price" step="0.01" min="0" disabled>
               </div>
-            </div>
-            <div class="col-12">
-              <div class="invoice-create-detail-item">
-                <div class="invoice-create-detail-icon">
-                  <span class="fa-solid fa-briefcase"></span>
-                </div>
-                <div class="invoice-create-detail-content">
-                  <div class="invoice-create-detail-label">Interested Services</div>
-                  <p class="invoice-create-detail-value">{{ client.interested_services|default:"Not specified" }}</p>
-                </div>
+              <div class="col-md-2">
+                <label class="form-label">Line Total</label>
+                <input type="text" class="form-control line-total-display" value="{{ current_business.currency }} 0.00" readonly disabled>
               </div>
-            </div>
-            <div class="col-12">
-              <div class="invoice-create-detail-item">
-                <div class="invoice-create-detail-icon">
-                  <span class="fa-solid fa-message"></span>
-                </div>
-                <div class="invoice-create-detail-content">
-                  <div class="invoice-create-detail-label">Message</div>
-                  <p class="invoice-create-detail-value">{{ client.message|default:"No message provided" }}</p>
-                </div>
+              <div class="col-md-1 d-flex align-items-end">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
+                  <span class="fa-solid fa-trash"></span>
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="col-12 col-xl-4">
-      <div class="card">
-        <div class="card-header">
-          <h5 class="mb-0">Invoice Preview</h5>
-        </div>
-        <div class="card-body">
-          <div class="alert alert-info">
-            <h6 class="alert-heading">Invoice will be created with:</h6>
-            <ul class="mb-0">
-              <li>Status: Draft</li>
-              <li>Client: {% if client %}{{ client.first_name }} {{ client.last_name }}{% else %}{{ lead.first_name }} {{ lead.last_name }}{% endif %}</li>
-              <li>Invoice number: {{ invoice_number_preview }}</li>
-              <li>Currency: {{ current_business.currency }}</li>
-              <li>Tax rate: {{ current_business.tax_rate }}%</li>
-              {% if lead %}
-              <li>Lead reference: {{ lead.pk }}</li>
-              {% endif %}
-            </ul>
+      <div class="col-12 col-xl-4">
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Invoice Summary</h5>
           </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              <h6 class="alert-heading">Invoice will be created with:</h6>
+              <ul class="mb-0">
+                <li>Status: Draft</li>
+                <li>Client: {{ client.first_name }} {{ client.last_name }}</li>
+                <li>Invoice number: {{ invoice_number_preview }}</li>
+                <li>Currency: {{ current_business.currency }}</li>
+                <li>Tax rate: {{ current_business.tax_rate }}%</li>
+              </ul>
+            </div>
 
-          <div class="rounded-3 border p-3 mb-4">
-            <div class="fw-semibold mb-2">Workspace defaults</div>
-            <div class="small text-body-secondary">Prefix</div>
-            <div class="mb-2">{{ current_business.invoice_prefix }}</div>
-            <div class="small text-body-secondary">Start number</div>
-            <div class="mb-2">{{ current_business.invoice_start_number }}</div>
-            <div class="small text-body-secondary">Workspace</div>
-            <div>{{ current_business.name }}</div>
-          </div>
+            <div class="rounded-3 border p-3 mb-4">
+              <div class="fw-semibold mb-2">Workspace defaults</div>
+              <div class="small text-body-secondary">Prefix</div>
+              <div class="mb-2">{{ current_business.invoice_prefix }}</div>
+              <div class="small text-body-secondary">Start number</div>
+              <div class="mb-2">{{ current_business.invoice_start_number }}</div>
+              <div class="small text-body-secondary">Workspace</div>
+              <div>{{ current_business.name }}</div>
+            </div>
 
-          <form method="post">
-            {% csrf_token %}
+            <div class="border rounded-3 p-3 mb-4">
+              <div class="d-flex justify-content-between mb-2">
+                <span>Subtotal:</span>
+                <span id="subtotal-display">{{ current_business.currency }} 0.00</span>
+              </div>
+              <div class="d-flex justify-content-between mb-2">
+                <span>Tax ({{ current_business.tax_rate }}%):</span>
+                <span id="tax-display">{{ current_business.currency }} 0.00</span>
+              </div>
+              <div class="d-flex justify-content-between fw-bold">
+                <span>Total:</span>
+                <span id="total-display">{{ current_business.currency }} 0.00</span>
+              </div>
+            </div>
+
             <div class="d-grid">
               <button type="submit" class="btn btn-phoenix-primary">
                 <span class="fa-solid fa-file-invoice me-2"></span>Create Invoice
               </button>
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </form>
 </div>
+
+<script>
+const currencyCode = "{{ current_business.currency }}";
+const taxRate = parseFloat("{{ current_business.tax_rate }}") || 0;
+
+function applySelectedService(selectElement) {
+  const selectedOption = selectElement.options[selectElement.selectedIndex];
+  if (!selectedOption || !selectedOption.value) {
+    return;
+  }
+
+  const lineItem = selectElement.closest('.line-item');
+  const descriptionInput = lineItem.querySelector('input[name="description"]');
+  const quantityInput = lineItem.querySelector('input[name="quantity"]');
+  const unitPriceInput = lineItem.querySelector('input[name="unit_price"]');
+
+  descriptionInput.value = selectedOption.dataset.description || selectedOption.dataset.name || '';
+  unitPriceInput.value = selectedOption.dataset.unitPrice || '';
+  if (!quantityInput.value) {
+    quantityInput.value = '1';
+  }
+
+  updateTotals();
+}
+
+function addLineItem() {
+  const template = document.getElementById('line-item-template');
+  const container = document.getElementById('line-items');
+  const newItem = template.cloneNode(true);
+  newItem.id = '';
+  newItem.style.display = 'flex';
+  newItem.querySelectorAll('input, select').forEach(field => {
+    field.disabled = false;
+  });
+  container.appendChild(newItem);
+  updateTotals();
+}
+
+function removeLineItem(button) {
+  const lineItem = button.closest('.line-item');
+  lineItem.remove();
+  updateTotals();
+}
+
+function updateTotals() {
+  let subtotal = 0;
+  const lineItems = document.querySelectorAll('.line-item:not(#line-item-template)');
+
+  lineItems.forEach(item => {
+    const quantity = parseFloat(item.querySelector('input[name="quantity"]').value) || 0;
+    const unitPrice = parseFloat(item.querySelector('input[name="unit_price"]').value) || 0;
+    const lineTotal = quantity * unitPrice;
+    const totalInput = item.querySelector('.line-total-display');
+
+    if (totalInput) {
+      totalInput.value = currencyCode + ' ' + lineTotal.toFixed(2);
+    }
+
+    subtotal += lineTotal;
+  });
+
+  const taxAmount = subtotal * (taxRate / 100);
+  document.getElementById('subtotal-display').textContent = currencyCode + ' ' + subtotal.toFixed(2);
+  document.getElementById('tax-display').textContent = currencyCode + ' ' + taxAmount.toFixed(2);
+  document.getElementById('total-display').textContent = currencyCode + ' ' + (subtotal + taxAmount).toFixed(2);
+}
+
+document.addEventListener('input', function(e) {
+  if (e.target.matches('input[name="quantity"], input[name="unit_price"]')) {
+    updateTotals();
+  }
+});
+
+document.addEventListener('change', function(e) {
+  if (e.target.matches('.service-select')) {
+    applySelectedService(e.target);
+  }
+});
+
+updateTotals();
+</script>
 
 {% endblock %}

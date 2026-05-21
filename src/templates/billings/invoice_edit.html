@@ -23,26 +23,50 @@
     </div>
   </div>
 
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-4">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
   <form method="post">
     {% csrf_token %}
 
     <div class="row gx-4">
       <div class="col-12 col-lg-8">
-        <!-- Invoice Lines -->
         <div class="card mb-4">
           <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Line Items</h5>
+            <div>
+              <h5 class="mb-0">Line Items</h5>
+              <p class="mb-0 text-body-secondary small">Select a saved service or keep a manual snapshot line item.</p>
+            </div>
             <button type="button" class="btn btn-sm btn-phoenix-primary" onclick="addLineItem()">
               <span class="fa-solid fa-plus me-2"></span>Add Line
             </button>
           </div>
           <div class="card-body">
             <div id="line-items">
-              {% for line in invoice.lines.all %}
+              {% for line in existing_line_rows %}
               <div class="line-item row g-3 mb-3 pb-3 border-bottom">
-                <input type="hidden" name="line_id" value="{{ line.pk }}">
+                <input type="hidden" name="line_id" value="{{ line.line_id }}">
                 <div class="col-md-5">
-                  <label class="form-label">Description</label>
+                  <label class="form-label">Service</label>
+                  <select class="form-select service-select" name="service_id">
+                    <option value="">Custom line item</option>
+                    {% for service in available_services %}
+                    <option
+                      value="{{ service.id }}"
+                      data-name="{{ service.name }}"
+                      data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
+                      data-unit-price="{{ service.unit_price }}"
+                      data-tax-rate="{{ service.tax_rate }}"
+                      {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
+                    >
+                      {{ service.name }} - {{ invoice.currency_code }} {{ service.unit_price }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  <label class="form-label mt-2">Description</label>
                   <input type="text" class="form-control" name="description" value="{{ line.description }}" required>
                 </div>
                 <div class="col-md-2">
@@ -55,7 +79,49 @@
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Line Total</label>
-                  <input type="text" class="form-control" value="{{ invoice.currency_code }} {{ line.line_total }}" readonly>
+                  <input type="text" class="form-control line-total-display" value="{{ invoice.currency_code }} 0.00" readonly>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                  <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
+                    <span class="fa-solid fa-trash"></span>
+                  </button>
+                </div>
+              </div>
+              {% endfor %}
+
+              {% for line in new_line_rows %}
+              <div class="line-item row g-3 mb-3 pb-3 border-bottom">
+                <div class="col-md-5">
+                  <label class="form-label">Service</label>
+                  <select class="form-select service-select" name="new_service_id">
+                    <option value="">Custom line item</option>
+                    {% for service in available_services %}
+                    <option
+                      value="{{ service.id }}"
+                      data-name="{{ service.name }}"
+                      data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
+                      data-unit-price="{{ service.unit_price }}"
+                      data-tax-rate="{{ service.tax_rate }}"
+                      {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
+                    >
+                      {{ service.name }} - {{ invoice.currency_code }} {{ service.unit_price }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  <label class="form-label mt-2">Description</label>
+                  <input type="text" class="form-control" name="new_description" value="{{ line.description }}">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Quantity</label>
+                  <input type="number" class="form-control" name="new_quantity" value="{{ line.quantity }}" step="0.01" min="0">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Unit Price</label>
+                  <input type="number" class="form-control" name="new_unit_price" value="{{ line.unit_price }}" step="0.01" min="0">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Line Total</label>
+                  <input type="text" class="form-control line-total-display" value="{{ invoice.currency_code }} 0.00" readonly>
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
                   <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
@@ -66,15 +132,29 @@
               {% endfor %}
             </div>
 
-            <!-- Template for new line items -->
             <div id="line-item-template" class="line-item row g-3 mb-3 pb-3 border-bottom" style="display: none;">
               <div class="col-md-5">
-                <label class="form-label">Description</label>
+                <label class="form-label">Service</label>
+                <select class="form-select service-select" name="new_service_id" disabled>
+                  <option value="">Custom line item</option>
+                  {% for service in available_services %}
+                  <option
+                    value="{{ service.id }}"
+                    data-name="{{ service.name }}"
+                    data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
+                    data-unit-price="{{ service.unit_price }}"
+                    data-tax-rate="{{ service.tax_rate }}"
+                  >
+                    {{ service.name }} - {{ invoice.currency_code }} {{ service.unit_price }}
+                  </option>
+                  {% endfor %}
+                </select>
+                <label class="form-label mt-2">Description</label>
                 <input type="text" class="form-control" name="new_description" disabled>
               </div>
               <div class="col-md-2">
                 <label class="form-label">Quantity</label>
-                <input type="number" class="form-control" name="new_quantity" value="1" step="0.01" min="0" disabled>
+                <input type="number" class="form-control" name="new_quantity" step="0.01" min="0" disabled>
               </div>
               <div class="col-md-2">
                 <label class="form-label">Unit Price</label>
@@ -82,7 +162,7 @@
               </div>
               <div class="col-md-2">
                 <label class="form-label">Line Total</label>
-                <input type="text" class="form-control" value="{{ invoice.currency_code }} 0.00" readonly disabled>
+                <input type="text" class="form-control line-total-display" value="{{ invoice.currency_code }} 0.00" readonly disabled>
               </div>
               <div class="col-md-1 d-flex align-items-end">
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
@@ -93,21 +173,19 @@
           </div>
         </div>
 
-        <!-- Invoice Notes -->
         <div class="card">
           <div class="card-header">
             <h5 class="mb-0">Invoice Notes</h5>
           </div>
           <div class="card-body">
             <div class="mb-3">
-              <textarea class="form-control" name="notes" rows="4" placeholder="Add any notes for this invoice...">{{ invoice.notes }}</textarea>
+              <textarea class="form-control" name="notes" rows="4" placeholder="Add any notes for this invoice...">{{ draft_notes }}</textarea>
             </div>
           </div>
         </div>
       </div>
 
       <div class="col-12 col-lg-4">
-        <!-- Invoice Summary -->
         <div class="card mb-4">
           <div class="card-header">
             <h5 class="mb-0">Invoice Summary</h5>
@@ -151,7 +229,6 @@
           </div>
         </div>
 
-        <!-- Actions -->
         <div class="card">
           <div class="card-body">
             <div class="d-grid gap-2">
@@ -170,9 +247,38 @@
 </div>
 
 <script>
-let lineItemCount = {{ invoice.lines.count }};
 const currencyCode = "{{ invoice.currency_code }}";
 const taxRate = parseFloat("{{ invoice.tax_rate_percentage }}") || 0;
+
+function getInputValue(lineItem, existingName, newName) {
+  const field = lineItem.querySelector(`input[name="${existingName}"], input[name="${newName}"]`);
+  return field ? field.value : '';
+}
+
+function setInputValue(lineItem, existingName, newName, value) {
+  const field = lineItem.querySelector(`input[name="${existingName}"], input[name="${newName}"]`);
+  if (field) {
+    field.value = value;
+  }
+}
+
+function applySelectedService(selectElement) {
+  const selectedOption = selectElement.options[selectElement.selectedIndex];
+  if (!selectedOption || !selectedOption.value) {
+    return;
+  }
+
+  const lineItem = selectElement.closest('.line-item');
+  setInputValue(lineItem, 'description', 'new_description', selectedOption.dataset.description || selectedOption.dataset.name || '');
+  setInputValue(lineItem, 'unit_price', 'new_unit_price', selectedOption.dataset.unitPrice || '');
+
+  const quantityValue = getInputValue(lineItem, 'quantity', 'new_quantity');
+  if (!quantityValue) {
+    setInputValue(lineItem, 'quantity', 'new_quantity', '1');
+  }
+
+  updateTotals();
+}
 
 function addLineItem() {
   const template = document.getElementById('line-item-template');
@@ -180,30 +286,20 @@ function addLineItem() {
   const newItem = template.cloneNode(true);
   newItem.id = '';
   newItem.style.display = 'flex';
-  newItem.querySelectorAll('input').forEach(input => {
-    input.disabled = false;
-    if (!input.readOnly) {
-      input.required = true;
+  newItem.querySelectorAll('input, select').forEach(field => {
+    field.disabled = false;
+    if (field.name === 'new_description' || field.name === 'new_quantity' || field.name === 'new_unit_price') {
+      field.required = true;
     }
   });
   container.appendChild(newItem);
-  lineItemCount++;
   updateTotals();
 }
 
 function removeLineItem(button) {
   const lineItem = button.closest('.line-item');
-  if (lineItem.querySelector('input[name="line_id"]')) {
-    // Existing line - mark for deletion (you'd need to handle this in the backend)
-    if (confirm('Are you sure you want to remove this line item?')) {
-      lineItem.remove();
-      updateTotals();
-    }
-  } else {
-    // New line - just remove
-    lineItem.remove();
-    updateTotals();
-  }
+  lineItem.remove();
+  updateTotals();
 }
 
 function updateTotals() {
@@ -211,11 +307,11 @@ function updateTotals() {
   const lineItems = document.querySelectorAll('.line-item:not(#line-item-template)');
 
   lineItems.forEach(item => {
-    const quantity = parseFloat(item.querySelector('input[name="quantity"], input[name="new_quantity"]').value) || 0;
-    const unitPrice = parseFloat(item.querySelector('input[name="unit_price"], input[name="new_unit_price"]').value) || 0;
+    const quantity = parseFloat(getInputValue(item, 'quantity', 'new_quantity')) || 0;
+    const unitPrice = parseFloat(getInputValue(item, 'unit_price', 'new_unit_price')) || 0;
     const lineTotal = quantity * unitPrice;
+    const totalInput = item.querySelector('.line-total-display');
 
-    const totalInput = item.querySelector('input[readonly]');
     if (totalInput) {
       totalInput.value = currencyCode + ' ' + lineTotal.toFixed(2);
     }
@@ -229,14 +325,18 @@ function updateTotals() {
   document.getElementById('total-display').textContent = currencyCode + ' ' + (subtotal + taxAmount).toFixed(2);
 }
 
-// Update totals on input change
 document.addEventListener('input', function(e) {
   if (e.target.matches('input[name="quantity"], input[name="unit_price"], input[name="new_quantity"], input[name="new_unit_price"]')) {
     updateTotals();
   }
 });
 
-// Initialize totals
+document.addEventListener('change', function(e) {
+  if (e.target.matches('.service-select')) {
+    applySelectedService(e.target);
+  }
+});
+
 updateTotals();
 </script>
 
