@@ -223,40 +223,46 @@
           <h5 class="mb-0">Actions</h5>
         </div>
         <div class="card-body">
-          <div class="d-grid gap-2">
-            {% if invoice.status == 'DRAFT' %}
-            <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-phoenix-warning">
-              <span class="fa-solid fa-edit me-2"></span>Edit Invoice
-            </a>
-            <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
-              {% csrf_token %}
-              <input type="hidden" name="status" value="SENT">
-              <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as sent?')">
-                <span class="fa-solid fa-paper-plane me-2"></span>Mark as Sent
-              </button>
-            </form>
-            {% endif %}
+          {% if role_access.can_manage_invoices %}
+            <div class="d-grid gap-2">
+              {% if invoice.status == 'DRAFT' %}
+              <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-phoenix-warning">
+                <span class="fa-solid fa-edit me-2"></span>Edit Invoice
+              </a>
+              <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="SENT">
+                <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as sent?')">
+                  <span class="fa-solid fa-paper-plane me-2"></span>Mark as Sent
+                </button>
+              </form>
+              {% endif %}
 
-            {% if invoice.status == 'SENT' %}
-            <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
-              {% csrf_token %}
-              <input type="hidden" name="status" value="PAID">
-              <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as paid?')">
-                <span class="fa-solid fa-check me-2"></span>Mark as Paid
-              </button>
-            </form>
-            {% endif %}
+              {% if invoice.status == 'SENT' %}
+              <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="PAID">
+                <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as paid?')">
+                  <span class="fa-solid fa-check me-2"></span>Mark as Paid
+                </button>
+              </form>
+              {% endif %}
 
-            {% if invoice.status != 'CANCELLED' %}
-            <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
-              {% csrf_token %}
-              <input type="hidden" name="status" value="CANCELLED">
-              <button type="submit" class="btn btn-phoenix-danger w-100" onclick="return confirm('Cancel this invoice? This action cannot be undone.')">
-                <span class="fa-solid fa-times me-2"></span>Cancel Invoice
-              </button>
-            </form>
-            {% endif %}
-          </div>
+              {% if invoice.status != 'CANCELLED' %}
+              <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="CANCELLED">
+                <button type="submit" class="btn btn-phoenix-danger w-100" onclick="return confirm('Cancel this invoice? This action cannot be undone.')">
+                  <span class="fa-solid fa-times me-2"></span>Cancel Invoice
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="alert alert-light border mb-0" role="alert">
+              You have read-only invoice access in this workspace.
+            </div>
+          {% endif %}
         </div>
       </div>
 

@@ -15,6 +15,16 @@
 </style>
 
 <div class="content">
+  {% if messages %}
+    <div class="mb-4">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0"></ol>
   </nav>
@@ -28,9 +38,11 @@
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
             <div>
-              <a class="btn btn-primary me-4" href="{% url 'staff_client_create' %}">
-                <span class="fas fa-plus me-2"></span>Create Client
-              </a>
+              {% if role_access.can_manage_clients %}
+                <a class="btn btn-primary me-4" href="{% url 'staff_client_create' %}">
+                  <span class="fas fa-plus me-2"></span>Create Client
+                </a>
+              {% endif %}
               <button class="btn btn-link text-body px-0" type="button">
                 <span class="fa-solid fa-file-export fs-9 me-2"></span>Export
               </button>
@@ -218,9 +230,9 @@
                   </button>
                   <div class="dropdown-menu dropdown-menu-end py-2">
                     <a class="dropdown-item" href="{% url 'staff_client_detail' client.id %}">View</a>
-                    <a class="dropdown-item" href="{% url 'staff_client_update' client.id %}">Edit</a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item text-danger" href="#!">Remove</a>
+                    {% if role_access.can_manage_clients %}
+                      <a class="dropdown-item" href="{% url 'staff_client_update' client.id %}">Edit</a>
+                    {% endif %}
                   </div>
                 </div>
               </td>

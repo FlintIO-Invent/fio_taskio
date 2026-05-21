@@ -17,9 +17,11 @@
     </div>
     <div class="col-auto">
       <div class="d-flex gap-2">
-        <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_update' lead.id %}">
-          <span class="fa-solid fa-pen me-2"></span>Edit Lead
-        </a>
+        {% if role_access.can_manage_leads %}
+          <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_update' lead.id %}">
+            <span class="fa-solid fa-pen me-2"></span>Edit Lead
+          </a>
+        {% endif %}
         <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_list' %}">
           <span class="fa-solid fa-arrow-left me-2"></span>Back to Leads
         </a>

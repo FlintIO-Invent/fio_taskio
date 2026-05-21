@@ -30,6 +30,42 @@ _CURRENT_BUSINESS_MEMBERSHIP_CACHE_ATTR = "_cached_current_business_membership"
 
 ViewFunc = TypeVar("ViewFunc", bound=Callable[..., HttpResponse])
 
+ALL_WORKSPACE_ROLES = tuple(role for role, _label in BusinessUser.Role.choices)
+OWNER_ADMIN_ROLES = (
+    BusinessUser.Role.OWNER,
+    BusinessUser.Role.ADMIN,
+)
+CLIENT_MANAGE_ROLES = (
+    BusinessUser.Role.OWNER,
+    BusinessUser.Role.ADMIN,
+    BusinessUser.Role.STAFF,
+    BusinessUser.Role.ACCOUNTANT,
+)
+LEAD_MANAGE_ROLES = (
+    BusinessUser.Role.OWNER,
+    BusinessUser.Role.ADMIN,
+    BusinessUser.Role.STAFF,
+)
+BILLING_VIEW_ROLES = (
+    BusinessUser.Role.OWNER,
+    BusinessUser.Role.ADMIN,
+    BusinessUser.Role.ACCOUNTANT,
+    BusinessUser.Role.VIEWER,
+)
+BILLING_MANAGE_ROLES = (
+    BusinessUser.Role.OWNER,
+    BusinessUser.Role.ADMIN,
+    BusinessUser.Role.ACCOUNTANT,
+)
+SERVICE_MANAGEMENT_ROLES = OWNER_ADMIN_ROLES
+
+
+def membership_has_any_role(
+    membership: BusinessUser | None,
+    allowed_roles: tuple[str, ...] | list[str] | set[str],
+) -> bool:
+    return bool(membership is not None and membership.role in set(allowed_roles))
+
 
 def set_current_business(request: HttpRequest, business: Business | None) -> None:
     request.current_business = business
@@ -146,6 +182,9 @@ def business_role_required(
     *allowed_roles: str,
     login_url: str = "business_login",
     setup_url_name: str = "business_setup",
+    redirect_url_name: str | None = None,
+    permission_message: str = "You do not have permission to perform this action.",
+    raise_exception: bool = True,
 ) -> Callable[[ViewFunc], ViewFunc]:
     allowed_role_set = set(allowed_roles)
 
@@ -157,7 +196,11 @@ def business_role_required(
                 return redirect(setup_url_name)
 
             if membership.role not in allowed_role_set:
-                raise PermissionDenied("You do not have permission to manage this workspace.")
+                if redirect_url_name is not None or not raise_exception:
+                    messages.error(request, permission_message)
+                    return redirect(redirect_url_name or "agent_dashboard")
+
+                raise PermissionDenied(permission_message)
 
             request.current_business_membership = membership
             return func(request, *args, **kwargs)

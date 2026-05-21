@@ -57,6 +57,24 @@ class BillingBusinessScopingTests(TestCase):
             last_name="User",
             password="testpass123",
         )
+        self.staff_user = TaskIOUser.objects.create_user(
+            email="staff@example.com",
+            first_name="Staff",
+            last_name="User",
+            password="testpass123",
+        )
+        self.accountant_user = TaskIOUser.objects.create_user(
+            email="accountant@example.com",
+            first_name="Accountant",
+            last_name="User",
+            password="testpass123",
+        )
+        self.viewer_user = TaskIOUser.objects.create_user(
+            email="viewer@example.com",
+            first_name="Viewer",
+            last_name="User",
+            password="testpass123",
+        )
 
         BusinessUser.objects.create(
             user=self.user,
@@ -67,6 +85,21 @@ class BillingBusinessScopingTests(TestCase):
             user=self.other_user,
             business=self.other_business,
             role=BusinessUser.Role.OWNER,
+        )
+        BusinessUser.objects.create(
+            user=self.staff_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+        BusinessUser.objects.create(
+            user=self.accountant_user,
+            business=self.business,
+            role=BusinessUser.Role.ACCOUNTANT,
+        )
+        BusinessUser.objects.create(
+            user=self.viewer_user,
+            business=self.business,
+            role=BusinessUser.Role.VIEWER,
         )
 
         self.client_record = Client.objects.create(
@@ -235,6 +268,47 @@ class BillingBusinessScopingTests(TestCase):
 
         self.assertRedirects(response, reverse("business_subscription"))
         self.assertContains(response, "Invoicing is not included in the current workspace plan")
+
+    def test_staff_cannot_view_invoices(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("invoice_list"), follow=True)
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertContains(response, "You do not have permission to view invoices.")
+
+    def test_viewer_cannot_edit_invoice(self):
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]), follow=True)
+
+        self.assertRedirects(response, reverse("invoice_list"))
+        self.assertContains(response, "You do not have permission to manage invoices.")
+
+    def test_accountant_can_open_invoice_edit_page(self):
+        self.client.force_login(self.accountant_user)
+
+        response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_viewer_invoice_detail_hides_edit_and_status_actions(self):
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.get(reverse("invoice_detail", args=[self.invoice.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, reverse("invoice_edit", args=[self.invoice.id]))
+        self.assertNotContains(response, reverse("invoice_change_status", args=[self.invoice.id]))
+
+    def test_staff_invoice_list_is_not_shown_in_dashboard_navigation(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, reverse("invoice_list"))
+        self.assertContains(response, "Restricted")
 
     def test_invoice_numbers_are_unique_per_business(self):
         Invoice.objects.create(

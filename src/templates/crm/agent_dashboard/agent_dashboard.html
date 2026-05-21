@@ -2,6 +2,16 @@
 
 {% block content %}
   <div class="content">
+    {% if messages %}
+      <div class="mb-4">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
     <div class="row g-3 mb-4 align-items-end justify-content-between">
       <div class="col-lg-8">
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -24,33 +34,36 @@
       </div>
       <div class="col-lg-auto">
         <div class="d-flex flex-wrap gap-2">
-          <a class="btn btn-phoenix-primary" href="{% url 'staff_client_create' %}">
-            <span class="fa-solid fa-plus me-2"></span>New Client
-          </a>
-          <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_create' %}">
-            <span class="fa-solid fa-plus me-2"></span>New Service Request
-          </a>
-          {% if module_access.invoicing %}
+          {% if role_access.can_manage_clients %}
+            <a class="btn btn-phoenix-primary" href="{% url 'staff_client_create' %}">
+              <span class="fa-solid fa-plus me-2"></span>New Client
+            </a>
+          {% endif %}
+          {% if role_access.can_manage_leads %}
+            <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_create' %}">
+              <span class="fa-solid fa-plus me-2"></span>New Service Request
+            </a>
+          {% endif %}
+          {% if module_access.invoicing and role_access.can_view_invoices %}
             <a class="btn btn-outline-primary" href="{% url 'invoice_list' %}">
               <span class="fa-solid fa-file-invoice-dollar me-2"></span>Invoices
             </a>
           {% endif %}
-          {% if current_business_membership and current_business_membership.role == "owner" %}
+          {% if role_access.can_manage_subscription %}
             <a class="btn btn-outline-secondary" href="{% url 'business_subscription' %}">
               <span class="fa-solid fa-layer-group me-2"></span>Upgrade Plan
             </a>
+          {% endif %}
+          {% if role_access.can_manage_business_settings %}
             <a class="btn btn-outline-secondary" href="{% url 'business_settings' %}">
-            <span class="fa-solid fa-gear me-2"></span>Business Settings
-          </a>
+              <span class="fa-solid fa-gear me-2"></span>Business Settings
+            </a>
           {% endif %}
-          {% if current_business_membership %}
-            {% if current_business_membership.role == "owner" or current_business_membership.role == "admin" %}
-              <a class="btn btn-outline-secondary" href="{% url 'business_team_members' %}">
-                <span class="fa-solid fa-user-plus me-2"></span>Team Members
-              </a>
-            {% endif %}
+          {% if role_access.can_manage_team %}
+            <a class="btn btn-outline-secondary" href="{% url 'business_team_members' %}">
+              <span class="fa-solid fa-user-plus me-2"></span>Team Members
+            </a>
           {% endif %}
-          
         </div>
       </div>
     </div>
@@ -187,10 +200,12 @@
                 {% if module_access.invoicing %}Included{% else %}Locked{% endif %}
               </span>
             </div>
-            {% if module_access.invoicing %}
+            {% if module_access.invoicing and role_access.can_view_invoices %}
               <a class="btn btn-outline-primary btn-sm" href="{% url 'invoice_list' %}">
                 <span class="fa-solid fa-arrow-up-right-from-square me-2"></span>Open Invoices
               </a>
+            {% elif module_access.invoicing %}
+              <p class="fs-9 text-body-tertiary mb-0">Invoice access is limited to billing roles in this workspace.</p>
             {% else %}
               <p class="fs-9 text-body-tertiary mb-0">This module is not enabled for the current workspace plan.</p>
             {% endif %}
@@ -288,9 +303,11 @@
             {% else %}
               <div class="p-4">
                 <p class="text-body-tertiary mb-3">No service requests have been created in this workspace yet.</p>
-                <a class="btn btn-phoenix-primary btn-sm" href="{% url 'staff_lead_create' %}">
-                  <span class="fa-solid fa-plus me-2"></span>Create the first request
-                </a>
+                {% if role_access.can_manage_leads %}
+                  <a class="btn btn-phoenix-primary btn-sm" href="{% url 'staff_lead_create' %}">
+                    <span class="fa-solid fa-plus me-2"></span>Create the first request
+                  </a>
+                {% endif %}
               </div>
             {% endif %}
           </div>
@@ -304,7 +321,9 @@
               <h4 class="mb-1">Workspace</h4>
               <p class="text-body-tertiary mb-0">Business details and default invoice settings.</p>
             </div>
-            <a href="{% url 'business_settings' %}" class="btn btn-sm btn-outline-secondary">Business Settings</a>
+            {% if role_access.can_manage_business_settings %}
+              <a href="{% url 'business_settings' %}" class="btn btn-sm btn-outline-secondary">Business Settings</a>
+            {% endif %}
           </div>
           <div class="card-body">
             <div class="d-flex justify-content-between py-2 border-bottom border-translucent">
@@ -326,7 +345,7 @@
           </div>
         </div>
 
-        {% if module_access.invoicing %}
+        {% if module_access.invoicing and role_access.can_view_invoices %}
           <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
               <div>
@@ -357,11 +376,25 @@
               {% else %}
                 <div class="p-4">
                   <p class="text-body-tertiary mb-3">No invoices have been created for this workspace yet.</p>
-                  <a class="btn btn-outline-primary btn-sm" href="{% url 'staff_client_list' %}">
-                    <span class="fa-solid fa-file-circle-plus me-2"></span>Create from Clients
-                  </a>
+                  {% if role_access.can_manage_invoices %}
+                    <a class="btn btn-outline-primary btn-sm" href="{% url 'staff_client_list' %}">
+                      <span class="fa-solid fa-file-circle-plus me-2"></span>Create from Clients
+                    </a>
+                  {% endif %}
                 </div>
               {% endif %}
+            </div>
+          </div>
+        {% elif module_access.invoicing %}
+          <div class="card h-100">
+            <div class="card-header">
+              <h4 class="mb-1">Invoices Restricted</h4>
+              <p class="text-body-tertiary mb-0">Billing access is limited to owners, admins, accountants, and viewers.</p>
+            </div>
+            <div class="card-body">
+              <p class="text-body-tertiary mb-0">
+                This workspace plan includes invoicing, but your current role cannot open invoice records.
+              </p>
             </div>
           </div>
         {% else %}

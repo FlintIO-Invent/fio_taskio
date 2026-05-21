@@ -88,17 +88,17 @@
                                             <a class="nav-link" href="/crm/agent/dashboard/">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
-                                            {% if current_business_membership %}
-                                                {% if current_business_membership.role == "owner" or current_business_membership.role == "admin" %}
-                                                    <a class="nav-link" href="{% url 'business_team_members' %}">
-                                                        <div class="d-flex align-items-center"><span class="nav-link-text">Team Members</span></div>
-                                                    </a>
-                                                    <a class="nav-link" href="{% url 'business_settings' %}">
-                                                        <div class="d-flex align-items-center"><span class="nav-link-text">Busisness Settings</span></div>
-                                                    </a>
-                                                {% endif %}
+                                            {% if role_access.can_manage_team %}
+                                                <a class="nav-link" href="{% url 'business_team_members' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Team Members</span></div>
+                                                </a>
                                             {% endif %}
-                                            {% if current_business_membership and current_business_membership.role == "owner" %}
+                                            {% if role_access.can_manage_business_settings %}
+                                                <a class="nav-link" href="{% url 'business_settings' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Busisness Settings</span></div>
+                                                </a>
+                                            {% endif %}
+                                            {% if role_access.can_manage_subscription %}
                                                 <a class="nav-link" href="{% url 'business_subscription' %}">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Subscription</span></div>
                                                 </a>
@@ -116,7 +116,7 @@
                             <p class="navbar-vertical-label">Workspace</p>
                             <hr class="navbar-vertical-line" />
 
-                            {% if module_access.invoicing %}
+                            {% if module_access.invoicing and role_access.can_view_invoices %}
                                 <div class="nav-item-wrapper">
                                     <a class="nav-link dropdown-indicator label-1" href="#nv-billing" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-billing">
                                         <div class="d-flex align-items-center">
@@ -134,6 +134,15 @@
                                             </li>
                                         </ul>
                                     </div>
+                                </div>
+                            {% elif module_access.invoicing %}
+                                <div class="nav-item-wrapper">
+                                    <span class="nav-link label-1 d-flex align-items-center justify-content-between text-body-tertiary">
+                                        <span class="d-flex align-items-center">
+                                            <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Invoices</span>
+                                        </span>
+                                        <span class="badge badge-phoenix badge-phoenix-secondary">Restricted</span>
+                                    </span>
                                 </div>
                             {% else %}
                                 <div class="nav-item-wrapper">
@@ -291,7 +300,7 @@
               </ul>
           </div>
       </nav>
-      
+
       {% block content %} {% endblock %}
       
       <script>

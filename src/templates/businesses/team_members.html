@@ -8,8 +8,10 @@
       <p class="text-body-tertiary mb-0">Invite employees into {{ business.name }} without creating a new business workspace.</p>
     </div>
     <div class="col-auto d-flex gap-2">
-      {% if membership.role == "owner" %}
+      {% if role_access.can_manage_subscription %}
         <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Subscription</a>
+      {% endif %}
+      {% if role_access.can_manage_business_settings %}
         <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>
       {% endif %}
       

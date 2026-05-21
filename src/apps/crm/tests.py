@@ -54,6 +54,24 @@ class CRMBusinessScopingTests(TestCase):
             last_name="User",
             password="testpass123",
         )
+        self.staff_user = TaskIOUser.objects.create_user(
+            email="staff@example.com",
+            first_name="Staff",
+            last_name="User",
+            password="testpass123",
+        )
+        self.accountant_user = TaskIOUser.objects.create_user(
+            email="accountant@example.com",
+            first_name="Accountant",
+            last_name="User",
+            password="testpass123",
+        )
+        self.viewer_user = TaskIOUser.objects.create_user(
+            email="viewer@example.com",
+            first_name="Viewer",
+            last_name="User",
+            password="testpass123",
+        )
 
         BusinessUser.objects.create(
             user=self.user,
@@ -64,6 +82,21 @@ class CRMBusinessScopingTests(TestCase):
             user=self.other_user,
             business=self.other_business,
             role=BusinessUser.Role.OWNER,
+        )
+        BusinessUser.objects.create(
+            user=self.staff_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+        BusinessUser.objects.create(
+            user=self.accountant_user,
+            business=self.business,
+            role=BusinessUser.Role.ACCOUNTANT,
+        )
+        BusinessUser.objects.create(
+            user=self.viewer_user,
+            business=self.business,
+            role=BusinessUser.Role.VIEWER,
         )
 
     def test_private_client_form_limits_assigned_to_choices_to_current_business(self):
@@ -555,11 +588,9 @@ class CRMBusinessScopingTests(TestCase):
             slug="pro-crm-test",
             allow_invoicing=True,
         )
-        BusinessSubscription.objects.create(
-            business=self.business,
-            plan=plan,
-            status=BusinessSubscription.Status.ACTIVE,
-        )
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = plan
+        subscription.save(update_fields=["plan", "updated_at"])
 
         self.client.force_login(self.user)
         response = self.client.get(reverse("agent_dashboard"))
@@ -575,11 +606,9 @@ class CRMBusinessScopingTests(TestCase):
             slug="starter-crm-test",
             allow_invoicing=False,
         )
-        BusinessSubscription.objects.create(
-            business=self.business,
-            plan=plan,
-            status=BusinessSubscription.Status.ACTIVE,
-        )
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = plan
+        subscription.save(update_fields=["plan", "updated_at"])
 
         self.client.force_login(self.user)
         response = self.client.get(reverse("agent_dashboard"))
@@ -589,3 +618,74 @@ class CRMBusinessScopingTests(TestCase):
         self.assertContains(response, "Invoices Locked")
         self.assertContains(response, "Billing Module")
         self.assertContains(response, "Locked")
+
+    def test_viewer_cannot_open_client_create_page(self):
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.get(reverse("staff_client_create"), follow=True)
+
+        self.assertRedirects(response, reverse("staff_client_list"))
+        self.assertContains(response, "You do not have permission to create or edit clients.")
+
+    def test_accountant_can_open_client_create_page(self):
+        self.client.force_login(self.accountant_user)
+
+        response = self.client.get(reverse("staff_client_create"))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_accountant_cannot_open_lead_create_page(self):
+        self.client.force_login(self.accountant_user)
+
+        response = self.client.get(reverse("staff_lead_create"), follow=True)
+
+        self.assertRedirects(response, reverse("staff_lead_list"))
+        self.assertContains(response, "You do not have permission to create or edit service requests.")
+
+    def test_viewer_client_list_hides_create_and_edit_actions(self):
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Casey",
+            last_name="Viewer",
+            email="casey-viewer@example.com",
+            phone="+1 721 555 0100",
+            company_name="Alpha Co",
+            street_address="11 Main Street",
+        )
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.get(reverse("staff_client_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, reverse("staff_client_create"))
+        self.assertNotContains(response, reverse("staff_client_update", args=[client_record.id]))
+
+    def test_accountant_lead_list_hides_create_and_edit_actions(self):
+        lead = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            first_name="Jordan",
+            last_name="Lead",
+            email="jordan-lead@example.com",
+            phone="+1 721 555 8888",
+            company_name="Lead Co",
+        )
+        self.client.force_login(self.accountant_user)
+
+        response = self.client.get(reverse("staff_lead_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, reverse("staff_lead_create"))
+        self.assertNotContains(response, reverse("staff_lead_update", args=[lead.id]))
+
+    def test_accountant_cannot_open_service_management(self):
+        self.client.force_login(self.accountant_user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.get(reverse("business_service_list"), follow=True)
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertContains(response, "You do not have permission to manage services or categories.")

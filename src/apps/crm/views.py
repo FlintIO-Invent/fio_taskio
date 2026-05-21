@@ -16,8 +16,12 @@ from django.utils.text import slugify
 from django.views.decorators.http import require_http_methods
 from loguru import logger
 
-from apps.businesses.models import Business, BusinessUser
+from apps.businesses.models import Business
 from apps.businesses.utils import (
+    ALL_WORKSPACE_ROLES,
+    CLIENT_MANAGE_ROLES,
+    LEAD_MANAGE_ROLES,
+    SERVICE_MANAGEMENT_ROLES,
     business_required,
     can_use_module,
     business_role_required,
@@ -35,7 +39,6 @@ from .forms import (
     ServiceCategoryForm,
 )
 from .models import BusinessService, Client, Lead, ServiceCategory
-from .services import send_lead_email
 from helpers import upsert_client_from_lead
 
 
@@ -322,7 +325,12 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
 
 
 # Functions below relate to client/leads management for staff users. 
-@business_required()
+@business_role_required(
+    *LEAD_MANAGE_ROLES,
+    redirect_url_name="staff_lead_list",
+    permission_message="You do not have permission to create or edit service requests.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def staff_lead_create(request: HttpRequest) -> HttpResponse:
     """
@@ -350,7 +358,12 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/forms/lead_create.html", context)
 
 
-@business_required()
+@business_role_required(
+    *ALL_WORKSPACE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view service requests.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def staff_lead_list(request: HttpRequest) -> HttpResponse:
     """
@@ -383,7 +396,12 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/main/lead_list.html", context)
 
 
-@business_required()
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="staff_client_list",
+    permission_message="You do not have permission to create or edit clients.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def staff_client_create(request: HttpRequest) -> HttpResponse:
     """
@@ -407,7 +425,12 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/forms/client_create.html", context)
 
 
-@business_required()
+@business_role_required(
+    *ALL_WORKSPACE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view clients.",
+    raise_exception=False,
+)
 @require_http_methods(["GET"])
 def staff_client_list(request: HttpRequest) -> HttpResponse:
     """
@@ -455,7 +478,12 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/main/client_list.html", context)
 
 
-@business_required()
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="staff_client_list",
+    permission_message="You do not have permission to create or edit clients.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
     """Update a client record with tabbed form interface."""
@@ -483,7 +511,12 @@ def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
     return render(request, "crm/forms/client_update.html", context)
 
 
-@business_required()
+@business_role_required(
+    *ALL_WORKSPACE_ROLES,
+    redirect_url_name="staff_client_list",
+    permission_message="You do not have permission to view clients.",
+    raise_exception=False,
+)
 @require_http_methods(["GET"])
 def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     """Display staff-facing details for a single client."""
@@ -497,7 +530,12 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     return render(request, "crm/main/client_detail.html", context)
 
 
-@business_required()
+@business_role_required(
+    *ALL_WORKSPACE_ROLES,
+    redirect_url_name="staff_lead_list",
+    permission_message="You do not have permission to view service requests.",
+    raise_exception=False,
+)
 @require_http_methods(["GET"])
 def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     """Display staff-facing details for a single lead."""
@@ -509,7 +547,12 @@ def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     return render(request, "crm/main/lead_detail.html", context)
 
 
-@business_required()
+@business_role_required(
+    *LEAD_MANAGE_ROLES,
+    redirect_url_name="staff_lead_list",
+    permission_message="You do not have permission to create or edit service requests.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -536,7 +579,12 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     return render(request, "crm/forms/lead_create.html", context)
 
 
-@business_required()
+@business_role_required(
+    *ALL_WORKSPACE_ROLES,
+    redirect_url_name="staff_client_list",
+    permission_message="You do not have permission to view clients.",
+    raise_exception=False,
+)
 @require_http_methods(["GET"])
 def client_detail_view(request: HttpRequest) -> HttpResponse:
     """
@@ -553,7 +601,12 @@ def client_detail_view(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/main/client_detail.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["GET"])
 def business_service_category_list(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -568,7 +621,12 @@ def business_service_category_list(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/settings/service_category_list.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def business_service_category_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -592,7 +650,12 @@ def business_service_category_create(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/settings/service_category_form.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def business_service_category_update(request: HttpRequest, category_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -625,7 +688,12 @@ def business_service_category_update(request: HttpRequest, category_id: int) -> 
     return render(request, "crm/settings/service_category_form.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["POST"])
 def business_service_category_archive(request: HttpRequest, category_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -644,7 +712,12 @@ def business_service_category_archive(request: HttpRequest, category_id: int) ->
     return redirect("business_service_category_list")
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["GET"])
 def business_service_list(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -659,7 +732,12 @@ def business_service_list(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/settings/business_service_list.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def business_service_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -683,7 +761,12 @@ def business_service_create(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/settings/business_service_form.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def business_service_update(request: HttpRequest, service_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -716,7 +799,12 @@ def business_service_update(request: HttpRequest, service_id: int) -> HttpRespon
     return render(request, "crm/settings/business_service_form.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["POST"])
 def business_service_archive(request: HttpRequest, service_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -735,7 +823,12 @@ def business_service_archive(request: HttpRequest, service_id: int) -> HttpRespo
     return redirect("business_service_list")
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["GET", "POST"])
 def business_service_import(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -776,7 +869,12 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/settings/business_service_import.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="business_settings",
+    permission_message="You do not have permission to manage services or categories.",
+    raise_exception=False,
+)
 @require_http_methods(["GET"])
 def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
