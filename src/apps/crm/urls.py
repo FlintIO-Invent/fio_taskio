@@ -13,6 +13,10 @@ from .views import (
     client_detail_view,
     staff_lead_detail,
     staff_lead_update,
+    business_service_category_archive,
+    business_service_category_create,
+    business_service_category_list,
+    business_service_category_update,
     # staff_lead_email,
 )
 
@@ -32,5 +36,25 @@ urlpatterns = [
     path("staff/clients/all/", client_detail_view, name="client_detail_view"),
 
     path("staff/leads/<int:lead_id>/", staff_lead_detail, name="staff_lead_detail"),
+    path(
+        "settings/service-categories/",
+        business_service_category_list,
+        name="business_service_category_list",
+    ),
+    path(
+        "settings/service-categories/create/",
+        business_service_category_create,
+        name="business_service_category_create",
+    ),
+    path(
+        "settings/service-categories/<int:category_id>/edit/",
+        business_service_category_update,
+        name="business_service_category_update",
+    ),
+    path(
+        "settings/service-categories/<int:category_id>/archive/",
+        business_service_category_archive,
+        name="business_service_category_archive",
+    ),
     # path("staff/leads/<int:lead_id>/email/", staff_lead_email, name="staff_lead_email"),
 ]

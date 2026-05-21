@@ -1,6 +1,7 @@
 from __future__ import annotations
 from django.conf import settings
 from django.db import models
+from django.utils.text import slugify
 
 
 class TimeStampedModel(models.Model):
@@ -12,23 +13,83 @@ class TimeStampedModel(models.Model):
 
 
 class ServiceCategory(TimeStampedModel):
-    class CategoryChoices(models.TextChoices):
-        SEPTIC_PUMPING = "SEPTIC_PUMPING", "Septic Pumping"
-        SEPTIC_INSTALLATION = "SEPTIC_INSTALLATION", "Septic Installation"
-        SEPTIC_REPAIR = "SEPTIC_REPAIR", "Septic Repair"
-        GREASE_TRAP_SERVICES = "GREASE_TRAP_SERVICES", "Grease Trap Services"
-        UNCLOGGING_SERVICES = "UNCLOGGING_SERVICES", "Unclogging Services"
-        OTHER = "OTHER", "Other"
-
-    code = models.CharField(max_length=60, choices=CategoryChoices.choices, unique=True)
+    business = models.ForeignKey(
+        "businesses.Business",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="service_categories",
+    )
     name = models.CharField(max_length=120)
+    code = models.SlugField(max_length=80, blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["name", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "code"],
+                name="crm_service_category_unique_business_code",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["business", "is_active", "name"]),
+        ]
+
+    @classmethod
+    def for_business(
+        cls,
+        business,
+        *,
+        include_inactive: bool = False,
+    ) -> models.QuerySet["ServiceCategory"]:
+        if business is None:
+            return cls.objects.none()
+
+        queryset = cls.objects.filter(business=business)
+        if not include_inactive:
+            queryset = queryset.filter(is_active=True)
+        return queryset.order_by("name", "pk")
+
+    def _normalized_code(self) -> str:
+        base_value = self.code or self.name
+        return slugify(base_value).replace("-", "_") or "service_category"
+
+    def _generate_unique_code(self) -> str:
+        base_code = self._normalized_code()
+        candidate = base_code
+        suffix = 2
+
+        existing_categories = self.__class__.objects.filter(
+            business=self.business,
+            code=candidate,
+        )
+        if self.pk:
+            existing_categories = existing_categories.exclude(pk=self.pk)
+
+        while existing_categories.exists():
+            candidate = f"{base_code}_{suffix}"
+            existing_categories = self.__class__.objects.filter(
+                business=self.business,
+                code=candidate,
+            )
+            if self.pk:
+                existing_categories = existing_categories.exclude(pk=self.pk)
+            suffix += 1
+
+        return candidate
+
+    def save(self, *args, **kwargs):
+        self.code = self._generate_unique_code()
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            kwargs["update_fields"] = set(update_fields) | {"code"}
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
-        return self.name
+        if self.business_id is None:
+            return self.name
+        return f"{self.name} ({self.business})"
 
 
 class Lead(TimeStampedModel):

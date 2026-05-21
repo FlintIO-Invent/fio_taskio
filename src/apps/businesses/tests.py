@@ -302,12 +302,12 @@ class BusinessSubscriptionViewTests(TestCase):
         )
         self.starter_plan = ClarivoPlan.objects.create(
             name="Starter",
-            slug="starter",
+            slug="starter-subscription-test",
             allow_invoicing=True,
         )
         self.pro_plan = ClarivoPlan.objects.create(
             name="Pro",
-            slug="pro",
+            slug="pro-subscription-test",
             allow_invoicing=True,
             allow_appointments=True,
             allow_public_booking=True,

@@ -10,11 +10,20 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from loguru import logger
 
-from apps.businesses.models import Business
-from apps.businesses.utils import business_required, get_current_business
+from apps.businesses.models import Business, BusinessUser
+from apps.businesses.utils import (
+    business_required,
+    business_role_required,
+    get_current_business,
+)
 from apps.billings.models import Invoice
-from .forms import PrivateClientForm, PrivateLeadForm, PublicLeadForm
-from .models import Lead, Client
+from .forms import (
+    PrivateClientForm,
+    PrivateLeadForm,
+    PublicLeadForm,
+    ServiceCategoryForm,
+)
+from .models import Client, Lead, ServiceCategory
 from .services import send_lead_email
 from helpers import upsert_client_from_lead
 
@@ -25,6 +34,13 @@ def _client_queryset_for_business(business: Business) -> QuerySet[Client]:
 
 def _lead_queryset_for_business(business: Business) -> QuerySet[Lead]:
     return Lead.objects.filter(business=business).select_related("category")
+
+
+def _service_category_queryset_for_business(business: Business) -> QuerySet[ServiceCategory]:
+    return ServiceCategory.for_business(
+        business,
+        include_inactive=True,
+    ).select_related("business")
 
 
 # Fucntions below relate to public-facing lead capture and agent dashboard
@@ -80,7 +96,7 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
 
     if request.method == "POST":
-        form = PublicLeadForm(request.POST)
+        form = PublicLeadForm(request.POST, business=business)
         if form.is_valid():
             lead = form.save(commit=False)
             lead.business = business
@@ -93,7 +109,7 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
                 logger.debug("Lead is of type INTEREST; creating lead without client")
             return redirect("public_thank_you")
     else:
-        form = PublicLeadForm()
+        form = PublicLeadForm(business=business)
 
     return render(
         request,
@@ -118,7 +134,7 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
 
     if request.method == "POST":
-        form = PrivateLeadForm(request.POST)
+        form = PrivateLeadForm(request.POST, business=current_business)
         if form.is_valid():
             lead = form.save(commit=False)
             lead.business = current_business
@@ -126,7 +142,7 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
             messages.success(request, "Lead created successfully.")
             return redirect("staff_lead_list")
     else:
-        form = PrivateLeadForm()
+        form = PrivateLeadForm(business=current_business)
 
     context = {
         "form": form,
@@ -303,7 +319,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     lead = get_object_or_404(_lead_queryset_for_business(current_business), pk=lead_id)
 
     if request.method == "POST":
-        form = PrivateLeadForm(request.POST, instance=lead)
+        form = PrivateLeadForm(request.POST, instance=lead, business=current_business)
         if form.is_valid():
             lead = form.save(commit=False)
             lead.business = current_business
@@ -312,7 +328,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
             return redirect("staff_lead_detail", lead_id=lead.id)
         messages.error(request, "Please correct the errors below.")
     else:
-        form = PrivateLeadForm(instance=lead)
+        form = PrivateLeadForm(instance=lead, business=current_business)
 
     context: dict[str, Any] = {
         "form": form,
@@ -338,3 +354,94 @@ def client_detail_view(request: HttpRequest) -> HttpResponse:
     }
 
     return render(request, "crm/main/client_detail.html", context)
+
+
+@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@require_http_methods(["GET"])
+def business_service_category_list(request: HttpRequest) -> HttpResponse:
+    current_business = request.current_business
+    categories = _service_category_queryset_for_business(current_business)
+
+    context: dict[str, Any] = {
+        "categories": categories,
+        "business": current_business,
+        "active_category_count": categories.filter(is_active=True).count(),
+        "archived_category_count": categories.filter(is_active=False).count(),
+    }
+    return render(request, "crm/settings/service_category_list.html", context)
+
+
+@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@require_http_methods(["GET", "POST"])
+def business_service_category_create(request: HttpRequest) -> HttpResponse:
+    current_business = request.current_business
+
+    if request.method == "POST":
+        form = ServiceCategoryForm(request.POST, business=current_business)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Service category created.")
+            return redirect("business_service_category_list")
+        messages.error(request, "Please correct the errors below.")
+    else:
+        form = ServiceCategoryForm(business=current_business)
+
+    context: dict[str, Any] = {
+        "form": form,
+        "business": current_business,
+        "page_title": "Create service category",
+        "submit_label": "Create category",
+    }
+    return render(request, "crm/settings/service_category_form.html", context)
+
+
+@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@require_http_methods(["GET", "POST"])
+def business_service_category_update(request: HttpRequest, category_id: int) -> HttpResponse:
+    current_business = request.current_business
+    category = get_object_or_404(
+        _service_category_queryset_for_business(current_business),
+        pk=category_id,
+    )
+
+    if request.method == "POST":
+        form = ServiceCategoryForm(
+            request.POST,
+            instance=category,
+            business=current_business,
+        )
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Service category updated.")
+            return redirect("business_service_category_list")
+        messages.error(request, "Please correct the errors below.")
+    else:
+        form = ServiceCategoryForm(instance=category, business=current_business)
+
+    context: dict[str, Any] = {
+        "form": form,
+        "business": current_business,
+        "category": category,
+        "page_title": f"Edit service category: {category.name}",
+        "submit_label": "Save changes",
+    }
+    return render(request, "crm/settings/service_category_form.html", context)
+
+
+@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@require_http_methods(["POST"])
+def business_service_category_archive(request: HttpRequest, category_id: int) -> HttpResponse:
+    current_business = request.current_business
+    category = get_object_or_404(
+        _service_category_queryset_for_business(current_business),
+        pk=category_id,
+    )
+
+    if category.is_active:
+        category.is_active = False
+        category.save(update_fields=["is_active", "updated_at", "code"])
+        messages.success(request, f"{category.name} was archived.")
+    else:
+        messages.info(request, f"{category.name} is already archived.")
+
+    return redirect("business_service_category_list")

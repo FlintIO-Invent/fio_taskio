@@ -1,0 +1,106 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_settings' %}">Business Settings</a></li>
+      <li class="breadcrumb-item active">Service Categories</li>
+    </ol>
+  </nav>
+
+  <div class="row g-3 mb-4 justify-content-between align-items-center">
+    <div class="col-lg-8">
+      <h2 class="mb-2 text-body-emphasis">Service Categories</h2>
+      <p class="text-body-tertiary mb-0">These categories are available only to {{ business.name }} on staff and public request forms.</p>
+    </div>
+    <div class="col-auto d-flex gap-2">
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Back to settings</a>
+      <a class="btn btn-primary" href="{% url 'business_service_category_create' %}">Create category</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <p class="text-body-tertiary text-uppercase fs-10 mb-1">Active</p>
+          <h3 class="mb-0">{{ active_category_count }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <p class="text-body-tertiary text-uppercase fs-10 mb-1">Archived</p>
+          <h3 class="mb-0">{{ archived_category_count }}</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      {% if categories %}
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th class="ps-4">Name</th>
+                <th>Code</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="text-end pe-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for category in categories %}
+                <tr>
+                  <td class="ps-4">
+                    <div class="fw-semibold text-body-emphasis">{{ category.name }}</div>
+                  </td>
+                  <td><code>{{ category.code }}</code></td>
+                  <td>
+                    {% if category.is_active %}
+                      <span class="badge badge-phoenix badge-phoenix-success">Active</span>
+                    {% else %}
+                      <span class="badge badge-phoenix badge-phoenix-secondary">Archived</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-body-tertiary">{{ category.created_at|date:"M d, Y" }}</td>
+                  <td class="text-end pe-4">
+                    <div class="d-inline-flex gap-2">
+                      <a class="btn btn-sm btn-phoenix-secondary" href="{% url 'business_service_category_update' category.id %}">Edit</a>
+                      {% if category.is_active %}
+                        <form method="post" action="{% url 'business_service_category_archive' category.id %}">
+                          {% csrf_token %}
+                          <button class="btn btn-sm btn-outline-danger" type="submit">Archive</button>
+                        </form>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="p-4 p-lg-5 text-center">
+          <h4 class="mb-2">No categories yet</h4>
+          <p class="text-body-tertiary mb-4">Create the service categories this workspace should use for leads and service requests.</p>
+          <a class="btn btn-primary" href="{% url 'business_service_category_create' %}">Create first category</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

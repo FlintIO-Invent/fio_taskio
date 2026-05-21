@@ -1,7 +1,32 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.db.models import Q
+from django.utils.text import slugify
 
 from .models import Client, Lead, ServiceCategory
+
+
+def _service_category_queryset(*, business=None, instance=None, include_inactive=False):
+    filters = Q()
+
+    if business is not None:
+        business_filters = Q(business=business)
+        if not include_inactive:
+            business_filters &= Q(is_active=True)
+        filters |= business_filters
+
+    if instance is not None and instance.pk and instance.category_id:
+        filters |= Q(pk=instance.category_id)
+
+    if not filters.children:
+        return ServiceCategory.objects.none()
+
+    return (
+        ServiceCategory.objects.filter(filters)
+        .select_related("business")
+        .distinct()
+        .order_by("name", "pk")
+    )
 
 
 class PrivateClientForm(forms.ModelForm):
@@ -202,9 +227,13 @@ class PrivateClientForm(forms.ModelForm):
 
 
 class PrivateLeadForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, business=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["category"].queryset = ServiceCategory.objects.filter(is_active=True).order_by("name")
+        self.business = business
+        self.fields["category"].queryset = _service_category_queryset(
+            business=business,
+            instance=self.instance,
+        )
 
     class Meta:
         model = Lead
@@ -285,9 +314,10 @@ class PrivateLeadForm(forms.ModelForm):
 
 
 class PublicLeadForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, business=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["category"].queryset = ServiceCategory.objects.filter(is_active=True).order_by("name")
+        self.business = business
+        self.fields["category"].queryset = _service_category_queryset(business=business)
 
     class Meta:
         model = Lead
@@ -385,3 +415,70 @@ class PublicLeadForm(forms.ModelForm):
             "postal_code": "Postal Code",
             "consent_to_contact": "I consent to be contacted via email and phone for service requests and updates.",
         }
+
+
+class ServiceCategoryForm(forms.ModelForm):
+    class Meta:
+        model = ServiceCategory
+        fields = ["name", "code", "is_active"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Septic pumping"}
+            ),
+            "code": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "optional-code"}
+            ),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+        help_texts = {
+            "code": "Optional. If left blank, Clarivo will generate a workspace-specific code from the name.",
+        }
+
+    def __init__(self, *args, business=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.business = business
+        self.fields["code"].required = False
+
+    def clean_code(self):
+        raw_code = self.cleaned_data.get("code", "")
+        normalized_code = slugify(raw_code).replace("-", "_") if raw_code else ""
+        if raw_code and not normalized_code:
+            raise forms.ValidationError("Enter a valid code.")
+        return normalized_code
+
+    def clean(self):
+        cleaned_data = super().clean()
+        name = cleaned_data.get("name", "")
+        code = cleaned_data.get("code") or slugify(name).replace("-", "_")
+
+        if not self.business:
+            raise forms.ValidationError("A current business is required to manage service categories.")
+
+        if not code:
+            self.add_error("name", "Enter a category name.")
+            return cleaned_data
+
+        queryset = ServiceCategory.objects.filter(
+            business=self.business,
+            code=code,
+        )
+        if self.instance.pk:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            self.add_error(
+                "code",
+                "This code is already used in the current workspace.",
+            )
+
+        cleaned_data["code"] = code
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.business = self.business
+        instance.code = self.cleaned_data.get("code", instance.code)
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance

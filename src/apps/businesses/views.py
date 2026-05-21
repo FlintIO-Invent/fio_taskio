@@ -43,6 +43,8 @@ def business_settings(request: HttpRequest) -> HttpResponse:
         "business": business,
         "membership": membership,
         "form": form,
+        "service_category_count": business.service_categories.count(),
+        "active_service_category_count": business.service_categories.filter(is_active=True).count(),
     }
     return render(request, "businesses/settings.html", context)
 

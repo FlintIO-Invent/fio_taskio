@@ -6,9 +6,10 @@ from django.urls import reverse
 from apps.accounts.models import TaskIOUser
 from apps.billings.models import Invoice
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
+from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 
-from .forms import PrivateClientForm
-from .models import Client, Lead
+from .forms import PrivateClientForm, PrivateLeadForm
+from .models import Client, Lead, ServiceCategory
 
 
 class CRMBusinessScopingTests(TestCase):
@@ -94,6 +95,81 @@ class CRMBusinessScopingTests(TestCase):
             ).exists()
         )
 
+    def test_private_lead_form_limits_categories_to_current_business(self):
+        current_category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Tank Pumping",
+        )
+        ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Roof Repair",
+        )
+        legacy_category = ServiceCategory.objects.create(
+            name="Legacy Global Category",
+            code="legacy_global_category",
+        )
+        lead = Lead.objects.create(
+            business=self.business,
+            category=legacy_category,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            first_name="Jamie",
+            last_name="Requester",
+            email="legacy-request@example.com",
+            phone="+1 721 555 7777",
+            company_name="Legacy Request",
+        )
+
+        create_form = PrivateLeadForm(business=self.business)
+        update_form = PrivateLeadForm(instance=lead, business=self.business)
+
+        self.assertEqual(
+            list(create_form.fields["category"].queryset),
+            [current_category],
+        )
+        self.assertEqual(
+            list(update_form.fields["category"].queryset),
+            [legacy_category, current_category],
+        )
+
+    def test_public_request_only_shows_and_accepts_categories_for_target_business(self):
+        current_category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Tank Pumping",
+        )
+        foreign_category = ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Roof Repair",
+        )
+
+        response = self.client.get(reverse("public_request", args=[self.business.slug]))
+
+        self.assertContains(response, current_category.name)
+        self.assertNotContains(response, foreign_category.name)
+
+        invalid_response = self.client.post(
+            reverse("public_request", args=[self.business.slug]),
+            data={
+                "lead_type": Lead.LeadType.REQUEST,
+                "category": foreign_category.id,
+                "first_name": "Jamie",
+                "last_name": "Prospect",
+                "company_name": "Alpha Customer",
+                "email": "blocked@example.com",
+                "phone": "+1 721 555 0003",
+                "street_address": "45 Front Street",
+                "district": "",
+                "country": "Sint Maarten",
+                "postal_code": "00000",
+                "message": "Need a service visit this week.",
+                "consent_to_contact": "on",
+            },
+        )
+
+        self.assertEqual(invalid_response.status_code, 200)
+        self.assertContains(invalid_response, "Select a valid choice")
+        self.assertFalse(Lead.objects.filter(email="blocked@example.com").exists())
+
     def test_agent_dashboard_scopes_metrics_to_current_business(self):
         current_client = Client.objects.create(
             business=self.business,
@@ -171,10 +247,76 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.context["paid_invoice_total"], Decimal("125"))
         self.assertEqual(list(response.context["recent_service_requests"]), [current_request])
 
+    def test_business_service_category_management_is_scoped_and_archives_instead_of_deleting(self):
+        own_category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Tank Pumping",
+        )
+        ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Foreign Category",
+        )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        list_response = self.client.get(reverse("business_service_category_list"))
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertContains(list_response, own_category.name)
+        self.assertNotContains(list_response, "Foreign Category")
+
+        create_response = self.client.post(
+            reverse("business_service_category_create"),
+            {
+                "name": "Emergency Callout",
+                "code": "",
+                "is_active": "on",
+            },
+            follow=True,
+        )
+
+        created_category = ServiceCategory.objects.get(name="Emergency Callout")
+
+        self.assertRedirects(create_response, reverse("business_service_category_list"))
+        self.assertEqual(created_category.business, self.business)
+        self.assertEqual(created_category.code, "emergency_callout")
+
+        update_response = self.client.post(
+            reverse("business_service_category_update", args=[created_category.id]),
+            {
+                "name": "Emergency Dispatch",
+                "code": "dispatch-priority",
+                "is_active": "on",
+            },
+            follow=True,
+        )
+
+        created_category.refresh_from_db()
+
+        self.assertRedirects(update_response, reverse("business_service_category_list"))
+        self.assertEqual(created_category.name, "Emergency Dispatch")
+        self.assertEqual(created_category.code, "dispatch_priority")
+
+        archive_response = self.client.post(
+            reverse("business_service_category_archive", args=[created_category.id]),
+            follow=True,
+        )
+
+        created_category.refresh_from_db()
+
+        self.assertRedirects(archive_response, reverse("business_service_category_list"))
+        self.assertFalse(created_category.is_active)
+        self.assertTrue(
+            ServiceCategory.objects.filter(pk=created_category.pk).exists()
+        )
+
     def test_dashboard_shows_invoicing_links_when_plan_allows_module(self):
         plan = ClarivoPlan.objects.create(
             name="Pro",
-            slug="pro",
+            slug="pro-crm-test",
             allow_invoicing=True,
         )
         BusinessSubscription.objects.create(
@@ -194,7 +336,7 @@ class CRMBusinessScopingTests(TestCase):
     def test_dashboard_hides_invoicing_links_when_plan_disables_module(self):
         plan = ClarivoPlan.objects.create(
             name="Starter",
-            slug="starter",
+            slug="starter-crm-test",
             allow_invoicing=False,
         )
         BusinessSubscription.objects.create(
