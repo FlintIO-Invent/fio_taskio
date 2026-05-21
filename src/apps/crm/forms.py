@@ -1,9 +1,11 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils.text import slugify
 
-from .models import Client, Lead, ServiceCategory
+from .models import BusinessService, Client, Lead, ServiceCategory
 
 
 def _service_category_queryset(*, business=None, instance=None, include_inactive=False):
@@ -482,3 +484,107 @@ class ServiceCategoryForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
         return instance
+
+
+class BusinessServiceForm(forms.ModelForm):
+    class Meta:
+        model = BusinessService
+        fields = [
+            "category",
+            "name",
+            "external_code",
+            "description",
+            "unit_price",
+            "tax_rate",
+            "is_active",
+        ]
+        widgets = {
+            "category": forms.Select(attrs={"class": "form-select"}),
+            "name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Emergency plumbing callout"}
+            ),
+            "external_code": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "optional-external-code"}
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Describe what this service includes...",
+                }
+            ),
+            "unit_price": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "step": "0.01"}
+            ),
+            "tax_rate": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "max": 100, "step": "0.01"}
+            ),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+        help_texts = {
+            "external_code": "Optional. Useful for matching future CSV imports without guessing by name.",
+        }
+
+    def __init__(self, *args, business=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.business = business
+        if business is not None:
+            self.instance.business = business
+        self.fields["category"].required = False
+        self.fields["external_code"].required = False
+        self.fields["tax_rate"].required = False
+        self.fields["category"].queryset = _service_category_queryset(
+            business=business,
+            instance=self.instance,
+        )
+
+        if business is not None and not self.instance.pk:
+            self.fields["tax_rate"].initial = business.tax_rate
+
+    def clean_external_code(self):
+        external_code = (self.cleaned_data.get("external_code") or "").strip()
+        return external_code or None
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if not self.business:
+            raise forms.ValidationError("A current business is required to manage services.")
+
+        if cleaned_data.get("tax_rate") in (None, ""):
+            cleaned_data["tax_rate"] = self.business.tax_rate or Decimal("0.00")
+
+        external_code = cleaned_data.get("external_code")
+        if external_code:
+            queryset = BusinessService.objects.filter(
+                business=self.business,
+                external_code__iexact=external_code,
+            )
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+
+            if queryset.exists():
+                self.add_error(
+                    "external_code",
+                    "This external code is already used in the current workspace.",
+                )
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.business = self.business
+        instance.tax_rate = self.cleaned_data.get("tax_rate", instance.tax_rate)
+        instance.external_code = self.cleaned_data.get("external_code")
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
+class BusinessServiceCSVImportForm(forms.Form):
+    csv_file = forms.FileField(
+        widget=forms.ClearableFileInput(
+            attrs={"class": "form-control", "accept": ".csv,text/csv"}
+        )
+    )

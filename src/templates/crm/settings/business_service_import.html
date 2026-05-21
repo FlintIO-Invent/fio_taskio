@@ -1,0 +1,84 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_settings' %}">Business Settings</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_service_list' %}">Services</a></li>
+      <li class="breadcrumb-item active">Import CSV</li>
+    </ol>
+  </nav>
+
+  <div class="row g-3 mb-4 justify-content-between align-items-center">
+    <div class="col-lg-8">
+      <h2 class="mb-2 text-body-emphasis">Import Services From CSV</h2>
+      <p class="text-body-tertiary mb-0">Upload a price list for {{ business.name }}. All imported services stay inside this workspace.</p>
+    </div>
+    <div class="col-auto d-flex gap-2">
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Back to services</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Download sample CSV</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if import_errors %}
+    <div class="alert alert-danger">
+      <h5 class="alert-heading mb-2">Import errors</h5>
+      <ul class="mb-0">
+        {% for error in import_errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-12 col-xl-7">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4 p-lg-5">
+          <form method="post" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ form.csv_file.id_for_label }}">CSV file</label>
+              {{ form.csv_file }}
+              {% if form.csv_file.errors %}<div class="invalid-feedback d-block">{{ form.csv_file.errors|striptags }}</div>{% endif %}
+            </div>
+            <button class="btn btn-primary" type="submit">Import services</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-5">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h4 class="mb-3">CSV format</h4>
+          <p class="text-body-tertiary mb-2">Required columns:</p>
+          <ul class="mb-3">
+            <li><code>name</code></li>
+            <li><code>unit_price</code></li>
+          </ul>
+          <p class="text-body-tertiary mb-2">Optional columns:</p>
+          <ul class="mb-3">
+            <li><code>description</code></li>
+            <li><code>tax_rate</code></li>
+            <li><code>category</code></li>
+            <li><code>is_active</code></li>
+            <li><code>external_code</code></li>
+          </ul>
+          <p class="text-body-tertiary mb-0">If <code>tax_rate</code> is blank, Clarivo uses the current workspace default tax rate of {{ business.tax_rate|floatformat:2 }}%.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

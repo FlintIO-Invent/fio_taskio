@@ -17,6 +17,12 @@ from .views import (
     business_service_category_create,
     business_service_category_list,
     business_service_category_update,
+    business_service_archive,
+    business_service_create,
+    business_service_import,
+    business_service_list,
+    business_service_sample_csv,
+    business_service_update,
     # staff_lead_email,
 )
 
@@ -55,6 +61,36 @@ urlpatterns = [
         "settings/service-categories/<int:category_id>/archive/",
         business_service_category_archive,
         name="business_service_category_archive",
+    ),
+    path(
+        "settings/services/",
+        business_service_list,
+        name="business_service_list",
+    ),
+    path(
+        "settings/services/create/",
+        business_service_create,
+        name="business_service_create",
+    ),
+    path(
+        "settings/services/import/",
+        business_service_import,
+        name="business_service_import",
+    ),
+    path(
+        "settings/services/sample.csv",
+        business_service_sample_csv,
+        name="business_service_sample_csv",
+    ),
+    path(
+        "settings/services/<int:service_id>/edit/",
+        business_service_update,
+        name="business_service_update",
+    ),
+    path(
+        "settings/services/<int:service_id>/archive/",
+        business_service_archive,
+        name="business_service_archive",
     ),
     # path("staff/leads/<int:lead_id>/email/", staff_lead_email, name="staff_lead_email"),
 ]

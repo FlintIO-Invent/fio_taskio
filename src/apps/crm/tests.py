@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
@@ -9,13 +11,21 @@ from apps.businesses.models import Business, BusinessSubscription, BusinessUser,
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 
 from .forms import PrivateClientForm, PrivateLeadForm
-from .models import Client, Lead, ServiceCategory
+from .models import BusinessService, Client, Lead, ServiceCategory
 
 
 class CRMBusinessScopingTests(TestCase):
     def setUp(self):
-        self.business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
-        self.other_business = Business.objects.create(name="Bravo Workspace", slug="bravo-workspace")
+        self.business = Business.objects.create(
+            name="Alpha Workspace",
+            slug="alpha-workspace",
+            tax_rate=Decimal("6.50"),
+        )
+        self.other_business = Business.objects.create(
+            name="Bravo Workspace",
+            slug="bravo-workspace",
+            tax_rate=Decimal("8.00"),
+        )
 
         self.user = TaskIOUser.objects.create_user(
             email="owner@example.com",
@@ -312,6 +322,184 @@ class CRMBusinessScopingTests(TestCase):
         self.assertTrue(
             ServiceCategory.objects.filter(pk=created_category.pk).exists()
         )
+
+    def test_business_service_rejects_category_from_another_business(self):
+        foreign_category = ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Foreign Category",
+        )
+
+        service = BusinessService(
+            business=self.business,
+            category=foreign_category,
+            name="Cross-tenant service",
+            unit_price=Decimal("25.00"),
+            tax_rate=Decimal("6.50"),
+        )
+
+        with self.assertRaises(ValidationError):
+            service.save()
+
+    def test_business_service_management_is_scoped_and_archives_instead_of_deleting(self):
+        current_category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Diagnostics",
+        )
+        own_service = BusinessService.objects.create(
+            business=self.business,
+            category=current_category,
+            name="Leak Inspection",
+            unit_price=Decimal("75.00"),
+            tax_rate=Decimal("6.50"),
+        )
+        BusinessService.objects.create(
+            business=self.other_business,
+            name="Foreign Service",
+            unit_price=Decimal("99.00"),
+            tax_rate=Decimal("8.00"),
+        )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        list_response = self.client.get(reverse("business_service_list"))
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertContains(list_response, own_service.name)
+        self.assertNotContains(list_response, "Foreign Service")
+
+        create_response = self.client.post(
+            reverse("business_service_create"),
+            {
+                "category": current_category.id,
+                "name": "Emergency Dispatch",
+                "external_code": "EMERGENCY-001",
+                "description": "Priority after-hours response",
+                "unit_price": "125.00",
+                "tax_rate": "",
+                "is_active": "on",
+            },
+            follow=True,
+        )
+
+        created_service = BusinessService.objects.get(external_code="EMERGENCY-001")
+
+        self.assertRedirects(create_response, reverse("business_service_list"))
+        self.assertEqual(created_service.business, self.business)
+        self.assertEqual(created_service.category, current_category)
+        self.assertEqual(created_service.tax_rate, self.business.tax_rate)
+
+        update_response = self.client.post(
+            reverse("business_service_update", args=[created_service.id]),
+            {
+                "category": "",
+                "name": "Emergency Dispatch Premium",
+                "external_code": "EMERGENCY-001",
+                "description": "Priority after-hours response with dispatch notes",
+                "unit_price": "145.00",
+                "tax_rate": "7.25",
+                "is_active": "on",
+            },
+            follow=True,
+        )
+
+        created_service.refresh_from_db()
+
+        self.assertRedirects(update_response, reverse("business_service_list"))
+        self.assertEqual(created_service.name, "Emergency Dispatch Premium")
+        self.assertIsNone(created_service.category)
+        self.assertEqual(created_service.unit_price, Decimal("145.00"))
+        self.assertEqual(created_service.tax_rate, Decimal("7.25"))
+
+        archive_response = self.client.post(
+            reverse("business_service_archive", args=[created_service.id]),
+            follow=True,
+        )
+
+        created_service.refresh_from_db()
+
+        self.assertRedirects(archive_response, reverse("business_service_list"))
+        self.assertFalse(created_service.is_active)
+        self.assertTrue(
+            BusinessService.objects.filter(pk=created_service.pk).exists()
+        )
+
+    def test_business_service_csv_import_uses_current_business_scope_and_defaults(self):
+        existing_category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Maintenance",
+        )
+        foreign_category = ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Diagnostics",
+        )
+        existing_service = BusinessService.objects.create(
+            business=self.business,
+            category=existing_category,
+            name="Pipe Inspection",
+            external_code="PIPE-001",
+            unit_price=Decimal("60.00"),
+            tax_rate=Decimal("3.00"),
+        )
+
+        csv_content = "\n".join(
+            [
+                "name,unit_price,description,tax_rate,category,is_active,external_code",
+                "Pipe Inspection,95.00,Updated inspection package,,Maintenance,true,PIPE-001",
+                "Drain Cleaning,120.00,Deep clean service,,Diagnostics,false,",
+            ]
+        )
+
+        upload = SimpleUploadedFile(
+            "services.csv",
+            csv_content.encode("utf-8"),
+            content_type="text/csv",
+        )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.post(
+            reverse("business_service_import"),
+            {"csv_file": upload},
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("business_service_list"))
+
+        existing_service.refresh_from_db()
+        imported_service = BusinessService.objects.get(name="Drain Cleaning")
+        created_category = ServiceCategory.objects.get(
+            business=self.business,
+            name="Diagnostics",
+        )
+
+        self.assertEqual(existing_service.unit_price, Decimal("95.00"))
+        self.assertEqual(existing_service.tax_rate, self.business.tax_rate)
+        self.assertEqual(existing_service.category, existing_category)
+
+        self.assertEqual(imported_service.business, self.business)
+        self.assertEqual(imported_service.category, created_category)
+        self.assertNotEqual(imported_service.category, foreign_category)
+        self.assertEqual(imported_service.tax_rate, self.business.tax_rate)
+        self.assertFalse(imported_service.is_active)
+
+    def test_business_service_sample_csv_downloads_template(self):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.get(reverse("business_service_sample_csv"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn("attachment; filename=", response["Content-Disposition"])
+        self.assertIn("name,unit_price,description,tax_rate,category,is_active,external_code", response.content.decode("utf-8"))
 
     def test_dashboard_shows_invoicing_links_when_plan_allows_module(self):
         plan = ClarivoPlan.objects.create(

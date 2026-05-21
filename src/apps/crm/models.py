@@ -1,5 +1,9 @@
 from __future__ import annotations
+from decimal import Decimal
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 
@@ -90,6 +94,82 @@ class ServiceCategory(TimeStampedModel):
         if self.business_id is None:
             return self.name
         return f"{self.name} ({self.business})"
+
+
+class BusinessService(TimeStampedModel):
+    business = models.ForeignKey(
+        "businesses.Business",
+        on_delete=models.CASCADE,
+        related_name="business_services",
+    )
+    category = models.ForeignKey(
+        ServiceCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="services",
+    )
+    name = models.CharField(max_length=160)
+    external_code = models.CharField(max_length=80, null=True, blank=True)
+    description = models.TextField(blank=True)
+    unit_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    tax_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[
+            MinValueValidator(Decimal("0.00")),
+            MaxValueValidator(Decimal("100.00")),
+        ],
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name", "pk"]
+        indexes = [
+            models.Index(fields=["business", "is_active", "name"]),
+            models.Index(fields=["business", "category", "is_active"]),
+        ]
+
+    @classmethod
+    def for_business(
+        cls,
+        business,
+        *,
+        include_inactive: bool = False,
+    ) -> models.QuerySet["BusinessService"]:
+        if business is None:
+            return cls.objects.none()
+
+        queryset = cls.objects.filter(business=business)
+        if not include_inactive:
+            queryset = queryset.filter(is_active=True)
+        return queryset.order_by("name", "pk")
+
+    def clean(self):
+        super().clean()
+
+        if self.category_id is None:
+            return
+
+        if self.category.business_id != self.business_id:
+            raise ValidationError(
+                {
+                    "category": "Selected service category must belong to the current workspace.",
+                }
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class Lead(TimeStampedModel):
