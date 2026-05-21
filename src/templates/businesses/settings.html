@@ -42,6 +42,13 @@
               <span class="badge badge-phoenix badge-phoenix-light mb-3">{{ membership.get_role_display }}</span>
               <h2 class="text-white mb-1">{{ business.name }}</h2>
               <p class="text-white text-opacity-75 mb-3">{{ business.email|default:"No business email configured yet." }}</p>
+              {% if business.formatted_address_lines %}
+                <p class="text-white text-opacity-75 mb-3">
+                  {% for line in business.formatted_address_lines %}
+                    {% if not forloop.first %}<br>{% endif %}{{ line }}
+                  {% endfor %}
+                </p>
+              {% endif %}
               <div class="d-flex flex-wrap gap-4 text-white text-opacity-75">
                 <div>
                   <div class="fs-10 text-uppercase">Workspace Name</div>
@@ -54,6 +61,10 @@
                 <div>
                   <div class="fs-10 text-uppercase">Business Type</div>
                   <div class="fw-semibold text-white">{{ business.business_type|default:"Not set" }}</div>
+                </div>
+                <div>
+                  <div class="fs-10 text-uppercase">Locale</div>
+                  <div class="fw-semibold text-white">{{ business.default_locale|default:"Not set" }}</div>
                 </div>
                 <div>
                   <div class="fs-10 text-uppercase">Timezone</div>
@@ -80,8 +91,12 @@
             </div>
             <div class="d-flex justify-content-between">
               <div>
-                <p class="text-body-tertiary fs-10 mb-1">Tax Rate</p>
+                <p class="text-body-tertiary fs-10 mb-1">{{ business.tax_label|default:"Tax" }} Rate</p>
                 <p class="mb-0 fw-semibold">{{ business.tax_rate }}%</p>
+              </div>
+              <div>
+                <p class="text-body-tertiary fs-10 mb-1">Tax Label</p>
+                <p class="mb-0 fw-semibold">{{ business.tax_label|default:"Tax" }}</p>
               </div>
               <div class="text-end">
                 <p class="text-body-tertiary fs-10 mb-1">Status</p>
@@ -204,6 +219,7 @@
               <div class="col-md-6">
                 <label class="form-label" for="{{ form.country.id_for_label }}">Country</label>
                 {{ form.country }}
+                {% if form.country.help_text %}<div class="form-text">{{ form.country.help_text }}</div>{% endif %}
                 {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-6">
@@ -214,7 +230,20 @@
               <div class="col-md-6">
                 <label class="form-label" for="{{ form.timezone.id_for_label }}">Timezone</label>
                 {{ form.timezone }}
+                {% if form.timezone.help_text %}<div class="form-text">{{ form.timezone.help_text }}</div>{% endif %}
                 {% if form.timezone.errors %}<div class="invalid-feedback d-block">{{ form.timezone.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.default_locale.id_for_label }}">Default locale</label>
+                {{ form.default_locale }}
+                {% if form.default_locale.help_text %}<div class="form-text">{{ form.default_locale.help_text }}</div>{% endif %}
+                {% if form.default_locale.errors %}<div class="invalid-feedback d-block">{{ form.default_locale.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.tax_label.id_for_label }}">Tax label</label>
+                {{ form.tax_label }}
+                {% if form.tax_label.help_text %}<div class="form-text">{{ form.tax_label.help_text }}</div>{% endif %}
+                {% if form.tax_label.errors %}<div class="invalid-feedback d-block">{{ form.tax_label.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-4">
                 <label class="form-label" for="{{ form.tax_rate.id_for_label }}">Tax rate</label>
@@ -231,9 +260,46 @@
                 {{ form.invoice_start_number }}
                 {% if form.invoice_start_number.errors %}<div class="invalid-feedback d-block">{{ form.invoice_start_number.errors|striptags }}</div>{% endif %}
               </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="mb-3">
+              <h5 class="mb-1">Business Address</h5>
+              <p class="text-body-tertiary mb-0">Use a flexible address format that works for your country or territory. Postal code is optional.</p>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.address_line_1.id_for_label }}">Address line 1</label>
+                {{ form.address_line_1 }}
+                {% if form.address_line_1.errors %}<div class="invalid-feedback d-block">{{ form.address_line_1.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.address_line_2.id_for_label }}">Address line 2</label>
+                {{ form.address_line_2 }}
+                {% if form.address_line_2.errors %}<div class="invalid-feedback d-block">{{ form.address_line_2.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.city.id_for_label }}">City / locality</label>
+                {{ form.city }}
+                {% if form.city.errors %}<div class="invalid-feedback d-block">{{ form.city.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.region.id_for_label }}">Region / district / province / state</label>
+                {{ form.region }}
+                {% if form.region.errors %}<div class="invalid-feedback d-block">{{ form.region.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.postal_code.id_for_label }}">Postal code</label>
+                {{ form.postal_code }}
+                {% if form.postal_code.help_text %}<div class="form-text">{{ form.postal_code.help_text }}</div>{% endif %}
+                {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
+              </div>
               <div class="col-12">
-                <label class="form-label" for="{{ form.address.id_for_label }}">Address</label>
+                <label class="form-label" for="{{ form.address.id_for_label }}">Address notes</label>
                 {{ form.address }}
+                {% if form.address.help_text %}<div class="form-text">{{ form.address.help_text }}</div>{% endif %}
                 {% if form.address.errors %}<div class="invalid-feedback d-block">{{ form.address.errors|striptags }}</div>{% endif %}
               </div>
             </div>

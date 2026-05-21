@@ -18,7 +18,16 @@ class BusinessAdmin(admin.ModelAdmin):
         "updated_at",
     )
     list_filter = ("is_active", "currency", "country")
-    search_fields = ("name", "slug", "email", "phone")
+    search_fields = (
+        "name",
+        "slug",
+        "email",
+        "phone",
+        "business_type",
+        "city",
+        "region",
+        "postal_code",
+    )
     prepopulated_fields = {"slug": ("name",)}
 
     @admin.display(description="Plan")

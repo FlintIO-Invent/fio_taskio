@@ -11,13 +11,20 @@ class BusinessSettingsForm(forms.ModelForm):
             "business_type",
             "email",
             "phone",
-            "address",
             "country",
             "currency",
             "timezone",
+            "default_locale",
+            "tax_label",
             "tax_rate",
             "invoice_prefix",
             "invoice_start_number",
+            "address_line_1",
+            "address_line_2",
+            "city",
+            "region",
+            "postal_code",
+            "address",
         ]
         widgets = {
             "name": forms.TextInput(
@@ -32,19 +39,18 @@ class BusinessSettingsForm(forms.ModelForm):
             "phone": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "+1 721 555 0100"}
             ),
-            "address": forms.Textarea(
-                attrs={
-                    "class": "form-control",
-                    "rows": 3,
-                    "placeholder": "Business address",
-                }
-            ),
             "country": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Sint Maarten"}
             ),
             "currency": forms.Select(attrs={"class": "form-select"}),
             "timezone": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "UTC"}
+                attrs={"class": "form-control", "placeholder": "Europe/Amsterdam"}
+            ),
+            "default_locale": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "nl-NL or en-SX"}
+            ),
+            "tax_label": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "VAT, BTW, GST, Tax"}
             ),
             "tax_rate": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0, "max": 100, "step": "0.01"}
@@ -55,6 +61,47 @@ class BusinessSettingsForm(forms.ModelForm):
             "invoice_start_number": forms.NumberInput(
                 attrs={"class": "form-control", "min": 1}
             ),
+            "address_line_1": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Street and building number"}
+            ),
+            "address_line_2": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Suite, floor, or additional details"}
+            ),
+            "city": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Amsterdam or Philipsburg"}
+            ),
+            "region": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "North Holland, district, province, or state"}
+            ),
+            "postal_code": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Optional postal or ZIP code"}
+            ),
+            "address": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Optional address notes, landmarks, or mailing details",
+                }
+            ),
+        }
+        labels = {
+            "business_type": "Business type / industry",
+            "default_locale": "Default locale",
+            "tax_label": "Tax label",
+            "address_line_1": "Address line 1",
+            "address_line_2": "Address line 2",
+            "city": "City / locality",
+            "region": "Region / district / province / state",
+            "postal_code": "Postal code",
+            "address": "Address notes",
+        }
+        help_texts = {
+            "country": "Country or territory where this business primarily operates.",
+            "timezone": "Use an IANA timezone like Europe/Amsterdam or America/Lower_Princes.",
+            "default_locale": "Optional locale for future formatting, such as nl-NL, en-SX, or en-US.",
+            "tax_label": "Examples: VAT, BTW, GST, Sales tax, or Tax.",
+            "postal_code": "Optional. Useful in countries like the Netherlands. Businesses in Sint Maarten can leave this blank.",
+            "address": "Optional extra directions, mailing notes, or legacy freeform address details.",
         }
 
 

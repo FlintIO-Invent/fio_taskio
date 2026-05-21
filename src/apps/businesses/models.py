@@ -27,6 +27,11 @@ class Business(TimeStampedModel):
     business_type = models.CharField(max_length=120, blank=True, default="")
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
+    address_line_1 = models.CharField(max_length=255, blank=True, default="")
+    address_line_2 = models.CharField(max_length=255, blank=True, default="")
+    city = models.CharField(max_length=120, blank=True, default="")
+    region = models.CharField(max_length=120, blank=True, default="")
+    postal_code = models.CharField(max_length=40, blank=True, default="")
     address = models.TextField(blank=True)
     country = models.CharField(max_length=100, blank=True)
     currency = models.CharField(
@@ -35,6 +40,8 @@ class Business(TimeStampedModel):
         default=Currency.USD,
     )
     timezone = models.CharField(max_length=100, default="UTC")
+    default_locale = models.CharField(max_length=35, blank=True, default="")
+    tax_label = models.CharField(max_length=40, blank=True, default="Tax")
     tax_rate = models.DecimalField(
         max_digits=5,
         decimal_places=2,
@@ -53,6 +60,32 @@ class Business(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def formatted_address_lines(self) -> list[str]:
+        lines: list[str] = []
+
+        if self.address_line_1:
+            lines.append(self.address_line_1)
+        if self.address_line_2:
+            lines.append(self.address_line_2)
+
+        locality_line = ", ".join(part for part in [self.city, self.region] if part)
+        if locality_line:
+            lines.append(locality_line)
+
+        postal_country_line = " ".join(part for part in [self.postal_code, self.country] if part)
+        if postal_country_line and (lines or self.postal_code):
+            lines.append(postal_country_line)
+
+        if lines:
+            return lines
+
+        return [
+            line.strip()
+            for line in self.address.splitlines()
+            if line.strip()
+        ]
 
     @property
     def has_active_subscription(self) -> bool:

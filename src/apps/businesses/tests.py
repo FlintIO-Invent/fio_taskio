@@ -29,6 +29,31 @@ class BusinessModelTests(TestCase):
             with transaction.atomic():
                 Business.objects.create(name="Clarivo HQ 2", slug="clarivo-hq")
 
+    def test_formatted_address_lines_prefers_structured_fields_and_falls_back_to_legacy_address(self):
+        legacy_business = Business.objects.create(
+            name="Legacy Address Workspace",
+            slug="legacy-address-workspace",
+            address="Front Street, Philipsburg",
+        )
+        structured_business = Business.objects.create(
+            name="Structured Address Workspace",
+            slug="structured-address-workspace",
+            address_line_1="Herengracht 101",
+            city="Amsterdam",
+            region="North Holland",
+            postal_code="1015 BJ",
+            country="Netherlands",
+        )
+
+        self.assertEqual(
+            legacy_business.formatted_address_lines,
+            ["Front Street, Philipsburg"],
+        )
+        self.assertEqual(
+            structured_business.formatted_address_lines,
+            ["Herengracht 101", "Amsterdam, North Holland", "1015 BJ Netherlands"],
+        )
+
 
 class BusinessUserModelTests(TestCase):
     def test_membership_is_unique_per_user_and_business(self):
@@ -236,6 +261,9 @@ class BusinessSettingsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Business Details")
         self.assertContains(response, "Business type / industry")
+        self.assertContains(response, "Default locale")
+        self.assertContains(response, "Tax label")
+        self.assertContains(response, "Address line 1")
         self.assertContains(response, "Clarivo HQ")
 
     def test_admin_can_update_business_settings(self):
@@ -248,13 +276,20 @@ class BusinessSettingsViewTests(TestCase):
                 "business_type": "Cleaning Service",
                 "email": "billing@clarivo.test",
                 "phone": "+1 721 555 0100",
-                "address": "Front Street, Philipsburg",
                 "country": "Sint Maarten",
                 "currency": "XCD",
                 "timezone": "America/Lower_Princes",
+                "default_locale": "en-SX",
+                "tax_label": "TOT",
                 "tax_rate": "6.50",
                 "invoice_prefix": "CLR",
                 "invoice_start_number": "250",
+                "address_line_1": "Front Street 12",
+                "address_line_2": "Suite 4",
+                "city": "Philipsburg",
+                "region": "",
+                "postal_code": "",
+                "address": "Blue building next to the harbor.",
             },
             follow=True,
         )
@@ -266,9 +301,16 @@ class BusinessSettingsViewTests(TestCase):
         self.assertEqual(self.business.business_type, "Cleaning Service")
         self.assertEqual(self.business.currency, "XCD")
         self.assertEqual(self.business.timezone, "America/Lower_Princes")
+        self.assertEqual(self.business.default_locale, "en-SX")
+        self.assertEqual(self.business.tax_label, "TOT")
         self.assertEqual(self.business.tax_rate, Decimal("6.50"))
         self.assertEqual(self.business.invoice_prefix, "CLR")
         self.assertEqual(self.business.invoice_start_number, 250)
+        self.assertEqual(self.business.address_line_1, "Front Street 12")
+        self.assertEqual(self.business.address_line_2, "Suite 4")
+        self.assertEqual(self.business.city, "Philipsburg")
+        self.assertEqual(self.business.postal_code, "")
+        self.assertEqual(self.business.address, "Blue building next to the harbor.")
         self.assertContains(response, "Business settings updated.")
 
     def test_staff_viewer_and_accountant_cannot_edit_business_settings(self):
