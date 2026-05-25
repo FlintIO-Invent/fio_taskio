@@ -48,18 +48,20 @@
             <div class="mb-3">
               <label class="form-label" for="{{ invite_form.email.id_for_label }}">Email</label>
               {{ invite_form.email }}
+              {% if invite_form.email.help_text %}<div class="form-text">{{ invite_form.email.help_text }}</div>{% endif %}
               {% if invite_form.email.errors %}<div class="invalid-feedback d-block">{{ invite_form.email.errors|striptags }}</div>{% endif %}
             </div>
             <div class="mb-3">
               <label class="form-label" for="{{ invite_form.role.id_for_label }}">Role</label>
               {{ invite_form.role }}
+              {% if invite_form.role.help_text %}<div class="form-text">{{ invite_form.role.help_text }}</div>{% endif %}
               {% if invite_form.role.errors %}<div class="invalid-feedback d-block">{{ invite_form.role.errors|striptags }}</div>{% endif %}
             </div>
             <button class="btn btn-primary w-100" type="submit">Create invitation</button>
           </form>
 
           <div class="alert alert-info mt-4 mb-0" role="alert">
-            Invitation links stay tied to this business only and expire automatically after 7 days.
+            Invitation links stay tied to this business only and expire automatically after 7 days. Clarivo MVP does not include a workspace switcher, so each teammate should use a company-specific email address and one role per workspace. Use Admin when someone needs both staff and accountant access.
           </div>
         </div>
       </div>

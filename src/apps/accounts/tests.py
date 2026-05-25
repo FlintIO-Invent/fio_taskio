@@ -13,6 +13,7 @@ from apps.businesses.models import (
     ClarivoPlan,
 )
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
+from apps.businesses.utils import MULTI_WORKSPACE_EMAIL_MESSAGE
 
 from .models import SaaSUserProfile
 
@@ -402,6 +403,46 @@ class BusinessInvitationAcceptanceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already been accepted")
         self.assertFalse(BusinessUser.objects.filter(user=accepted_user, business=self.business).exists())
+
+    def test_accept_invitation_is_blocked_for_user_with_active_other_workspace_membership(self):
+        existing_user = get_user_model().objects.create_user(
+            email="employee@example.com",
+            password="StrongPass123!",
+            first_name="Existing",
+            last_name="Employee",
+        )
+        other_business = Business.objects.create(
+            name="Other Workspace",
+            slug="other-workspace-team",
+            email="hello@otherworkspace.com",
+            country="Aruba",
+        )
+        BusinessUser.objects.create(
+            user=existing_user,
+            business=other_business,
+            role=BusinessUser.Role.STAFF,
+        )
+        invitation = BusinessInvitation.objects.create(
+            business=self.business,
+            email=existing_user.email,
+            role=BusinessUser.Role.ACCOUNTANT,
+            token="cross-workspace-token",
+            invited_by=self.owner,
+        )
+
+        response = self.client.post(
+            reverse("accept_business_invitation", args=[invitation.token]),
+            {
+                "password": "StrongPass123!",
+            },
+        )
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
+        self.assertFalse(BusinessUser.objects.filter(user=existing_user, business=self.business).exists())
+        self.assertContains(response, MULTI_WORKSPACE_EMAIL_MESSAGE)
 
 
 class SaaSProfileViewTests(TestCase):

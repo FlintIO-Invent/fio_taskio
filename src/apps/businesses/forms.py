@@ -140,6 +140,14 @@ class BusinessInvitationForm(forms.Form):
             for role_value, role_label in BusinessUser.Role.choices
             if role_value in assignable_roles
         ]
+        self.fields["email"].help_text = (
+            "Use the employee's company-specific email address. Clarivo MVP keeps "
+            "one active workspace per login and does not include a workspace switcher."
+        )
+        self.fields["role"].help_text = (
+            "Each teammate has one role in this workspace. Use Admin if someone "
+            "needs both staff and accountant access."
+        )
 
     def clean_email(self) -> str:
         return (self.cleaned_data.get("email") or "").strip().lower()

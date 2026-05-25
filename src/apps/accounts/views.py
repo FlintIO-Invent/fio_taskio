@@ -13,9 +13,11 @@ from loguru import logger
 from apps.accounts.models import SaaSUserProfile, TaskIOUser
 from apps.businesses.models import BusinessInvitation, BusinessUser
 from apps.businesses.utils import (
+    MULTI_WORKSPACE_EMAIL_MESSAGE,
     accept_business_invitation_for_user,
     expire_business_invitation_if_needed,
     get_current_business,
+    get_other_active_business_membership_for_user,
     set_current_business,
 )
 
@@ -248,6 +250,21 @@ def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse
         request.user.is_authenticated
         and request.user.email.lower() != invitation.email.lower()
     )
+    existing_workspace_membership = None
+    if existing_user is not None:
+        existing_workspace_membership = BusinessUser.objects.filter(
+            user=existing_user,
+            business=invitation.business,
+        ).first()
+
+    multi_workspace_membership_conflict = None
+    if existing_user is not None and not (
+        existing_workspace_membership is not None and existing_workspace_membership.is_active
+    ):
+        multi_workspace_membership_conflict = get_other_active_business_membership_for_user(
+            existing_user,
+            invitation.business,
+        )
 
     login_form = None
     signup_form = None
@@ -258,6 +275,8 @@ def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse
                 request,
                 "You are signed in as a different user. Please sign out and accept this invite with the invited email address.",
             )
+        elif multi_workspace_membership_conflict is not None:
+            messages.error(request, MULTI_WORKSPACE_EMAIL_MESSAGE)
         elif existing_user is not None:
             if not existing_user.is_active:
                 messages.error(
@@ -346,6 +365,7 @@ def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse
         "existing_user": existing_user,
         "invitation_is_available": invitation_is_available,
         "wrong_authenticated_user": wrong_authenticated_user,
+        "multi_workspace_membership_conflict": multi_workspace_membership_conflict,
         "login_form": login_form,
         "signup_form": signup_form,
     }

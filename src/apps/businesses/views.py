@@ -8,11 +8,14 @@ from django.views.decorators.http import require_http_methods
 from .forms import BusinessInvitationForm, BusinessSettingsForm, BusinessSubscriptionPlanForm
 from .models import BusinessInvitation, BusinessUser, ClarivoPlan
 from .utils import (
+    MULTI_WORKSPACE_EMAIL_MESSAGE,
+    SAME_WORKSPACE_EMAIL_MESSAGE,
     assign_business_subscription_plan,
     business_role_required,
     create_or_refresh_business_invitation,
     get_business_subscription,
     get_current_business,
+    get_other_active_business_membership_for_email,
 )
 
 
@@ -116,9 +119,15 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
             if BusinessUser.objects.filter(
                 business=business,
                 user__email__iexact=invite_form.cleaned_data["email"],
-                is_active=True,
             ).exists():
-                messages.info(request, "This user already belongs to the current workspace.")
+                messages.info(request, SAME_WORKSPACE_EMAIL_MESSAGE)
+                return redirect("business_team_members")
+
+            if get_other_active_business_membership_for_email(
+                email=invite_form.cleaned_data["email"],
+                business=business,
+            ) is not None:
+                messages.error(request, MULTI_WORKSPACE_EMAIL_MESSAGE)
                 return redirect("business_team_members")
 
             invitation, created = create_or_refresh_business_invitation(

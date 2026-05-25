@@ -17,6 +17,8 @@ from .models import (
 )
 from .utils import (
     CURRENT_BUSINESS_SESSION_KEY,
+    MULTI_WORKSPACE_EMAIL_MESSAGE,
+    SAME_WORKSPACE_EMAIL_MESSAGE,
     business_required,
     business_role_required,
     business_has_active_subscription,
@@ -506,3 +508,75 @@ class BusinessInvitationViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(BusinessInvitation.objects.filter(email="owner-2@example.com").exists())
         self.assertContains(response, "Select a valid choice")
+
+    def test_invite_is_blocked_when_email_already_belongs_to_current_workspace(self):
+        existing_user = TaskIOUser.objects.create_user(
+            email="employee@example.com",
+            password="StrongPass123!",
+            first_name="Existing",
+            last_name="Member",
+        )
+        BusinessUser.objects.create(
+            user=existing_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+        self._login(self.owner, BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_team_members"),
+            {
+                "email": existing_user.email,
+                "role": BusinessUser.Role.VIEWER,
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertEqual(
+            BusinessInvitation.objects.filter(
+                business=self.business,
+                email=existing_user.email,
+            ).count(),
+            0,
+        )
+        self.assertContains(response, SAME_WORKSPACE_EMAIL_MESSAGE)
+
+    def test_invite_is_blocked_when_email_has_active_membership_in_other_workspace(self):
+        other_workspace_user = TaskIOUser.objects.create_user(
+            email="shared.employee@example.com",
+            password="StrongPass123!",
+            first_name="Shared",
+            last_name="Employee",
+        )
+        other_business = Business.objects.create(
+            name="Legacy Workspace",
+            slug="legacy-workspace-team",
+            email="hello@legacy.test",
+            country="Curacao",
+        )
+        BusinessUser.objects.create(
+            user=other_workspace_user,
+            business=other_business,
+            role=BusinessUser.Role.STAFF,
+        )
+        self._login(self.owner, BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_team_members"),
+            {
+                "email": other_workspace_user.email,
+                "role": BusinessUser.Role.STAFF,
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertEqual(
+            BusinessInvitation.objects.filter(
+                business=self.business,
+                email=other_workspace_user.email,
+            ).count(),
+            0,
+        )
+        self.assertContains(response, MULTI_WORKSPACE_EMAIL_MESSAGE)

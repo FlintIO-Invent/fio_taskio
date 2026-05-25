@@ -58,6 +58,11 @@ BILLING_MANAGE_ROLES = (
     BusinessUser.Role.ACCOUNTANT,
 )
 SERVICE_MANAGEMENT_ROLES = OWNER_ADMIN_ROLES
+SAME_WORKSPACE_EMAIL_MESSAGE = "This email is already connected to the current workspace."
+MULTI_WORKSPACE_EMAIL_MESSAGE = (
+    "This email is already connected to another workspace. "
+    "Please invite the employee using their company-specific email address."
+)
 
 
 def membership_has_any_role(
@@ -111,6 +116,9 @@ def get_current_business(request: HttpRequest) -> Business | None:
         if business is None:
             fallback_membership = memberships.first()
             if fallback_membership is not None:
+                # Clarivo MVP does not expose a workspace switcher. We keep this
+                # first-membership fallback for legacy multi-workspace accounts
+                # until they can be cleaned up safely.
                 business = fallback_membership.business
 
     set_current_business(request, business)
@@ -360,6 +368,45 @@ def create_default_trial_subscription(
     return subscription
 
 
+def get_other_active_business_membership_for_email(
+    *,
+    email: str,
+    business: Business,
+) -> BusinessUser | None:
+    normalized_email = email.strip().lower()
+    if not normalized_email:
+        return None
+
+    return (
+        BusinessUser.objects.select_related("business", "user")
+        .filter(
+            user__email__iexact=normalized_email,
+            is_active=True,
+            business__is_active=True,
+        )
+        .exclude(business=business)
+        .order_by("created_at", "pk")
+        .first()
+    )
+
+
+def get_other_active_business_membership_for_user(
+    user,
+    business: Business,
+) -> BusinessUser | None:
+    return (
+        BusinessUser.objects.select_related("business", "user")
+        .filter(
+            user=user,
+            is_active=True,
+            business__is_active=True,
+        )
+        .exclude(business=business)
+        .order_by("created_at", "pk")
+        .first()
+    )
+
+
 def assign_business_subscription_plan(
     business: Business,
     plan: ClarivoPlan,
@@ -501,14 +548,23 @@ def accept_business_invitation_for_user(
     if invitation.status != BusinessInvitation.Status.PENDING:
         raise ValueError("This invitation is no longer available.")
 
+    if (getattr(user, "email", "") or "").strip().lower() != invitation.email.lower():
+        raise ValueError("This invitation must be accepted with the invited email address.")
+
     membership = BusinessUser.objects.filter(
         user=user,
         business=invitation.business,
     ).first()
+    other_active_membership = get_other_active_business_membership_for_user(
+        user,
+        invitation.business,
+    )
     created = False
     already_member = False
 
     if membership is None:
+        if other_active_membership is not None:
+            raise ValueError(MULTI_WORKSPACE_EMAIL_MESSAGE)
         membership = BusinessUser.objects.create(
             user=user,
             business=invitation.business,
@@ -519,6 +575,8 @@ def accept_business_invitation_for_user(
     elif membership.is_active:
         already_member = True
     else:
+        if other_active_membership is not None:
+            raise ValueError(MULTI_WORKSPACE_EMAIL_MESSAGE)
         membership.role = invitation.role
         membership.is_active = True
         membership.save(update_fields=["role", "is_active", "updated_at"])
