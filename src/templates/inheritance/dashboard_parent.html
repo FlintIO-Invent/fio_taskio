@@ -85,7 +85,7 @@
                                     <ul class="nav collapse parent show" data-bs-parent="#navbarVerticalCollapse" id="nv-home">
                                         <li class="collapsed-nav-item-title d-none"></li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/crm/agent/dashboard/">
+                                            <a class="nav-link" href="{% url 'agent_dashboard' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
                                             {% if role_access.can_manage_team %}
@@ -95,7 +95,7 @@
                                             {% endif %}
                                             {% if role_access.can_manage_business_settings %}
                                                 <a class="nav-link" href="{% url 'business_settings' %}">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Busisness Settings</span></div>
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                                 </a>
                                             {% endif %}
                                             {% if role_access.can_manage_subscription %}
@@ -166,12 +166,6 @@
                                 <div class="parent-wrapper label-1">
                                     <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-client">
                                         <li class="collapsed-nav-item-title d-none"></li>
-                                        <li class="nav-item">
-                                            <!-- <a class="nav-link" href="/crm/staff/clients/create/">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create new client</span></div>
-                                            </a> -->
-                                            <!-- more inner pages-->
-                                        </li>
                                         <li class="nav-item">
                                             <a class="nav-link" href="{% url 'staff_client_list' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">View All Clients</span></div>
@@ -251,7 +245,7 @@
                   >
                       <span class="navbar-toggle-icon"><span class="toggle-line"></span></span>
                   </button>
-                  <a class="navbar-brand me-1 me-sm-3" href="../index.html">
+                  <a class="navbar-brand me-1 me-sm-3" href="{% url 'agent_dashboard' %}">
                       <div class="d-flex align-items-center">
                           <div class="d-flex align-items-center">
                               <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Clarivo" width="27" />

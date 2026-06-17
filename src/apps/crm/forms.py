@@ -5,6 +5,8 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils.text import slugify
 
+from apps.businesses.models import BusinessUser
+
 from .models import BusinessService, Client, Lead, ServiceCategory
 
 
@@ -45,6 +47,12 @@ class PrivateClientForm(forms.ModelForm):
                 business_memberships__business=business,
                 business_memberships__is_active=True,
                 business_memberships__business__is_active=True,
+                business_memberships__role__in=(
+                    BusinessUser.Role.OWNER,
+                    BusinessUser.Role.ADMIN,
+                    BusinessUser.Role.STAFF,
+                    BusinessUser.Role.ACCOUNTANT,
+                ),
             )
             .distinct()
             .order_by("first_name", "last_name", "email")

@@ -19,13 +19,14 @@ from .models import SaaSUserProfile
 
 
 class CustomerRegistrationViewTests(TestCase):
-    def test_get_renders_registration_page(self):
-        response = self.client.get(reverse("customer_registration"))
+    def test_get_redirects_legacy_signup_to_business_registration(self):
+        response = self.client.get(reverse("customer_registration"), follow=True)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Create your customer account")
+        self.assertRedirects(response, reverse("register_business"))
+        self.assertContains(response, "Standalone customer signup is now legacy.")
+        self.assertContains(response, "Register your business")
 
-    def test_post_creates_customer_account_with_hashed_password(self):
+    def test_post_redirects_legacy_signup_without_creating_account(self):
         response = self.client.post(
             reverse("customer_registration"),
             {
@@ -42,16 +43,13 @@ class CustomerRegistrationViewTests(TestCase):
             follow=True,
         )
 
-        user = get_user_model().objects.get(email="owner@example.com")
+        self.assertRedirects(response, reverse("register_business"))
+        self.assertFalse(get_user_model().objects.filter(email="owner@example.com").exists())
+        self.assertFalse(SaaSUserProfile.objects.exists())
+        self.assertContains(response, "Standalone customer signup is now legacy.")
 
-        self.assertRedirects(response, reverse("customer_registration"))
-        self.assertTrue(user.check_password("StrongPass123!"))
-        self.assertEqual(user.incorporation_status, "UNINCORPORATED")
-        self.assertTrue(SaaSUserProfile.objects.filter(user=user).exists())
-        self.assertContains(response, "Your account has been created.")
-
-    def test_post_rejects_duplicate_email_case_insensitive(self):
-        get_user_model().objects.create_user(
+    def test_post_does_not_process_existing_email_payload(self):
+        existing_user = get_user_model().objects.create_user(
             email="owner@example.com",
             password="StrongPass123!",
             first_name="Existing",
@@ -71,16 +69,15 @@ class CustomerRegistrationViewTests(TestCase):
                 "password1": "StrongPass123!",
                 "password2": "StrongPass123!",
             },
+            follow=True,
         )
 
-        self.assertEqual(response.status_code, 200)
-        form = response.context["form"]
-
-        self.assertTrue(form.is_bound)
+        self.assertRedirects(response, reverse("register_business"))
         self.assertEqual(
-            form.errors["email"],
-            ["An account with this email already exists."],
+            get_user_model().objects.filter(email__iexact="owner@example.com").count(),
+            1,
         )
+        self.assertFalse(SaaSUserProfile.objects.filter(user=existing_user).exists())
 
 
 class BusinessRegistrationViewTests(TestCase):
@@ -470,7 +467,8 @@ class SaaSProfileViewTests(TestCase):
         response = self.client.get(reverse("saas_profile"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Workspace Settings")
+        self.assertContains(response, "Account Profile")
+        self.assertContains(response, "Business-level workspace details and invoice defaults are managed from Business Settings.")
         self.assertTrue(SaaSUserProfile.objects.filter(user=self.user).exists())
 
     def test_post_basic_info_updates_user(self):
@@ -528,4 +526,4 @@ class SaaSProfileViewTests(TestCase):
         self.assertEqual(profile.invoice_accent_color, "#0B6E4F")
         self.assertTrue(profile.show_company_address_on_invoice)
         self.assertFalse(profile.show_tax_id_on_invoice)
-        self.assertContains(response, "Invoice defaults updated.")
+        self.assertContains(response, "Legacy invoice preferences updated.")

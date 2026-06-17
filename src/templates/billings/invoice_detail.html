@@ -133,26 +133,18 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          {% if invoice.lead %}
-          <div class="row g-4 mb-4">
-            <div class="col-12">
+            <div class="col-md-6">
               <div class="invoice-detail-item">
                 <div class="invoice-detail-icon">
-                  <span class="fa-solid fa-user-plus"></span>
+                  <span class="fa-solid fa-clock-rotate-left"></span>
                 </div>
                 <div class="invoice-detail-content">
-                  <div class="invoice-detail-label">Related Lead</div>
-                  <p class="invoice-detail-value">
-                    <a href="{% url 'staff_lead_detail' invoice.lead.pk %}">{{ invoice.lead.first_name }} {{ invoice.lead.last_name }}</a>
-                    <small class="text-body-secondary">({{ invoice.lead.category.name|default:"No category" }})</small>
-                  </p>
+                  <div class="invoice-detail-label">Last Updated</div>
+                  <p class="invoice-detail-value">{{ invoice.updated_at|date:"M d, Y" }}</p>
                 </div>
               </div>
             </div>
           </div>
-          {% endif %}
 
           {% if invoice.lines.all %}
           <div class="table-responsive">
@@ -315,7 +307,22 @@
             </div>
             <div class="invoice-detail-content">
               <div class="invoice-detail-label">Address</div>
-              <p class="invoice-detail-value">{{ invoice.client.street_address }}, {{ invoice.client.district }}</p>
+              <p class="invoice-detail-value">
+                {% if invoice.client.street_address %}
+                  {{ invoice.client.street_address }}
+                {% endif %}
+                {% if invoice.client.district %}
+                  {% if invoice.client.street_address %}, {% endif %}
+                  {{ invoice.client.get_district_display }}
+                {% endif %}
+                {% if invoice.client.country or invoice.client.postal_code %}
+                  <br>
+                  {{ invoice.client.country }}{% if invoice.client.country and invoice.client.postal_code %}, {% endif %}{{ invoice.client.postal_code }}
+                {% endif %}
+                {% if not invoice.client.street_address and not invoice.client.district and not invoice.client.country and not invoice.client.postal_code %}
+                  No address on file.
+                {% endif %}
+              </p>
             </div>
           </div>
         </div>

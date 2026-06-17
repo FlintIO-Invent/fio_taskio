@@ -85,10 +85,10 @@
                                     <ul class="nav collapse parent show" data-bs-parent="#navbarVerticalCollapse" id="nv-home">
                                         <li class="collapsed-nav-item-title d-none"></li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/dashboards/employee_dashboard">
+                                            <a class="nav-link" href="{% url 'agent_dashboard' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
-                                            <a class="nav-link" href="/dashboards/employee_dashboard_profile">
+                                            <a class="nav-link" href="{% url 'saas_profile' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text"> {{ request.user.first_name }}'s  Profile</span></div>
                                             </a>
                                             <!-- more inner pages-->
@@ -116,13 +116,13 @@
                                     <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-service-requests">
                                         <li class="collapsed-nav-item-title d-none">Service Requests</li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/parcels/parcel_registration">
+                                            <a class="nav-link" href="{% url 'staff_lead_create' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Create service request</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/parcels/parcel_view">  
+                                            <a class="nav-link" href="{% url 'staff_lead_list' %}">  
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests </span></div>
                                             </a>
                                             <!-- more inner pages-->
@@ -171,14 +171,13 @@
                                     <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-clients">
                                         <li class="collapsed-nav-item-title d-none">Clients</li>
                                         <li class="nav-item">
-                                            <!-- <a class="nav-link" href="/accounts/customer_registration"> -->
-                                            <a class="nav-link" href="#">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create client (Addons)</span></div>
+                                            <a class="nav-link" href="{% url 'staff_client_create' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create client</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/accounts/customer_view">
+                                            <a class="nav-link" href="{% url 'staff_client_list' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">View Clients</span></div>
                                             </a>
                                             <!-- more inner pages-->
@@ -265,7 +264,7 @@
                   >
                       <span class="navbar-toggle-icon"><span class="toggle-line"></span></span>
                   </button>
-                  <a class="navbar-brand me-1 me-sm-3" href="../index.html">
+                  <a class="navbar-brand me-1 me-sm-3" href="{% url 'agent_dashboard' %}">
                       <div class="d-flex align-items-center">
                           <div class="d-flex align-items-center">
                               <img src="{% static 'assets/img/icons/logo1.png' %}" alt="Clarivo" width="27" />

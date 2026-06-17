@@ -104,7 +104,7 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(
             list(form.fields["assigned_to"].queryset),
-            [self.user],
+            [self.accountant_user, self.user, self.staff_user],
         )
 
     def test_staff_client_detail_blocks_other_business_client(self):
@@ -257,8 +257,12 @@ class CRMBusinessScopingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Request Form Unavailable")
-        self.assertContains(response, "Public Request Form is not included in the current workspace plan")
+        self.assertContains(response, "Request Form Unavailable", status_code=403)
+        self.assertContains(
+            response,
+            "Public Request Form is not included in the current workspace plan",
+            status_code=403,
+        )
         self.assertFalse(Lead.objects.filter(email="blocked-plan@example.com").exists())
 
     def test_agent_dashboard_scopes_metrics_to_current_business(self):
