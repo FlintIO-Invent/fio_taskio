@@ -24,7 +24,6 @@ from apps.businesses.utils import (
 from .forms import (
     BusinessLoginForm,
     BusinessRegistrationForm,
-    CustomerRegistrationForm,
     InvitationAcceptanceSignupForm,
     InvitationExistingUserLoginForm,
     SaaSBasicInfoForm,
@@ -148,41 +147,13 @@ def agent_login(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def customer_registration(request: HttpRequest) -> HttpResponse:
     """
-    Register a new SaaS customer account.
-
-    This first onboarding step captures the customer's account details and
-    creates a login-ready user record with a hashed password.
-
-    Args:
-        request: Incoming Django HTTP request object.
-
-    Returns:
-        The rendered registration form or a redirect back to the form after
-        successful account creation.
+    Redirect legacy standalone customer signup traffic to business workspace signup.
     """
-    if request.method == "POST":
-        form = CustomerRegistrationForm(request.POST)
-
-        if form.is_valid():
-            user: TaskIOUser = form.save()
-            SaaSUserProfile.get_or_create_for_user(user)
-            logger.info("New customer registered with email={}", user.email)
-            messages.success(
-                request,
-                "Your account has been created. We can now use it for customer onboarding.",
-            )
-            return redirect("customer_registration")
-
-        logger.warning(
-            "Customer registration failed for email={}: {}",
-            request.POST.get("email", ""),
-            form.errors.as_json(),
-        )
-
-    else:
-        form = CustomerRegistrationForm()
-
-    return render(request, "accounts/forms/customer_registration.html", {"form": form})
+    messages.info(
+        request,
+        "Standalone customer signup is now legacy. Start by creating a Clarivo workspace instead.",
+    )
+    return redirect("register_business")
 
 
 @require_http_methods(["GET", "POST"])
@@ -383,7 +354,7 @@ def account_logout(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def saas_profile(request: HttpRequest) -> HttpResponse:
     """
-    View and update the SaaS account profile, workspace defaults, and invoice settings.
+    View and update the account profile plus legacy compatibility settings.
     """
     profile = SaaSUserProfile.get_or_create_for_user(request.user)
     active_section = (request.GET.get("section") or "basic").strip().lower()
@@ -407,14 +378,14 @@ def saas_profile(request: HttpRequest) -> HttpResponse:
             workspace_form = SaaSWorkspaceSettingsForm(request.POST, instance=profile)
             if workspace_form.is_valid():
                 workspace_form.save()
-                messages.success(request, "Workspace and billing settings updated.")
+                messages.success(request, "Legacy workspace contact settings updated.")
                 return redirect(f"{reverse('saas_profile')}?section=workspace")
 
         elif section == "invoice":
             invoice_form = SaaSInvoiceSettingsForm(request.POST, instance=profile)
             if invoice_form.is_valid():
                 invoice_form.save()
-                messages.success(request, "Invoice defaults updated.")
+                messages.success(request, "Legacy invoice preferences updated.")
                 return redirect(f"{reverse('saas_profile')}?section=invoice")
 
         logger.warning(
