@@ -2,483 +2,160 @@
 {% load static %}
 
 {% block content %}
-  <div class="content">
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Leads</a></li>
+      <li class="breadcrumb-item active">{{ page_title|default:"Create a new lead" }}</li>
+    </ol>
+  </nav>
 
-  <form class="mb-9" method="POST" novalidate>
+  <form class="mb-9" method="post" novalidate>
     {% csrf_token %}
 
-    <!-- Top bar -->
     <div class="row g-3 flex-between-end mb-5">
       <div class="col-auto">
-        <h2 class="mb-2">Create a new Lead</h2>
-        <h5 class="text-body-tertiary fw-semibold"></h5>
+        <h2 class="mb-2">{{ page_title|default:"Create a new lead" }}</h2>
+        <h5 class="text-body-tertiary fw-semibold">This lead will be saved to {{ current_business.name }}.</h5>
       </div>
-      <div class="col-auto">
-        <button class="btn btn-primary mb-2 mb-sm-0" type="submit">Create</button>
+      <div class="col-auto d-flex gap-2">
+        {% if lead %}
+        <a class="btn btn-phoenix-secondary mb-2 mb-sm-0" href="{% url 'staff_lead_detail' lead.id %}">Cancel</a>
+        {% else %}
+        <a class="btn btn-phoenix-secondary mb-2 mb-sm-0" href="{% url 'staff_lead_list' %}">Cancel</a>
+        {% endif %}
+        <button class="btn btn-primary mb-2 mb-sm-0" type="submit">{{ submit_label|default:"Save lead" }}</button>
       </div>
     </div>
 
-    <!-- Global form errors -->
-    {% if parcel_form.non_field_errors %}
-      <div class="alert alert-danger">{{ parcel_form.non_field_errors }}</div>
-    {% endif %}
-    {% if customer_form and customer_form.non_field_errors %}
-      <div class="alert alert-danger">{{ customer_form.non_field_errors }}</div>
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
     {% endif %}
 
-    <div class="row g-5">
+    <div class="row g-4">
       <div class="col-12 col-xl-8">
-
-        <!-- SECTION 0: Customer status -->
-
-        <!-- SECTION 1: New customer personal data section -->
-        <div class="conditional" data-show-when="lead">
-          <div class="row g-3 flex-between-end mb-5">
-            <!-- <h4 class="mb-3">Customer Form</h4> -->
-
-            <div class="col-md-12">
-              <label class="form-label">Email</label>
-              {{ form.email }}
-              {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Lead Details</h4>
+            <hr class="my-4" />
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Lead Type</label>
+                {{ form.lead_type }}
+                {% if form.lead_type.errors %}<div class="invalid-feedback d-block">{{ form.lead_type.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Status</label>
+                {{ form.status }}
+                {% if form.status.errors %}<div class="invalid-feedback d-block">{{ form.status.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label">Service Category</label>
+                {{ form.category }}
+                {% if form.category.errors %}<div class="invalid-feedback d-block">{{ form.category.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">First Name</label>
+                {{ form.first_name }}
+                {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Last Name</label>
+                {{ form.last_name }}
+                {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label">Company Name</label>
+                {{ form.company_name }}
+                {% if form.company_name.errors %}<div class="invalid-feedback d-block">{{ form.company_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Email</label>
+                {{ form.email }}
+                {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Phone</label>
+                {{ form.phone }}
+                {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|striptags }}</div>{% endif %}
+              </div>
             </div>
-
-            <div class="col-md-6">
-              <label class="form-label">First Name</label>
-              {{ form.first_name }}
-              {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors|striptags }}</div>{% endif %}
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">Last Name</label>
-              {{ form.last_name }}
-              {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors|striptags }}</div>{% endif %}
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">Job Title</label>
-              {{ form.job_title }}
-              {% if form.job_title.errors %}<div class="invalid-feedback d-block">{{ form.job_title.errors|striptags }}</div>{% endif %}
-            </div>
-
-            <div class="col-6">
-              <label class="form-label">Phone Number</label>
-              {{ form.phone }}
-              {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|striptags }}</div>{% endif %}
-            </div>
-
-            <!-- <div class="col-3">
-              <label class="form-label">Address</label>
-              {{ form.address }}
-              {% if form.address.errors %}<div class="invalid-feedback d-block">{{ form.address.errors|striptags }}</div>{% endif %}
-            </div>
-
-
-            <div class="col-3">
-              <label class="form-label">Address</label>
-              {{ form.address }}
-              {% if form.address.errors %}<div class="invalid-feedback d-block">{{ form.address.errors|striptags }}</div>{% endif %}
-            </div> -->
           </div>
         </div>
 
-        <!-- SECTION 3: Parcel Tabs -->
-        <h4 class="mb-3">Business Identity</h4>
-        <div class="row g-0 border-top border-bottom">
-          <div class="col-sm-4">
-            <div class="nav flex-sm-column border-bottom border-bottom-sm-0 border-end-sm fs-9 vertical-tab h-100 justify-content-between"
-                 role="tablist" aria-orientation="vertical">
-
-              <!-- General -->
-              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center active"
-                 id="pricingTab" data-bs-toggle="tab" data-bs-target="#pricingTabContent" role="tab" aria-controls="pricingTabContent" aria-selected="true">
-                <span class="me-sm-2 fs-4 nav-icons" data-feather="tag"></span>
-                <span class="d-none d-sm-inline">General</span>
-              </a>
-
-              <!-- Contact Context -->
-              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
-                 id="restockTab" data-bs-toggle="tab" data-bs-target="#restockTabContent" role="tab" aria-controls="restockTabContent" aria-selected="false">
-                <span class="me-sm-2 fs-4 nav-icons" data-feather="package"></span>
-                <span class="d-none d-sm-inline">Contact Context</span>
-              </a>
-
-              <!-- Location -->
-              <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
-                 id="shippingTab" data-bs-toggle="tab" data-bs-target="#shippingTabContent" role="tab" aria-controls="shippingTabContent" aria-selected="false">
-                <span class="me-sm-2 fs-4 nav-icons" data-feather="truck"></span>
-                <span class="d-none d-sm-inline">Location</span>
-              </a>
-
-              <!-- Financials -->
-              <!-- <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
-                 id="productsTab" data-bs-toggle="tab" data-bs-target="#productsTabContent" role="tab" aria-controls="productsTabContent" aria-selected="false">
-                <span class="me-sm-2 fs-4 nav-icons" data-feather="dollar-sign"></span>
-                <span class="d-none d-sm-inline">Financials</span>
-              </a> -->
-
-              <!-- Schedules & Dates -->
-              <!-- <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
-                 id="datesTab" data-bs-toggle="tab" data-bs-target="#datesTabContent" role="tab" aria-controls="datesTabContent" aria-selected="false">
-                <span class="me-sm-2 fs-4 nav-icons" data-feather="calendar"></span>
-                <span class="d-none d-sm-inline">Sales Context</span>
-              </a> -->
-
-              <!-- Consignor -->
-              <!-- <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
-                 id="consignorTab" data-bs-toggle="tab" data-bs-target="#consignorTabContent" role="tab" aria-controls="consignorTabContent" aria-selected="false">
-                <span class="me-sm-2 fs-4 nav-icons" data-feather="user"></span>
-                <span class="d-none d-sm-inline">Consignor</span>
-              </a> -->
-
-              <!-- BL & References -->
-              <!-- <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
-                 id="blTab" data-bs-toggle="tab" data-bs-target="#blTabContent" role="tab" aria-controls="blTabContent" aria-selected="false">
-                <span class="me-sm-2 fs-4 nav-icons" data-feather="file-text"></span>
-                <span class="d-none d-sm-inline">BL & References</span>
-              </a> -->
-
-              <!-- Risk & Holds -->
-              <!-- <a class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
-                 id="riskTab" data-bs-toggle="tab" data-bs-target="#riskTabContent" role="tab" aria-controls="riskTabContent" aria-selected="false">
-                <span class="me-sm-2 fs-4 nav-icons" data-feather="alert-triangle"></span>
-                <span class="d-none d-sm-inline">Risk & Holds</span>
-              </a> -->
-
-              <!-- Internal Operations -->
-              <a class="nav-link border-end border-end-sm-0 text-center text-sm-start cursor-pointer outline-none d-sm-flex align-items-sm-center"
-                 id="attributesTab" data-bs-toggle="tab" data-bs-target="#attributesTabContent" role="tab" aria-controls="attributesTabContent" aria-selected="false">
-                <span class="me-sm-2 fs-4 nav-icons" data-feather="sliders"></span>
-                <span class="d-none d-sm-inline">Communication</span>
-              </a>
-
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Location</h4>
+            <hr class="my-4" />
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Street Address</label>
+                {{ form.street_address }}
+                {% if form.street_address.errors %}<div class="invalid-feedback d-block">{{ form.street_address.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">District</label>
+                {{ form.district }}
+                {% if form.district.errors %}<div class="invalid-feedback d-block">{{ form.district.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Country</label>
+                {{ form.country }}
+                {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Postal Code</label>
+                {{ form.postal_code }}
+                {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
+              </div>
             </div>
           </div>
+        </div>
 
-          <div class="col-sm-8">
-            <div class="tab-content py-3 ps-sm-4 h-100">
-
-              <!-- GENERAL -->
-              <div class="tab-pane fade show active" id="pricingTabContent" role="tabpanel">
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label class="form-label">Legal Company Name</label>
-                    {{ form.company_name }}
-                    {% if form.company_name.errors %}<div class="invalid-feedback d-block">{{ form.company_name.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-md-6">
-                    <label class="form-label">Industry</label>
-                    {{ form.industry }}
-                    {% if form.industry.errors %}<div class="invalid-feedback d-block">{{ form.industry.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-md-6">
-                    <label class="form-label">Client Type</label>
-                    {{ form.client_type }}
-                    {% if form.client_type.errors %}<div class="invalid-feedback d-block">{{ form.client_type.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-md-6">
-                    <label class="form-label">Registration Number</label>
-                    {{ form.registration_number }}
-                    {% if form.registration_number.errors %}<div class="invalid-feedback d-block">{{ form.registration_number.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                 
-                  <div class="col-md-6">
-                    <label class="form-label">Website</label>
-                    {{ form.website }}
-                    {% if form.website.errors %}<div class="invalid-feedback d-block">{{ form.website.errors|striptags }}</div>{% endif %}
-                  </div>
-                </div>
+        <div class="card">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Notes</h4>
+            <hr class="my-4" />
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Message</label>
+                {{ form.message }}
+                {% if form.message.errors %}<div class="invalid-feedback d-block">{{ form.message.errors|striptags }}</div>{% endif %}
               </div>
-
-              <!-- Contact Context -->
-              <div class="tab-pane fade h-100" id="restockTabContent" role="tabpanel" aria-labelledby="restockTab">
-                <div class="d-flex flex-column h-100">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <label class="form-label">Department</label>
-                      {{ form.department }}
-                      {% if form.department.errors %}<div class="invalid-feedback d-block">{{ form.department.errors|striptags }}</div>{% endif %}
-                    </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">Secondary Email</label>
-                      {{ form.secondary_email }}
-                      {% if form.secondary_email.errors %}<div class="invalid-feedback d-block">{{ form.secondary_email.errors|striptags }}</div>{% endif %}
-                    </div>
-
-
-                    <div class="col-md-6">
-                      <label class="form-label">Secondary Phone</label>
-                      {{ form.secondary_phone }}
-                      {% if form.secondary_phone.errors %}<div class="invalid-feedback d-block">{{ form.secondary_phone.errors|striptags }}</div>{% endif %}
-                    </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">Whatsapp Number</label>
-                      {{ form.whatsapp_number }}
-                      {% if form.whatsapp_number.errors %}<div class="invalid-feedback d-block">{{ form.whatsapp_number.errors|striptags }}</div>{% endif %}
-                    </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">Preferred Contact Method</label>
-                      {{ form.preferred_contact_method }}
-                      {% if form.preferred_contact_method.errors %}<div class="invalid-feedback d-block">{{ form.preferred_contact_method.errors|striptags }}</div>{% endif %}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Location -->
-              <div class="tab-pane fade h-100" id="shippingTabContent" role="tabpanel" aria-labelledby="shippingTab">
-                <div class="d-flex flex-column h-100">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <label class="form-label">Street Address</label>
-                      {{ form.street_address }}
-                      {% if form.street_address.errors %}<div class="invalid-feedback d-block">{{ form.street_address.errors|striptags }}</div>{% endif %}
-                    </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">District</label>
-                      {{ form.district }}
-                      {% if form.district.errors %}<div class="invalid-feedback d-block">{{ form.district.errors|striptags }}</div>{% endif %}
-                    </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">Country</label>
-                      {{ form.country }}
-                      {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
-                    </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">Postal Code</label>
-                      {{ form.postal_code }}
-                      {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
-                    </div>
-                  
-                  </div>
-                </div>
-              </div>
-
-              <!-- FINANCIALS -->
-              <!-- <div class="tab-pane fade" id="productsTabContent" role="tabpanel" aria-labelledby="productsTab">
-                <h5 class="mb-3 text-body-highlight">Financials</h5>
-
-                <div class="row g-3 flex-1 mb-4">
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Payment Status</h5>
-                    {{ parcel_form.payment_status }}
-                    {% if parcel_form.payment_status.errors %}<div class="invalid-feedback d-block">{{ parcel_form.payment_status.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Declared Value</h5>
-                    {{ parcel_form.declared_value }}
-                    {% if parcel_form.declared_value.errors %}<div class="invalid-feedback d-block">{{ parcel_form.declared_value.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Insurance Value</h5>
-                    {{ parcel_form.insurance_value }}
-                    {% if parcel_form.insurance_value.errors %}<div class="invalid-feedback d-block">{{ parcel_form.insurance_value.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Shipping Cost</h5>
-                    {{ parcel_form.shipping_cost }}
-                    {% if parcel_form.shipping_cost.errors %}<div class="invalid-feedback d-block">{{ parcel_form.shipping_cost.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Currency</h5>
-                    {{ parcel_form.currency }}
-                    {% if parcel_form.currency.errors %}<div class="invalid-feedback d-block">{{ parcel_form.currency.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Incoterms</h5>
-                    {{ parcel_form.incoterms }}
-                    {% if parcel_form.incoterms.errors %}<div class="invalid-feedback d-block">{{ parcel_form.incoterms.errors|striptags }}</div>{% endif %}
-                  </div>
-                </div>
-              </div> -->
-
-              <!-- SCHEDULES & DATES -->
-              <!-- <div class="tab-pane fade" id="datesTabContent" role="tabpanel" aria-labelledby="datesTab">
-                <h5 class="mb-3 text-body-highlight">Schedules & Dates</h5>
-
-                <div class="row g-3">
-                  <div class="col-12 col-lg-4">
-                    <h5 class="mb-2 text-body-highlight">ETD</h5>
-                    {{ parcel_form.etd }}
-                    {% if parcel_form.etd.errors %}<div class="invalid-feedback d-block">{{ parcel_form.etd.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-4">
-                    <h5 class="mb-2 text-body-highlight">ETA</h5>
-                    {{ parcel_form.eta }}
-                    {% if parcel_form.eta.errors %}<div class="invalid-feedback d-block">{{ parcel_form.eta.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-4">
-                    <h5 class="mb-2 text-body-highlight">Issue Date</h5>
-                    {{ parcel_form.issue_date }}
-                    {% if parcel_form.issue_date.errors %}<div class="invalid-feedback d-block">{{ parcel_form.issue_date.errors|striptags }}</div>{% endif %}
-                  </div>
-                </div>
-              </div> -->
-
-              <!-- CONSIGNOR -->
-              <!-- <div class="tab-pane fade" id="consignorTabContent" role="tabpanel" aria-labelledby="consignorTab">
-                <h5 class="mb-3 text-body-highlight">Consignor</h5>
-
-                <div class="row g-3">
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Name</h5>
-                    {{ parcel_form.consignor_name }}
-                    {% if parcel_form.consignor_name.errors %}<div class="invalid-feedback d-block">{{ parcel_form.consignor_name.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Contact</h5>
-                    {{ parcel_form.consignor_contact }}
-                    {% if parcel_form.consignor_contact.errors %}<div class="invalid-feedback d-block">{{ parcel_form.consignor_contact.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12">
-                    <h5 class="mb-2 text-body-highlight">Address</h5>
-                    {{ parcel_form.consignor_address }}
-                    {% if parcel_form.consignor_address.errors %}<div class="invalid-feedback d-block">{{ parcel_form.consignor_address.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Country (ISO)</h5>
-                    {{ parcel_form.consignor_country_iso }}
-                    {% if parcel_form.consignor_country_iso.errors %}<div class="invalid-feedback d-block">{{ parcel_form.consignor_country_iso.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Tax ID Number</h5>
-                    {{ parcel_form.tax_id_number }}
-                    {% if parcel_form.tax_id_number.errors %}<div class="invalid-feedback d-block">{{ parcel_form.tax_id_number.errors|striptags }}</div>{% endif %}
-                  </div>
-                </div>
-              </div> -->
-
-              <!-- BL & REFERENCES -->
-              <!-- <div class="tab-pane fade" id="blTabContent" role="tabpanel" aria-labelledby="blTab">
-                <h5 class="mb-3 text-body-highlight">Bills of Lading & References</h5>
-
-                <div class="row g-3">
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Master B/L No.</h5>
-                    {{ parcel_form.master_bl_no }}
-                    {% if parcel_form.master_bl_no.errors %}<div class="invalid-feedback d-block">{{ parcel_form.master_bl_no.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">House B/L No.</h5>
-                    {{ parcel_form.house_bl_no }}
-                    {% if parcel_form.house_bl_no.errors %}<div class="invalid-feedback d-block">{{ parcel_form.house_bl_no.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12">
-                    <h5 class="mb-2 text-body-highlight">Marks & Numbers (Repeat)</h5>
-                    {{ parcel_form.marks_numbers }}
-                    {% if parcel_form.marks_numbers.errors %}<div class="invalid-feedback d-block">{{ parcel_form.marks_numbers.errors|striptags }}</div>{% endif %}
-                  </div>
-                </div>
-              </div> -->
-
-              <!-- RISK & HOLDS -->
-              <!-- <div class="tab-pane fade" id="riskTabContent" role="tabpanel" aria-labelledby="riskTab">
-                <h5 class="mb-3 text-body-highlight">Risk & Holds</h5>
-
-                <div class="row g-3">
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Risk Flag</h5>
-                    {{ parcel_form.risk_flag }}
-                    {% if parcel_form.risk_flag.errors %}<div class="invalid-feedback d-block">{{ parcel_form.risk_flag.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12 col-lg-6">
-                    <h5 class="mb-2 text-body-highlight">Hold Code</h5>
-                    {{ parcel_form.hold_code }}
-                    {% if parcel_form.hold_code.errors %}<div class="invalid-feedback d-block">{{ parcel_form.hold_code.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-12">
-                    <h5 class="mb-2 text-body-highlight">Hold Reason</h5>
-                    {{ parcel_form.hold_reason }}
-                    {% if parcel_form.hold_reason.errors %}<div class="invalid-feedback d-block">{{ parcel_form.hold_reason.errors|striptags }}</div>{% endif %}
-                  </div>
-                </div>
-              </div> -->
-
-              <!-- INTERNAL OPERATIONS -->
-              <div class="tab-pane fade" id="attributesTabContent" role="tabpanel" aria-labelledby="attributesTab">
-                <h5 class="mb-3 text-body-highlight">Internal Operations</h5>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label class="form-label">Message</label>
-                    {{ form.message }}
-                    {% if form.message.errors %}<div class="invalid-feedback d-block">{{ form.message.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-md-6">
-                    <label class="form-label">Communication Notes</label>
-                    {{ form.communication_notes }}
-                    {% if form.communication_notes.errors %}<div class="invalid-feedback d-block">{{ form.communication_notes.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-md-6">
-                    <label class="form-label">Notes</label>
-                    {{ form.notes }}
-                    {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors|striptags }}</div>{% endif %}
-                  </div>
-
-                  <div class="col-md-6">
-                    <label class="form-label">consent to contact</label>
-                    {{ form.consent_to_contact }}
-                    {% if form.consent_to_contact.errors %}<div class="invalid-feedback d-block">{{ form.consent_to_contact.errors|striptags }}</div>{% endif %}
-                  </div>
-                </div>
+              <div class="col-12">
+                <label class="form-label">Internal Notes</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors|striptags }}</div>{% endif %}
               </div>
             </div>
           </div>
         </div>
       </div>
 
-
+      <div class="col-12 col-xl-4">
+        <div class="card">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Visibility</h4>
+            <hr class="my-4" />
+            <div class="form-check mb-3">
+              {{ form.consent_to_contact }}
+              <label class="form-check-label" for="{{ form.consent_to_contact.id_for_label }}">
+                {{ form.consent_to_contact.label }}
+              </label>
+              {% if form.consent_to_contact.errors %}<div class="invalid-feedback d-block">{{ form.consent_to_contact.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                {{ form.is_active.label }}
+              </label>
+              {% if form.is_active.errors %}<div class="invalid-feedback d-block">{{ form.is_active.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-
-    <!-- Raw error dumps (optional) -->
-    {% if form and form.errors %}
-      <pre class="mt-3 small text-danger">{{ form.errors }}</pre>
-    {% endif %}
-    {% if parcel_form and parcel_form.errors %}
-      <pre class="mt-3 small text-danger">{{ parcel_form.errors }}</pre>
-    {% endif %}
-    {% if customer_form and customer_form.errors %}
-      <pre class="mt-3 small text-danger">{{ customer_form.errors }}</pre>
-    {% endif %}
   </form>
-  
-
-  <footer class="footer position-absolute">
-    <div class="row g-0 justify-content-between align-items-center h-100">
-      <div class="col-12 col-sm-auto text-center">
-        <p class="mb-0 mt-2 mt-sm-0 text-body">
-          Thank you for creating with FlintIO<span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;
-        </p>
-      </div>
-      <div class="col-12 col-sm-auto text-center">
-        <p class="mb-0 text-body-tertiary text-opacity-85">v1.0.0</p>
-      </div>
-    </div>
-  </footer>
 </div>
 {% endblock %}

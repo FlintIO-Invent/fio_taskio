@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     public_request,
+    public_request_entry,
     public_thank_you,
     agent_dashboard,
     staff_client_list,
@@ -11,16 +12,40 @@ from .views import (
     staff_client_update,
     client_detail_view,
     staff_lead_detail,
+    staff_lead_convert_to_client,
+    staff_lead_create_invoice,
+    staff_lead_update,
+    business_service_category_archive,
+    business_service_category_create,
+    business_service_category_list,
+    business_service_category_update,
+    business_service_archive,
+    business_service_create,
+    business_service_import,
+    business_service_list,
+    business_service_sample_csv,
+    business_service_update,
     # staff_lead_email,
 )
 
 urlpatterns = [
     path("agent/dashboard/", agent_dashboard, name="agent_dashboard"),
-    path("public_request/", public_request, name="public_request"),
+    path("public_request/", public_request_entry, name="public_request_entry"),
+    path("public_request/<slug:business_slug>/", public_request, name="public_request"),
     path("thanks/", public_thank_you, name="public_thank_you"),
     path("staff/leads/", staff_lead_list, name="staff_lead_list"),
     path("staff/leads/create/", staff_lead_create, name="staff_lead_create"),
-    
+    path("staff/leads/<int:lead_id>/edit/", staff_lead_update, name="staff_lead_update"),
+    path(
+        "staff/leads/<int:lead_id>/convert-to-client/",
+        staff_lead_convert_to_client,
+        name="staff_lead_convert_to_client",
+    ),
+    path(
+        "staff/leads/<int:lead_id>/create-invoice/",
+        staff_lead_create_invoice,
+        name="staff_lead_create_invoice",
+    ),
     path("staff/clients/create/", staff_client_create, name="staff_client_create"),
     path("staff/clients/", staff_client_list, name="staff_client_list"),
     path("staff/clients/<int:client_id>/edit/", staff_client_update, name="staff_client_update"),
@@ -28,5 +53,55 @@ urlpatterns = [
     path("staff/clients/all/", client_detail_view, name="client_detail_view"),
 
     path("staff/leads/<int:lead_id>/", staff_lead_detail, name="staff_lead_detail"),
+    path(
+        "settings/service-categories/",
+        business_service_category_list,
+        name="business_service_category_list",
+    ),
+    path(
+        "settings/service-categories/create/",
+        business_service_category_create,
+        name="business_service_category_create",
+    ),
+    path(
+        "settings/service-categories/<int:category_id>/edit/",
+        business_service_category_update,
+        name="business_service_category_update",
+    ),
+    path(
+        "settings/service-categories/<int:category_id>/archive/",
+        business_service_category_archive,
+        name="business_service_category_archive",
+    ),
+    path(
+        "settings/services/",
+        business_service_list,
+        name="business_service_list",
+    ),
+    path(
+        "settings/services/create/",
+        business_service_create,
+        name="business_service_create",
+    ),
+    path(
+        "settings/services/import/",
+        business_service_import,
+        name="business_service_import",
+    ),
+    path(
+        "settings/services/sample.csv",
+        business_service_sample_csv,
+        name="business_service_sample_csv",
+    ),
+    path(
+        "settings/services/<int:service_id>/edit/",
+        business_service_update,
+        name="business_service_update",
+    ),
+    path(
+        "settings/services/<int:service_id>/archive/",
+        business_service_archive,
+        name="business_service_archive",
+    ),
     # path("staff/leads/<int:lead_id>/email/", staff_lead_email, name="staff_lead_email"),
 ]

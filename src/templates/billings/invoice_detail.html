@@ -100,6 +100,17 @@
             <div class="col-md-6">
               <div class="invoice-detail-item">
                 <div class="invoice-detail-icon">
+                  <span class="fa-solid fa-coins"></span>
+                </div>
+                <div class="invoice-detail-content">
+                  <div class="invoice-detail-label">Currency</div>
+                  <p class="invoice-detail-value fw-semibold">{{ invoice.currency_code }}</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="invoice-detail-item">
+                <div class="invoice-detail-icon">
                   <span class="fa-solid fa-user"></span>
                 </div>
                 <div class="invoice-detail-content">
@@ -122,26 +133,18 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          {% if invoice.lead %}
-          <div class="row g-4 mb-4">
-            <div class="col-12">
+            <div class="col-md-6">
               <div class="invoice-detail-item">
                 <div class="invoice-detail-icon">
-                  <span class="fa-solid fa-user-plus"></span>
+                  <span class="fa-solid fa-clock-rotate-left"></span>
                 </div>
                 <div class="invoice-detail-content">
-                  <div class="invoice-detail-label">Related Lead</div>
-                  <p class="invoice-detail-value">
-                    <a href="{% url 'staff_lead_detail' invoice.lead.pk %}">{{ invoice.lead.first_name }} {{ invoice.lead.last_name }}</a>
-                    <small class="text-body-secondary">({{ invoice.lead.category.name|default:"No category" }})</small>
-                  </p>
+                  <div class="invoice-detail-label">Last Updated</div>
+                  <p class="invoice-detail-value">{{ invoice.updated_at|date:"M d, Y" }}</p>
                 </div>
               </div>
             </div>
           </div>
-          {% endif %}
 
           {% if invoice.lines.all %}
           <div class="table-responsive">
@@ -159,25 +162,25 @@
                 <tr>
                   <td>{{ line.description }}</td>
                   <td class="text-end">{{ line.quantity }}</td>
-                  <td class="text-end">${{ line.unit_price }}</td>
-                  <td class="text-end">${{ line.line_total }}</td>
+                  <td class="text-end">{{ invoice.currency_code }} {{ line.unit_price }}</td>
+                  <td class="text-end">{{ invoice.currency_code }} {{ line.line_total }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
               <tfoot>
                 <tr>
                   <td colspan="3" class="text-end fw-bold">Subtotal:</td>
-                  <td class="text-end fw-bold">${{ invoice.subtotal }}</td>
+                  <td class="text-end fw-bold">{{ invoice.currency_code }} {{ invoice.subtotal }}</td>
                 </tr>
                 {% if invoice.tax %}
                 <tr>
-                  <td colspan="3" class="text-end">Tax:</td>
-                  <td class="text-end">${{ invoice.tax }}</td>
+                  <td colspan="3" class="text-end">Tax ({{ invoice.tax_rate_percentage }}%):</td>
+                  <td class="text-end">{{ invoice.currency_code }} {{ invoice.tax }}</td>
                 </tr>
                 {% endif %}
                 <tr>
                   <td colspan="3" class="text-end fw-bold">Total:</td>
-                  <td class="text-end fw-bold">${{ invoice.total }}</td>
+                  <td class="text-end fw-bold">{{ invoice.currency_code }} {{ invoice.total }}</td>
                 </tr>
               </tfoot>
             </table>
@@ -212,40 +215,46 @@
           <h5 class="mb-0">Actions</h5>
         </div>
         <div class="card-body">
-          <div class="d-grid gap-2">
-            {% if invoice.status == 'DRAFT' %}
-            <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-phoenix-warning">
-              <span class="fa-solid fa-edit me-2"></span>Edit Invoice
-            </a>
-            <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
-              {% csrf_token %}
-              <input type="hidden" name="status" value="SENT">
-              <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as sent?')">
-                <span class="fa-solid fa-paper-plane me-2"></span>Mark as Sent
-              </button>
-            </form>
-            {% endif %}
+          {% if role_access.can_manage_invoices %}
+            <div class="d-grid gap-2">
+              {% if invoice.status == 'DRAFT' %}
+              <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-phoenix-warning">
+                <span class="fa-solid fa-edit me-2"></span>Edit Invoice
+              </a>
+              <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="SENT">
+                <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as sent?')">
+                  <span class="fa-solid fa-paper-plane me-2"></span>Mark as Sent
+                </button>
+              </form>
+              {% endif %}
 
-            {% if invoice.status == 'SENT' %}
-            <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
-              {% csrf_token %}
-              <input type="hidden" name="status" value="PAID">
-              <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as paid?')">
-                <span class="fa-solid fa-check me-2"></span>Mark as Paid
-              </button>
-            </form>
-            {% endif %}
+              {% if invoice.status == 'SENT' %}
+              <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="PAID">
+                <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as paid?')">
+                  <span class="fa-solid fa-check me-2"></span>Mark as Paid
+                </button>
+              </form>
+              {% endif %}
 
-            {% if invoice.status != 'CANCELLED' %}
-            <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
-              {% csrf_token %}
-              <input type="hidden" name="status" value="CANCELLED">
-              <button type="submit" class="btn btn-phoenix-danger w-100" onclick="return confirm('Cancel this invoice? This action cannot be undone.')">
-                <span class="fa-solid fa-times me-2"></span>Cancel Invoice
-              </button>
-            </form>
-            {% endif %}
-          </div>
+              {% if invoice.status != 'CANCELLED' %}
+              <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="CANCELLED">
+                <button type="submit" class="btn btn-phoenix-danger w-100" onclick="return confirm('Cancel this invoice? This action cannot be undone.')">
+                  <span class="fa-solid fa-times me-2"></span>Cancel Invoice
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="alert alert-light border mb-0" role="alert">
+              You have read-only invoice access in this workspace.
+            </div>
+          {% endif %}
         </div>
       </div>
 
@@ -298,7 +307,22 @@
             </div>
             <div class="invoice-detail-content">
               <div class="invoice-detail-label">Address</div>
-              <p class="invoice-detail-value">{{ invoice.client.street_address }}, {{ invoice.client.district }}</p>
+              <p class="invoice-detail-value">
+                {% if invoice.client.street_address %}
+                  {{ invoice.client.street_address }}
+                {% endif %}
+                {% if invoice.client.district %}
+                  {% if invoice.client.street_address %}, {% endif %}
+                  {{ invoice.client.get_district_display }}
+                {% endif %}
+                {% if invoice.client.country or invoice.client.postal_code %}
+                  <br>
+                  {{ invoice.client.country }}{% if invoice.client.country and invoice.client.postal_code %}, {% endif %}{{ invoice.client.postal_code }}
+                {% endif %}
+                {% if not invoice.client.street_address and not invoice.client.district and not invoice.client.country and not invoice.client.postal_code %}
+                  No address on file.
+                {% endif %}
+              </p>
             </div>
           </div>
         </div>

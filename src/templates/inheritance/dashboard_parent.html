@@ -11,7 +11,7 @@
     <!-- ===============================================-->
     <!--    Document Title-->
     <!-- ===============================================-->
-    <title>TaskIO - Tenant Management System</title>
+    <title>Clarivo</title>
 
 
     <!-- ===============================================-->
@@ -85,12 +85,24 @@
                                     <ul class="nav collapse parent show" data-bs-parent="#navbarVerticalCollapse" id="nv-home">
                                         <li class="collapsed-nav-item-title d-none"></li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/crm/agent/dashboard/">
+                                            <a class="nav-link" href="{% url 'agent_dashboard' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
-                                            <a class="nav-link" href="{% url 'saas_profile' %}">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">Workspace Settings</span></div>
-                                            </a>
+                                            {% if role_access.can_manage_team %}
+                                                <a class="nav-link" href="{% url 'business_team_members' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Team Members</span></div>
+                                                </a>
+                                            {% endif %}
+                                            {% if role_access.can_manage_business_settings %}
+                                                <a class="nav-link" href="{% url 'business_settings' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
+                                                </a>
+                                            {% endif %}
+                                            {% if role_access.can_manage_subscription %}
+                                                <a class="nav-link" href="{% url 'business_subscription' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Subscription</span></div>
+                                                </a>
+                                            {% endif %}
                                             <!-- more inner pages-->
                                         </li>
                                     </ul>
@@ -101,31 +113,49 @@
                         <!-- Customer Management Section -->
                         <li class="nav-item">
                             <!-- label-->
-                            <p class="navbar-vertical-label">Customer Management</p>
+                            <p class="navbar-vertical-label">Workspace</p>
                             <hr class="navbar-vertical-line" />
 
-                            <!-- parent pages Parcel Customer Management-->
-                            <div class="nav-item-wrapper">
-                                <a class="nav-link dropdown-indicator label-1" href="#nv-parcel-invoice" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-parcel-invoice">
-                                    <div class="d-flex align-items-center">
-                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Invoice</span>
+                            {% if module_access.invoicing and role_access.can_view_invoices %}
+                                <div class="nav-item-wrapper">
+                                    <a class="nav-link dropdown-indicator label-1" href="#nv-billing" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-billing">
+                                        <div class="d-flex align-items-center">
+                                            <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                            <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Invoices</span>
+                                        </div>
+                                    </a>
+                                    <div class="parent-wrapper label-1">
+                                        <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-billing">
+                                            <li class="collapsed-nav-item-title d-none"></li>
+                                            <li class="nav-item">
+                                                <a class="nav-link" href="{% url 'invoice_list' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">View All Invoices</span></div>
+                                                </a>
+                                            </li>
+                                        </ul>
                                     </div>
-                                </a>
-                                <div class="parent-wrapper label-1">
-                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-parcel-invoice">
-                                        <li class="collapsed-nav-item-title d-none"></li>
-                                        <li class="nav-item">
-                                            <a class="nav-link" href="/billings/">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">View All Invoices </span></div>
-                                            </a>
-                                            <!-- more inner pages-->
-                                        </li>
-                                    </ul>
                                 </div>
-                            </div>
+                            {% elif module_access.invoicing %}
+                                <div class="nav-item-wrapper">
+                                    <span class="nav-link label-1 d-flex align-items-center justify-content-between text-body-tertiary">
+                                        <span class="d-flex align-items-center">
+                                            <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Invoices</span>
+                                        </span>
+                                        <span class="badge badge-phoenix badge-phoenix-secondary">Restricted</span>
+                                    </span>
+                                </div>
+                            {% else %}
+                                <div class="nav-item-wrapper">
+                                    <span class="nav-link label-1 d-flex align-items-center justify-content-between text-body-tertiary">
+                                        <span class="d-flex align-items-center">
+                                            <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Invoices</span>
+                                        </span>
+                                        <span class="badge badge-phoenix badge-phoenix-warning">Locked</span>
+                                    </span>
+                                </div>
+                            {% endif %}
 
-                            <!-- parent pages Client Manifest-->
+                            <!-- client navigation -->
                             <div class="nav-item-wrapper">
                                 <a class="nav-link dropdown-indicator label-1" href="#nv-client" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-client">
                                     <div class="d-flex align-items-center">
@@ -137,12 +167,6 @@
                                     <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-client">
                                         <li class="collapsed-nav-item-title d-none"></li>
                                         <li class="nav-item">
-                                            <!-- <a class="nav-link" href="/crm/staff/clients/create/">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create new client</span></div>
-                                            </a> -->
-                                            <!-- more inner pages-->
-                                        </li>
-                                        <li class="nav-item">
                                             <a class="nav-link" href="{% url 'staff_client_list' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">View All Clients</span></div>
                                             </a>
@@ -150,7 +174,7 @@
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link" href="{% url 'staff_lead_list' %}">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">View All Leads</span></div>
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
@@ -159,36 +183,41 @@
                             </div>
                         </li>
 
-                        <!-- Apps Section Employee-->
+                        <!-- Module Section -->
                         <li class="nav-item">
                             <!-- label-->
-                            <p class="navbar-vertical-label">Productivity</p>
+                            <p class="navbar-vertical-label">Modules</p>
                             <hr class="navbar-vertical-line"/>
                             
-                            <!-- parent pages-->
-                            <div class="nav-item-wrapper"> 
-                                <a class="nav-link dropdown-indicator label-1" href="#nv-calendar" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-calendar">
-                                    <div class="d-flex align-items-center">
-                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                        <span class="nav-link-icon"><span data-feather="calendar"></span></span><span class="nav-link-text">Quotes</span>
-                                    </div>
-                                </a>
+                            <div class="nav-item-wrapper">
+                                <span class="nav-link label-1 d-flex align-items-center justify-content-between {% if not module_access.appointments %}text-body-tertiary{% endif %}">
+                                    <span class="d-flex align-items-center">
+                                        <span class="nav-link-icon"><span data-feather="calendar"></span></span><span class="nav-link-text">Appointments</span>
+                                    </span>
+                                    <span class="badge badge-phoenix {% if module_access.appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
+                                        {% if module_access.appointments %}Included{% else %}Locked{% endif %}
+                                    </span>
+                                </span>
                             </div>
                             <div class="nav-item-wrapper">
-                                <a class="nav-link dropdown-indicator label-1" href="#nv-to-do-list" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="#nv-to-do-list">
-                                    <div class="d-flex align-items-center">
-                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                        <span class="nav-link-icon"><span data-feather="list"></span></span><span class="nav-link-text">Jobs</span>
-                                    </div>
-                                </a>
+                                <span class="nav-link label-1 d-flex align-items-center justify-content-between {% if not module_access.memberships %}text-body-tertiary{% endif %}">
+                                    <span class="d-flex align-items-center">
+                                        <span class="nav-link-icon"><span data-feather="users"></span></span><span class="nav-link-text">Memberships</span>
+                                    </span>
+                                    <span class="badge badge-phoenix {% if module_access.memberships %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
+                                        {% if module_access.memberships %}Included{% else %}Locked{% endif %}
+                                    </span>
+                                </span>
                             </div>
-                            <div class="nav-item-wrapper"> 
-                                <a class="nav-link dropdown-indicator label-1" href="#nv-calendar" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-calendar">
-                                    <div class="d-flex align-items-center">
-                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                        <span class="nav-link-icon"><span data-feather="calendar"></span></span><span class="nav-link-text">Marketing</span>
-                                    </div>
-                                </a>
+                            <div class="nav-item-wrapper">
+                                <span class="nav-link label-1 d-flex align-items-center justify-content-between {% if not module_access.public_booking %}text-body-tertiary{% endif %}">
+                                    <span class="d-flex align-items-center">
+                                        <span class="nav-link-icon"><span data-feather="globe"></span></span><span class="nav-link-text">Public Booking</span>
+                                    </span>
+                                    <span class="badge badge-phoenix {% if module_access.public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
+                                        {% if module_access.public_booking %}Included{% else %}Locked{% endif %}
+                                    </span>
+                                </span>
                             </div>
                             
                         </li>
@@ -216,11 +245,11 @@
                   >
                       <span class="navbar-toggle-icon"><span class="toggle-line"></span></span>
                   </button>
-                  <a class="navbar-brand me-1 me-sm-3" href="../index.html">
+                  <a class="navbar-brand me-1 me-sm-3" href="{% url 'agent_dashboard' %}">
                       <div class="d-flex align-items-center">
                           <div class="d-flex align-items-center">
-                              <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Bera Septic Services" width="27" />
-                              <h5 class="logo-text ms-2 d-none d-sm-block">TaskIO</h5>
+                              <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Clarivo" width="27" />
+                              <h5 class="logo-text ms-2 d-none d-sm-block">Clarivo</h5>
                           </div>
                       </div>
                   </a>
@@ -254,7 +283,7 @@
                                     <!-- <a class="text-body-quaternary me-1" href="#!">Privacy policy</a>&bull;<a class="text-body-quaternary mx-1" href="#!">Terms</a>&bull;<a class="text-body-quaternary ms-1" href="#!">Cookies</a> -->
                                 </div>
                                 <div class="px-3">
-                                    <a class="btn btn-phoenix-secondary d-flex flex-center w-100" href="/accounts/employee_login"> <span class="me-2" data-feather="log-out"> </span>Log out</a>
+                                    <a class="btn btn-phoenix-secondary d-flex flex-center w-100" href="{% url 'logout' %}"> <span class="me-2" data-feather="log-out"> </span>Log out</a>
                                 </div>
                                 <div class="my-2 text-center fw-bold fs-10 text-body-quaternary">
                                     <!-- <a class="text-body-quaternary me-1" href="#!">Privacy policy</a>&bull;<a class="text-body-quaternary mx-1" href="#!">Terms</a>&bull;<a class="text-body-quaternary ms-1" href="#!">Cookies</a> -->
@@ -265,7 +294,7 @@
               </ul>
           </div>
       </nav>
-      
+
       {% block content %} {% endblock %}
       
       <script>

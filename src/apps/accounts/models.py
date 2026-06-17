@@ -146,6 +146,9 @@ class SaaSUserProfile(models.Model):
     support_email = models.EmailField(blank=True)
     website = models.URLField(blank=True)
     tax_id = models.CharField(max_length=60, blank=True)
+    # TODO: These invoice-specific defaults are now legacy in the multi-business setup.
+    # New invoice numbering, tax, and currency defaults should come from Business.
+    # Keep these fields until the account settings UI is fully migrated off user-level invoice settings.
     currency_code = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default="USD")
     invoice_prefix = models.CharField(
         max_length=12,
@@ -192,4 +195,6 @@ class SaaSUserProfile(models.Model):
 
     @property
     def invoice_preview_number(self) -> str:
+        # TODO: Legacy preview helper retained for the account settings UI.
+        # New invoice creation should use Business.invoice_prefix and Business.invoice_start_number instead.
         return f"{self.invoice_prefix}-{timezone.localtime():%Y%m%d}-001"

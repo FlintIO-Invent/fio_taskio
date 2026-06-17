@@ -1,6 +1,10 @@
 from django import forms
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError
+from django.db import transaction
+
+from apps.businesses.models import Business, BusinessInvitation, BusinessSubscription, BusinessUser
+from apps.businesses.utils import create_default_trial_subscription, generate_business_slug
 
 from .models import SaaSUserProfile, TaskIOUser
 
@@ -131,6 +135,211 @@ class CustomerRegistrationForm(forms.ModelForm):
         return user
 
 
+class BusinessRegistrationForm(forms.Form):
+    first_name = forms.CharField(
+        label="Owner first name",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Jane"}
+        ),
+    )
+    last_name = forms.CharField(
+        label="Owner last name",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Doe"}
+        ),
+    )
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "owner@example.com"}
+        ),
+    )
+    business_name = forms.CharField(
+        label="Business name",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Acme Freight"}
+        ),
+    )
+    business_email = forms.EmailField(
+        label="Business email",
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "hello@acmefreight.com"}
+        ),
+    )
+    country = forms.CharField(
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Sint Maarten"}
+        ),
+    )
+    password1 = forms.CharField(
+        label="Password",
+        strip=False,
+        help_text=password_validation.password_validators_help_text_html(),
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Create a password"}
+        ),
+    )
+    password2 = forms.CharField(
+        label="Confirm password",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Repeat your password"}
+        ),
+    )
+
+    def clean_email(self) -> str:
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if TaskIOUser.objects.filter(email__iexact=email).exists():
+            raise ValidationError("An account with this email already exists.")
+        return email
+
+    def clean_business_email(self) -> str:
+        return (self.cleaned_data.get("business_email") or "").strip().lower()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get("password1")
+        password2 = cleaned_data.get("password2")
+
+        if password1 and password2 and password1 != password2:
+            self.add_error("password2", "Passwords do not match.")
+
+        if password1:
+            user = TaskIOUser(
+                email=cleaned_data.get("email", ""),
+                first_name=cleaned_data.get("first_name", ""),
+                last_name=cleaned_data.get("last_name", ""),
+                company_name=cleaned_data.get("business_name", ""),
+            )
+            try:
+                password_validation.validate_password(password1, user=user)
+            except ValidationError as exc:
+                self.add_error("password1", exc)
+
+        return cleaned_data
+
+    @transaction.atomic
+    def save(self) -> tuple[TaskIOUser, Business, BusinessUser, BusinessSubscription | None]:
+        user = TaskIOUser.objects.create_user(
+            email=self.cleaned_data["email"],
+            first_name=self.cleaned_data["first_name"],
+            last_name=self.cleaned_data["last_name"],
+            password=self.cleaned_data["password1"],
+            incorporation_status="UNINCORPORATED",
+            assigned_location="CARIBBEAN",
+            company_name=self.cleaned_data["business_name"],
+        )
+
+        business = Business.objects.create(
+            name=self.cleaned_data["business_name"],
+            slug=generate_business_slug(self.cleaned_data["business_name"]),
+            email=self.cleaned_data["business_email"],
+            country=self.cleaned_data["country"],
+        )
+
+        membership = BusinessUser.objects.create(
+            user=user,
+            business=business,
+            role=BusinessUser.Role.OWNER,
+        )
+        subscription = create_default_trial_subscription(business)
+
+        profile = SaaSUserProfile.get_or_create_for_user(user)
+        profile.workspace_name = business.name
+        profile.billing_email = business.email or user.email
+        profile.save(update_fields=["workspace_name", "billing_email", "updated_at"])
+
+        return user, business, membership, subscription
+
+
+class BusinessLoginForm(forms.Form):
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={"class": "form-control form-icon-input", "placeholder": "name@example.com"}
+        ),
+    )
+    password = forms.CharField(
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control form-icon-input pe-6", "placeholder": "Password"}
+        ),
+    )
+
+    def clean_email(self) -> str:
+        return (self.cleaned_data.get("email") or "").strip().lower()
+
+
+class InvitationExistingUserLoginForm(forms.Form):
+    password = forms.CharField(
+        label="Password",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Enter your password"}
+        ),
+    )
+
+
+class InvitationAcceptanceSignupForm(forms.Form):
+    first_name = forms.CharField(
+        label="First name",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Jane"}
+        ),
+    )
+    last_name = forms.CharField(
+        label="Last name",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Doe"}
+        ),
+    )
+    password1 = forms.CharField(
+        label="Password",
+        strip=False,
+        help_text=password_validation.password_validators_help_text_html(),
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Create a password"}
+        ),
+    )
+    password2 = forms.CharField(
+        label="Confirm password",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Repeat your password"}
+        ),
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get("password1")
+        password2 = cleaned_data.get("password2")
+
+        if password1 and password2 and password1 != password2:
+            self.add_error("password2", "Passwords do not match.")
+
+        if password1:
+            user = TaskIOUser(
+                first_name=cleaned_data.get("first_name", ""),
+                last_name=cleaned_data.get("last_name", ""),
+            )
+            try:
+                password_validation.validate_password(password1, user=user)
+            except ValidationError as exc:
+                self.add_error("password1", exc)
+
+        return cleaned_data
+
+    def save(self, invitation: BusinessInvitation) -> TaskIOUser:
+        user = TaskIOUser.objects.create_user(
+            email=invitation.email,
+            first_name=self.cleaned_data["first_name"],
+            last_name=self.cleaned_data["last_name"],
+            password=self.cleaned_data["password1"],
+            incorporation_status="UNINCORPORATED",
+            assigned_location="CARIBBEAN",
+            company_name=invitation.business.name,
+        )
+        return user
+
+
 class SaaSBasicInfoForm(forms.ModelForm):
     class Meta:
         model = TaskIOUser
@@ -187,7 +396,7 @@ class SaaSWorkspaceSettingsForm(forms.ModelForm):
         ]
         widgets = {
             "workspace_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "TaskIO Caribbean Workspace"}
+                attrs={"class": "form-control", "placeholder": "Clarivo Workspace"}
             ),
             "billing_email": forms.EmailInput(
                 attrs={"class": "form-control", "placeholder": "billing@example.com"}

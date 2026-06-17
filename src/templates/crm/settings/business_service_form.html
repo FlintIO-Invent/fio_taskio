@@ -1,0 +1,98 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_settings' %}">Business Settings</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_service_list' %}">Services</a></li>
+      <li class="breadcrumb-item active">{{ page_title }}</li>
+    </ol>
+  </nav>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="row g-3 mb-4 justify-content-between align-items-center">
+      <div class="col-lg-8">
+        <h2 class="mb-2 text-body-emphasis">{{ page_title }}</h2>
+        <p class="text-body-tertiary mb-0">This service and its pricing will belong only to {{ business.name }}.</p>
+      </div>
+      <div class="col-auto d-flex gap-2">
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Cancel</a>
+        <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+      </div>
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors|striptags }}</div>
+    {% endif %}
+
+    <div class="row g-4">
+      <div class="col-12 col-xl-8">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4 p-lg-5">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.name.id_for_label }}">Service name</label>
+                {{ form.name }}
+                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.category.id_for_label }}">Service category</label>
+                {{ form.category }}
+                {% if form.category.errors %}<div class="invalid-feedback d-block">{{ form.category.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.external_code.id_for_label }}">External code</label>
+                {{ form.external_code }}
+                {% if form.external_code.help_text %}<div class="form-text">{{ form.external_code.help_text }}</div>{% endif %}
+                {% if form.external_code.errors %}<div class="invalid-feedback d-block">{{ form.external_code.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="{{ form.unit_price.id_for_label }}">Unit price</label>
+                {{ form.unit_price }}
+                {% if form.unit_price.errors %}<div class="invalid-feedback d-block">{{ form.unit_price.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="{{ form.tax_rate.id_for_label }}">Tax rate</label>
+                {{ form.tax_rate }}
+                {% if form.tax_rate.errors %}<div class="invalid-feedback d-block">{{ form.tax_rate.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ form.description.id_for_label }}">Description</label>
+                {{ form.description }}
+                {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  {{ form.is_active }}
+                  <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                    Keep this service active for future workspace workflows
+                  </label>
+                </div>
+                {% if form.is_active.errors %}<div class="invalid-feedback d-block">{{ form.is_active.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4">
+            <h4 class="mb-3">Workspace Scope</h4>
+            <p class="text-body-tertiary mb-3">Only owners and admins in {{ business.name }} can manage this service list.</p>
+            <div class="rounded-3 border p-3">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Default Tax Rate</p>
+              <h3 class="mb-0">{{ business.tax_rate|floatformat:2 }}%</h3>
+            </div>
+            <p class="text-body-tertiary small mt-3 mb-0">You can leave the category blank if the service should stay uncategorized for now.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

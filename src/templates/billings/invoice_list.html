@@ -3,6 +3,16 @@
 {% block content %}
 
 <div class="content">
+  {% if messages %}
+    <div class="mb-4">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
@@ -16,9 +26,11 @@
     </div>
     <div class="col-auto">
       <div class="d-flex gap-3">
-        <a class="btn btn-phoenix-primary" href="{% url 'staff_client_list' %}">
-          <span class="fa-solid fa-plus me-2"></span>Create from Client
-        </a>
+        {% if role_access.can_manage_invoices %}
+          <a class="btn btn-phoenix-primary" href="{% url 'staff_client_list' %}">
+            <span class="fa-solid fa-plus me-2"></span>Create from Client
+          </a>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -80,14 +92,14 @@
                       <td>
                         <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
                       </td>
-                      <td class="fw-bold">${{ invoice.total }}</td>
+                      <td class="fw-bold">{{ invoice.currency_code }} {{ invoice.total }}</td>
                       <td>{{ invoice.created_at|date:"M d, Y" }}</td>
                       <td>
                         <div class="d-flex gap-2">
                           <a href="{% url 'invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary">
                             <span class="fa-solid fa-eye"></span>
                           </a>
-                          {% if invoice.status == 'DRAFT' %}
+                          {% if role_access.can_manage_invoices and invoice.status == 'DRAFT' %}
                           <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-sm btn-outline-warning">
                             <span class="fa-solid fa-edit"></span>
                           </a>
@@ -115,9 +127,11 @@
                 No invoices have been created yet.
               {% endif %}
             </p>
-            <a href="{% url 'staff_client_list' %}" class="btn btn-phoenix-primary">
-              <span class="fa-solid fa-plus me-2"></span>Create Your First Invoice
-            </a>
+            {% if role_access.can_manage_invoices %}
+              <a href="{% url 'staff_client_list' %}" class="btn btn-phoenix-primary">
+                <span class="fa-solid fa-plus me-2"></span>Create Your First Invoice
+              </a>
+            {% endif %}
           </div>
         </div>
       {% endif %}

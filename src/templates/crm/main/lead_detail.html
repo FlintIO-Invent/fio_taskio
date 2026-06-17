@@ -16,9 +16,16 @@
       <h2 class="mb-0 text-body-emphasis">Lead Details</h2>
     </div>
     <div class="col-auto">
-      <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_list' %}">
-        <span class="fa-solid fa-arrow-left me-2"></span>Back to Leads
-      </a>
+      <div class="d-flex gap-2">
+        {% if role_access.can_manage_leads %}
+          <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_update' lead.id %}">
+            <span class="fa-solid fa-pen me-2"></span>Edit Lead
+          </a>
+        {% endif %}
+        <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_list' %}">
+          <span class="fa-solid fa-arrow-left me-2"></span>Back to Leads
+        </a>
+      </div>
     </div>
   </div>
 
@@ -37,6 +44,54 @@
     </div>
 
     <div class="card-body">
+      {% if lead.lead_type == 'REQUEST' %}
+      <div class="card bg-body-tertiary border mb-4">
+        <div class="card-body">
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3">
+            <div>
+              <h6 class="text-body-emphasis mb-2">Client Workflow</h6>
+              {% if matched_client %}
+              <p class="mb-1">
+                This service request already matches
+                <a href="{% url 'staff_client_detail' matched_client.id %}">{{ matched_client.first_name }} {{ matched_client.last_name }}</a>.
+              </p>
+              <p class="text-body-secondary mb-0">You can review the client or continue straight into invoice creation if your role allows it.</p>
+              {% elif missing_client_fields %}
+              <p class="mb-1">This request still needs required client details before it can be converted.</p>
+              <p class="text-body-secondary mb-0">Missing: {{ missing_client_fields|join:", " }}.</p>
+              {% else %}
+              <p class="mb-1">This request is ready to be converted into a client record.</p>
+              <p class="text-body-secondary mb-0">Clarivo will reuse an existing client in this workspace if the submitted email or phone matches safely.</p>
+              {% endif %}
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+              {% if matched_client %}
+              <a class="btn btn-phoenix-secondary" href="{% url 'staff_client_detail' matched_client.id %}">
+                <span class="fa-solid fa-user me-2"></span>View Client
+              </a>
+              {% elif role_access.can_manage_clients %}
+              <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_convert_to_client' lead.id %}">
+                <span class="fa-solid fa-user-plus me-2"></span>Convert to Client
+              </a>
+              {% endif %}
+
+              {% if matched_client and role_access.can_manage_invoices and module_access.invoicing %}
+              <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_create_invoice' lead.id %}">
+                <span class="fa-solid fa-file-invoice me-2"></span>Create Invoice
+              </a>
+              {% endif %}
+            </div>
+          </div>
+          {% if not matched_client and not role_access.can_manage_clients %}
+          <p class="text-body-secondary small mb-0 mt-3">A teammate with client access needs to complete the client conversion for this request.</p>
+          {% endif %}
+          {% if not matched_client and role_access.can_manage_invoices and module_access.invoicing %}
+          <p class="text-body-secondary small mb-0 mt-2">Create Invoice becomes available after a client is created or matched in this workspace.</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
       <div class="row g-4">
         <div class="col-md-6">
           <h6 class="text-body-secondary mb-3">Contact</h6>

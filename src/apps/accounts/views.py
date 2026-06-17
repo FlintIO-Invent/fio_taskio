@@ -2,21 +2,96 @@ from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 from loguru import logger
 
 from apps.accounts.models import SaaSUserProfile, TaskIOUser
+from apps.businesses.models import BusinessInvitation, BusinessUser
+from apps.businesses.utils import (
+    MULTI_WORKSPACE_EMAIL_MESSAGE,
+    accept_business_invitation_for_user,
+    expire_business_invitation_if_needed,
+    get_current_business,
+    get_other_active_business_membership_for_user,
+    set_current_business,
+)
 
 from .forms import (
-    CustomerRegistrationForm,
+    BusinessLoginForm,
+    BusinessRegistrationForm,
+    InvitationAcceptanceSignupForm,
+    InvitationExistingUserLoginForm,
     SaaSBasicInfoForm,
     SaaSInvoiceSettingsForm,
     SaaSWorkspaceSettingsForm,
 )
+
+
+@require_http_methods(["GET", "POST"])
+def business_login(request: HttpRequest) -> HttpResponse:
+    """
+    Authenticate and log in a Clarivo business user with an active workspace membership.
+    """
+    if request.user.is_authenticated and get_current_business(request) is not None:
+        return redirect("agent_dashboard")
+
+    if request.method == "POST":
+        form = BusinessLoginForm(request.POST)
+
+        if form.is_valid():
+            email = form.cleaned_data["email"]
+            password = form.cleaned_data["password"]
+            user_record = TaskIOUser.objects.filter(email__iexact=email).first()
+
+            if user_record is not None and not user_record.is_active:
+                logger.warning("Inactive business login attempt for email=%s", email)
+                form.add_error(None, "This account is inactive. Please contact support.")
+            else:
+                user = authenticate(request, email=email, password=password)
+
+                if user is None:
+                    logger.warning("Invalid business login credentials for email=%s", email)
+                    form.add_error(None, "Invalid email or password.")
+                else:
+                    membership = (
+                        BusinessUser.objects.filter(
+                            user=user,
+                            is_active=True,
+                            business__is_active=True,
+                        )
+                        .select_related("business")
+                        .order_by("created_at", "pk")
+                        .first()
+                    )
+
+                    if membership is None:
+                        logger.warning(
+                            "User %s denied business login - no active business membership",
+                            user.email,
+                        )
+                        form.add_error(
+                            None,
+                            "This account does not have an active Clarivo workspace yet.",
+                        )
+                    else:
+                        login(request, user)
+                        set_current_business(request, membership.business)
+                        logger.info(
+                            "Business user %s logged in successfully for business %s.",
+                            user.email,
+                            membership.business.slug,
+                        )
+                        return redirect("agent_dashboard")
+    else:
+        form = BusinessLoginForm()
+
+    return render(request, "accounts/forms/business_login.html", {"form": form})
+
 
 @require_http_methods(["GET", "POST"])
 def agent_login(request: HttpRequest) -> HttpResponse:
@@ -72,48 +147,214 @@ def agent_login(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def customer_registration(request: HttpRequest) -> HttpResponse:
     """
-    Register a new SaaS customer account.
+    Redirect legacy standalone customer signup traffic to business workspace signup.
+    """
+    messages.info(
+        request,
+        "Standalone customer signup is now legacy. Start by creating a Clarivo workspace instead.",
+    )
+    return redirect("register_business")
 
-    This first onboarding step captures the customer's account details and
-    creates a login-ready user record with a hashed password.
 
-    Args:
-        request: Incoming Django HTTP request object.
-
-    Returns:
-        The rendered registration form or a redirect back to the form after
-        successful account creation.
+@require_http_methods(["GET", "POST"])
+def register_business(request: HttpRequest) -> HttpResponse:
+    """
+    Register a new Clarivo business owner and create the initial workspace.
     """
     if request.method == "POST":
-        form = CustomerRegistrationForm(request.POST)
+        form = BusinessRegistrationForm(request.POST)
 
         if form.is_valid():
-            user: TaskIOUser = form.save()
-            SaaSUserProfile.get_or_create_for_user(user)
-            logger.info("New customer registered with email={}", user.email)
-            messages.success(
-                request,
-                "Your account has been created. We can now use it for customer onboarding.",
+            user, business, _membership, subscription = form.save()
+
+            login(request, user)
+            set_current_business(request, business)
+            logger.info(
+                "New Clarivo business registered with owner_email={} and business_slug={}",
+                user.email,
+                business.slug,
             )
-            return redirect("customer_registration")
+            if subscription is not None:
+                messages.success(
+                    request,
+                    "Your Clarivo workspace has been created with a 14-day trial. You can now review your workspace settings.",
+                )
+            else:
+                logger.warning(
+                    "Business {} created without a default trial subscription because no active Clarivo plan is configured.",
+                    business.slug,
+                )
+                messages.success(
+                    request,
+                    "Your Clarivo workspace has been created. Subscription setup is pending because no active trial plan is configured yet.",
+                )
+            return redirect("business_settings")
 
         logger.warning(
-            "Customer registration failed for email={}: {}",
+            "Business registration failed for email={}: {}",
             request.POST.get("email", ""),
             form.errors.as_json(),
         )
-
     else:
-        form = CustomerRegistrationForm()
+        form = BusinessRegistrationForm()
 
-    return render(request, "accounts/forms/customer_registration.html", {"form": form})
+    return render(request, "accounts/forms/business_registration.html", {"form": form})
 
 
-@login_required(login_url="agent_login")
+@require_http_methods(["GET", "POST"])
+def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse:
+    invitation = get_object_or_404(
+        BusinessInvitation.objects.select_related("business", "invited_by", "accepted_by"),
+        token=token,
+    )
+    existing_user = TaskIOUser.objects.filter(email__iexact=invitation.email).first()
+
+    if expire_business_invitation_if_needed(invitation):
+        messages.error(request, "This invitation has expired. Please ask your workspace owner for a new invite.")
+    elif invitation.status == BusinessInvitation.Status.ACCEPTED:
+        messages.info(request, "This invitation has already been accepted.")
+    elif invitation.status == BusinessInvitation.Status.CANCELLED:
+        messages.error(request, "This invitation has been cancelled.")
+
+    invitation_is_available = invitation.status == BusinessInvitation.Status.PENDING
+    wrong_authenticated_user = (
+        request.user.is_authenticated
+        and request.user.email.lower() != invitation.email.lower()
+    )
+    existing_workspace_membership = None
+    if existing_user is not None:
+        existing_workspace_membership = BusinessUser.objects.filter(
+            user=existing_user,
+            business=invitation.business,
+        ).first()
+
+    multi_workspace_membership_conflict = None
+    if existing_user is not None and not (
+        existing_workspace_membership is not None and existing_workspace_membership.is_active
+    ):
+        multi_workspace_membership_conflict = get_other_active_business_membership_for_user(
+            existing_user,
+            invitation.business,
+        )
+
+    login_form = None
+    signup_form = None
+
+    if invitation_is_available and request.method == "POST":
+        if wrong_authenticated_user:
+            messages.error(
+                request,
+                "You are signed in as a different user. Please sign out and accept this invite with the invited email address.",
+            )
+        elif multi_workspace_membership_conflict is not None:
+            messages.error(request, MULTI_WORKSPACE_EMAIL_MESSAGE)
+        elif existing_user is not None:
+            if not existing_user.is_active:
+                messages.error(
+                    request,
+                    "This invited account is inactive. Please contact support or your workspace owner.",
+                )
+            elif request.user.is_authenticated:
+                try:
+                    membership, created, already_member = accept_business_invitation_for_user(
+                        invitation,
+                        request.user,
+                    )
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    return redirect("accept_business_invitation", token=invitation.token)
+                SaaSUserProfile.get_or_create_for_user(request.user)
+                set_current_business(request, membership.business)
+                if already_member:
+                    messages.info(request, "You already belong to this workspace.")
+                elif created:
+                    messages.success(request, "You have joined the workspace successfully.")
+                else:
+                    messages.success(request, "Your workspace access has been restored successfully.")
+                return redirect("agent_dashboard")
+            else:
+                login_form = InvitationExistingUserLoginForm(request.POST)
+                if login_form.is_valid():
+                    user = authenticate(
+                        request,
+                        email=invitation.email,
+                        password=login_form.cleaned_data["password"],
+                    )
+                    if user is None:
+                        login_form.add_error("password", "Invalid password.")
+                    elif not user.is_active:
+                        login_form.add_error(None, "This account is inactive. Please contact support.")
+                    else:
+                        try:
+                            membership, created, already_member = accept_business_invitation_for_user(
+                                invitation,
+                                user,
+                            )
+                        except ValueError as exc:
+                            messages.error(request, str(exc))
+                            return redirect("accept_business_invitation", token=invitation.token)
+                        login(request, user)
+                        SaaSUserProfile.get_or_create_for_user(user)
+                        set_current_business(request, membership.business)
+                        if already_member:
+                            messages.info(request, "You already belong to this workspace.")
+                        elif created:
+                            messages.success(request, "You have joined the workspace successfully.")
+                        else:
+                            messages.success(request, "Your workspace access has been restored successfully.")
+                        return redirect("agent_dashboard")
+        else:
+            signup_form = InvitationAcceptanceSignupForm(request.POST)
+            if signup_form.is_valid():
+                try:
+                    with transaction.atomic():
+                        user = signup_form.save(invitation)
+                        membership, _created, already_member = accept_business_invitation_for_user(
+                            invitation,
+                            user,
+                        )
+                        SaaSUserProfile.get_or_create_for_user(user)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    return redirect("accept_business_invitation", token=invitation.token)
+                login(request, user)
+                set_current_business(request, membership.business)
+                if already_member:
+                    messages.info(request, "You already belong to this workspace.")
+                else:
+                    messages.success(request, "Your account has been created and joined to the workspace.")
+                return redirect("agent_dashboard")
+
+    if login_form is None and invitation_is_available and existing_user is not None and not request.user.is_authenticated:
+        login_form = InvitationExistingUserLoginForm()
+
+    if signup_form is None and invitation_is_available and existing_user is None:
+        signup_form = InvitationAcceptanceSignupForm()
+
+    context = {
+        "invitation": invitation,
+        "existing_user": existing_user,
+        "invitation_is_available": invitation_is_available,
+        "wrong_authenticated_user": wrong_authenticated_user,
+        "multi_workspace_membership_conflict": multi_workspace_membership_conflict,
+        "login_form": login_form,
+        "signup_form": signup_form,
+    }
+    return render(request, "accounts/forms/accept_business_invitation.html", context)
+
+
+@require_http_methods(["GET", "POST"])
+def account_logout(request: HttpRequest) -> HttpResponse:
+    logout(request)
+    messages.success(request, "You have been signed out.")
+    return redirect("business_login")
+
+
+@login_required(login_url="business_login")
 @require_http_methods(["GET", "POST"])
 def saas_profile(request: HttpRequest) -> HttpResponse:
     """
-    View and update the SaaS account profile, workspace defaults, and invoice settings.
+    View and update the account profile plus legacy compatibility settings.
     """
     profile = SaaSUserProfile.get_or_create_for_user(request.user)
     active_section = (request.GET.get("section") or "basic").strip().lower()
@@ -137,14 +378,14 @@ def saas_profile(request: HttpRequest) -> HttpResponse:
             workspace_form = SaaSWorkspaceSettingsForm(request.POST, instance=profile)
             if workspace_form.is_valid():
                 workspace_form.save()
-                messages.success(request, "Workspace and billing settings updated.")
+                messages.success(request, "Legacy workspace contact settings updated.")
                 return redirect(f"{reverse('saas_profile')}?section=workspace")
 
         elif section == "invoice":
             invoice_form = SaaSInvoiceSettingsForm(request.POST, instance=profile)
             if invoice_form.is_valid():
                 invoice_form.save()
-                messages.success(request, "Invoice defaults updated.")
+                messages.success(request, "Legacy invoice preferences updated.")
                 return redirect(f"{reverse('saas_profile')}?section=invoice")
 
         logger.warning(

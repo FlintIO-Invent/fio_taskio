@@ -1,0 +1,124 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_settings' %}">Business Settings</a></li>
+      <li class="breadcrumb-item active">Services</li>
+    </ol>
+  </nav>
+
+  <div class="row g-3 mb-4 justify-content-between align-items-center">
+    <div class="col-lg-8">
+      <h2 class="mb-2 text-body-emphasis">Business Services</h2>
+      <p class="text-body-tertiary mb-0">These priced services belong only to {{ business.name }} and can be reused in later Clarivo workflows.</p>
+    </div>
+    <div class="col-auto d-flex gap-2">
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Back to settings</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Sample CSV</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Import CSV</a>
+      <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create service</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <p class="text-body-tertiary text-uppercase fs-10 mb-1">Active</p>
+          <h3 class="mb-0">{{ active_service_count }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <p class="text-body-tertiary text-uppercase fs-10 mb-1">Archived</p>
+          <h3 class="mb-0">{{ archived_service_count }}</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      {% if services %}
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th class="ps-4">Service</th>
+                <th>Category</th>
+                <th>Unit Price</th>
+                <th>Tax Rate</th>
+                <th>Status</th>
+                <th>Updated</th>
+                <th class="text-end pe-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for service in services %}
+                <tr>
+                  <td class="ps-4">
+                    <div class="fw-semibold text-body-emphasis">{{ service.name }}</div>
+                    {% if service.external_code %}
+                      <div class="text-body-tertiary small">Code: {{ service.external_code }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if service.category %}
+                      {{ service.category.name }}
+                    {% else %}
+                      <span class="text-body-tertiary">Uncategorized</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ business.currency }} {{ service.unit_price|floatformat:2 }}</td>
+                  <td>{{ service.tax_rate|floatformat:2 }}%</td>
+                  <td>
+                    {% if service.is_active %}
+                      <span class="badge badge-phoenix badge-phoenix-success">Active</span>
+                    {% else %}
+                      <span class="badge badge-phoenix badge-phoenix-secondary">Archived</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-body-tertiary">{{ service.updated_at|date:"M d, Y" }}</td>
+                  <td class="text-end pe-4">
+                    <div class="d-inline-flex gap-2">
+                      <a class="btn btn-sm btn-phoenix-secondary" href="{% url 'business_service_update' service.id %}">Edit</a>
+                      {% if service.is_active %}
+                        <form method="post" action="{% url 'business_service_archive' service.id %}">
+                          {% csrf_token %}
+                          <button class="btn btn-sm btn-outline-danger" type="submit">Archive</button>
+                        </form>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="p-4 p-lg-5 text-center">
+          <h4 class="mb-2">No services yet</h4>
+          <p class="text-body-tertiary mb-4">Create individual services manually or import a CSV price list for this workspace.</p>
+          <div class="d-flex justify-content-center gap-2">
+            <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Import CSV</a>
+            <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create first service</a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

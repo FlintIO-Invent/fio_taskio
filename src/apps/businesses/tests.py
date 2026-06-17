@@ -1,0 +1,582 @@
+from decimal import Decimal
+
+from django.core.exceptions import PermissionDenied
+from django.db import IntegrityError, transaction
+from django.http import HttpResponse
+from django.test import RequestFactory, TestCase
+from django.urls import reverse
+
+from apps.accounts.models import TaskIOUser
+
+from .models import (
+    Business,
+    BusinessInvitation,
+    BusinessSubscription,
+    BusinessUser,
+    ClarivoPlan,
+)
+from .utils import (
+    CURRENT_BUSINESS_SESSION_KEY,
+    MULTI_WORKSPACE_EMAIL_MESSAGE,
+    SAME_WORKSPACE_EMAIL_MESSAGE,
+    business_required,
+    business_role_required,
+    business_has_active_subscription,
+    business_is_trialing,
+    can_use_module,
+    get_current_business,
+    get_current_business_membership,
+)
+
+
+class BusinessModelTests(TestCase):
+    def test_business_slug_is_unique(self):
+        Business.objects.create(name="Clarivo HQ", slug="clarivo-hq")
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Business.objects.create(name="Clarivo HQ 2", slug="clarivo-hq")
+
+    def test_formatted_address_lines_prefers_structured_fields_and_falls_back_to_legacy_address(self):
+        legacy_business = Business.objects.create(
+            name="Legacy Address Workspace",
+            slug="legacy-address-workspace",
+            address="Front Street, Philipsburg",
+        )
+        structured_business = Business.objects.create(
+            name="Structured Address Workspace",
+            slug="structured-address-workspace",
+            address_line_1="Herengracht 101",
+            city="Amsterdam",
+            region="North Holland",
+            postal_code="1015 BJ",
+            country="Netherlands",
+        )
+
+        self.assertEqual(
+            legacy_business.formatted_address_lines,
+            ["Front Street, Philipsburg"],
+        )
+        self.assertEqual(
+            structured_business.formatted_address_lines,
+            ["Herengracht 101", "Amsterdam, North Holland", "1015 BJ Netherlands"],
+        )
+
+
+class BusinessUserModelTests(TestCase):
+    def test_membership_is_unique_per_user_and_business(self):
+        user = TaskIOUser.objects.create_user(
+            email="owner@example.com",
+            password="testpass123",
+        )
+        business = Business.objects.create(name="Clarivo HQ", slug="clarivo-hq")
+        BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.OWNER)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.ADMIN)
+
+
+class SubscriptionAccessTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(name="Clarivo HQ", slug="clarivo-hq")
+        self.plan = ClarivoPlan.objects.create(
+            name="Growth",
+            slug="growth",
+            price_monthly=Decimal("49.00"),
+            price_yearly=Decimal("490.00"),
+            allow_invoicing=True,
+            allow_public_request_form=True,
+        )
+
+    def test_active_subscription_exposes_access_helpers(self):
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        self.assertTrue(self.business.has_active_subscription)
+        self.assertFalse(self.business.is_trialing)
+        self.assertTrue(business_has_active_subscription(self.business))
+        self.assertTrue(can_use_module(self.business, "invoicing"))
+        self.assertTrue(can_use_module(self.business, "clients"))
+        self.assertFalse(can_use_module(self.business, "appointments"))
+
+    def test_trialing_subscription_keeps_enabled_modules_available(self):
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.TRIALING,
+        )
+
+        self.assertTrue(self.business.is_trialing)
+        self.assertTrue(business_is_trialing(self.business))
+        self.assertTrue(can_use_module(self.business, "public_request_form"))
+
+    def test_cancelled_subscription_has_no_module_access(self):
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.CANCELLED,
+        )
+
+        self.assertFalse(self.business.has_active_subscription)
+        self.assertFalse(business_has_active_subscription(self.business))
+        self.assertFalse(can_use_module(self.business, "invoicing"))
+
+
+class CurrentBusinessTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.user = TaskIOUser.objects.create_user(
+            email="workspace-user@example.com",
+            password="testpass123",
+        )
+
+    def _build_request(self, session: dict | None = None):
+        request = self.factory.get("/")
+        request.user = self.user
+        request.session = session if session is not None else {}
+        return request
+
+    def test_get_current_business_prefers_valid_session_business(self):
+        first_business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
+        second_business = Business.objects.create(name="Beta Workspace", slug="beta-workspace")
+        BusinessUser.objects.create(user=self.user, business=first_business, role=BusinessUser.Role.STAFF)
+        BusinessUser.objects.create(user=self.user, business=second_business, role=BusinessUser.Role.OWNER)
+
+        request = self._build_request({CURRENT_BUSINESS_SESSION_KEY: second_business.id})
+
+        current_business = get_current_business(request)
+
+        self.assertEqual(current_business, second_business)
+        self.assertEqual(request.current_business, second_business)
+
+    def test_get_current_business_falls_back_to_first_active_membership(self):
+        first_business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
+        second_business = Business.objects.create(name="Beta Workspace", slug="beta-workspace")
+        BusinessUser.objects.create(user=self.user, business=first_business, role=BusinessUser.Role.STAFF)
+        BusinessUser.objects.create(user=self.user, business=second_business, role=BusinessUser.Role.OWNER)
+
+        request = self._build_request({CURRENT_BUSINESS_SESSION_KEY: 999999})
+
+        current_business = get_current_business(request)
+
+        self.assertEqual(current_business, first_business)
+        self.assertEqual(request.session[CURRENT_BUSINESS_SESSION_KEY], first_business.id)
+
+    def test_get_current_business_returns_none_without_membership(self):
+        request = self._build_request({CURRENT_BUSINESS_SESSION_KEY: 999999})
+
+        current_business = get_current_business(request)
+
+        self.assertIsNone(current_business)
+        self.assertNotIn(CURRENT_BUSINESS_SESSION_KEY, request.session)
+
+    def test_business_required_redirects_to_setup_when_user_has_no_membership(self):
+        @business_required()
+        def sample_view(request):
+            return HttpResponse("ok")
+
+        request = self._build_request()
+
+        response = sample_view(request)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("business_setup"))
+
+    def test_business_required_allows_access_and_sets_request_current_business(self):
+        business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
+        BusinessUser.objects.create(user=self.user, business=business, role=BusinessUser.Role.OWNER)
+
+        @business_required()
+        def sample_view(request):
+            self.assertEqual(request.current_business, business)
+            return HttpResponse("ok")
+
+        request = self._build_request()
+
+        response = sample_view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"ok")
+
+    def test_get_current_business_membership_returns_current_workspace_membership(self):
+        business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
+        membership = BusinessUser.objects.create(
+            user=self.user,
+            business=business,
+            role=BusinessUser.Role.ADMIN,
+        )
+
+        request = self._build_request()
+
+        resolved_membership = get_current_business_membership(request)
+
+        self.assertEqual(resolved_membership, membership)
+        self.assertEqual(request.current_business_membership, membership)
+
+    def test_business_role_required_blocks_non_allowed_roles(self):
+        business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
+        BusinessUser.objects.create(
+            user=self.user,
+            business=business,
+            role=BusinessUser.Role.STAFF,
+        )
+
+        @business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+        def sample_view(request):
+            return HttpResponse("ok")
+
+        request = self._build_request()
+
+        with self.assertRaises(PermissionDenied):
+            sample_view(request)
+
+
+class BusinessSettingsViewTests(TestCase):
+    def setUp(self):
+        self.user = TaskIOUser.objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        self.business = Business.objects.create(
+            name="Clarivo HQ",
+            slug="clarivo-hq",
+            email="hello@clarivo.test",
+            country="Sint Maarten",
+        )
+
+    def _login_with_role(self, role: str):
+        BusinessUser.objects.create(
+            user=self.user,
+            business=self.business,
+            role=role,
+        )
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+        self.client.force_login(self.user)
+
+    def test_owner_can_view_business_settings(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        response = self.client.get(reverse("business_settings"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Business Details")
+        self.assertContains(response, "Business type / industry")
+        self.assertContains(response, "Default locale")
+        self.assertContains(response, "Tax label")
+        self.assertContains(response, "Address line 1")
+        self.assertContains(response, "Clarivo HQ")
+
+    def test_admin_can_update_business_settings(self):
+        self._login_with_role(BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_settings"),
+            {
+                "name": "Clarivo Caribbean",
+                "business_type": "Cleaning Service",
+                "email": "billing@clarivo.test",
+                "phone": "+1 721 555 0100",
+                "country": "Sint Maarten",
+                "currency": "XCD",
+                "timezone": "America/Lower_Princes",
+                "default_locale": "en-SX",
+                "tax_label": "TOT",
+                "tax_rate": "6.50",
+                "invoice_prefix": "CLR",
+                "invoice_start_number": "250",
+                "address_line_1": "Front Street 12",
+                "address_line_2": "Suite 4",
+                "city": "Philipsburg",
+                "region": "",
+                "postal_code": "",
+                "address": "Blue building next to the harbor.",
+            },
+            follow=True,
+        )
+
+        self.business.refresh_from_db()
+
+        self.assertRedirects(response, reverse("business_settings"))
+        self.assertEqual(self.business.name, "Clarivo Caribbean")
+        self.assertEqual(self.business.business_type, "Cleaning Service")
+        self.assertEqual(self.business.currency, "XCD")
+        self.assertEqual(self.business.timezone, "America/Lower_Princes")
+        self.assertEqual(self.business.default_locale, "en-SX")
+        self.assertEqual(self.business.tax_label, "TOT")
+        self.assertEqual(self.business.tax_rate, Decimal("6.50"))
+        self.assertEqual(self.business.invoice_prefix, "CLR")
+        self.assertEqual(self.business.invoice_start_number, 250)
+        self.assertEqual(self.business.address_line_1, "Front Street 12")
+        self.assertEqual(self.business.address_line_2, "Suite 4")
+        self.assertEqual(self.business.city, "Philipsburg")
+        self.assertEqual(self.business.postal_code, "")
+        self.assertEqual(self.business.address, "Blue building next to the harbor.")
+        self.assertContains(response, "Business settings updated.")
+
+    def test_staff_viewer_and_accountant_cannot_edit_business_settings(self):
+        restricted_roles = [
+            BusinessUser.Role.STAFF,
+            BusinessUser.Role.VIEWER,
+            BusinessUser.Role.ACCOUNTANT,
+        ]
+
+        for role in restricted_roles:
+            with self.subTest(role=role):
+                BusinessUser.objects.all().delete()
+                self.client.logout()
+                self._login_with_role(role)
+
+                response = self.client.get(reverse("business_settings"))
+
+                self.assertEqual(response.status_code, 403)
+
+
+class BusinessSubscriptionViewTests(TestCase):
+    def setUp(self):
+        self.user = TaskIOUser.objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        self.business = Business.objects.create(
+            name="Clarivo HQ",
+            slug="clarivo-hq",
+            email="hello@clarivo.test",
+            country="Sint Maarten",
+        )
+        self.starter_plan = ClarivoPlan.objects.create(
+            name="Starter",
+            slug="starter-subscription-test",
+            allow_invoicing=True,
+        )
+        self.pro_plan = ClarivoPlan.objects.create(
+            name="Pro",
+            slug="pro-subscription-test",
+            allow_invoicing=True,
+            allow_appointments=True,
+            allow_public_booking=True,
+        )
+
+    def _login_with_role(self, role: str):
+        BusinessUser.objects.create(
+            user=self.user,
+            business=self.business,
+            role=role,
+        )
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+        self.client.force_login(self.user)
+
+    def test_owner_can_view_subscription_page(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.pro_plan,
+            status=BusinessSubscription.Status.TRIALING,
+        )
+
+        response = self.client.get(reverse("business_subscription"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Subscription")
+        self.assertContains(response, "Clarivo HQ")
+        self.assertContains(response, "Current Plan")
+        self.assertContains(response, "Pro")
+
+    def test_owner_can_change_subscription_plan_and_keep_trialing_status(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.starter_plan,
+            status=BusinessSubscription.Status.TRIALING,
+        )
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {"plan": self.pro_plan.id},
+            follow=True,
+        )
+
+        subscription.refresh_from_db()
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertEqual(subscription.plan, self.pro_plan)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertTrue(subscription.can_use_module("appointments"))
+        self.assertContains(response, "Workspace plan updated to Pro")
+
+    def test_owner_can_start_trial_from_subscription_page_if_missing(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {"plan": self.pro_plan.id},
+            follow=True,
+        )
+
+        subscription = BusinessSubscription.objects.get(business=self.business)
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertEqual(subscription.plan, self.pro_plan)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertIsNotNone(subscription.trial_start)
+        self.assertIsNotNone(subscription.trial_end)
+
+    def test_admin_cannot_access_subscription_page(self):
+        self._login_with_role(BusinessUser.Role.ADMIN)
+
+        response = self.client.get(reverse("business_subscription"))
+
+        self.assertEqual(response.status_code, 403)
+
+
+class BusinessInvitationViewTests(TestCase):
+    def setUp(self):
+        self.owner = TaskIOUser.objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+            first_name="Owner",
+            last_name="User",
+        )
+        self.admin = TaskIOUser.objects.create_user(
+            email="admin@example.com",
+            password="StrongPass123!",
+            first_name="Admin",
+            last_name="User",
+        )
+        self.business = Business.objects.create(
+            name="Clarivo HQ",
+            slug="clarivo-hq-team",
+            email="hello@clarivo.test",
+            country="Sint Maarten",
+        )
+
+    def _login(self, user: TaskIOUser, role: str):
+        BusinessUser.objects.create(
+            user=user,
+            business=self.business,
+            role=role,
+        )
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+        self.client.force_login(user)
+
+    def test_owner_can_create_workspace_invitation(self):
+        self._login(self.owner, BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_team_members"),
+            {
+                "email": "employee@example.com",
+                "role": BusinessUser.Role.STAFF,
+            },
+            follow=True,
+        )
+
+        invitation = BusinessInvitation.objects.get(email="employee@example.com")
+
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertEqual(invitation.business, self.business)
+        self.assertEqual(invitation.role, BusinessUser.Role.STAFF)
+        self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
+        self.assertEqual(invitation.invited_by, self.owner)
+        self.assertContains(response, "Invitation created successfully.")
+        self.assertContains(response, reverse("accept_business_invitation", args=[invitation.token]))
+
+    def test_admin_cannot_invite_owner_role(self):
+        self._login(self.admin, BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_team_members"),
+            {
+                "email": "owner-2@example.com",
+                "role": BusinessUser.Role.OWNER,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(BusinessInvitation.objects.filter(email="owner-2@example.com").exists())
+        self.assertContains(response, "Select a valid choice")
+
+    def test_invite_is_blocked_when_email_already_belongs_to_current_workspace(self):
+        existing_user = TaskIOUser.objects.create_user(
+            email="employee@example.com",
+            password="StrongPass123!",
+            first_name="Existing",
+            last_name="Member",
+        )
+        BusinessUser.objects.create(
+            user=existing_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+        self._login(self.owner, BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_team_members"),
+            {
+                "email": existing_user.email,
+                "role": BusinessUser.Role.VIEWER,
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertEqual(
+            BusinessInvitation.objects.filter(
+                business=self.business,
+                email=existing_user.email,
+            ).count(),
+            0,
+        )
+        self.assertContains(response, SAME_WORKSPACE_EMAIL_MESSAGE)
+
+    def test_invite_is_blocked_when_email_has_active_membership_in_other_workspace(self):
+        other_workspace_user = TaskIOUser.objects.create_user(
+            email="shared.employee@example.com",
+            password="StrongPass123!",
+            first_name="Shared",
+            last_name="Employee",
+        )
+        other_business = Business.objects.create(
+            name="Legacy Workspace",
+            slug="legacy-workspace-team",
+            email="hello@legacy.test",
+            country="Curacao",
+        )
+        BusinessUser.objects.create(
+            user=other_workspace_user,
+            business=other_business,
+            role=BusinessUser.Role.STAFF,
+        )
+        self._login(self.owner, BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_team_members"),
+            {
+                "email": other_workspace_user.email,
+                "role": BusinessUser.Role.STAFF,
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertEqual(
+            BusinessInvitation.objects.filter(
+                business=self.business,
+                email=other_workspace_user.email,
+            ).count(),
+            0,
+        )
+        self.assertContains(response, MULTI_WORKSPACE_EMAIL_MESSAGE)

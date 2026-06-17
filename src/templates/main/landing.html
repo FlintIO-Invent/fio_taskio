@@ -11,7 +11,7 @@
     <!-- ===============================================-->
     <!--    Document Title-->
     <!-- ===============================================-->
-    <title>TaskIO - Tenant Management System</title>
+    <title>Clarivo</title>
 
 
     <!-- ===============================================-->
@@ -64,13 +64,15 @@
     <main class="main" id="top">
       <div class="bg-primary-subtle py-2">
         <div class="container-medium d-flex align-items-center justify-content-between">
-          <a class="btn btn-link p-0 text-body" href="/accounts/agent_login">
-            <span class="fa-solid fa-arrow-right-to-bracket me-2" data-fa-transform="down-1"></span>Agent Login
+          <a class="btn btn-link p-0 text-body" href="{% url 'business_login' %}">
+            <span class="fa-solid fa-arrow-right-to-bracket me-2" data-fa-transform="down-1"></span>Sign In
           </a>
           <div class="dropdown">
             <button class="btn btn-sm p-0 d-md-none fs-8" type="button" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h"></span></button>
             <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999">
-              <li><a class="dropdown-item" href="#!">Apply for TaskIO</a></li>
+              <li><a class="dropdown-item" href="{% url 'register_business' %}">Start with Clarivo</a></li>
+              <li><a class="dropdown-item" href="{% url 'business_login' %}">Business Login</a></li>
+              <li><a class="dropdown-item" href="{% url 'agent_login' %}">Staff Login</a></li>
               <li><a class="dropdown-item" href="#!">Blog</a></li>
               <li><a class="dropdown-item" href="#!">Career</a></li>
               <li><a class="dropdown-item" href="#!">Support</a></li>
@@ -78,7 +80,9 @@
             </ul>
           </div>
           <ul class="d-none d-md-flex gap-5 list-unstyled mb-0">
-            <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="#`">Apply for TASKIO</a></li>
+            <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="{% url 'register_business' %}">Start with Clarivo</a></li>
+            <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="{% url 'business_login' %}">Business Login</a></li>
+            <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="{% url 'agent_login' %}">Staff Login</a></li>
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="#!">Blog</a></li>
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="#!">Career</a></li>
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="mailto:example@gmail.com"> <span class="fa-regular fa-envelope me-2" data-fa-transform="down-1"></span>Support</a></li>
@@ -91,8 +95,8 @@
         <nav class="navbar navbar-landing navbar-expand-lg container-medium">
           <a class="navbar-brand flex-1 flex-lg-grow-0 me-lg-8 me-xl-13" href="">
             <div class="d-flex align-items-center">
-              <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="" width="27" /> <!--- Add logo-->
-              <h5 class="logo-text ms-2">TaskIO</h5>
+              <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Clarivo" width="27" />
+              <h5 class="logo-text ms-2">Clarivo</h5>
             </div>
           </a>
 
@@ -125,7 +129,7 @@
         <!--/.bg-holder-->
 
         <div class="container-medium position-relative z-5">
-          <h2 class="text-secondary-lighter fs-5 fs-md-3 fw-normal mb-3">Digitize your workflow with TaskIO</h2>
+          <h2 class="text-secondary-lighter fs-5 fs-md-3 fw-normal mb-3">Digitize your workflow with.</h2>
           <h1 class="fs-4 fs-md-1 text-white fw-normal mb-6 overflow-hidden">Built for the <span class="typed-text text-primary" data-typed-text="[&quot;&lt;span class=text-primary&gt;CARIBBEAN!&lt;/span&gt;&quot;,&quot;&lt;span class=text-warning&gt;Caribe&lt;/span&gt;&quot;, &quot;&lt;span class=text-info&gt;Caraïbes&lt;/span&gt;&quot;, &quot;&lt;span class=text-success&gt;Karibe&lt;/span&gt;&quot;]"></span></h1>
           <div class="input-group rounded-2 py-3 ps-3 w-lg-50 ">
           </div>
@@ -148,11 +152,11 @@
               <div class="col-lg-6">
                 <div class="row g-3">
                   <div class="col-md-7">
-                    <h4 class="fw-semibold mb-3">A simple system built for local boats moving cargo between Caribbean islands.</h4>
-                    <h2 class="fs-4 fw-semibold mb-3 mb-md-4">Your Dock<span class="text-primary-light fw-bold">Your data</span></h2>
+                    <h4 class="fw-semibold mb-3">A simple system for growing service teams.</h4>
+                    <h2 class="fs-4 fw-semibold mb-3 mb-md-4">Your workspace<span class="text-primary-light fw-bold">Your clarity</span></h2>
                     <p class="mb-3 mb-md-0 text-body-tertiary">
-                      For years, small boat operators have relied on handwritten manifests, phone calls, and guesswork to move parcels between islands. 
-                      Customers often ask the same questions: “Where is my parcel? Has it arrived? Who do I call?” But the answers are rarely clear.
+                      Clarivo helps businesses move beyond scattered notes, inboxes, and spreadsheets.
+                      Client details, requests, and follow-ups stay organized in one place so teams can respond faster and work with more confidence.
                     </p>
                   </div>
                   <div class="col-6 col-md-5">
@@ -190,17 +194,16 @@
                     <h4 class="fw-semibold mb-3">Our platform changes that.</h4>
                     <h2 class="fs-4 fw-semibold mb-3 mb-md-4"><span class="text-primary-light fw-bold"></span></h2>
                     <p class="mb-3 mb-md-0 text-body-tertiary">
-                      With one digital system, employees at the dock can register customers and parcels in minutes. 
-                      Each parcel is linked to a unique code, so customers can check the status of their shipment online—no more waiting on hold, no more uncertainty.
+                      A clear workspace for clients, service requests, invoices, appointments, and memberships.
                       <br>
                       <br>
-                      Management finally gets the full picture: live dashboards show all parcels moving across locations, performance metrics, and even exports of shipment data that can flow into systems like ASYCUDA where customs data is missing
-                      From the dock worker checking in cargo, to the manager overseeing operations, to the customer waiting on another island, everyone gets the same thing: clarity.
+                      Clarivo gives teams a shared view of customer activity, billing, and day-to-day operations without forcing them into a complicated setup.
+                      From first contact to follow-up, everyone works from the same current information.
                       <br>
                       <br>
                       <br>
                       <span class="d-none d-lg-inline-block d-xl-none"> </span>
-                      <span class="d-lg-none d-xl-inline">A system made for the Caribbean, built to grow with every boat, every parcel, every journey.</span>
+                      <span class="d-lg-none d-xl-inline">Built to help service businesses stay organized as they grow.</span>
                       <br>
                       <br>
                     </p>
@@ -233,7 +236,7 @@
             <div class="row gy-3 justify-content-between">
               <div class="col-auto"> <a class="text-white me-4" href="#!"><span class="fa-brands fa-facebook-f"> </span></a><a class="text-white me-4" href="#!"><span class="fa-brands fa-twitter"></span></a><a class="text-white me-4" href="#!"><span class="fa-brands fa-linkedin-in"></span></a><a class="text-white" href="#!"><span class="fa-brands fa-behance"></span></a></div>
               <div class="col-auto">
-                <p class="mb-0 text-white">Thank you for creating with FlintIO | 2020 © <a class="text-white" href="https://www.flintio.net/">FlintIO</a></p>
+                <p class="mb-0 text-white">Powered by Clarivo | 2025 &copy;</p>
               </div>
             </div>
           </div>

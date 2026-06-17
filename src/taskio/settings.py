@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "apps.accounts",
+    "apps.businesses",
     "apps.crm",
     "apps.billings",
 ]
@@ -84,6 +85,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.businesses.context_processors.current_business",
             ],
         },
     },
@@ -94,28 +96,28 @@ WSGI_APPLICATION = "taskio.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
-# DATABASES = {
-#     "default": {
-#         "ENGINE": settings.db_engine,
-#         "NAME": settings.db_name,
-#         "USER": settings.db_user,
-#         "PASSWORD": settings.db_password,
-#         "HOST": settings.db_host,
-#         "PORT": settings.db_port,
-#     }
-# }
-
-
 DATABASES = {
-    "default": dj_database_url.config(
-        default=os.getenv(
-            "DATABASE_URL",
-            "postgresql://postgres:postgres@localhost:5432/taskio_database_dev",
-        ),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
+    "default": {
+        "ENGINE": settings.db_engine,
+        "NAME": settings.db_name,
+        "USER": settings.db_user,
+        "PASSWORD": settings.db_password,
+        "HOST": settings.db_host,
+        "PORT": settings.db_port,
+    }
 }
+
+
+# DATABASES = {
+#     "default": dj_database_url.config(
+#         default=os.getenv(
+#             "DATABASE_URL",
+#             "postgresql://postgres:postgres@localhost:5432/taskio_database_dev",
+#         ),
+#         conn_max_age=600,
+#         conn_health_checks=True,
+#     )
+# }
 
 
 # Password validation

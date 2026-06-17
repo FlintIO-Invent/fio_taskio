@@ -15,11 +15,21 @@
 </style>
 
 <div class="content">
+  {% if messages %}
+    <div class="mb-4">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0"></ol>
   </nav>
 
-  <h2 class="text-bold text-body-emphasis mb-5">Lead List</h2>
+  <h2 class="text-bold text-body-emphasis mb-5">Service Request</h2>
 
   <div class="pb-6">
     <div id="lealsTable" data-list='{"valueNames":["name","email","phone","status","date"],"page":10,"pagination":true}'>
@@ -27,9 +37,11 @@
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
             <div>
-              <a class="btn btn-primary me-4" href="{% url 'staff_lead_create' %}">
-                <span class="fas fa-plus me-2"></span>Create Lead
-              </a>
+              {% if role_access.can_manage_leads %}
+                <a class="btn btn-primary me-4" href="{% url 'staff_lead_create' %}">
+                  <span class="fas fa-plus me-2"></span>Create Lead
+                </a>
+              {% endif %}
               <button class="btn btn-link text-body px-0" type="button">
                 <span class="fa-solid fa-file-export fs-9 me-2"></span>Export
               </button>
@@ -160,7 +172,7 @@
                   </div>
 
                   <div>
-                    <a class="fs-8 fw-bold text-body-highlight" href="#!">
+                    <a class="fs-8 fw-bold text-body-highlight" href="{% url 'staff_lead_detail' lead.id %}">
                       {{ lead.first_name }} {{ lead.last_name }}
                     </a>
                     <div class="d-flex align-items-center gap-2">
@@ -214,11 +226,10 @@
                     <span class="fas fa-ellipsis-h fs-10"></span>
                   </button>
                   <div class="dropdown-menu dropdown-menu-end py-2">
-                    <!-- wire these up when you add detail/edit/delete urls -->
-                    <a class="dropdown-item" href="#!">View</a>
-                    <a class="dropdown-item" href="#!">Edit</a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item text-danger" href="#!">Remove</a>
+                    <a class="dropdown-item" href="{% url 'staff_lead_detail' lead.id %}">View</a>
+                    {% if role_access.can_manage_leads %}
+                      <a class="dropdown-item" href="{% url 'staff_lead_update' lead.id %}">Edit</a>
+                    {% endif %}
                   </div>
                 </div>
               </td>
@@ -253,9 +264,8 @@
     <div class="row g-0 justify-content-between align-items-center h-100">
       <div class="col-12 col-sm-auto text-center">
         <p class="mb-0 mt-2 mt-sm-0 text-body">
-          Thank you for creating with FlintIO<span class="d-none d-sm-inline-block"></span>
+          Powered by Clarivo<span class="d-none d-sm-inline-block"></span>
           <span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;
-          <a class="mx-1" href="https://www.flintio.net/"></a>
         </p>
       </div>
       <div class="col-12 col-sm-auto text-center">
