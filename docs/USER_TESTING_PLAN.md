@@ -4,6 +4,11 @@
 
 This plan covers the current Clarivo MVP that is being prepared for private production testing. It is intentionally limited to the features that already exist and are safe to evaluate.
 
+Private-testing environment rule:
+
+- Use a PostgreSQL-backed deployment before inviting testers.
+- SQLite is only a temporary local fallback if a PostgreSQL test database cannot be created during development.
+
 ## In scope
 
 - Business workspace registration
@@ -32,6 +37,7 @@ This plan covers the current Clarivo MVP that is being prepared for private prod
 
 Prepare these before testing:
 
+- A PostgreSQL-backed environment with migrations already applied
 - One brand-new owner email for business registration
 - One invited admin or staff email
 - One invited accountant or viewer email
@@ -46,6 +52,12 @@ Recommended role coverage:
 - `Staff`
 - `Accountant`
 - `Viewer`
+
+Before inviting testers:
+
+- Run migrations successfully against PostgreSQL
+- Run `check --deploy` with production-style security settings
+- Smoke-test the key routes on the PostgreSQL-backed environment
 
 ## Route guide
 

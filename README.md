@@ -41,8 +41,9 @@ cp .env.example .env
 
 3. Choose one database strategy:
 
-- Set `DATABASE_URL` for PostgreSQL or another supported deployment database.
-- Or use the `DB_*` variables from `.env.example`.
+- For private production testing and production, use PostgreSQL.
+- Set `DATABASE_URL` to a PostgreSQL database, or use the PostgreSQL `DB_*` values from `.env.example`.
+- Use SQLite only as a temporary local fallback when a PostgreSQL test database cannot be created on your machine.
 
 4. Run migrations:
 
@@ -65,6 +66,12 @@ uv run --no-sync python src/manage.py createsuperuser
 ## Environment variables
 
 `DATABASE_URL` takes priority over the individual `DB_*` variables.
+
+Clarivo private testing and production requirements:
+
+- PostgreSQL is required before inviting external testers.
+- Validate migrations and smoke flows against a real PostgreSQL-backed deployment.
+- SQLite is acceptable only as a local emergency fallback while unblocking development.
 
 Important settings for local and production use:
 
@@ -109,35 +116,55 @@ uv run --no-sync python src/manage.py makemigrations --check --dry-run
 uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests
 ```
 
-Recommended production-style verification commands:
+Recommended PostgreSQL validation commands:
 
 ```bash
-DB_ENGINE=django.db.backends.sqlite3 \
-DB_NAME=/tmp/clarivo_audit.sqlite3 \
+DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
 DEBUG=False \
 SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
-SECURE_HSTS_INCLUDE_SUBDOMAINS=True \
-SECURE_HSTS_PRELOAD=True \
-uv run --no-sync python src/manage.py check --deploy
+uv run --no-sync python src/manage.py migrate
 ```
 
 ```bash
-DB_ENGINE=django.db.backends.sqlite3 \
-DB_NAME=/tmp/clarivo_audit.sqlite3 \
+DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
+DEBUG=False \
+SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+uv run --no-sync python src/manage.py check
+```
+
+```bash
+DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
 DEBUG=False \
 SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
 uv run --no-sync python src/manage.py makemigrations --check --dry-run
 ```
 
 ```bash
-DB_ENGINE=django.db.backends.sqlite3 \
-DB_NAME=/tmp/clarivo_test.sqlite3 \
+DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
 DEBUG=False \
 SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+SECURE_SSL_REDIRECT=True \
+SESSION_COOKIE_SECURE=True \
+CSRF_COOKIE_SECURE=True \
+SECURE_HSTS_SECONDS=3600 \
+SECURE_HSTS_INCLUDE_SUBDOMAINS=True \
+SECURE_HSTS_PRELOAD=True \
+USE_X_FORWARDED_PROTO=True \
+uv run --no-sync python src/manage.py check --deploy
+```
+
+Recommended Django suite command:
+
+```bash
 uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests --verbosity 2
 ```
 
-The repo also has pytest discovery aligned to `src/apps`, but the explicit Django test command above is the canonical smoke-test command for this release.
+`python src/manage.py test` and `pytest` are also wired to the same four app suites by default.
+
+If your local PostgreSQL role does not have `CREATEDB`, Django cannot create the temporary `test_...` database automatically. In that case, either:
+
+- grant the local role `CREATEDB`, or
+- have a DBA pre-create the PostgreSQL test database and run the suite with `--keepdb`
 
 ## Deployment
 
@@ -163,16 +190,20 @@ Deployment requirements:
 - `CSRF_TRUSTED_ORIGINS` should include the deployed HTTPS origin when forms are submitted cross-origin or through the public domain
 - `DATABASE_URL` should point to the production PostgreSQL database
 - `USE_X_FORWARDED_PROTO=True` is recommended behind Heroku/PaaS SSL termination
+- `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, and `SECURE_HSTS_SECONDS` should be enabled for internet-exposed private testing
 - Configure a real email backend before invitation-based testing if you want live email delivery
 
 ## Private-testing deployment checklist
 
 - Set all production environment variables
+- Confirm the deployment uses PostgreSQL, not SQLite
 - Confirm the release phase can reach the database
+- Run migrations against PostgreSQL successfully
 - Run `check --deploy`
 - Confirm static assets load after `collectstatic`
 - Confirm a default active trial plan exists
 - Confirm the default Pro or Pro Trial path allows the public request form
+- Run smoke routes on the PostgreSQL-backed deployment before sending invite links
 - Create one owner account, one invited teammate account, and one superuser
 - Verify `/accounts/register-business/`, `/accounts/login/`, `/crm/public_request/<business_slug>/`, `/crm/agent/dashboard/`, `/businesses/subscription/`, and `/admin/`
 
