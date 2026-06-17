@@ -36,6 +36,15 @@ def _parse_decimal(value: str | None, *, default: Decimal = Decimal("0.00")) -> 
         return default
 
 
+def _parse_optional_decimal(value: str | None) -> Decimal | None:
+    try:
+        if value is None or str(value).strip() == "":
+            return None
+        return Decimal(str(value).strip())
+    except (InvalidOperation, TypeError):
+        return None
+
+
 def _recalculate_invoice_totals(invoice: Invoice) -> None:
     subtotal = sum(
         (line.line_total for line in InvoiceLine.objects.filter(invoice=invoice).only("line_total")),
@@ -135,6 +144,27 @@ def _service_snapshot_description(service: BusinessService) -> str:
     return (service.description or "").strip() or service.name
 
 
+def _should_refresh_existing_service_snapshot(
+    *,
+    existing_line: InvoiceLine,
+    service: BusinessService,
+    posted_description: str,
+    posted_unit_price: str,
+) -> bool:
+    snapshot_description = _service_snapshot_description(service)
+    posted_price = _parse_optional_decimal(posted_unit_price)
+
+    if posted_description != snapshot_description:
+        return False
+    if posted_price != service.unit_price:
+        return False
+
+    return (
+        existing_line.description != snapshot_description
+        or existing_line.unit_price != service.unit_price
+    )
+
+
 def _clean_line_rows(
     *,
     rows: list[dict[str, Any]],
@@ -167,8 +197,17 @@ def _clean_line_rows(
                 existing_line = existing_lines_by_id.get(str(row["line_id"]))
 
             if existing_line is not None and existing_line.service_id == service.pk:
-                description_value = existing_line.description
-                unit_price_value = existing_line.unit_price
+                if _should_refresh_existing_service_snapshot(
+                    existing_line=existing_line,
+                    service=service,
+                    posted_description=description,
+                    posted_unit_price=unit_price,
+                ):
+                    description_value = _service_snapshot_description(service)
+                    unit_price_value = service.unit_price
+                else:
+                    description_value = existing_line.description
+                    unit_price_value = existing_line.unit_price
             else:
                 description_value = _service_snapshot_description(service)
                 unit_price_value = service.unit_price

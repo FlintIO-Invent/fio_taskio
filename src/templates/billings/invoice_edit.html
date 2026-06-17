@@ -38,21 +38,26 @@
           <div class="card-header d-flex justify-content-between align-items-center">
             <div>
               <h5 class="mb-0">Line Items</h5>
-              <p class="mb-0 text-body-secondary small">Select a saved service or keep a manual snapshot line item.</p>
+              <p class="mb-0 text-body-secondary small">Saved lines keep their snapshot values. Select a saved service again only when you want to refresh the current catalog description and price.</p>
             </div>
             <button type="button" class="btn btn-sm btn-phoenix-primary" onclick="addLineItem()">
-              <span class="fa-solid fa-plus me-2"></span>Add Line
+              <span class="fa-solid fa-plus me-2"></span>Add Service Line
             </button>
           </div>
           <div class="card-body">
+            {% if not available_services %}
+              <div class="alert alert-light border mb-4" role="alert">
+                No services found. Add services in Settings -> Services.
+              </div>
+            {% endif %}
             <div id="line-items">
               {% for line in existing_line_rows %}
               <div class="line-item row g-3 mb-3 pb-3 border-bottom">
                 <input type="hidden" name="line_id" value="{{ line.line_id }}">
                 <div class="col-md-5">
-                  <label class="form-label">Service</label>
+                  <label class="form-label">Saved Service</label>
                   <select class="form-select service-select" name="service_id">
-                    <option value="">Custom line item</option>
+                    <option value="">Select a saved service</option>
                     {% for service in available_services %}
                     <option
                       value="{{ service.id }}"
@@ -66,6 +71,7 @@
                     </option>
                     {% endfor %}
                   </select>
+                  <div class="form-text">Leave the saved service blank to keep this line fully custom.</div>
                   <label class="form-label mt-2">Description</label>
                   <input type="text" class="form-control" name="description" value="{{ line.description }}" required>
                 </div>
@@ -92,9 +98,9 @@
               {% for line in new_line_rows %}
               <div class="line-item row g-3 mb-3 pb-3 border-bottom">
                 <div class="col-md-5">
-                  <label class="form-label">Service</label>
+                  <label class="form-label">Saved Service</label>
                   <select class="form-select service-select" name="new_service_id">
-                    <option value="">Custom line item</option>
+                    <option value="">Select a saved service</option>
                     {% for service in available_services %}
                     <option
                       value="{{ service.id }}"
@@ -108,6 +114,7 @@
                     </option>
                     {% endfor %}
                   </select>
+                  <div class="form-text">Leave the saved service blank and complete the fields below for a custom line item.</div>
                   <label class="form-label mt-2">Description</label>
                   <input type="text" class="form-control" name="new_description" value="{{ line.description }}">
                 </div>
@@ -134,9 +141,9 @@
 
             <div id="line-item-template" class="line-item row g-3 mb-3 pb-3 border-bottom" style="display: none;">
               <div class="col-md-5">
-                <label class="form-label">Service</label>
+                <label class="form-label">Saved Service</label>
                 <select class="form-select service-select" name="new_service_id" disabled>
-                  <option value="">Custom line item</option>
+                  <option value="">Select a saved service</option>
                   {% for service in available_services %}
                   <option
                     value="{{ service.id }}"
@@ -149,6 +156,7 @@
                   </option>
                   {% endfor %}
                 </select>
+                <div class="form-text">Leave the saved service blank and complete the fields below for a custom line item.</div>
                 <label class="form-label mt-2">Description</label>
                 <input type="text" class="form-control" name="new_description" disabled>
               </div>

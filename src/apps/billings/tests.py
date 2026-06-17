@@ -177,6 +177,15 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(created_invoice.invoice_number, "CLR-0250")
         self.assertEqual(created_invoice.tax, Decimal("0.00"))
 
+    def test_invoice_create_from_client_blocks_other_business_client(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_client", args=[self.other_client_record.id])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
     def test_invoice_create_page_only_lists_current_business_services(self):
         self.client.force_login(self.user)
 
@@ -214,6 +223,35 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(created_invoice.subtotal, Decimal("125.00"))
         self.assertEqual(created_invoice.tax, Decimal("8.13"))
         self.assertEqual(created_invoice.total, Decimal("133.13"))
+
+    def test_invoice_create_from_client_allows_manual_line_item(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_client", args=[self.client_record.id]),
+            data={
+                "service_id": [""],
+                "description": ["After-hours emergency callout"],
+                "quantity": ["2"],
+                "unit_price": ["75.00"],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+        line = created_invoice.lines.get()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertIsNone(line.service)
+        self.assertEqual(line.description, "After-hours emergency callout")
+        self.assertEqual(line.quantity, Decimal("2.00"))
+        self.assertEqual(line.unit_price, Decimal("75.00"))
+        self.assertEqual(line.line_total, Decimal("150.00"))
+        self.assertEqual(created_invoice.subtotal, Decimal("150.00"))
+        self.assertEqual(created_invoice.tax, Decimal("9.75"))
+        self.assertEqual(created_invoice.total, Decimal("159.75"))
 
     def test_invoice_create_rejects_service_from_other_business(self):
         self.client.force_login(self.user)
@@ -277,6 +315,28 @@ class BillingBusinessScopingTests(TestCase):
         self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertContains(response, "You do not have permission to view invoices.")
 
+    def test_staff_cannot_open_invoice_create_page(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_client", args=[self.client_record.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertContains(response, "You do not have permission to manage invoices.")
+
+    def test_staff_cannot_open_invoice_edit_page(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]))
+
+        self.assertRedirects(
+            response,
+            reverse("invoice_list"),
+            fetch_redirect_response=False,
+        )
+
     def test_viewer_cannot_edit_invoice(self):
         self.client.force_login(self.viewer_user)
 
@@ -291,6 +351,27 @@ class BillingBusinessScopingTests(TestCase):
         response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]))
 
         self.assertEqual(response.status_code, 200)
+
+    def test_accountant_can_create_invoice_from_client(self):
+        self.client.force_login(self.accountant_user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_client", args=[self.client_record.id]),
+            data={
+                "service_id": [str(self.business_service.id)],
+                "description": [""],
+                "quantity": ["1"],
+                "unit_price": [""],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(created_invoice.client, self.client_record)
 
     def test_viewer_invoice_detail_hides_edit_and_status_actions(self):
         self.client.force_login(self.viewer_user)
@@ -385,6 +466,33 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(self.invoice.tax, Decimal("16.25"))
         self.assertEqual(self.invoice.total, Decimal("266.25"))
 
+    def test_invoice_edit_rejects_service_from_other_business(self):
+        line = InvoiceLine.objects.create(
+            invoice=self.invoice,
+            description="Existing line",
+            quantity=Decimal("1.00"),
+            unit_price=Decimal("50.00"),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_edit", args=[self.invoice.id]),
+            data={
+                "notes": "Updated invoice",
+                "line_id": [str(line.id)],
+                "service_id": [str(self.other_business_service.id)],
+                "description": ["Tampered description"],
+                "quantity": ["2"],
+                "unit_price": ["999.00"],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "selected service is not available in this workspace")
+        line.refresh_from_db()
+        self.assertEqual(line.description, "Existing line")
+        self.assertEqual(line.unit_price, Decimal("50.00"))
+
     def test_invoice_edit_preserves_existing_service_snapshot_when_service_is_unchanged(self):
         line = InvoiceLine.objects.create(
             invoice=self.invoice,
@@ -422,3 +530,68 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(self.invoice.subtotal, Decimal("220.00"))
         self.assertEqual(self.invoice.tax, Decimal("14.30"))
         self.assertEqual(self.invoice.total, Decimal("234.30"))
+
+    def test_invoice_edit_refreshes_existing_service_snapshot_when_reselected_intentionally(self):
+        line = InvoiceLine.objects.create(
+            invoice=self.invoice,
+            service=self.business_service,
+            description="Quoted septic pumping service",
+            quantity=Decimal("1.00"),
+            unit_price=Decimal("110.00"),
+        )
+        self.business_service.description = "Updated service description"
+        self.business_service.unit_price = Decimal("140.00")
+        self.business_service.save()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_edit", args=[self.invoice.id]),
+            data={
+                "notes": "Refresh the quote from the saved service",
+                "line_id": [str(line.id)],
+                "service_id": [str(self.business_service.id)],
+                "description": [self.business_service.description],
+                "quantity": ["2"],
+                "unit_price": [str(self.business_service.unit_price)],
+            },
+        )
+
+        self.invoice.refresh_from_db()
+        line.refresh_from_db()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
+        self.assertEqual(line.description, "Updated service description")
+        self.assertEqual(line.unit_price, Decimal("140.00"))
+        self.assertEqual(line.quantity, Decimal("2.00"))
+        self.assertEqual(line.line_total, Decimal("280.00"))
+        self.assertEqual(self.invoice.subtotal, Decimal("280.00"))
+        self.assertEqual(self.invoice.tax, Decimal("18.20"))
+        self.assertEqual(self.invoice.total, Decimal("298.20"))
+
+    def test_viewer_cannot_change_invoice_status(self):
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.post(
+            reverse("invoice_change_status", args=[self.invoice.id]),
+            data={"status": Invoice.Status.SENT},
+            follow=True,
+        )
+
+        self.invoice.refresh_from_db()
+
+        self.assertRedirects(response, reverse("invoice_list"))
+        self.assertContains(response, "You do not have permission to manage invoices.")
+        self.assertEqual(self.invoice.status, Invoice.Status.DRAFT)
+
+    def test_accountant_can_change_invoice_status(self):
+        self.client.force_login(self.accountant_user)
+
+        response = self.client.post(
+            reverse("invoice_change_status", args=[self.invoice.id]),
+            data={"status": Invoice.Status.SENT},
+        )
+
+        self.invoice.refresh_from_db()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
+        self.assertEqual(self.invoice.status, Invoice.Status.SENT)
