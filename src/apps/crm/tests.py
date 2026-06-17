@@ -12,6 +12,7 @@ from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 
 from .forms import PrivateClientForm, PrivateLeadForm
 from .models import BusinessService, Client, Lead, ServiceCategory
+from .services import sync_client_from_lead
 
 
 class CRMBusinessScopingTests(TestCase):
@@ -124,6 +125,16 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_public_request_creates_business_scoped_lead_and_client(self):
+        foreign_client = Client.objects.create(
+            business=self.other_business,
+            first_name="Jamie",
+            last_name="Foreign",
+            email="jamie@example.com",
+            phone="+1 721 555 9998",
+            company_name="Bravo Customer",
+            street_address="99 Foreign Street",
+        )
+
         response = self.client.post(
             reverse("public_request", args=[self.business.slug]),
             data={
@@ -145,13 +156,155 @@ class CRMBusinessScopingTests(TestCase):
         self.assertRedirects(response, reverse("public_thank_you"))
 
         lead = Lead.objects.get(email="jamie@example.com")
+        client = Client.objects.get(business=self.business, email="jamie@example.com")
+
         self.assertEqual(lead.business, self.business)
-        self.assertTrue(
-            Client.objects.filter(
-                business=self.business,
-                email="jamie@example.com",
-            ).exists()
+        self.assertEqual(client.client_type, Client.ClientType.BUSINESS)
+        self.assertEqual(client.client_status, Client.ClientStatus.LEAD)
+        self.assertEqual(client.lead_source, Client.LeadSource.WEBSITE)
+        self.assertEqual(client.priority, Client.Priority.MEDIUM)
+        self.assertTrue(client.consent_to_contact)
+        self.assertTrue(client.is_active)
+        self.assertIn("Public request #", client.communication_notes)
+        self.assertIn("Need a service visit this week.", client.communication_notes)
+        self.assertEqual(foreign_client.business, self.other_business)
+        self.assertEqual(
+            Client.objects.filter(email="jamie@example.com").count(),
+            2,
         )
+
+    def test_public_request_updates_empty_fields_on_existing_client(self):
+        category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Tank Pumping",
+        )
+        existing_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Prospect",
+            email="jamie-existing@example.com",
+            phone="",
+            company_name="",
+            street_address="",
+            district="",
+            country="",
+            postal_code="",
+            message="",
+            communication_notes="Existing relationship note.",
+            lead_source="",
+        )
+
+        response = self.client.post(
+            reverse("public_request", args=[self.business.slug]),
+            data={
+                "lead_type": Lead.LeadType.REQUEST,
+                "category": category.id,
+                "first_name": "Jamie",
+                "last_name": "Prospect",
+                "company_name": "Alpha Customer",
+                "email": "jamie-existing@example.com",
+                "phone": "+1 721 555 0002",
+                "street_address": "45 Front Street",
+                "district": Lead.DistrictChoices.PHILIPSBURG,
+                "country": "Sint Maarten",
+                "postal_code": "00000",
+                "message": "Need a service visit this week.",
+                "consent_to_contact": "on",
+            },
+        )
+
+        existing_client.refresh_from_db()
+
+        self.assertRedirects(response, reverse("public_thank_you"))
+        self.assertEqual(existing_client.phone, "+1 721 555 0002")
+        self.assertEqual(existing_client.company_name, "Alpha Customer")
+        self.assertEqual(existing_client.street_address, "45 Front Street")
+        self.assertEqual(existing_client.district, Lead.DistrictChoices.PHILIPSBURG)
+        self.assertEqual(existing_client.country, "Sint Maarten")
+        self.assertEqual(existing_client.postal_code, "00000")
+        self.assertEqual(existing_client.message, "Need a service visit this week.")
+        self.assertEqual(existing_client.lead_source, Client.LeadSource.WEBSITE)
+        self.assertIn("Existing relationship note.", existing_client.communication_notes)
+        self.assertIn("Public request #", existing_client.communication_notes)
+        self.assertIn("Category: Tank Pumping", existing_client.communication_notes)
+        self.assertIn("Need a service visit this week.", existing_client.communication_notes)
+
+    def test_public_request_does_not_overwrite_richer_existing_client_data(self):
+        category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Emergency Callout",
+        )
+        existing_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Prospect",
+            email="jamie-protected@example.com",
+            phone="+1 721 555 1234",
+            company_name="Trusted Client",
+            business_legal_name="Trusted Client N.V.",
+            trade_name="Trusted",
+            industry="Hospitality",
+            business_description="Long-term account",
+            website="https://trusted.example.com",
+            registration_number="REG-123",
+            client_status=Client.ClientStatus.ACTIVE,
+            lead_source=Client.LeadSource.REFERRAL,
+            priority=Client.Priority.HIGH,
+            assigned_to=self.user,
+            street_address="Stored Address",
+            district=Client.DistrictChoices.MAHO,
+            country="Curacao",
+            postal_code="1111",
+            message="Existing internal summary.",
+            communication_notes="Prior call logged.",
+            notes="VIP account notes.",
+            consent_to_contact=True,
+        )
+
+        response = self.client.post(
+            reverse("public_request", args=[self.business.slug]),
+            data={
+                "lead_type": Lead.LeadType.REQUEST,
+                "category": category.id,
+                "first_name": "Jamie",
+                "last_name": "Prospect",
+                "company_name": "New Public Name",
+                "email": "jamie-protected@example.com",
+                "phone": "+1 721 555 9999",
+                "street_address": "45 Front Street",
+                "district": Lead.DistrictChoices.PHILIPSBURG,
+                "country": "Sint Maarten",
+                "postal_code": "00000",
+                "message": "Urgent dispatch needed.",
+                "consent_to_contact": "on",
+            },
+        )
+
+        existing_client.refresh_from_db()
+
+        self.assertRedirects(response, reverse("public_thank_you"))
+        self.assertEqual(existing_client.company_name, "Trusted Client")
+        self.assertEqual(existing_client.phone, "+1 721 555 1234")
+        self.assertEqual(existing_client.business_legal_name, "Trusted Client N.V.")
+        self.assertEqual(existing_client.trade_name, "Trusted")
+        self.assertEqual(existing_client.industry, "Hospitality")
+        self.assertEqual(existing_client.business_description, "Long-term account")
+        self.assertEqual(existing_client.website, "https://trusted.example.com")
+        self.assertEqual(existing_client.registration_number, "REG-123")
+        self.assertEqual(existing_client.client_status, Client.ClientStatus.ACTIVE)
+        self.assertEqual(existing_client.lead_source, Client.LeadSource.REFERRAL)
+        self.assertEqual(existing_client.priority, Client.Priority.HIGH)
+        self.assertEqual(existing_client.assigned_to, self.user)
+        self.assertEqual(existing_client.street_address, "Stored Address")
+        self.assertEqual(existing_client.district, Client.DistrictChoices.MAHO)
+        self.assertEqual(existing_client.country, "Curacao")
+        self.assertEqual(existing_client.postal_code, "1111")
+        self.assertEqual(existing_client.message, "Existing internal summary.")
+        self.assertEqual(existing_client.notes, "VIP account notes.")
+        self.assertIn("Prior call logged.", existing_client.communication_notes)
+        self.assertIn("Public request #", existing_client.communication_notes)
+        self.assertIn("Category: Emergency Callout", existing_client.communication_notes)
+        self.assertIn("Urgent dispatch needed.", existing_client.communication_notes)
 
     def test_private_lead_form_limits_categories_to_current_business(self):
         current_category = ServiceCategory.objects.create(
@@ -264,6 +417,36 @@ class CRMBusinessScopingTests(TestCase):
             status_code=403,
         )
         self.assertFalse(Lead.objects.filter(email="blocked-plan@example.com").exists())
+
+    def test_sync_client_from_lead_can_fall_back_to_same_business_phone_when_email_missing(self):
+        existing_client = Client.objects.create(
+            business=self.business,
+            first_name="Phone",
+            last_name="Match",
+            email="stored@example.com",
+            phone="+1 721 555 0109",
+            company_name="Phone Match Co",
+            street_address="12 Main Street",
+        )
+        lead = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            first_name="Jamie",
+            last_name="Requester",
+            email="",
+            phone="+1 (721) 555-0109",
+            company_name="Alpha Customer",
+            street_address="45 Front Street",
+            message="Need a service visit this week.",
+        )
+
+        client, created = sync_client_from_lead(lead)
+        existing_client.refresh_from_db()
+
+        self.assertFalse(created)
+        self.assertEqual(client.pk, existing_client.pk)
+        self.assertIn("Public request #", existing_client.communication_notes)
 
     def test_agent_dashboard_scopes_metrics_to_current_business(self):
         current_client = Client.objects.create(
