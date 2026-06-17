@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 BASE_DIR = Path(__file__).resolve().parent  # => .../fio_taskio/src
@@ -61,11 +62,11 @@ class Settings(BaseSettings):
         default=None,
         description="Django secret key. Required whenever DEBUG is False.",
     )
-    allowed_hosts: list[str] = Field(
+    allowed_hosts: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["127.0.0.1", "localhost"],
         description="Allowed hosts for Django.",
     )
-    csrf_trusted_origins: list[str] = Field(
+    csrf_trusted_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=list,
         description="Trusted origins for CSRF protection.",
     )
