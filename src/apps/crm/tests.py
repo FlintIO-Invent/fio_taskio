@@ -100,6 +100,33 @@ class CRMBusinessScopingTests(TestCase):
             role=BusinessUser.Role.VIEWER,
         )
 
+    def _enable_invoicing_for_business(self):
+        invoicing_plan = ClarivoPlan.objects.create(
+            name="Requests and Billing",
+            slug="requests-and-billing-tests",
+            allow_public_request_form=True,
+            allow_invoicing=True,
+        )
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = invoicing_plan
+        subscription.save(update_fields=["plan", "updated_at"])
+
+    def _build_request_lead(self, **overrides):
+        lead_data = {
+            "business": self.business,
+            "lead_type": Lead.LeadType.REQUEST,
+            "status": Lead.Status.NEW,
+            "first_name": "Jamie",
+            "last_name": "Requester",
+            "email": "jamie-request@example.com",
+            "phone": "+1 721 555 4444",
+            "company_name": "Alpha Request Co",
+            "street_address": "45 Front Street",
+            "message": "Need service this week.",
+        }
+        lead_data.update(overrides)
+        return Lead.objects.create(**lead_data)
+
     def test_private_client_form_limits_assigned_to_choices_to_current_business(self):
         form = PrivateClientForm(business=self.business)
 
@@ -447,6 +474,219 @@ class CRMBusinessScopingTests(TestCase):
         self.assertFalse(created)
         self.assertEqual(client.pk, existing_client.pk)
         self.assertIn("Public request #", existing_client.communication_notes)
+
+    def test_staff_can_convert_request_to_new_client(self):
+        lead = self._build_request_lead(email="convert-new@example.com")
+
+        self.client.force_login(self.staff_user)
+
+        response = self.client.post(
+            reverse("staff_lead_convert_to_client", args=[lead.id]),
+            data={
+                "first_name": lead.first_name,
+                "last_name": lead.last_name,
+                "company_name": lead.company_name,
+                "email": lead.email,
+                "phone": lead.phone,
+                "street_address": lead.street_address,
+                "district": lead.district,
+                "country": lead.country,
+                "postal_code": lead.postal_code,
+                "message": lead.message,
+                "consent_to_contact": "on",
+            },
+        )
+
+        created_client = Client.objects.get(business=self.business, email="convert-new@example.com")
+
+        self.assertRedirects(response, reverse("staff_client_detail", args=[created_client.id]))
+        self.assertEqual(created_client.first_name, lead.first_name)
+        self.assertEqual(created_client.street_address, lead.street_address)
+        self.assertIn("Public request #", created_client.communication_notes)
+
+    def test_convert_request_reuses_existing_client_in_same_business(self):
+        existing_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Matched",
+            email="existing-match@example.com",
+            phone="+1 721 555 7777",
+            company_name="Existing Match Co",
+            street_address="Stored Address",
+        )
+        lead = self._build_request_lead(
+            email="",
+            phone="+1 721 555 8888",
+            company_name="Lead Company",
+        )
+
+        self.client.force_login(self.staff_user)
+
+        response = self.client.post(
+            reverse("staff_lead_convert_to_client", args=[lead.id]),
+            data={
+                "first_name": "Jamie",
+                "last_name": "Requester",
+                "company_name": "Lead Company",
+                "email": existing_client.email,
+                "phone": lead.phone,
+                "street_address": lead.street_address,
+                "district": lead.district,
+                "country": lead.country,
+                "postal_code": lead.postal_code,
+                "message": lead.message,
+                "consent_to_contact": "on",
+            },
+        )
+
+        existing_client.refresh_from_db()
+        lead.refresh_from_db()
+
+        self.assertRedirects(response, reverse("staff_client_detail", args=[existing_client.id]))
+        self.assertEqual(Client.objects.filter(business=self.business, email=existing_client.email).count(), 1)
+        self.assertEqual(lead.email, existing_client.email)
+        self.assertIn("Public request #", existing_client.communication_notes)
+
+    def test_missing_required_fields_show_conversion_form(self):
+        lead = self._build_request_lead(
+            email="missing-required@example.com",
+            company_name="",
+            street_address="",
+        )
+
+        self.client.force_login(self.staff_user)
+
+        get_response = self.client.get(reverse("staff_lead_convert_to_client", args=[lead.id]))
+        post_response = self.client.post(
+            reverse("staff_lead_convert_to_client", args=[lead.id]),
+            data={
+                "first_name": lead.first_name,
+                "last_name": lead.last_name,
+                "company_name": "",
+                "email": lead.email,
+                "phone": lead.phone,
+                "street_address": "",
+                "district": lead.district,
+                "country": lead.country,
+                "postal_code": lead.postal_code,
+                "message": lead.message,
+            },
+        )
+
+        self.assertEqual(get_response.status_code, 200)
+        self.assertContains(get_response, "Company name")
+        self.assertContains(get_response, "Street address")
+        self.assertEqual(post_response.status_code, 200)
+        self.assertContains(post_response, "This field is required.")
+        self.assertFalse(Client.objects.filter(business=self.business, email="missing-required@example.com").exists())
+
+    def test_other_business_cannot_convert_request(self):
+        foreign_lead = Lead.objects.create(
+            business=self.other_business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            first_name="Morgan",
+            last_name="Foreign",
+            email="foreign-request@example.com",
+            phone="+1 721 555 0099",
+            company_name="Bravo Request",
+            street_address="99 Foreign Street",
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("staff_lead_convert_to_client", args=[foreign_lead.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_viewer_cannot_convert_request(self):
+        lead = self._build_request_lead(email="viewer-blocked@example.com")
+
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.get(
+            reverse("staff_lead_convert_to_client", args=[lead.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("staff_lead_list"))
+        self.assertContains(
+            response,
+            "You do not have permission to convert service requests into clients.",
+        )
+
+    def test_accountant_can_start_invoice_from_request_but_cannot_edit_request(self):
+        self._enable_invoicing_for_business()
+        matched_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="accountant-request@example.com",
+            phone="+1 721 555 2233",
+            company_name="Matched Client Co",
+            street_address="12 Main Street",
+        )
+        lead = self._build_request_lead(
+            email=matched_client.email,
+            phone=matched_client.phone,
+        )
+
+        self.client.force_login(self.accountant_user)
+
+        invoice_response = self.client.get(reverse("staff_lead_create_invoice", args=[lead.id]))
+        edit_response = self.client.get(
+            reverse("staff_lead_update", args=[lead.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(
+            invoice_response,
+            reverse("invoice_create_from_client", args=[matched_client.id]),
+            fetch_redirect_response=False,
+        )
+        self.assertRedirects(edit_response, reverse("staff_lead_list"))
+        self.assertContains(edit_response, "You do not have permission to create or edit service requests.")
+
+    def test_create_invoice_from_request_requires_client(self):
+        self._enable_invoicing_for_business()
+        lead = self._build_request_lead(
+            email="invoice-needs-client@example.com",
+            company_name="",
+            street_address="",
+        )
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("staff_lead_create_invoice", args=[lead.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("staff_lead_convert_to_client", args=[lead.id]))
+        self.assertContains(response, "Convert Service Request to Client")
+
+    def test_service_request_detail_shows_matched_client_and_invoice_action(self):
+        self._enable_invoicing_for_business()
+        matched_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="detail-match@example.com",
+            phone="+1 721 555 3233",
+            company_name="Matched Detail Co",
+            street_address="12 Main Street",
+        )
+        lead = self._build_request_lead(
+            email=matched_client.email,
+            phone=matched_client.phone,
+        )
+
+        self.client.force_login(self.accountant_user)
+
+        response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("staff_client_detail", args=[matched_client.id]))
+        self.assertContains(response, reverse("staff_lead_create_invoice", args=[lead.id]))
 
     def test_agent_dashboard_scopes_metrics_to_current_business(self):
         current_client = Client.objects.create(

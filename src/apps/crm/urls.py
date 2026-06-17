@@ -12,6 +12,8 @@ from .views import (
     staff_client_update,
     client_detail_view,
     staff_lead_detail,
+    staff_lead_convert_to_client,
+    staff_lead_create_invoice,
     staff_lead_update,
     business_service_category_archive,
     business_service_category_create,
@@ -34,7 +36,16 @@ urlpatterns = [
     path("staff/leads/", staff_lead_list, name="staff_lead_list"),
     path("staff/leads/create/", staff_lead_create, name="staff_lead_create"),
     path("staff/leads/<int:lead_id>/edit/", staff_lead_update, name="staff_lead_update"),
-    
+    path(
+        "staff/leads/<int:lead_id>/convert-to-client/",
+        staff_lead_convert_to_client,
+        name="staff_lead_convert_to_client",
+    ),
+    path(
+        "staff/leads/<int:lead_id>/create-invoice/",
+        staff_lead_create_invoice,
+        name="staff_lead_create_invoice",
+    ),
     path("staff/clients/create/", staff_client_create, name="staff_client_create"),
     path("staff/clients/", staff_client_list, name="staff_client_list"),
     path("staff/clients/<int:client_id>/edit/", staff_client_update, name="staff_client_update"),

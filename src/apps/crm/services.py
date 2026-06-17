@@ -7,6 +7,24 @@ from django.utils import timezone
 from .models import Lead, Client, ActivityLog
 
 
+CLIENT_REQUIRED_FIELDS_FOR_REQUEST_CONVERSION = (
+    "first_name",
+    "last_name",
+    "email",
+    "phone",
+    "company_name",
+    "street_address",
+)
+CLIENT_REQUIRED_FIELD_LABELS = {
+    "first_name": "First name",
+    "last_name": "Last name",
+    "email": "Email",
+    "phone": "Phone",
+    "company_name": "Company name",
+    "street_address": "Street address",
+}
+
+
 def _normalized_text(value: str | None) -> str:
     return (value or "").strip()
 
@@ -87,7 +105,7 @@ def _append_request_context(existing_value: str, lead: Lead) -> str:
     return f"{normalized_existing_value}\n\n{request_context}"
 
 
-def _find_matching_client_for_lead(lead: Lead) -> Client | None:
+def find_matching_client_for_lead(lead: Lead) -> Client | None:
     same_business_clients = Client.objects.filter(business=lead.business).order_by("pk")
     normalized_email = _normalized_email(lead.email)
 
@@ -106,6 +124,17 @@ def _find_matching_client_for_lead(lead: Lead) -> Client | None:
     if len(phone_matches) == 1:
         return phone_matches[0]
     return None
+
+
+def get_missing_client_required_field_labels_for_lead(lead: Lead) -> list[str]:
+    missing_labels: list[str] = []
+
+    for field_name in CLIENT_REQUIRED_FIELDS_FOR_REQUEST_CONVERSION:
+        if _normalized_text(getattr(lead, field_name, "")):
+            continue
+        missing_labels.append(CLIENT_REQUIRED_FIELD_LABELS[field_name])
+
+    return missing_labels
 
 
 def _build_client_create_defaults_from_lead(lead: Lead) -> dict[str, str]:
@@ -169,7 +198,7 @@ def sync_client_from_lead(lead: Lead) -> tuple[Client, bool]:
 
     create_defaults = _build_client_create_defaults_from_lead(lead)
     update_values = _build_client_update_values_from_lead(lead)
-    client = _find_matching_client_for_lead(lead)
+    client = find_matching_client_for_lead(lead)
 
     if client is None:
         client = Client.objects.create(**create_defaults)

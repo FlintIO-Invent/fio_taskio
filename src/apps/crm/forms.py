@@ -8,6 +8,7 @@ from django.utils.text import slugify
 from apps.businesses.models import BusinessUser
 
 from .models import BusinessService, Client, Lead, ServiceCategory
+from .services import CLIENT_REQUIRED_FIELDS_FOR_REQUEST_CONVERSION
 
 
 def _service_category_queryset(*, business=None, instance=None, include_inactive=False):
@@ -425,6 +426,76 @@ class PublicLeadForm(forms.ModelForm):
             "postal_code": "Postal Code",
             "consent_to_contact": "I consent to be contacted via email and phone for service requests and updates.",
         }
+
+
+class LeadClientConversionForm(forms.ModelForm):
+    class Meta:
+        model = Lead
+        fields = [
+            "first_name",
+            "last_name",
+            "company_name",
+            "email",
+            "phone",
+            "street_address",
+            "district",
+            "country",
+            "postal_code",
+            "message",
+            "consent_to_contact",
+        ]
+        widgets = {
+            "first_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "First name"}
+            ),
+            "last_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Last name"}
+            ),
+            "company_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Company name"}
+            ),
+            "email": forms.EmailInput(
+                attrs={"class": "form-control", "placeholder": "name@example.com"}
+            ),
+            "phone": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "+1 (721) 456-7890"}
+            ),
+            "street_address": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Street address"}
+            ),
+            "district": forms.Select(attrs={"class": "form-select"}),
+            "country": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Country"}
+            ),
+            "postal_code": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Postal code"}
+            ),
+            "message": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Add any extra service request context for your team...",
+                }
+            ),
+            "consent_to_contact": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+        labels = {
+            "company_name": "Company name",
+            "street_address": "Street address",
+            "postal_code": "Postal code",
+            "consent_to_contact": "Client contact consent confirmed",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        for field_name in CLIENT_REQUIRED_FIELDS_FOR_REQUEST_CONVERSION:
+            self.fields[field_name].required = True
+
+        if not self.instance.country:
+            self.fields["country"].initial = "Sint Maarten"
+        if not self.instance.postal_code or self.instance.postal_code == "N/A":
+            self.fields["postal_code"].initial = self.instance.postal_code or "N/A"
 
 
 class ServiceCategoryForm(forms.ModelForm):

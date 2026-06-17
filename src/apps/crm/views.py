@@ -19,10 +19,12 @@ from loguru import logger
 from apps.businesses.models import Business
 from apps.businesses.utils import (
     ALL_WORKSPACE_ROLES,
+    BILLING_MANAGE_ROLES,
     CLIENT_MANAGE_ROLES,
     LEAD_MANAGE_ROLES,
     SERVICE_MANAGEMENT_ROLES,
     business_required,
+    business_module_required,
     can_use_module,
     business_role_required,
     get_business_module_unavailable_message,
@@ -33,12 +35,18 @@ from apps.billings.models import Invoice
 from .forms import (
     BusinessServiceCSVImportForm,
     BusinessServiceForm,
+    LeadClientConversionForm,
     PrivateClientForm,
     PrivateLeadForm,
     PublicLeadForm,
     ServiceCategoryForm,
 )
 from .models import BusinessService, Client, Lead, ServiceCategory
+from .services import (
+    find_matching_client_for_lead,
+    get_missing_client_required_field_labels_for_lead,
+    sync_client_from_lead,
+)
 from helpers import upsert_client_from_lead
 
 
@@ -541,8 +549,16 @@ def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     """Display staff-facing details for a single lead."""
     current_business = request.current_business
     lead = get_object_or_404(_lead_queryset_for_business(current_business), pk=lead_id)
+    matched_client = None
+    missing_client_fields: list[str] = []
+    if lead.lead_type == Lead.LeadType.REQUEST:
+        matched_client = find_matching_client_for_lead(lead)
+        if matched_client is None:
+            missing_client_fields = get_missing_client_required_field_labels_for_lead(lead)
     context: dict[str, Any] = {
         "lead": lead,
+        "matched_client": matched_client,
+        "missing_client_fields": missing_client_fields,
     }
     return render(request, "crm/main/lead_detail.html", context)
 
@@ -577,6 +593,81 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
         "submit_label": "Save changes",
     }
     return render(request, "crm/forms/lead_create.html", context)
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="staff_lead_list",
+    permission_message="You do not have permission to convert service requests into clients.",
+    raise_exception=False,
+)
+@require_http_methods(["GET", "POST"])
+def staff_lead_convert_to_client(request: HttpRequest, lead_id: int) -> HttpResponse:
+    current_business = request.current_business
+    lead = get_object_or_404(
+        _lead_queryset_for_business(current_business).filter(lead_type=Lead.LeadType.REQUEST),
+        pk=lead_id,
+    )
+    matched_client = find_matching_client_for_lead(lead)
+
+    if matched_client is not None:
+        messages.info(
+            request,
+            "This service request already matches a client in the current workspace.",
+        )
+        return redirect("staff_client_detail", client_id=matched_client.id)
+
+    if request.method == "POST":
+        form = LeadClientConversionForm(request.POST, instance=lead)
+        if form.is_valid():
+            lead = form.save(commit=False)
+            lead.business = current_business
+            lead.save()
+            client, created = sync_client_from_lead(lead)
+            if created:
+                messages.success(request, "Client created from service request successfully.")
+            else:
+                messages.success(
+                    request,
+                    "Service request matched an existing client in this workspace.",
+                )
+            return redirect("staff_client_detail", client_id=client.id)
+        messages.error(request, "Please complete the required client details below.")
+    else:
+        form = LeadClientConversionForm(instance=lead)
+
+    context: dict[str, Any] = {
+        "form": form,
+        "lead": lead,
+        "missing_client_fields": get_missing_client_required_field_labels_for_lead(lead),
+    }
+    return render(request, "crm/forms/request_convert_to_client.html", context)
+
+
+@business_role_required(
+    *BILLING_MANAGE_ROLES,
+    redirect_url_name="staff_lead_list",
+    permission_message="You do not have permission to manage invoices.",
+    raise_exception=False,
+)
+@business_module_required("invoicing")
+@require_http_methods(["GET"])
+def staff_lead_create_invoice(request: HttpRequest, lead_id: int) -> HttpResponse:
+    current_business = request.current_business
+    lead = get_object_or_404(
+        _lead_queryset_for_business(current_business).filter(lead_type=Lead.LeadType.REQUEST),
+        pk=lead_id,
+    )
+    matched_client = find_matching_client_for_lead(lead)
+
+    if matched_client is None:
+        messages.info(
+            request,
+            "Complete this service request as a client before starting an invoice.",
+        )
+        return redirect("staff_lead_convert_to_client", lead_id=lead.id)
+
+    return redirect("invoice_create_from_client", client_id=matched_client.id)
 
 
 @business_role_required(
