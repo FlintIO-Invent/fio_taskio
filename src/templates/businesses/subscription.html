@@ -130,7 +130,7 @@
             </div>
 
             <div class="mb-4">
-              <div class="fs-9 fw-semibold text-body-emphasis mb-2">Included modules</div>
+              <div class="fs-9 fw-semibold text-body-emphasis mb-2">Current and planned modules</div>
               <div class="d-flex flex-wrap gap-2">
                 <span class="badge badge-phoenix {% if plan.allow_invoicing %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Invoicing</span>
                 <span class="badge badge-phoenix {% if plan.allow_appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Appointments</span>
@@ -138,6 +138,9 @@
                 <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Public Booking</span>
                 <span class="badge badge-phoenix {% if plan.allow_public_request_form %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Public Request Form</span>
               </div>
+              <p class="fs-10 text-body-tertiary mt-2 mb-0">
+                Appointments, memberships, and public booking remain future modules even if a plan flag is present.
+              </p>
             </div>
 
             {% if subscription and subscription.plan_id == plan.id %}

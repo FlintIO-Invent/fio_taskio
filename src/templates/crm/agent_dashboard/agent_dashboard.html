@@ -29,7 +29,7 @@
         </div>
         <h2 class="mb-2 text-body-emphasis">{{ current_business.name }}</h2>
         <p class="text-body-tertiary mb-0">
-          A clear workspace for clients, service requests, invoices, appointments, and memberships.
+          A clear workspace for clients, service requests, invoicing, and team coordination.
         </p>
       </div>
       <div class="col-lg-auto">
@@ -222,11 +222,11 @@
                 <p class="fs-9 text-body-tertiary mb-0">Scheduling and calendar tools.</p>
               </div>
               <span class="badge badge-phoenix {% if module_access.appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                {% if module_access.appointments %}Included{% else %}Locked{% endif %}
+                {% if module_access.appointments %}Planned{% else %}Later{% endif %}
               </span>
             </div>
             <p class="fs-9 text-body-tertiary mb-0">
-              {% if module_access.appointments %}Included in this plan and ready for future rollout.{% else %}Upgrade to a plan with appointment access to unlock this module.{% endif %}
+              {% if module_access.appointments %}This plan reserves appointment access for a later rollout. It is not part of the current private-testing scope.{% else %}Appointments are not part of the current private-testing scope.{% endif %}
             </p>
           </div>
         </div>
@@ -241,11 +241,11 @@
                 <p class="fs-9 text-body-tertiary mb-0">Recurring member relationships and plans.</p>
               </div>
               <span class="badge badge-phoenix {% if module_access.memberships %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                {% if module_access.memberships %}Included{% else %}Locked{% endif %}
+                {% if module_access.memberships %}Planned{% else %}Later{% endif %}
               </span>
             </div>
             <p class="fs-9 text-body-tertiary mb-0">
-              {% if module_access.memberships %}Included in this plan and ready for future rollout.{% else %}Upgrade to a plan with memberships to unlock this module.{% endif %}
+              {% if module_access.memberships %}This plan reserves memberships for a later rollout. They are not part of the current private-testing scope.{% else %}Memberships are not part of the current private-testing scope.{% endif %}
             </p>
           </div>
         </div>
@@ -260,11 +260,11 @@
                 <p class="fs-9 text-body-tertiary mb-0">Self-serve booking experiences for clients.</p>
               </div>
               <span class="badge badge-phoenix {% if module_access.public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                {% if module_access.public_booking %}Included{% else %}Locked{% endif %}
+                {% if module_access.public_booking %}Planned{% else %}Later{% endif %}
               </span>
             </div>
             <p class="fs-9 text-body-tertiary mb-0">
-              {% if module_access.public_booking %}Included in this plan and ready for future rollout.{% else %}Upgrade to a plan with public booking to unlock this module.{% endif %}
+              {% if module_access.public_booking %}This plan reserves public booking for a later rollout. It is not part of the current private-testing scope.{% else %}Public booking is not part of the current private-testing scope.{% endif %}
             </p>
           </div>
         </div>

@@ -34,7 +34,7 @@ DEFAULT_PLANS = [
         "allow_appointments": True,
         "allow_memberships": False,
         "allow_public_booking": True,
-        "allow_public_request_form": False,
+        "allow_public_request_form": True,
     },
     {
         "slug": "business",
