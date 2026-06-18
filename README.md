@@ -180,13 +180,14 @@ Build behavior:
 
 Release and web behavior:
 
-- `Procfile` release: `uv run --frozen python src/manage.py migrate`
-- `Procfile` web: `uv run --frozen gunicorn taskio.wsgi:application --chdir src --log-file - --bind 0.0.0.0:${PORT:-8000}`
+- `Procfile` release: `python src/manage.py migrate`
+- `Procfile` web: `gunicorn taskio.wsgi:application --chdir src --log-file - --bind 0.0.0.0:${PORT:-8000}`
 - `start.sh` mirrors the Gunicorn web command for environments that use a start script directly
 
 Confirmed deployment behavior for this repo:
 
 - `gunicorn taskio.wsgi:application --chdir src` resolves the correct WSGI app from the repo root.
+- Heroku can use `uv` during build, but runtime and release commands should use the installed `python` and `gunicorn` binaries directly.
 - `build.sh` does not run migrations, so build does not require a live production database.
 - `collectstatic` works from the repo root and WhiteNoise serves the collected assets in non-debug deployments.
 - `DATABASE_URL` overrides the individual `DB_*` settings when present.
@@ -296,6 +297,7 @@ See [docs/USER_TESTING_PLAN.md](/home/mzero/main/repo/fio_projects/caribbean_aut
 - CSRF origin failures usually mean `CSRF_TRUSTED_ORIGINS` is missing the exact HTTPS origin, including scheme.
 - `ImproperlyConfigured: SECRET_KEY must be set when DEBUG=False` means the app is in production mode without a real `SECRET_KEY`.
 - `DATABASE_URL` errors or release migration failures usually mean the PostgreSQL credentials, hostname, or network access are wrong.
+- `/bin/sh: 1: uv: not found` on Heroku release or web dynos means the runtime command still depends on `uv`. Use `python` and `gunicorn` directly in `Procfile` and startup scripts.
 - Missing CSS or JS usually means the build did not complete `collectstatic`, the release used the wrong working directory, or the deploy skipped the standard build step.
 - If `check --deploy` still warns, make sure you are not using the literal placeholder secret and explicitly set `SECURE_HSTS_INCLUDE_SUBDOMAINS=True` and `SECURE_HSTS_PRELOAD=True` when your domain policy allows it.
 - If local PostgreSQL test runs fail with `permission denied to create database`, grant the local role `CREATEDB` or pre-create the test database and run Django tests with `--keepdb`.
