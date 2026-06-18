@@ -45,6 +45,8 @@ def backfill_service_category_businesses(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    atomic = False
+
     dependencies = [
         ("businesses", "0003_seed_default_clarivo_plans"),
         ("crm", "0007_backfill_existing_crm_businesses"),
@@ -74,6 +76,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             backfill_service_category_businesses,
             migrations.RunPython.noop,
+            atomic=True,
         ),
         migrations.AddIndex(
             model_name="servicecategory",
