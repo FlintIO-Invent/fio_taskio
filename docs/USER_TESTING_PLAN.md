@@ -95,6 +95,119 @@ Important note:
 - The generic `/crm/public_request/` route is not the external public entrypoint. It only redirects when a current workspace is already known in session.
 - `/accounts/customer_registration` is now a legacy compatibility route and should redirect users to business registration.
 
+## First deployment smoke pass
+
+Run this quick pass on the deployed PostgreSQL-backed app before the deeper UT-01 through UT-15 walkthrough.
+
+### A. System and admin
+
+Checks:
+
+- Load `/home/`, `/accounts/login/`, and `/admin/`
+- Confirm CSS, JS, and favicon assets load
+- Confirm no obvious server errors appear on first-page navigation
+- Confirm admin login works for the superuser
+- Confirm the deployed database already has the expected migrations applied
+
+Expected result:
+
+- The deployed app is reachable, styled correctly, and backed by the migrated PostgreSQL database
+
+### B. Business owner flow
+
+Checks:
+
+- Register a brand-new business from `/accounts/register-business/`
+- Confirm the owner is logged in automatically
+- Confirm redirect to `/businesses/settings/` or the expected dashboard path
+- Confirm `/crm/agent/dashboard/` and `/businesses/subscription/` load
+
+Expected result:
+
+- The owner can onboard successfully and land inside the new workspace
+
+### C. Team flow
+
+Checks:
+
+- Create an invitation from `/businesses/team/`
+- Accept the invitation as the invited teammate
+- Confirm the invited user lands inside the existing workspace
+- Confirm the invited user does not create a second workspace during acceptance
+
+Expected result:
+
+- Invitation-only employee access works and preserves the one-workspace-per-login MVP behavior
+
+### D. Role permissions
+
+Checks:
+
+- Verify `Owner` can access the current full scope
+- Verify `Admin` can manage team, CRM, and billing pages
+- Verify `Staff` can work with CRM and service-request flows but not subscription management
+- Verify `Accountant` can reach client and invoice flows but not lead-management actions
+- Verify `Viewer` remains read-only where allowed
+
+Expected result:
+
+- Role boundaries match the current Clarivo permission design
+
+### E. CRM flow
+
+Checks:
+
+- Create a client
+- Edit the client safely
+- Create a service request from the staff flow
+- Convert or update the client safely when the flow calls for it
+- Confirm another business cannot see the record
+
+Expected result:
+
+- Client and request data stay tenant-scoped and cross-business leakage is not observed
+
+### F. Services flow
+
+Checks:
+
+- Create a service category
+- Create a priced business service
+- Confirm both appear only inside the active workspace
+
+Expected result:
+
+- Service categories and services behave as business-scoped setup data for invoicing and request workflows
+
+### G. Public request flow
+
+Checks:
+
+- Open `/crm/public_request/<business_slug>/`
+- Submit a valid `REQUEST`
+- Submit a valid `INTEREST` if that path is enabled in the form
+- Confirm client upsert behavior is safe and does not overwrite richer existing data incorrectly
+- Confirm plan gating works when the workspace should or should not expose the form
+
+Expected result:
+
+- Public request intake works for the active business slug and remains protected by current plan rules
+
+### H. Billing flow
+
+Checks:
+
+- Create an invoice from a client
+- Select a saved business service
+- Add a manual line item
+- Verify totals update correctly
+- Move the invoice through `DRAFT`, `SENT`, and `PAID` as allowed
+- Confirm staff and viewer roles cannot perform restricted invoice actions
+
+Expected result:
+
+- Billing works on the deployed app and respects both tenant scoping and role permissions
+
 ## Test scenarios
 
 ### UT-01 Business registration

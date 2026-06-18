@@ -105,6 +105,7 @@ Production notes:
 - `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` are environment-driven.
 - When `DEBUG=False`, secure cookie and HTTPS settings default to safe private-testing behavior unless explicitly overridden.
 - WhiteNoise serves collected static files in production.
+- The literal placeholder `replace-with-real-secret` is only a documentation example and will still trigger `security.W009`. Use a long random secret for real deploy checks.
 
 ## Checks and tests
 
@@ -169,6 +170,7 @@ If your local PostgreSQL role does not have `CREATEDB`, Django cannot create the
 ## Deployment
 
 Clarivo is set up for Heroku-style or Render-style PaaS deployment with a release phase and a Gunicorn web process.
+The repo root is the expected working directory for build, release, and web commands.
 
 Build behavior:
 
@@ -182,16 +184,97 @@ Release and web behavior:
 - `Procfile` web: `uv run --frozen gunicorn taskio.wsgi:application --chdir src --log-file - --bind 0.0.0.0:${PORT:-8000}`
 - `start.sh` mirrors the Gunicorn web command for environments that use a start script directly
 
-Deployment requirements:
+Confirmed deployment behavior for this repo:
 
-- `SECRET_KEY` must be set
+- `gunicorn taskio.wsgi:application --chdir src` resolves the correct WSGI app from the repo root.
+- `build.sh` does not run migrations, so build does not require a live production database.
+- `collectstatic` works from the repo root and WhiteNoise serves the collected assets in non-debug deployments.
+- `DATABASE_URL` overrides the individual `DB_*` settings when present.
+- `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` are fully environment-driven.
+- `DEBUG=False` requires an explicit `SECRET_KEY` and automatically enables safe secure-cookie and HTTPS defaults unless overridden.
+
+## Private Production Test Deployment
+
+Clarivo private testing must use a real PostgreSQL-backed deployment.
+Do not use SQLite as the private test app database.
+
+### Required environment variables
+
+Minimum deployment values:
+
+- `SECRET_KEY`: use a long random secret value
 - `DEBUG=False`
-- `ALLOWED_HOSTS` must include the deployed hostname
-- `CSRF_TRUSTED_ORIGINS` should include the deployed HTTPS origin when forms are submitted cross-origin or through the public domain
-- `DATABASE_URL` should point to the production PostgreSQL database
-- `USE_X_FORWARDED_PROTO=True` is recommended behind Heroku/PaaS SSL termination
-- `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, and `SECURE_HSTS_SECONDS` should be enabled for internet-exposed private testing
-- Configure a real email backend before invitation-based testing if you want live email delivery
+- `ALLOWED_HOSTS`: include the deployed hostname
+- `CSRF_TRUSTED_ORIGINS`: include the deployed HTTPS origin
+- `DATABASE_URL`: point to the managed PostgreSQL database
+
+Recommended explicit production security values:
+
+- `SECURE_SSL_REDIRECT=True`
+- `SESSION_COOKIE_SECURE=True`
+- `CSRF_COOKIE_SECURE=True`
+- `SECURE_HSTS_SECONDS=3600`
+- `SECURE_HSTS_INCLUDE_SUBDOMAINS=True`
+- `SECURE_HSTS_PRELOAD=True`
+- `USE_X_FORWARDED_PROTO=True`
+- `SECURE_REFERRER_POLICY=strict-origin-when-cross-origin`
+- `LOG_LEVEL=INFO`
+
+Email and invitation notes:
+
+- `DEFAULT_FROM_EMAIL` should be set to the sending identity you want testers to see.
+- `EMAIL_BACKEND` defaults to the console backend locally. For a real hosted smoke test, configure a real email backend if you want invitations delivered automatically.
+- If live email is not configured yet, use manual invitation-token testing from the team flow and admin flow rather than assuming invite delivery is live.
+
+Static-file note:
+
+- No extra static environment variable is required for the current PaaS setup.
+- `build.sh` runs `collectstatic`, and WhiteNoise serves the collected files in the deployed app.
+
+Example deployment environment:
+
+```bash
+SECRET_KEY='replace-this-with-a-long-random-secret'
+DEBUG=False
+ALLOWED_HOSTS=clarivo.example.com
+CSRF_TRUSTED_ORIGINS=https://clarivo.example.com
+DATABASE_URL=postgresql://app_user:app_password@db-host:5432/clarivo
+SECURE_SSL_REDIRECT=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+SECURE_HSTS_SECONDS=3600
+SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+SECURE_HSTS_PRELOAD=True
+USE_X_FORWARDED_PROTO=True
+DEFAULT_FROM_EMAIL=no-reply@clarivo.example.com
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+LOG_LEVEL=INFO
+```
+
+### Heroku/PaaS deployment sequence
+
+1. Create the app or web service and attach a managed PostgreSQL database.
+2. Set the required environment variables, especially `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, and `DATABASE_URL`.
+3. Deploy the repo from the repository root so the platform can run `build.sh`.
+4. Let the build complete `uv sync --locked` and `collectstatic`.
+5. Let the `release` process run `python src/manage.py migrate` against PostgreSQL before the web process is promoted.
+6. Start the `web` process with Gunicorn through the existing `Procfile` entry.
+7. Create or confirm a superuser, an active default trial plan, and the default Pro public-request behavior before sharing tester links.
+
+### Post-deploy smoke checklist
+
+Run this quick pass on the deployed PostgreSQL-backed app before inviting testers:
+
+- System/admin: app loads over HTTPS, static CSS and JS load, admin login works, and no obvious 500s appear on `/home/`, `/accounts/login/`, or `/admin/`.
+- Business owner flow: owner can register a business, log in, reach `/crm/agent/dashboard/`, and load `/businesses/settings/` and `/businesses/subscription/`.
+- Team flow: owner or admin can create an invite, the invite can be accepted, the employee joins the existing workspace, and no new workspace is created for the invitee.
+- Role permissions: owner has full current-scope access, admin remains elevated, staff stays CRM-focused, accountant stays client and billing focused, and viewer stays read-only.
+- CRM flow: client create and edit work, service requests can be created, and records remain invisible across businesses.
+- Services flow: a category and a priced business service can be created and stay scoped to the active business.
+- Public request flow: `/crm/public_request/<business_slug>/` loads, `REQUEST` submissions upsert clients safely, `INTEREST` submissions stay lead-only if supported, and plan gating blocks the route only when expected.
+- Billing flow: invoices can be created from clients, saved services can be selected, manual lines can be added, totals compute correctly, statuses can move from draft to sent to paid, and lower roles cannot perform restricted billing actions.
+
+See [docs/USER_TESTING_PLAN.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/USER_TESTING_PLAN.md) for the deeper scenario-by-scenario pass after this first smoke test.
 
 ## Private-testing deployment checklist
 
@@ -206,6 +289,18 @@ Deployment requirements:
 - Run smoke routes on the PostgreSQL-backed deployment before sending invite links
 - Create one owner account, one invited teammate account, and one superuser
 - Verify `/accounts/register-business/`, `/accounts/login/`, `/crm/public_request/<business_slug>/`, `/crm/agent/dashboard/`, `/businesses/subscription/`, and `/admin/`
+
+## Rollback and troubleshooting
+
+- `DisallowedHost` or HTTP 400 on first load usually means `ALLOWED_HOSTS` does not include the deployed hostname.
+- CSRF origin failures usually mean `CSRF_TRUSTED_ORIGINS` is missing the exact HTTPS origin, including scheme.
+- `ImproperlyConfigured: SECRET_KEY must be set when DEBUG=False` means the app is in production mode without a real `SECRET_KEY`.
+- `DATABASE_URL` errors or release migration failures usually mean the PostgreSQL credentials, hostname, or network access are wrong.
+- Missing CSS or JS usually means the build did not complete `collectstatic`, the release used the wrong working directory, or the deploy skipped the standard build step.
+- If `check --deploy` still warns, make sure you are not using the literal placeholder secret and explicitly set `SECURE_HSTS_INCLUDE_SUBDOMAINS=True` and `SECURE_HSTS_PRELOAD=True` when your domain policy allows it.
+- If local PostgreSQL test runs fail with `permission denied to create database`, grant the local role `CREATEDB` or pre-create the test database and run Django tests with `--keepdb`.
+- If invitation emails are not arriving, confirm the deployed `EMAIL_BACKEND` and SMTP provider settings or fall back to manual invite-link testing for the smoke pass.
+- If a bad code deploy reaches production-like testing, roll back to the previous app release first. Avoid ad-hoc schema reversals unless you have a deliberate migration rollback plan.
 
 ## Useful routes
 
