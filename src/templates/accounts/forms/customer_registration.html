@@ -1,0 +1,97 @@
+{% extends 'inheritance/authentication_parent.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container">
+  <div class="row flex-center min-vh-100 py-5">
+    <div class="col-sm-11 col-md-9 col-lg-7 col-xl-6">
+      <a class="d-flex flex-center text-decoration-none mb-4" href="{% url 'home' %}">
+        <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Clarivo" width="58">
+      </a>
+
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4 p-sm-5">
+          <div class="text-center mb-5">
+            <h3 class="text-body-highlight mb-2">Legacy customer signup</h3>
+            <p class="text-body-tertiary mb-0">This legacy signup page now points businesses to Clarivo workspace registration.</p>
+          </div>
+
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags|default:'info' }}" role="alert">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">
+              {{ form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+
+          <form method="POST" novalidate>
+            {% csrf_token %}
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.first_name.id_for_label }}">First name</label>
+                {{ form.first_name }}
+                {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.last_name.id_for_label }}">Last name</label>
+                {{ form.last_name }}
+                {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ form.email.id_for_label }}">Email address</label>
+                {{ form.email }}
+                {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.company_name.id_for_label }}">Company name</label>
+                {{ form.company_name }}
+                {% if form.company_name.errors %}<div class="invalid-feedback d-block">{{ form.company_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.phone.id_for_label }}">Phone</label>
+                {{ form.phone }}
+                {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.date_of_birth.id_for_label }}">Date of birth</label>
+                {{ form.date_of_birth }}
+                {% if form.date_of_birth.errors %}<div class="invalid-feedback d-block">{{ form.date_of_birth.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ form.address.id_for_label }}">Address</label>
+                {{ form.address }}
+                {% if form.address.errors %}<div class="invalid-feedback d-block">{{ form.address.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.password1.id_for_label }}">Password</label>
+                {{ form.password1 }}
+                {% if form.password1.help_text %}<div class="form-text">{{ form.password1.help_text|safe }}</div>{% endif %}
+                {% if form.password1.errors %}<div class="invalid-feedback d-block">{{ form.password1.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.password2.id_for_label }}">Confirm password</label>
+                {{ form.password2 }}
+                {% if form.password2.errors %}<div class="invalid-feedback d-block">{{ form.password2.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+
+            <button class="btn btn-primary w-100 mt-4" type="submit">Create account</button>
+          </form>
+
+          <div class="text-center mt-4">
+            <p class="text-body-tertiary mb-2">Already have a workspace? <a href="{% url 'business_login' %}">Sign in</a>.</p>
+            <p class="text-body-tertiary mb-0">Need internal team access instead? <a href="{% url 'agent_login' %}">Use the staff portal</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

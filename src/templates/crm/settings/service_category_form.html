@@ -1,0 +1,82 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_settings' %}">Business Settings</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_service_category_list' %}">Service Categories</a></li>
+      <li class="breadcrumb-item active">{{ page_title }}</li>
+    </ol>
+  </nav>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="row g-3 mb-4 justify-content-between align-items-center">
+      <div class="col-lg-8">
+        <h2 class="mb-2 text-body-emphasis">{{ page_title }}</h2>
+        <p class="text-body-tertiary mb-0">This category will belong only to {{ business.name }}.</p>
+      </div>
+      <div class="col-auto d-flex gap-2">
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_category_list' %}">Cancel</a>
+        <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+      </div>
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors|striptags }}</div>
+    {% endif %}
+
+    <div class="row g-4">
+      <div class="col-12 col-xl-8">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4 p-lg-5">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label" for="{{ form.name.id_for_label }}">Name</label>
+                {{ form.name }}
+                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ form.code.id_for_label }}">Code</label>
+                {{ form.code }}
+                {% if form.code.help_text %}<div class="form-text">{{ form.code.help_text }}</div>{% endif %}
+                {% if form.code.errors %}<div class="invalid-feedback d-block">{{ form.code.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  {{ form.is_active }}
+                  <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                    Keep this category active on staff and public request forms
+                  </label>
+                </div>
+                {% if form.is_active.errors %}<div class="invalid-feedback d-block">{{ form.is_active.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4">
+            <h4 class="mb-3">Workspace Scope</h4>
+            <p class="text-body-tertiary mb-3">Only users working inside {{ business.name }} will see this category on lead forms.</p>
+            {% if category %}
+              <div class="rounded-3 border p-3">
+                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Linked Leads</p>
+                <h3 class="mb-0">{{ category.leads.count }}</h3>
+              </div>
+              <p class="text-body-tertiary small mt-3 mb-0">Archiving keeps existing lead references intact and simply removes the category from new selections.</p>
+            {% else %}
+              <p class="text-body-tertiary small mb-0">If you leave the code blank, Clarivo creates one automatically from the category name.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

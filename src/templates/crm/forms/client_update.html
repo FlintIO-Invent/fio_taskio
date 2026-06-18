@@ -1,0 +1,306 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+{% block content %}
+
+<div class="content">
+  <h2 class="mb-4 text-body-emphasis">Edit Client: {{ client.first_name }} {{ client.last_name }}</h2>
+  <a class="btn btn-sm btn-secondary mb-3" href="{% url 'staff_client_detail' client.id %}">Back to details</a>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {# Tabs header #}
+    <ul class="nav nav-underline optionChainTableHeader gap-0 flex-nowrap scrollbar mb-4" role="tablist">
+      <li class="nav-item"><a class="nav-link pt-0 text-nowrap active ps-0 ps-3" data-bs-toggle="tab" href="#tab-basic" role="tab">Basic Info</a></li>
+      <li class="nav-item"><a class="nav-link pt-0 text-nowrap px-3" data-bs-toggle="tab" href="#tab-business" role="tab">Business Details</a></li>
+      <li class="nav-item"><a class="nav-link pt-0 text-nowrap px-3" data-bs-toggle="tab" href="#tab-contact" role="tab">Contact Info</a></li>
+      <li class="nav-item"><a class="nav-link pt-0 text-nowrap px-3" data-bs-toggle="tab" href="#tab-relationship" role="tab">Relationship & CRM</a></li>
+      <li class="nav-item"><a class="nav-link pt-0 text-nowrap px-3" data-bs-toggle="tab" href="#tab-location" role="tab">Location</a></li>
+      <li class="nav-item flex-1 d-none d-md-inline"><a class="nav-link pt-0 text-nowrap px-3" data-bs-toggle="tab" href="#tab-notes" role="tab">Notes & Consent</a></li>
+    </ul>
+
+    <div class="tab-content">
+
+      {# BASIC INFO #}
+      <div class="tab-pane fade show active" id="tab-basic" role="tabpanel">
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Basic Information</h4>
+            <hr class="my-4"/>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">First Name</label>
+                {{ form.first_name }}
+                {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Last Name</label>
+                {{ form.last_name }}
+                {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Email</label>
+                {{ form.email }}
+                {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Phone</label>
+                {{ form.phone }}
+                {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Client Type</label>
+                {{ form.client_type }}
+                {% if form.client_type.errors %}<div class="invalid-feedback d-block">{{ form.client_type.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Company Name</label>
+                {{ form.company_name }}
+                {% if form.company_name.errors %}<div class="invalid-feedback d-block">{{ form.company_name.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# BUSINESS DETAILS #}
+      <div class="tab-pane fade" id="tab-business" role="tabpanel">
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Business Details</h4>
+            <hr class="my-4"/>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Business Legal Name</label>
+                {{ form.business_legal_name }}
+                {% if form.business_legal_name.errors %}<div class="invalid-feedback d-block">{{ form.business_legal_name.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Trade Name</label>
+                {{ form.trade_name }}
+                {% if form.trade_name.errors %}<div class="invalid-feedback d-block">{{ form.trade_name.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Industry</label>
+                {{ form.industry }}
+                {% if form.industry.errors %}<div class="invalid-feedback d-block">{{ form.industry.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Registration Number</label>
+                {{ form.registration_number }}
+                {% if form.registration_number.errors %}<div class="invalid-feedback d-block">{{ form.registration_number.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Website</label>
+                {{ form.website }}
+                {% if form.website.errors %}<div class="invalid-feedback d-block">{{ form.website.errors|striptags }}</div>{% endif %}
+                <small class="text-body-secondary">E.g., https://www.example.com</small>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Business Description</label>
+                {{ form.business_description }}
+                {% if form.business_description.errors %}<div class="invalid-feedback d-block">{{ form.business_description.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# CONTACT INFO #}
+      <div class="tab-pane fade" id="tab-contact" role="tabpanel">
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Contact Information</h4>
+            <hr class="my-4"/>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Job Title</label>
+                {{ form.job_title }}
+                {% if form.job_title.errors %}<div class="invalid-feedback d-block">{{ form.job_title.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Department</label>
+                {{ form.department }}
+                {% if form.department.errors %}<div class="invalid-feedback d-block">{{ form.department.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Secondary Email</label>
+                {{ form.secondary_email }}
+                {% if form.secondary_email.errors %}<div class="invalid-feedback d-block">{{ form.secondary_email.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Secondary Phone</label>
+                {{ form.secondary_phone }}
+                {% if form.secondary_phone.errors %}<div class="invalid-feedback d-block">{{ form.secondary_phone.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">WhatsApp Number</label>
+                {{ form.whatsapp_number }}
+                {% if form.whatsapp_number.errors %}<div class="invalid-feedback d-block">{{ form.whatsapp_number.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Preferred Language</label>
+                {{ form.preferred_language }}
+                {% if form.preferred_language.errors %}<div class="invalid-feedback d-block">{{ form.preferred_language.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Preferred Contact Method</label>
+                {{ form.preferred_contact_method }}
+                {% if form.preferred_contact_method.errors %}<div class="invalid-feedback d-block">{{ form.preferred_contact_method.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# RELATIONSHIP & CRM #}
+      <div class="tab-pane fade" id="tab-relationship" role="tabpanel">
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Relationship & CRM</h4>
+            <hr class="my-4"/>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Client Status</label>
+                {{ form.client_status }}
+                {% if form.client_status.errors %}<div class="invalid-feedback d-block">{{ form.client_status.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Priority</label>
+                {{ form.priority }}
+                {% if form.priority.errors %}<div class="invalid-feedback d-block">{{ form.priority.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Lead Source</label>
+                {{ form.lead_source }}
+                {% if form.lead_source.errors %}<div class="invalid-feedback d-block">{{ form.lead_source.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Assigned To</label>
+                {{ form.assigned_to }}
+                {% if form.assigned_to.errors %}<div class="invalid-feedback d-block">{{ form.assigned_to.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Interested Services</label>
+                {{ form.interested_services }}
+                {% if form.interested_services.errors %}<div class="invalid-feedback d-block">{{ form.interested_services.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# LOCATION #}
+      <div class="tab-pane fade" id="tab-location" role="tabpanel">
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Location</h4>
+            <hr class="my-4"/>
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Street Address</label>
+                {{ form.street_address }}
+                {% if form.street_address.errors %}<div class="invalid-feedback d-block">{{ form.street_address.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">District</label>
+                {{ form.district }}
+                {% if form.district.errors %}<div class="invalid-feedback d-block">{{ form.district.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Country</label>
+                {{ form.country }}
+                {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Postal Code</label>
+                {{ form.postal_code }}
+                {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# NOTES & CONSENT #}
+      <div class="tab-pane fade" id="tab-notes" role="tabpanel">
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Notes & Consent</h4>
+            <hr class="my-4"/>
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">General Notes</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Communication Notes</label>
+                {{ form.communication_notes }}
+                {% if form.communication_notes.errors %}<div class="invalid-feedback d-block">{{ form.communication_notes.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Initial Message / Request</label>
+                {{ form.message }}
+                {% if form.message.errors %}<div class="invalid-feedback d-block">{{ form.message.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-12">
+                <div class="form-check">
+                  {{ form.consent_to_contact }}
+                  <label class="form-check-label" for="{{ form.consent_to_contact.id_for_label }}">
+                    I consent to be contacted via email, phone, or WhatsApp for requests and updates.
+                  </label>
+                </div>
+                {% if form.consent_to_contact.errors %}<div class="invalid-feedback d-block">{{ form.consent_to_contact.errors|striptags }}</div>{% endif %}
+              </div>
+
+              <div class="col-12">
+                <div class="form-check">
+                  {{ form.is_active }}
+                  <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                    This client is active
+                  </label>
+                </div>
+                {% if form.is_active.errors %}<div class="invalid-feedback d-block">{{ form.is_active.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="mt-3">
+      <button class="btn btn-primary" type="submit">Save Changes</button>
+      <a class="btn btn-outline-secondary" href="{% url 'staff_client_detail' client.id %}">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

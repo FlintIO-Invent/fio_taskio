@@ -10,18 +10,18 @@
     <!-- ===============================================-->
     <!--    Document Title-->
     <!-- ===============================================-->
-    <title>TaskIO - Tenant Management System</title>
+    <title>Clarivo - Workspace</title>
 
 
     <!-- ===============================================-->
     <!--    Favicons-->
     <!-- ===============================================-->
-    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/logo2.png' %}">
-    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/logo2.png' %}">
-    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/logo2.png' %}">
-    <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/logo2.ico' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/apple-touch-icon.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/favicon-16x16.png' %}">
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/favicon.ico' %}">
     <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}">
-    <meta name="msapplication-TileImage" content="../assets/img/favicons/mstile-150x150.png">
+    <meta name="msapplication-TileImage" content="{% static 'assets/img/favicons/mstile-150x150.png' %}">
     <meta name="theme-color" content="#ffffff">
     <script src="{% static 'vendors/simplebar/simplebar.min.js' %}"></script>
     <script src="{% static 'assets/js/config.js' %}"></script>
@@ -85,10 +85,10 @@
                                     <ul class="nav collapse parent show" data-bs-parent="#navbarVerticalCollapse" id="nv-home">
                                         <li class="collapsed-nav-item-title d-none"></li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/dashboards/employee_dashboard">
+                                            <a class="nav-link" href="{% url 'agent_dashboard' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
-                                            <a class="nav-link" href="/dashboards/employee_dashboard_profile">
+                                            <a class="nav-link" href="{% url 'saas_profile' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text"> {{ request.user.first_name }}'s  Profile</span></div>
                                             </a>
                                             <!-- more inner pages-->
@@ -98,32 +98,32 @@
                             </div>
                         </li>
 
-                        <!-- Manifest Section -->
+                        <!-- Workspace Section -->
                         <li class="nav-item">
                             <!-- label-->
-                            <p class="navbar-vertical-label">Manifests</p>
+                            <p class="navbar-vertical-label">Workspace</p>
                             <hr class="navbar-vertical-line" />
 
-                            <!-- parent pages Parcel manifest-->
+                            <!-- service request navigation -->
                             <div class="nav-item-wrapper">
-                                <a class="nav-link dropdown-indicator label-1" href="#nv-parcel-manifest" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-parcel-manifest">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-service-requests" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-service-requests">
                                     <div class="d-flex align-items-center">
                                         <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Parcel Manifest</span>
+                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Service Requests</span>
                                     </div>
                                 </a>
                                 <div class="parent-wrapper label-1">
-                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-parcel-manifest">
-                                        <li class="collapsed-nav-item-title d-none">Parcel Manifest</li>
+                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-service-requests">
+                                        <li class="collapsed-nav-item-title d-none">Service Requests</li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/parcels/parcel_registration">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create new parcel</span></div>
+                                            <a class="nav-link" href="{% url 'staff_lead_create' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create service request</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/parcels/parcel_view">  
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Parcels </span></div>
+                                            <a class="nav-link" href="{% url 'staff_lead_list' %}">  
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests </span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
@@ -159,26 +159,25 @@
                                 </div>
                             </div>
 
-                            <!-- parent pages Client Manifest-->
+                            <!-- client navigation -->
                             <div class="nav-item-wrapper">
-                                <a class="nav-link dropdown-indicator label-1" href="#nv-client-manifest" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-client-manifest">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-clients" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-clients">
                                     <div class="d-flex align-items-center">
                                         <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Client Manifest</span>
+                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Clients</span>
                                     </div>
                                 </a>
                                 <div class="parent-wrapper label-1">
-                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-client-manifest">
-                                        <li class="collapsed-nav-item-title d-none">Client Manifest</li>
+                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-clients">
+                                        <li class="collapsed-nav-item-title d-none">Clients</li>
                                         <li class="nav-item">
-                                            <!-- <a class="nav-link" href="/accounts/customer_registration"> -->
-                                            <a class="nav-link" href="#">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create new client (Addons)</span></div>
+                                            <a class="nav-link" href="{% url 'staff_client_create' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create client</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
                                         <li class="nav-item">
-                                            <a class="nav-link" href="/accounts/customer_view">
+                                            <a class="nav-link" href="{% url 'staff_client_list' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">View Clients</span></div>
                                             </a>
                                             <!-- more inner pages-->
@@ -265,11 +264,11 @@
                   >
                       <span class="navbar-toggle-icon"><span class="toggle-line"></span></span>
                   </button>
-                  <a class="navbar-brand me-1 me-sm-3" href="../index.html">
+                  <a class="navbar-brand me-1 me-sm-3" href="{% url 'agent_dashboard' %}">
                       <div class="d-flex align-items-center">
                           <div class="d-flex align-items-center">
-                              <img src="{% static 'assets/img/icons/logo1.png' %}" alt="Automated Manifest System" width="27" />
-                              <h5 class="logo-text ms-2 d-none d-sm-block">Bera Septic Services</h5>
+                              <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Clarivo" width="27" />
+                              <h5 class="logo-text ms-2 d-none d-sm-block">Clarivo</h5>
                           </div>
                       </div>
                   </a>
@@ -805,7 +804,7 @@
                                     <!-- <a class="text-body-quaternary me-1" href="#!">Privacy policy</a>&bull;<a class="text-body-quaternary mx-1" href="#!">Terms</a>&bull;<a class="text-body-quaternary ms-1" href="#!">Cookies</a> -->
                                 </div>
                                 <div class="px-3">
-                                    <a class="btn btn-phoenix-secondary d-flex flex-center w-100" href="/accounts/employee_login"> <span class="me-2" data-feather="log-out"> </span>Log out</a>
+                                    <a class="btn btn-phoenix-secondary d-flex flex-center w-100" href="{% url 'logout' %}"> <span class="me-2" data-feather="log-out"> </span>Log out</a>
                                 </div>
                                 <div class="my-2 text-center fw-bold fs-10 text-body-quaternary">
                                     <!-- <a class="text-body-quaternary me-1" href="#!">Privacy policy</a>&bull;<a class="text-body-quaternary mx-1" href="#!">Terms</a>&bull;<a class="text-body-quaternary ms-1" href="#!">Cookies</a> -->
@@ -1048,7 +1047,6 @@
     <script src="{% static 'vendors/dayjs/dayjs.min.js' %}"></script>
     <script src="{% static 'assets/js/phoenix.js' %}"></script>
     <script src="{% static 'vendors/echarts/echarts.min.js' %}"></script>
-    <script src="{% static 'assets/js/dashboards/travel-agency-dashboard.js' %}"></script>
     <script src="{% static 'vendors/mapbox-gl/mapbox-gl.js' %}"></script>
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
     <script src="{% static 'vendors/swiper/swiper-bundle.min.js' %}"></script>
@@ -1058,15 +1056,6 @@
     <script src="{% static 'vendors/choices/choices.min.js' %}"></script>
     <script src="{% static 'vendors/flatpickr/flatpickr.min.js' %}"></script>
     <script src="{% static 'vendors/echarts/echarts.min.js' %}"></script>
-    <!-- 1) jQuery first -->
-    <script src="{% static 'assets/js/jquery-3.7.1.min.js' %}"></script>
-
-    <!-- 2) Define the endpoint BEFORE the custom file uses it -->
-
-    <!-- 3) Then load your custom script -->
-    <script src="{% static 'assets/js/custom_fucntionality.js' %}"></script>
-
-
   </body>
 
 </html>

@@ -1,0 +1,307 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+
+{% block content %}
+<div class="content">
+  <div class="row g-3 mb-4 justify-content-between align-items-center">
+    <div class="col-lg-8">
+      <h2 class="mb-2 text-body-emphasis">Account Profile</h2>
+      <p class="text-body-tertiary mb-0">Manage your personal account details here. Workspace settings and invoice defaults now live under Business Settings for the current Clarivo workspace.</p>
+    </div>
+    <div class="col-auto d-flex gap-2">
+      {% if role_access.can_manage_business_settings %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>
+      {% endif %}
+      <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="alert alert-info mb-4" role="alert">
+    Business-level workspace details and invoice defaults are managed from Business Settings. The sections below keep older account-level fields available during the transition.
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-xxl-8">
+      <div class="card border-0 overflow-hidden">
+        <div class="position-relative p-4 p-sm-5" style="background: linear-gradient(135deg, {{ profile.invoice_accent_color }}, #101828);">
+          <div class="row align-items-center g-4 position-relative">
+            <div class="col-auto">
+              <div class="avatar avatar-5xl border border-white border-opacity-25">
+                <div class="avatar-name rounded-circle fs-4 text-white" style="background-color: rgba(255,255,255,.14);">
+                  <span>{{ request.user.initials }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <span class="badge badge-phoenix badge-phoenix-light mb-3">{{ request.user.incorporation_status }}</span>
+              <h2 class="text-white mb-1">{{ request.user.company_name|default:request.user.full_name|default:request.user.email }}</h2>
+              <p class="text-white text-opacity-75 mb-3">{{ profile.workspace_name|default:"Legacy compatibility profile" }}</p>
+              <div class="d-flex flex-wrap gap-4 text-white text-opacity-75">
+                <div>
+                  <div class="fs-10 text-uppercase">Account owner</div>
+                  <div class="fw-semibold text-white">{{ request.user.full_name|default:request.user.email }}</div>
+                </div>
+                <div>
+                  <div class="fs-10 text-uppercase">Billing email</div>
+                  <div class="fw-semibold text-white">{{ profile.billing_email|default:request.user.email }}</div>
+                </div>
+                <div>
+                  <div class="fs-10 text-uppercase">Joined</div>
+                  <div class="fw-semibold text-white">{{ request.user.date_joined|date:"M d, Y" }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xxl-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h4 class="mb-3">Legacy Profile Defaults</h4>
+          <div class="rounded-3 p-4 mb-4" style="background-color: {{ profile.invoice_accent_color }}12; border: 1px solid {{ profile.invoice_accent_color }}33;">
+            <div class="d-flex justify-content-between align-items-start mb-4">
+              <div>
+                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Preview Number</p>
+                <h4 class="mb-0">{{ profile.invoice_preview_number }}</h4>
+              </div>
+              <span class="badge badge-phoenix badge-phoenix-primary">{{ profile.currency_code }}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <div>
+                <p class="text-body-tertiary fs-10 mb-1">Payment Terms</p>
+                <p class="mb-0 fw-semibold">{{ profile.invoice_default_due_days }} days</p>
+              </div>
+              <div class="text-end">
+                <p class="text-body-tertiary fs-10 mb-1">Accent</p>
+                <div class="d-inline-flex align-items-center gap-2">
+                  <span class="rounded-circle border" style="height: 14px; width: 14px; background-color: {{ profile.invoice_accent_color }};"></span>
+                  <span class="fw-semibold">{{ profile.invoice_accent_color }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-light border mb-4" role="alert">
+            These values remain on the user profile for legacy compatibility. New workspace-wide defaults should be managed from Business Settings.
+          </div>
+
+          <ul class="nav nav-pills flex-column gap-2">
+            <li class="nav-item">
+              <a class="nav-link {% if active_section == 'basic' %}active{% endif %}" href="{% url 'saas_profile' %}?section=basic#section-basic">Basic Info</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if active_section == 'workspace' %}active{% endif %}" href="{% url 'saas_profile' %}?section=workspace#section-workspace">Legacy Workspace Contacts</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if active_section == 'invoice' %}active{% endif %}" href="{% url 'saas_profile' %}?section=invoice#section-invoice">Legacy Invoice Preferences</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-12" id="section-basic">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4 p-lg-5">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+            <div>
+              <h4 class="mb-1">Basic Info</h4>
+              <p class="text-body-tertiary mb-0">Manage the primary identity details tied to this account.</p>
+            </div>
+            {% if active_section == 'basic' %}<span class="badge badge-phoenix badge-phoenix-primary">Active section</span>{% endif %}
+          </div>
+
+          {% if basic_form.non_field_errors %}
+            <div class="alert alert-danger">{{ basic_form.non_field_errors|striptags }}</div>
+          {% endif %}
+
+          <form method="POST" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="section" value="basic">
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="{{ basic_form.first_name.id_for_label }}">First name</label>
+                {{ basic_form.first_name }}
+                {% if basic_form.first_name.errors %}<div class="invalid-feedback d-block">{{ basic_form.first_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ basic_form.last_name.id_for_label }}">Last name</label>
+                {{ basic_form.last_name }}
+                {% if basic_form.last_name.errors %}<div class="invalid-feedback d-block">{{ basic_form.last_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ basic_form.email.id_for_label }}">Email</label>
+                {{ basic_form.email }}
+                {% if basic_form.email.errors %}<div class="invalid-feedback d-block">{{ basic_form.email.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ basic_form.phone.id_for_label }}">Phone</label>
+                {{ basic_form.phone }}
+                {% if basic_form.phone.errors %}<div class="invalid-feedback d-block">{{ basic_form.phone.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ basic_form.company_name.id_for_label }}">Company name</label>
+                {{ basic_form.company_name }}
+                {% if basic_form.company_name.errors %}<div class="invalid-feedback d-block">{{ basic_form.company_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <!-- <div class="col-md-6">
+                <label class="form-label" for="{{ basic_form.assigned_location.id_for_label }}">Assigned location</label>
+                {{ basic_form.assigned_location }}
+                {% if basic_form.assigned_location.errors %}<div class="invalid-feedback d-block">{{ basic_form.assigned_location.errors|striptags }}</div>{% endif %}
+              </div> -->
+              <div class="col-md-6">
+                <label class="form-label" for="{{ basic_form.date_of_birth.id_for_label }}">Date of birth</label>
+                {{ basic_form.date_of_birth }}
+                {% if basic_form.date_of_birth.errors %}<div class="invalid-feedback d-block">{{ basic_form.date_of_birth.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ basic_form.address.id_for_label }}">Address</label>
+                {{ basic_form.address }}
+                {% if basic_form.address.errors %}<div class="invalid-feedback d-block">{{ basic_form.address.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+
+            <button class="btn btn-primary mt-4" type="submit">Save basic info</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12" id="section-workspace">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4 p-lg-5">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+            <div>
+              <h4 class="mb-1">Legacy Workspace Contacts</h4>
+              <p class="text-body-tertiary mb-0">Keep older account-level workspace contact fields available while the business record becomes the source of truth.</p>
+            </div>
+            {% if active_section == 'workspace' %}<span class="badge badge-phoenix badge-phoenix-primary">Active section</span>{% endif %}
+          </div>
+
+          {% if workspace_form.non_field_errors %}
+            <div class="alert alert-danger">{{ workspace_form.non_field_errors|striptags }}</div>
+          {% endif %}
+
+          <form method="POST" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="section" value="workspace">
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="{{ workspace_form.workspace_name.id_for_label }}">Workspace name</label>
+                {{ workspace_form.workspace_name }}
+                {% if workspace_form.workspace_name.errors %}<div class="invalid-feedback d-block">{{ workspace_form.workspace_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ workspace_form.billing_email.id_for_label }}">Billing email</label>
+                {{ workspace_form.billing_email }}
+                {% if workspace_form.billing_email.errors %}<div class="invalid-feedback d-block">{{ workspace_form.billing_email.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ workspace_form.support_email.id_for_label }}">Support email</label>
+                {{ workspace_form.support_email }}
+                {% if workspace_form.support_email.errors %}<div class="invalid-feedback d-block">{{ workspace_form.support_email.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ workspace_form.website.id_for_label }}">Website</label>
+                {{ workspace_form.website }}
+                {% if workspace_form.website.errors %}<div class="invalid-feedback d-block">{{ workspace_form.website.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ workspace_form.tax_id.id_for_label }}">Tax ID</label>
+                {{ workspace_form.tax_id }}
+                {% if workspace_form.tax_id.errors %}<div class="invalid-feedback d-block">{{ workspace_form.tax_id.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+
+            <button class="btn btn-primary mt-4" type="submit">Save legacy contact settings</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12" id="section-invoice">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4 p-lg-5">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+            <div>
+              <h4 class="mb-1">Legacy Invoice Preferences</h4>
+              <p class="text-body-tertiary mb-0">These account-level invoice values remain for compatibility while workspace invoice defaults move under Business Settings.</p>
+            </div>
+            {% if active_section == 'invoice' %}<span class="badge badge-phoenix badge-phoenix-primary">Active section</span>{% endif %}
+          </div>
+
+          {% if invoice_form.non_field_errors %}
+            <div class="alert alert-danger">{{ invoice_form.non_field_errors|striptags }}</div>
+          {% endif %}
+
+          <form method="POST" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="section" value="invoice">
+
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label" for="{{ invoice_form.currency_code.id_for_label }}">Currency</label>
+                {{ invoice_form.currency_code }}
+                {% if invoice_form.currency_code.errors %}<div class="invalid-feedback d-block">{{ invoice_form.currency_code.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ invoice_form.invoice_prefix.id_for_label }}">Invoice prefix</label>
+                {{ invoice_form.invoice_prefix }}
+                {% if invoice_form.invoice_prefix.errors %}<div class="invalid-feedback d-block">{{ invoice_form.invoice_prefix.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ invoice_form.invoice_default_due_days.id_for_label }}">Default due days</label>
+                {{ invoice_form.invoice_default_due_days }}
+                {% if invoice_form.invoice_default_due_days.errors %}<div class="invalid-feedback d-block">{{ invoice_form.invoice_default_due_days.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ invoice_form.invoice_accent_color.id_for_label }}">Accent color</label>
+                {{ invoice_form.invoice_accent_color }}
+                {% if invoice_form.invoice_accent_color.errors %}<div class="invalid-feedback d-block">{{ invoice_form.invoice_accent_color.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6 d-flex flex-column justify-content-center">
+                <div class="form-check mb-2">
+                  {{ invoice_form.show_company_address_on_invoice }}
+                  <label class="form-check-label" for="{{ invoice_form.show_company_address_on_invoice.id_for_label }}">Show company address on invoices</label>
+                </div>
+                <div class="form-check">
+                  {{ invoice_form.show_tax_id_on_invoice }}
+                  <label class="form-check-label" for="{{ invoice_form.show_tax_id_on_invoice.id_for_label }}">Show tax ID on invoices</label>
+                </div>
+                {% if invoice_form.show_company_address_on_invoice.errors %}<div class="invalid-feedback d-block">{{ invoice_form.show_company_address_on_invoice.errors|striptags }}</div>{% endif %}
+                {% if invoice_form.show_tax_id_on_invoice.errors %}<div class="invalid-feedback d-block">{{ invoice_form.show_tax_id_on_invoice.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ invoice_form.payment_instructions.id_for_label }}">Payment instructions</label>
+                {{ invoice_form.payment_instructions }}
+                {% if invoice_form.payment_instructions.errors %}<div class="invalid-feedback d-block">{{ invoice_form.payment_instructions.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ invoice_form.invoice_footer_note.id_for_label }}">Invoice footer note</label>
+                {{ invoice_form.invoice_footer_note }}
+                {% if invoice_form.invoice_footer_note.errors %}<div class="invalid-feedback d-block">{{ invoice_form.invoice_footer_note.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+
+            <button class="btn btn-primary mt-4" type="submit">Save legacy invoice preferences</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

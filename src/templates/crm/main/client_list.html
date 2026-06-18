@@ -3,7 +3,28 @@
 
 {% block content %}
 
+<style>
+  .client-list-search-box {
+    width: min(100%, var(--client-search-width, 22rem));
+  }
+
+  .client-list-search-box .search-input {
+    min-height: var(--client-search-height, 2.75rem);
+    font-size: var(--client-search-font-size, 0.95rem);
+  }
+</style>
+
 <div class="content">
+  {% if messages %}
+    <div class="mb-4">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0"></ol>
   </nav>
@@ -17,9 +38,11 @@
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
             <div>
-              <a class="btn btn-primary me-4" href="{% url 'staff_client_create' %}">
-                <span class="fas fa-plus me-2"></span>Create Client
-              </a>
+              {% if role_access.can_manage_clients %}
+                <a class="btn btn-primary me-4" href="{% url 'staff_client_create' %}">
+                  <span class="fas fa-plus me-2"></span>Create Client
+                </a>
+              {% endif %}
               <button class="btn btn-link text-body px-0" type="button">
                 <span class="fa-solid fa-file-export fs-9 me-2"></span>Export
               </button>
@@ -30,14 +53,21 @@
         <div class="col-auto">
           <!-- FILTERS: server-side GET (is_active, district, q) -->
           <form class="d-flex" method="get" action="{% url 'staff_client_list' %}">
-            <div class="search-box me-2">
+            <div
+              class="search-box me-2 client-list-search-box"
+              style="
+                --client-search-width: 35rem;
+                --client-search-height: 3.5rem;
+                --client-search-font-size: 0.95rem;
+              "
+            >
               <div class="position-relative">
                 <input
                   class="form-control search-input"
                   type="search"
                   name="q"
                   value="{{ filters.q|default:'' }}"
-                  placeholder="Search by name, email, phone, company"
+                  placeholder="Search "
                   aria-label="Search"
                 />
                 <span class="fas fa-search search-box-icon"></span>
@@ -147,7 +177,7 @@
                   </div>
 
                   <div>
-                    <a class="fs-8 fw-bold text-body-highlight" href="#!">
+                    <a class="fs-8 fw-bold text-body-highlight" href="{% url 'staff_client_detail' client.id %}">
                       {{ client.first_name }} {{ client.last_name }}
                     </a>
                     <div class="text-body-tertiary fs-9">
@@ -199,10 +229,10 @@
                     <span class="fas fa-ellipsis-h fs-10"></span>
                   </button>
                   <div class="dropdown-menu dropdown-menu-end py-2">
-                    <a class="dropdown-item" href="#!">View</a>
-                    <a class="dropdown-item" href="#!">Edit</a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item text-danger" href="#!">Remove</a>
+                    <a class="dropdown-item" href="{% url 'staff_client_detail' client.id %}">View</a>
+                    {% if role_access.can_manage_clients %}
+                      <a class="dropdown-item" href="{% url 'staff_client_update' client.id %}">Edit</a>
+                    {% endif %}
                   </div>
                 </div>
               </td>
@@ -237,9 +267,8 @@
     <div class="row g-0 justify-content-between align-items-center h-100">
       <div class="col-12 col-sm-auto text-center">
         <p class="mb-0 mt-2 mt-sm-0 text-body">
-          Thank you for creating with FlintIO<span class="d-none d-sm-inline-block"></span>
+          Powered by Clarivo<span class="d-none d-sm-inline-block"></span>
           <span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;
-          <a class="mx-1" href="https://www.flintio.net/"></a>
         </p>
       </div>
       <div class="col-12 col-sm-auto text-center">

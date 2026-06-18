@@ -15,10 +15,9 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import include, path
 from django.shortcuts import render
-from django.conf import settings
-from django.conf.urls.static import static
+from django.views.generic import RedirectView
 
 
 
@@ -28,8 +27,10 @@ def landing(request):
     return render(request, 'main/landing.html', context) 
 
 urlpatterns = [
+    path("", RedirectView.as_view(pattern_name="home", permanent=False)),
     path("admin/", admin.site.urls),
     path("home/", landing, name="home"),
+    path("businesses/", include("apps.businesses.urls")),
     path("crm/", include("apps.crm.urls")),         
     path("accounts/", include("apps.accounts.urls")),
     path("billings/", include("apps.billings.urls")),
