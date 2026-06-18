@@ -1231,4 +1231,3 @@
   docReady(leafletInit);
 
 }));
-//# sourceMappingURL=hotel-compare.js.map

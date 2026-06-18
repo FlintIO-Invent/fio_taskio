@@ -1239,4 +1239,3 @@
   docReady(stockOverviewMixedChartInit);
 
 }));
-//# sourceMappingURL=stock-portfolio-watchlist.js.map

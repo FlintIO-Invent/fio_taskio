@@ -1483,4 +1483,3 @@
   docReady(topStocksChartsInit);
 
 }));
-//# sourceMappingURL=stock-dashboard.js.map

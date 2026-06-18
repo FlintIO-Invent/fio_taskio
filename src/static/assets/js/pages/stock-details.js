@@ -1367,4 +1367,3 @@
   docReady(companyProfileEmployeesChartInit);
 
 }));
-//# sourceMappingURL=stock-details.js.map

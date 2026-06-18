@@ -502,4 +502,3 @@
   docReady(appCalendarInit);
 
 }));
-//# sourceMappingURL=calendar.js.map

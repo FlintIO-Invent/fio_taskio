@@ -221,4 +221,3 @@
   docReady(reportsDetailsChartInit);
 
 }));
-//# sourceMappingURL=report-details.js.map

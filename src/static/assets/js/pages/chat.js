@@ -75,4 +75,3 @@
   docReady(chatInit);
 
 }));
-//# sourceMappingURL=chat.js.map
