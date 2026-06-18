@@ -45,8 +45,9 @@ ignore = ["E501"]
 line-length = 100
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q"
+DJANGO_SETTINGS_MODULE = "taskio.settings"
+pythonpath = ["src"]
+addopts = "-q --pyargs apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests"
 
 [build-system]
 requires = ["hatchling>=1.25.0"]

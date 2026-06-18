@@ -1,512 +1,523 @@
-# TaskIO User Testing Plan
+# Clarivo User Testing Plan
 
 ## Purpose
 
-This document captures the current user-facing routes and the most important user tests for the existing TaskIO SaaS application.
+This plan covers the current Clarivo MVP that is being prepared for private production testing. It is intentionally limited to the features that already exist and are safe to evaluate.
 
-Based on the codebase, the product currently supports:
+Private-testing environment rule:
 
-- A public landing page
-- A public lead and service request form
-- Internal agent login
-- Internal CRM workflows for leads and clients
-- Invoice creation and status tracking
-- Workspace and billing settings
-- Django admin access
+- Use a PostgreSQL-backed deployment before inviting testers.
+- SQLite is only a temporary local fallback if a PostgreSQL test database cannot be created during development.
 
-## Current URL Inventory
+## In scope
 
-### Public routes --- URL (https://fio-taskio.onrender.com)
+- Business workspace registration
+- Business login
+- Invitation-only employee access
+- One active workspace per login
+- Role permissions
+- Tenant-scoped clients
+- Tenant-scoped service requests
+- Business-specific service categories
+- Business-specific services and pricing
+- Public request form per business slug
+- Invoice creation, editing, and status changes
+- Subscription and plan visibility
+- Admin support smoke testing
 
-| URL | Access | Purpose | Notes |
-| --- | --- | --- | --- |
-| `/` | Public | Redirects to home | Redirects to `/home/` |
-| `(https://fio-taskio.onrender.com)/home/` | Public | Landing page | Main marketing and entry page |
-| `/crm/public_request/` | Public | Public lead or service request form | Accepts service requests and general interest submissions |
-| `/crm/thanks/` | Public | Submission success page | Shown after public form submission |
-| `/accounts/customer_registration` | Public | Customer account registration | Creates a non-staff user account and SaaS profile (Not for you) |
-| `/accounts/agent_login` | Public | Internal agent login | Only staff or superusers are allowed through this flow (Not for you) |
+## Out of scope
 
-### Internal authenticated routes
+- Appointments
+- Public booking
+- Memberships
+- Stripe billing
+- Major new product features
 
-| URL | Access | Purpose | Notes |
-| --- | --- | --- | --- |
-| `/crm/agent/dashboard/` | Authenticated | Agent dashboard | Shows invoice-focused dashboard metrics |
-| `/accounts/profile` | Authenticated | Workspace settings | Has `basic`, `workspace`, and `invoice` sections |
-| `/crm/staff/leads/` | Authenticated | Lead list | Supports filtering by status, type, and search |
-| `/crm/staff/leads/create/` | Authenticated | Create lead | Intended for staff lead entry |
-| `/crm/staff/leads/<lead_id>/` | Authenticated | Lead detail | Direct detail page exists |
-| `/crm/staff/clients/` | Authenticated | Client list | Supports search, district filter, active filter |
-| `/crm/staff/clients/create/` | Authenticated | Create client | Main client creation form |
-| `/crm/staff/clients/<client_id>/` | Authenticated | Client detail | Includes invoice creation CTA |
-| `/crm/staff/clients/<client_id>/edit/` | Authenticated | Edit client | Updates the client record |
-| `/crm/staff/clients/all/` | Authenticated | Full active-client detail view | Shows all active clients in expanded format |
-| `/billings/` | Authenticated | Invoice list | Supports status filtering |
-| `/billings/from-client/<client_id>/` | Authenticated | Create invoice from client | Creates a draft invoice for a client |
-| `/billings/<invoice_id>/` | Authenticated | Invoice detail | Shows lines, totals, notes, and status actions |
-| `/billings/<invoice_id>/edit/` | Authenticated | Edit draft invoice | Only available for draft invoices |
-| `/billings/<invoice_id>/change-status/` | Authenticated, POST | Change invoice status | Supports valid transitions only |
+## Test data and accounts
 
-### Admin route
+Prepare these before testing:
 
-| URL | Access | Purpose | Notes |
-| --- | --- | --- | --- |
-| `/admin/` | Admin only | Django admin | Admin back office for models and users (Not for you) |
+- A PostgreSQL-backed environment with migrations already applied
+- One brand-new owner email for business registration
+- One invited admin or staff email
+- One invited accountant or viewer email
+- One Django superuser for `/admin/`
+- One active default trial plan
+- One business slug to test public request forms
 
-## Main User Roles
+Recommended role coverage:
 
-### 1. Public prospect or customer
+- `Owner`
+- `Admin`
+- `Staff`
+- `Accountant`
+- `Viewer`
 
-What they can do:
+Before inviting testers:
 
-- View the landing page
-- Submit a service request
-- Submit a general expression of interest
-- Register a customer account
+- Run migrations successfully against PostgreSQL
+- Run `check --deploy` with production-style security settings
+- Smoke-test the key routes on the PostgreSQL-backed environment
 
-### 2. Internal agent or operations staff
+## Route guide
 
-What they can do:
+Public and onboarding routes:
 
-- Log in to the internal workspace
-- View invoice dashboard metrics
-- Create and review leads
-- Create, search, review, and update clients
-- Create invoices from clients
-- Edit draft invoices
-- Move invoices through draft, sent, paid, and cancelled states
+- `/home/`
+- `/accounts/register-business/`
+- `/accounts/login/`
+- `/accounts/agent_login`
+- `/accounts/invitations/accept/<token>/`
+- `/crm/public_request/<business_slug>/`
+- `/crm/thanks/`
 
-### 3. Workspace owner or back-office operator
+Workspace routes:
 
-What they can do:
+- `/crm/agent/dashboard/`
+- `/businesses/settings/`
+- `/businesses/subscription/`
+- `/businesses/team/`
+- `/crm/staff/clients/`
+- `/crm/staff/clients/create/`
+- `/crm/staff/leads/`
+- `/crm/staff/leads/create/`
+- `/crm/settings/service-categories/`
+- `/crm/settings/services/`
+- `/billings/`
 
-- Update account basic info
-- Update workspace and billing details
-- Update invoice defaults like currency, due days, and branding color
+Support route:
 
-### 4. System admin (Not for you)
+- `/admin/`
 
-What they can do:
+Important note:
 
-- Use Django admin for direct model management and user administration
+- Public testers should use `/crm/public_request/<business_slug>/`.
+- The generic `/crm/public_request/` route is not the external public entrypoint. It only redirects when a current workspace is already known in session.
+- `/accounts/customer_registration` is now a legacy compatibility route and should redirect users to business registration.
 
-## Suggested Test Setup
+## First deployment smoke pass
 
-Before running user tests, prepare:
+Run this quick pass on the deployed PostgreSQL-backed app before the deeper UT-01 through UT-15 walkthrough.
 
-- One staff user for agent login
-- One superuser for `/admin/`
-- Seeded `ServiceCategory` records so the public request form has category choices
-- One or two sample clients for invoice creation tests
-- A clean database or a known test dataset
+### A. System and admin
 
-Recommended sample accounts:
+Checks:
 
-- Staff agent: `agent@example.com`
-- Customer account: `customer@example.com`
-- Admin: `admin@example.com`
-
-## User Testing Plan
-
-## A. Public Experience
-
-### UT-01 Landing page
-
-Goal:
-Confirm a new visitor understands the product entry point and can reach the next action.
-
-Steps:
-
-1. Open `/home/`.
-2. Confirm the page loads without missing assets or layout breaks.
-3. Confirm the Agent Login link is visible.
-4. Confirm branding and headline content render correctly on desktop and mobile.
+- Load `/home/`, `/accounts/login/`, and `/admin/`
+- Confirm CSS, JS, and favicon assets load
+- Confirm no obvious server errors appear on first-page navigation
+- Confirm admin login works for the superuser
+- Confirm the deployed database already has the expected migrations applied
 
 Expected result:
 
-- Landing page loads successfully.
-- Agent login CTA works.
-- No broken images, videos, or CSS.
+- The deployed app is reachable, styled correctly, and backed by the migrated PostgreSQL database
 
-### UT-02 Public service request submission
+### B. Business owner flow
 
-Goal:
-Verify a visitor can submit a request from the public form.
+Checks:
 
-Steps:
-
-1. Open `/crm/public_request/`.
-2. Submit a valid form with `lead_type = REQUEST`.
-3. Confirm redirect to `/crm/thanks/`.
-4. Verify the submitted contact shows up in internal data where expected.
+- Register a brand-new business from `/accounts/register-business/`
+- Confirm the owner is logged in automatically
+- Confirm redirect to `/businesses/settings/` or the expected dashboard path
+- Confirm `/crm/agent/dashboard/` and `/businesses/subscription/` load
 
 Expected result:
 
-- Form submits successfully.
-- Success page appears.
-- Internal staff can follow up on the request.
+- The owner can onboard successfully and land inside the new workspace
 
-### UT-03 Public interest lead submission
+### C. Team flow
 
-Goal:
-Verify a visitor can submit a non-request lead.
+Checks:
 
-Steps:
-
-1. Open `/crm/public_request/`.
-2. Submit a valid form with `lead_type = INTEREST`.
-3. Confirm redirect to `/crm/thanks/`.
-4. Log in as staff and check `/crm/staff/leads/`.
+- Create an invitation from `/businesses/team/`
+- Accept the invitation as the invited teammate
+- Confirm the invited user lands inside the existing workspace
+- Confirm the invited user does not create a second workspace during acceptance
 
 Expected result:
 
-- The interest submission is stored as a lead.
-- Staff can find it in the lead list.
+- Invitation-only employee access works and preserves the one-workspace-per-login MVP behavior
 
-### UT-04 Public form validation
+### D. Role permissions
 
-Goal:
-Confirm validation and error states are usable.
+Checks:
 
-Steps:
-
-1. Submit the public request form with missing required fields.
-2. Submit with malformed email and phone values if validation exists.
-3. Retry with corrected data.
+- Verify `Owner` can access the current full scope
+- Verify `Admin` can manage team, CRM, and billing pages
+- Verify `Staff` can work with CRM and service-request flows but not subscription management
+- Verify `Accountant` can reach client and invoice flows but not lead-management actions
+- Verify `Viewer` remains read-only where allowed
 
 Expected result:
 
-- Errors are shown clearly.
-- Corrected submission succeeds.
+- Role boundaries match the current Clarivo permission design
 
-### UT-05 Customer account registration
+### E. CRM flow
 
-Goal:
-Verify a public user can create an account.
+Checks:
 
-Steps:
-
-1. Open `/accounts/customer_registration`.
-2. Submit a valid new user.
-3. Retry with a duplicate email.
+- Create a client
+- Edit the client safely
+- Create a service request from the staff flow
+- Convert or update the client safely when the flow calls for it
+- Confirm another business cannot see the record
 
 Expected result:
 
-- A new account is created on valid submission.
-- Duplicate email is blocked.
-- Success messaging is shown.
+- Client and request data stay tenant-scoped and cross-business leakage is not observed
 
-## B. Agent Access and Navigation
+### F. Services flow
 
-### UT-06 Internal agent login
+Checks:
 
-Goal:
-Verify only staff users can enter the internal workspace.
-
-Steps:
-
-1. Open `/accounts/agent_login`.
-2. Sign in with a staff account.
-3. Sign in with a non-staff customer account.
-4. Sign in with invalid credentials.
+- Create a service category
+- Create a priced business service
+- Confirm both appear only inside the active workspace
 
 Expected result:
 
-- Staff login succeeds and lands on `/crm/agent/dashboard/`.
-- Non-staff login is rejected.
-- Invalid credentials show a clear error.
+- Service categories and services behave as business-scoped setup data for invoicing and request workflows
 
-### UT-07 Internal navigation smoke test
+### G. Public request flow
 
-Goal:
-Verify the main sidebar paths are reachable.
+Checks:
 
-Steps:
-
-1. From the dashboard, open workspace settings.
-2. Open clients.
-3. Open leads.
-4. Open invoices.
+- Open `/crm/public_request/<business_slug>/`
+- Submit a valid `REQUEST`
+- Submit a valid `INTEREST` if that path is enabled in the form
+- Confirm client upsert behavior is safe and does not overwrite richer existing data incorrectly
+- Confirm plan gating works when the workspace should or should not expose the form
 
 Expected result:
 
-- Every linked screen loads successfully.
-- No dead-end navigation paths appear in the main operational flow.
+- Public request intake works for the active business slug and remains protected by current plan rules
 
-## C. Lead Management
+### H. Billing flow
 
-### UT-08 Create a lead internally
+Checks:
 
-Goal:
-Verify staff can create a lead manually.
-
-Steps:
-
-1. Open `/crm/staff/leads/create/`.
-2. Submit a valid lead.
-3. Confirm it appears in `/crm/staff/leads/`.
+- Create an invoice from a client
+- Select a saved business service
+- Add a manual line item
+- Verify totals update correctly
+- Move the invoice through `DRAFT`, `SENT`, and `PAID` as allowed
+- Confirm staff and viewer roles cannot perform restricted invoice actions
 
 Expected result:
 
-- Lead is saved.
-- Lead is searchable and visible in the lead list.
+- Billing works on the deployed app and respects both tenant scoping and role permissions
 
-### UT-09 Filter and search leads
+## Test scenarios
 
-Goal:
-Verify lead list filtering works.
+### UT-01 Business registration
 
-Steps:
+Route:
 
-1. Open `/crm/staff/leads/`.
-2. Filter by `REQUEST`.
-3. Filter by `INTEREST`.
-4. Filter by status.
-5. Search by name, email, and phone.
+- `/accounts/register-business/`
 
-Expected result:
+Checks:
 
-- Results match the selected filters and search query.
-
-### UT-10 Review lead details
-
-Goal:
-Verify lead details are readable and useful for follow-up.
-
-Steps:
-
-1. Open a known lead detail route directly at `/crm/staff/leads/<lead_id>/`.
-2. Review contact info, category, address, and message.
+- Create a new owner and workspace
+- Confirm the user is logged in automatically
+- Confirm redirect to `/businesses/settings/`
+- Confirm a trial subscription is attached when an active default trial plan exists
 
 Expected result:
 
-- Lead detail page displays complete submission context.
+- Workspace is created successfully
+- Owner becomes the active workspace user
+- A current business is stored for the session
 
-## D. Client Management
+### UT-02 Business login and logout
 
-### UT-11 Create a client
+Routes:
 
-Goal:
-Verify staff can create a client record manually.
+- `/accounts/login/`
+- `/accounts/logout/`
 
-Steps:
+Checks:
 
-1. Open `/crm/staff/clients/create/`.
-2. Fill in basic details, relationship details, notes, and location.
-3. Submit the form.
-
-Expected result:
-
-- Client is saved and appears in `/crm/staff/clients/`.
-
-### UT-12 Search and filter clients
-
-Goal:
-Verify CRM list filtering works for active client management.
-
-Steps:
-
-1. Open `/crm/staff/clients/`.
-2. Search by name, company, email, and phone.
-3. Filter by district.
-4. Filter by active and inactive.
+- Sign in with the owner account
+- Confirm redirect to `/crm/agent/dashboard/`
+- Sign out and confirm redirect back to login
+- Retry with invalid credentials
 
 Expected result:
 
-- The client list responds correctly to search and filter inputs.
+- Valid business users can log in
+- Invalid credentials are rejected clearly
 
-### UT-13 Review client details
+### UT-03 Legacy customer registration redirect
 
-Goal:
-Verify client records provide enough operational detail.
+Route:
 
-Steps:
+- `/accounts/customer_registration`
 
-1. Open `/crm/staff/clients/<client_id>/`.
-2. Review the tabs for basic info, business details, contact info, relationship, and notes.
+Checks:
 
-Expected result:
-
-- All client sections render correctly.
-- The record is suitable for sales and service follow-up.
-
-### UT-14 Update a client
-
-Goal:
-Verify client edits persist correctly.
-
-Steps:
-
-1. Open `/crm/staff/clients/<client_id>/edit/`.
-2. Change status, priority, contact details, and notes.
-3. Save and reopen the detail page.
+- Open the route directly
+- Confirm the user receives a legacy notice
+- Confirm redirect to `/accounts/register-business/`
 
 Expected result:
 
-- Updated values are persisted and visible afterward.
+- No standalone customer signup flow is presented
 
-## E. Invoice Management
+### UT-04 Team invitation creation
 
-### UT-15 Create invoice from client
+Route:
 
-Goal:
-Verify staff can create a draft invoice from a client.
+- `/businesses/team/`
 
-Steps:
+Checks:
 
-1. Open `/crm/staff/clients/<client_id>/`.
-2. Use the Create Invoice action.
-3. Confirm redirect to the invoice detail page.
-
-Expected result:
-
-- A draft invoice is created with an auto-generated invoice number.
-
-### UT-16 Edit draft invoice
-
-Goal:
-Verify line-item editing and totals calculation.
-
-Steps:
-
-1. Open `/billings/<invoice_id>/edit/` for a draft invoice.
-2. Add, update, and remove line items.
-3. Add notes.
-4. Save.
+- Log in as owner
+- Create an invitation for a teammate email
+- Repeat with an existing pending invitation
+- Try the page as a non-owner/non-admin role
 
 Expected result:
 
-- Invoice lines persist correctly.
-- Subtotal and total update correctly.
-- Notes are saved.
+- Owner and admin can create or refresh invitations
+- Lower roles cannot manage invitations
+- Pending invitation token is visible for manual testing
 
-### UT-17 Invoice status workflow
+### UT-05 Invitation acceptance for an existing user
 
-Goal:
-Verify the invoice lifecycle.
+Route:
 
-Steps:
+- `/accounts/invitations/accept/<token>/`
 
-1. Move a draft invoice to Sent.
-2. Move the same invoice to Paid.
-3. Create another draft and cancel it.
-4. Attempt an invalid transition if possible.
+Checks:
 
-Expected result:
-
-- Valid transitions work.
-- Invalid transitions are blocked.
-
-### UT-18 Invoice list filtering
-
-Goal:
-Verify invoice discovery by state.
-
-Steps:
-
-1. Open `/billings/`.
-2. Filter by Draft, Sent, Paid, and Cancelled.
+- Accept the invitation as an existing invited user
+- Verify wrong-user protection by signing in as another email first
+- Verify already-accepted and expired invitation behavior
 
 Expected result:
 
-- The invoice list reflects the chosen status filter.
+- The invited user joins the workspace
+- Wrong authenticated users are blocked cleanly
+- Invitation state handling is clear
 
-## F. Workspace Settings
+### UT-06 Invitation acceptance for a brand-new user
 
-### UT-19 Update basic workspace info
+Route:
 
-Goal:
-Verify the account owner can update basic profile details.
+- `/accounts/invitations/accept/<token>/`
 
-Steps:
+Checks:
 
-1. Open `/accounts/profile`.
-2. Update first name, last name, email, company, phone, and address.
-3. Save.
-
-Expected result:
-
-- Changes persist and the success message appears.
-
-### UT-20 Update workspace and billing settings
-
-Goal:
-Verify business-facing workspace settings.
-
-Steps:
-
-1. Open `/accounts/profile?section=workspace`.
-2. Update workspace name, billing email, support email, website, and tax ID.
-3. Save.
+- Open an invitation for an email that does not already exist
+- Create the account from the invitation page
+- Confirm automatic login and workspace join
 
 Expected result:
 
-- Workspace settings persist.
+- The account is created
+- The membership is attached to the invited business
+- Redirect lands on `/crm/agent/dashboard/`
 
-### UT-21 Update invoice defaults
+### UT-07 Role permissions
 
-Goal:
-Verify invoice branding and payment defaults.
+Routes to sample:
 
-Steps:
+- `/crm/staff/leads/`
+- `/crm/staff/clients/`
+- `/billings/`
+- `/businesses/subscription/`
+- `/businesses/team/`
 
-1. Open `/accounts/profile?section=invoice`.
-2. Change currency, prefix, due days, accent color, footer note, and payment instructions.
-3. Save.
+Checks:
 
-Expected result:
-
-- Settings persist.
-- Preview values update correctly.
-
-## G. Admin Back Office
-
-### UT-22 Django admin smoke test
-
-Goal:
-Confirm the administrative back office is usable.
-
-Steps:
-
-1. Open `/admin/` with a superuser.
-2. Confirm access to users, leads, clients, invoices, and related records.
+- Verify `Owner` can access everything in current scope
+- Verify `Admin` can manage clients, leads, billing, and team
+- Verify `Staff` can manage clients and service requests but not subscription
+- Verify `Accountant` can access billing but not lead management
+- Verify `Viewer` can view billing where allowed but not management pages
 
 Expected result:
 
-- Admin login works.
-- Core models are manageable in admin.
+- Permission boundaries match the role rules
+- Unauthorized actions are blocked or redirected safely
 
-## High-Priority Risks and Current Gaps
+### UT-08 Business settings and subscription page
 
-These are important to keep in mind during testing because they appear in the current codebase.
+Routes:
 
-- `REQUEST` submissions on `/crm/public_request/` appear to create or update a client directly and may not persist a lead record first. This is inferred from `public_request()` using `upsert_client_from_lead(Lead(**lead))` without `form.save()` for that branch.
-- `/crm/staff/leads/create/` appears to render the wrong form on `GET`. The view uses `PrivateClientForm()` for the page load and `PublicLeadForm()` on submit, so the lead creation page should be tested early.
-- The lead list UI has placeholder actions and does not currently link row actions to the existing detail route.
-- There is no visible customer self-service login flow beyond registration. Customer accounts are created, but the current login form only permits staff and superusers.
-- The dashboard contains some static-looking placeholder sections, so test emphasis should stay on invoice stats and route health rather than chart accuracy unless those charts are explicitly wired later.
-- The dashboard layout includes a logout link to `/accounts/employee_login`, but that route is not defined in the current URL configuration.
-- Most authenticated views use the default `login_required` behavior, and no custom `LOGIN_URL` setting is present in settings. Direct unauthenticated access to some internal routes should therefore be tested carefully.
+- `/businesses/settings/`
+- `/businesses/subscription/`
 
-## Recommended Testing Order
+Checks:
 
-Run testing in this order to expose the biggest workflow risks quickly:
+- Update editable business settings
+- Review current plan details
+- Change plans through the current non-Stripe plan selector
+- Confirm current trial messaging is accurate
 
-1. Public request form
-2. Agent login
-3. Lead creation and lead list
-4. Client creation and client update
-5. Invoice creation and invoice status flow
-6. Workspace settings
-7. Django admin
+Expected result:
 
-## Success Criteria
+- Workspace settings save successfully
+- Plan changes update the subscription record
+- Appointments, memberships, and public booking remain clearly presented as later modules
 
-The current product is ready for a structured user test if:
+### UT-09 Service categories
 
-- A public visitor can submit interest or request information successfully
-- A staff agent can log in and navigate the core CRM screens
-- Staff can create and update clients
-- Staff can create, edit, and progress invoices
-- Workspace settings save reliably
-- Admin access works for back-office recovery and support
+Routes:
+
+- `/crm/settings/service-categories/`
+- `/crm/settings/service-categories/create/`
+
+Checks:
+
+- Create a business-specific category
+- Edit it
+- Archive it
+- Confirm it only appears for the current workspace
+
+Expected result:
+
+- Category records stay tenant-scoped
+- Archived categories stop appearing where expected
+
+### UT-10 Business services and prices
+
+Routes:
+
+- `/crm/settings/services/`
+- `/crm/settings/services/create/`
+- `/crm/settings/services/import/`
+
+Checks:
+
+- Create a business service with price and category
+- Edit service pricing
+- Import services from CSV
+- Download the sample CSV
+
+Expected result:
+
+- Services are scoped to the business
+- Imported services are usable in invoicing flows
+
+### UT-11 Clients
+
+Routes:
+
+- `/crm/staff/clients/`
+- `/crm/staff/clients/create/`
+- `/crm/staff/clients/<client_id>/`
+- `/crm/staff/clients/<client_id>/edit/`
+
+Checks:
+
+- Create a client
+- Edit the client
+- Search and filter clients
+- Confirm another workspace user cannot reach the record
+
+Expected result:
+
+- Client CRUD works
+- Client visibility stays inside the active workspace
+
+### UT-12 Service requests
+
+Routes:
+
+- `/crm/staff/leads/`
+- `/crm/staff/leads/create/`
+- `/crm/staff/leads/<lead_id>/`
+- `/crm/staff/leads/<lead_id>/edit/`
+- `/crm/staff/leads/<lead_id>/convert-to-client/`
+
+Checks:
+
+- Create an internal service request
+- Edit its details and status
+- Convert the request to a client when appropriate
+- Create an invoice from a matched lead when applicable
+
+Expected result:
+
+- Lead and request workflows remain tenant-scoped
+- Conversion and invoice handoff flows work
+
+### UT-13 Public request form
+
+Route:
+
+- `/crm/public_request/<business_slug>/`
+
+Checks:
+
+- Open the business-specific public form
+- Submit a valid `REQUEST`
+- Confirm redirect to `/crm/thanks/`
+- Confirm client creation or update happens for request submissions
+- Submit a valid `INTEREST`
+- Confirm it stays as a lead without forced client creation
+- Validate required-field errors
+
+Expected result:
+
+- Public request flow works for the testing plan
+- The form is tied to the correct business slug
+- Plan gating blocks the form only when intended
+
+### UT-14 Invoices
+
+Routes:
+
+- `/billings/`
+- `/billings/from-client/<client_id>/`
+- `/billings/<invoice_id>/`
+- `/billings/<invoice_id>/edit/`
+- `/billings/<invoice_id>/change-status/`
+
+Checks:
+
+- Create an invoice from a client
+- Add service lines from business services
+- Edit a draft invoice
+- Change status through valid transitions
+- Verify plan gating for invoicing when using a plan without billing access
+
+Expected result:
+
+- Invoice creation and editing work
+- Service selection reflects business-scoped services
+- Invalid status changes are blocked
+
+### UT-15 Admin support smoke test
+
+Route:
+
+- `/admin/`
+
+Checks:
+
+- Confirm admin login works for the superuser
+- Confirm core models appear
+- Confirm businesses, memberships, invitations, plans, clients, leads, and invoices are manageable
+
+Expected result:
+
+- Admin remains available as a support back office
+
+## Suggested smoke-test order
+
+1. Business registration
+2. Business login
+3. Subscription page
+4. Team invitation
+5. Invitation acceptance
+6. Service categories
+7. Business services
+8. Public request form
+9. Clients
+10. Service requests
+11. Invoices
+12. Role-permission pass
+13. Admin smoke test

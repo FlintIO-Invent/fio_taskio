@@ -1,4 +1,4 @@
-# Makefile for TaskIO Django Project
+# Makefile for Clarivo Django Project
 
 .PHONY: help install migrate runserver test lint format clean
 
@@ -16,27 +16,27 @@ help:
 
 # Install dependencies
 install:
-	pip install -e .[dev]
+	uv sync --extra dev
 
 # Run database migrations
 migrate:
-	cd src && /home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/.venv/bin/python manage.py migrate
+	uv run --no-sync python src/manage.py migrate
 
 # Start the development server
 runserver:
-	cd src && /home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/.venv/bin/python manage.py runserver
+	uv run --no-sync python src/manage.py runserver
 
 # Run tests
 test:
-	cd src && /home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/.venv/bin/python manage.py test
+	uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests
 
 # Run linter
 lint:
-	ruff check .
+	uv run --no-sync ruff check .
 
 # Format code
 format:
-	black .
+	uv run --no-sync black .
 
 # Clean up cache files
 clean:

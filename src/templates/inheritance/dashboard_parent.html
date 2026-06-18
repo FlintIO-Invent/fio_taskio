@@ -194,8 +194,8 @@
                                     <span class="d-flex align-items-center">
                                         <span class="nav-link-icon"><span data-feather="calendar"></span></span><span class="nav-link-text">Appointments</span>
                                     </span>
-                                    <span class="badge badge-phoenix {% if module_access.appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                                        {% if module_access.appointments %}Included{% else %}Locked{% endif %}
+                                    <span class="badge badge-phoenix {% if module_access.appointments %}badge-phoenix-info{% else %}badge-phoenix-warning{% endif %}">
+                                        {% if module_access.appointments %}Planned{% else %}Later{% endif %}
                                     </span>
                                 </span>
                             </div>
@@ -204,8 +204,8 @@
                                     <span class="d-flex align-items-center">
                                         <span class="nav-link-icon"><span data-feather="users"></span></span><span class="nav-link-text">Memberships</span>
                                     </span>
-                                    <span class="badge badge-phoenix {% if module_access.memberships %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                                        {% if module_access.memberships %}Included{% else %}Locked{% endif %}
+                                    <span class="badge badge-phoenix {% if module_access.memberships %}badge-phoenix-info{% else %}badge-phoenix-warning{% endif %}">
+                                        {% if module_access.memberships %}Planned{% else %}Later{% endif %}
                                     </span>
                                 </span>
                             </div>
@@ -214,8 +214,8 @@
                                     <span class="d-flex align-items-center">
                                         <span class="nav-link-icon"><span data-feather="globe"></span></span><span class="nav-link-text">Public Booking</span>
                                     </span>
-                                    <span class="badge badge-phoenix {% if module_access.public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                                        {% if module_access.public_booking %}Included{% else %}Locked{% endif %}
+                                    <span class="badge badge-phoenix {% if module_access.public_booking %}badge-phoenix-info{% else %}badge-phoenix-warning{% endif %}">
+                                        {% if module_access.public_booking %}Planned{% else %}Later{% endif %}
                                     </span>
                                 </span>
                             </div>

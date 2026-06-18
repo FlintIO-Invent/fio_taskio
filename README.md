@@ -1,101 +1,322 @@
-# Project Title
+# Clarivo
 
-**Project Description** 
+Clarivo is a Django multi-tenant SaaS for Caribbean service businesses. The current private-testing release focuses on workspace onboarding, tenant-scoped CRM and billing, invitation-only employee access, role permissions, business-specific services and pricing, invoice service line selection, and plan-based access control.
 
-### What it produces (quick bullets)
+The internal Django package name remains `taskio` for now. That is expected.
 
+## Current private-testing scope
 
-###  It’s designed to grow into:
+- Business workspace registration
+- Business login
+- Invitation-only employee access
+- One active workspace per login for the current MVP
+- Tenant-scoped clients and service requests
+- Tenant-scoped invoices
+- Business-specific service categories
+- Business-specific services and prices
+- Public request forms at `/crm/public_request/<business_slug>/`
+- Workspace subscription and plan enforcement
 
-## Dependency 
+## Out of scope for this release
 
----
+- Appointments
+- Public booking
+- Memberships
+- Stripe billing
+- Major new product features
 
-## Repo structure (already created)
+## Local setup
 
-### `src/project_name/` modules
-- **Example/** *(build/simplify/edge attributes)*
-- **Example/**  *(OD generation)*
-- **Example/**  *(BPR + MSA + metrics)*
--
-
-### `scripts/` runnable entry points
-- **Example/**  *(OSMnx → GraphML)*
-- **Example/**  *(bottlenecks + fragility)*
-
-### Tests + docs
-- **tests/** *(basic unit tests for assignment + metrics)*
-- **docs/ARCHITECTURE.md** *(quick overview)*
-
-
-## Quick start (uv)
+1. Install dependencies:
 
 ```bash
-# 1) Create venv + install core + dev tools
-uv sync --extra dev --extra  --extra  --extra  --extra 
+uv sync --extra dev
+```
 
-# 4) Run Graph Baselines for various experimentrs
-uv run python scripts/example.py
+2. Create local environment variables:
 
----
+```bash
+cp .env.example .env
+```
 
+3. Choose one database strategy:
 
-## Pipeline steps (in order)
+- For private production testing and production, use PostgreSQL.
+- Set `DATABASE_URL` to a PostgreSQL database, or use the PostgreSQL `DB_*` values from `.env.example`.
+- Use SQLite only as a temporary local fallback when a PostgreSQL test database cannot be created on your machine.
 
-- http://127.0.0.1:8000/home/
-- http://127.0.0.1:8000/accounts/agent_login
-- sudo fuser -k 8000/tcp
-- uv run --frozen python -m gunicorn taskio.asgi:application -k uvicorn.workers.UvicornWorker --chdir src
+4. Run migrations:
 
+```bash
+uv run --no-sync python src/manage.py migrate
+```
 
+5. Start the development server:
 
-public_request/
+```bash
+uv run --no-sync python src/manage.py runserver
+```
 
+6. Optional admin user:
 
-python manage.py makemigrations crm --empty --name seed_service_categories
+```bash
+uv run --no-sync python src/manage.py createsuperuser
+```
 
-from django.db import migrations
+## Environment variables
 
+`DATABASE_URL` takes priority over the individual `DB_*` variables.
 
-def seed_service_categories(apps, schema_editor):
-    ServiceCategory = apps.get_model("crm", "ServiceCategory")
+Clarivo private testing and production requirements:
 
-    defaults = [
-        ("SEPTIC_PUMPING", "Septic Pumping"),
-        ("SEPTIC_INSTALLATION", "Septic Installation"),
-        ("SEPTIC_REPAIR", "Septic Repair"),
-        ("GREASE_TRAP_SERVICES", "Grease Trap Services"),
-        ("UNCLOGGING_SERVICES", "Unclogging Services"),
-        ("OTHER", "Other"),
-    ]
+- PostgreSQL is required before inviting external testers.
+- Validate migrations and smoke flows against a real PostgreSQL-backed deployment.
+- SQLite is acceptable only as a local emergency fallback while unblocking development.
 
-    for code, name in defaults:
-        ServiceCategory.objects.update_or_create(
-            code=code,
-            defaults={"name": name, "is_active": True},
-        )
+Important settings for local and production use:
 
+- `DEBUG`
+- `SECRET_KEY`
+- `ALLOWED_HOSTS`
+- `CSRF_TRUSTED_ORIGINS`
+- `DATABASE_URL`
+- `DB_ENGINE`
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_HOST`
+- `DB_PORT`
+- `SECURE_SSL_REDIRECT`
+- `SESSION_COOKIE_SECURE`
+- `CSRF_COOKIE_SECURE`
+- `SECURE_HSTS_SECONDS`
+- `SECURE_HSTS_INCLUDE_SUBDOMAINS`
+- `SECURE_HSTS_PRELOAD`
+- `USE_X_FORWARDED_PROTO`
+- `SECURE_REFERRER_POLICY`
+- `DEFAULT_FROM_EMAIL`
+- `EMAIL_BACKEND`
+- `LOG_LEVEL`
 
-def unseed_service_categories(apps, schema_editor):
-    ServiceCategory = apps.get_model("crm", "ServiceCategory")
-    codes = [
-        "SEPTIC_PUMPING",
-        "SEPTIC_INSTALLATION",
-        "SEPTIC_REPAIR",
-        "GREASE_TRAP_SERVICES",
-        "UNCLOGGING_SERVICES",
-        "OTHER",
-    ]
-    ServiceCategory.objects.filter(code__in=codes).delete()
+Production notes:
 
+- `DEBUG` defaults to `False`.
+- `SECRET_KEY` is required whenever `DEBUG=False`.
+- `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` are environment-driven.
+- When `DEBUG=False`, secure cookie and HTTPS settings default to safe private-testing behavior unless explicitly overridden.
+- WhiteNoise serves collected static files in production.
+- The literal placeholder `replace-with-real-secret` is only a documentation example and will still trigger `security.W009`. Use a long random secret for real deploy checks.
 
-class Migration(migrations.Migration):
+## Checks and tests
 
-    dependencies = [
-        # IMPORTANT: replace with your latest crm migration
-        ("crm", "00xx_previous_migration"),
-    ]
+Recommended local verification commands:
 
-    operations = [
-        migrations.RunPython(seed_service_categories, reverse_code=unseed_service_categories),
-    ]
+```bash
+uv run --no-sync python src/manage.py check
+uv run --no-sync python src/manage.py makemigrations --check --dry-run
+uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests
+```
+
+Recommended PostgreSQL validation commands:
+
+```bash
+DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
+DEBUG=False \
+SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+uv run --no-sync python src/manage.py migrate
+```
+
+```bash
+DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
+DEBUG=False \
+SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+uv run --no-sync python src/manage.py check
+```
+
+```bash
+DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
+DEBUG=False \
+SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+uv run --no-sync python src/manage.py makemigrations --check --dry-run
+```
+
+```bash
+DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
+DEBUG=False \
+SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+SECURE_SSL_REDIRECT=True \
+SESSION_COOKIE_SECURE=True \
+CSRF_COOKIE_SECURE=True \
+SECURE_HSTS_SECONDS=3600 \
+SECURE_HSTS_INCLUDE_SUBDOMAINS=True \
+SECURE_HSTS_PRELOAD=True \
+USE_X_FORWARDED_PROTO=True \
+uv run --no-sync python src/manage.py check --deploy
+```
+
+Recommended Django suite command:
+
+```bash
+uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests --verbosity 2
+```
+
+`python src/manage.py test` and `pytest` are also wired to the same four app suites by default.
+
+If your local PostgreSQL role does not have `CREATEDB`, Django cannot create the temporary `test_...` database automatically. In that case, either:
+
+- grant the local role `CREATEDB`, or
+- have a DBA pre-create the PostgreSQL test database and run the suite with `--keepdb`
+
+## Deployment
+
+Clarivo is set up for Heroku-style or Render-style PaaS deployment with a release phase and a Gunicorn web process.
+The repo root is the expected working directory for build, release, and web commands.
+
+Build behavior:
+
+- `build.sh` runs `uv sync --locked`
+- `build.sh` runs `collectstatic`
+- `build.sh` does not run `migrate`
+
+Release and web behavior:
+
+- `Procfile` release: `uv run --frozen python src/manage.py migrate`
+- `Procfile` web: `uv run --frozen gunicorn taskio.wsgi:application --chdir src --log-file - --bind 0.0.0.0:${PORT:-8000}`
+- `start.sh` mirrors the Gunicorn web command for environments that use a start script directly
+
+Confirmed deployment behavior for this repo:
+
+- `gunicorn taskio.wsgi:application --chdir src` resolves the correct WSGI app from the repo root.
+- `build.sh` does not run migrations, so build does not require a live production database.
+- `collectstatic` works from the repo root and WhiteNoise serves the collected assets in non-debug deployments.
+- `DATABASE_URL` overrides the individual `DB_*` settings when present.
+- `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` are fully environment-driven.
+- `DEBUG=False` requires an explicit `SECRET_KEY` and automatically enables safe secure-cookie and HTTPS defaults unless overridden.
+
+## Private Production Test Deployment
+
+Clarivo private testing must use a real PostgreSQL-backed deployment.
+Do not use SQLite as the private test app database.
+
+### Required environment variables
+
+Minimum deployment values:
+
+- `SECRET_KEY`: use a long random secret value
+- `DEBUG=False`
+- `ALLOWED_HOSTS`: include the deployed hostname
+- `CSRF_TRUSTED_ORIGINS`: include the deployed HTTPS origin
+- `DATABASE_URL`: point to the managed PostgreSQL database
+
+Recommended explicit production security values:
+
+- `SECURE_SSL_REDIRECT=True`
+- `SESSION_COOKIE_SECURE=True`
+- `CSRF_COOKIE_SECURE=True`
+- `SECURE_HSTS_SECONDS=3600`
+- `SECURE_HSTS_INCLUDE_SUBDOMAINS=True`
+- `SECURE_HSTS_PRELOAD=True`
+- `USE_X_FORWARDED_PROTO=True`
+- `SECURE_REFERRER_POLICY=strict-origin-when-cross-origin`
+- `LOG_LEVEL=INFO`
+
+Email and invitation notes:
+
+- `DEFAULT_FROM_EMAIL` should be set to the sending identity you want testers to see.
+- `EMAIL_BACKEND` defaults to the console backend locally. For a real hosted smoke test, configure a real email backend if you want invitations delivered automatically.
+- If live email is not configured yet, use manual invitation-token testing from the team flow and admin flow rather than assuming invite delivery is live.
+
+Static-file note:
+
+- No extra static environment variable is required for the current PaaS setup.
+- `build.sh` runs `collectstatic`, and WhiteNoise serves the collected files in the deployed app.
+
+Example deployment environment:
+
+```bash
+SECRET_KEY='replace-this-with-a-long-random-secret'
+DEBUG=False
+ALLOWED_HOSTS=clarivo.example.com
+CSRF_TRUSTED_ORIGINS=https://clarivo.example.com
+DATABASE_URL=postgresql://app_user:app_password@db-host:5432/clarivo
+SECURE_SSL_REDIRECT=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+SECURE_HSTS_SECONDS=3600
+SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+SECURE_HSTS_PRELOAD=True
+USE_X_FORWARDED_PROTO=True
+DEFAULT_FROM_EMAIL=no-reply@clarivo.example.com
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+LOG_LEVEL=INFO
+```
+
+### Heroku/PaaS deployment sequence
+
+1. Create the app or web service and attach a managed PostgreSQL database.
+2. Set the required environment variables, especially `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, and `DATABASE_URL`.
+3. Deploy the repo from the repository root so the platform can run `build.sh`.
+4. Let the build complete `uv sync --locked` and `collectstatic`.
+5. Let the `release` process run `python src/manage.py migrate` against PostgreSQL before the web process is promoted.
+6. Start the `web` process with Gunicorn through the existing `Procfile` entry.
+7. Create or confirm a superuser, an active default trial plan, and the default Pro public-request behavior before sharing tester links.
+
+### Post-deploy smoke checklist
+
+Run this quick pass on the deployed PostgreSQL-backed app before inviting testers:
+
+- System/admin: app loads over HTTPS, static CSS and JS load, admin login works, and no obvious 500s appear on `/home/`, `/accounts/login/`, or `/admin/`.
+- Business owner flow: owner can register a business, log in, reach `/crm/agent/dashboard/`, and load `/businesses/settings/` and `/businesses/subscription/`.
+- Team flow: owner or admin can create an invite, the invite can be accepted, the employee joins the existing workspace, and no new workspace is created for the invitee.
+- Role permissions: owner has full current-scope access, admin remains elevated, staff stays CRM-focused, accountant stays client and billing focused, and viewer stays read-only.
+- CRM flow: client create and edit work, service requests can be created, and records remain invisible across businesses.
+- Services flow: a category and a priced business service can be created and stay scoped to the active business.
+- Public request flow: `/crm/public_request/<business_slug>/` loads, `REQUEST` submissions upsert clients safely, `INTEREST` submissions stay lead-only if supported, and plan gating blocks the route only when expected.
+- Billing flow: invoices can be created from clients, saved services can be selected, manual lines can be added, totals compute correctly, statuses can move from draft to sent to paid, and lower roles cannot perform restricted billing actions.
+
+See [docs/USER_TESTING_PLAN.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/USER_TESTING_PLAN.md) for the deeper scenario-by-scenario pass after this first smoke test.
+
+## Private-testing deployment checklist
+
+- Set all production environment variables
+- Confirm the deployment uses PostgreSQL, not SQLite
+- Confirm the release phase can reach the database
+- Run migrations against PostgreSQL successfully
+- Run `check --deploy`
+- Confirm static assets load after `collectstatic`
+- Confirm a default active trial plan exists
+- Confirm the default Pro or Pro Trial path allows the public request form
+- Run smoke routes on the PostgreSQL-backed deployment before sending invite links
+- Create one owner account, one invited teammate account, and one superuser
+- Verify `/accounts/register-business/`, `/accounts/login/`, `/crm/public_request/<business_slug>/`, `/crm/agent/dashboard/`, `/businesses/subscription/`, and `/admin/`
+
+## Rollback and troubleshooting
+
+- `DisallowedHost` or HTTP 400 on first load usually means `ALLOWED_HOSTS` does not include the deployed hostname.
+- CSRF origin failures usually mean `CSRF_TRUSTED_ORIGINS` is missing the exact HTTPS origin, including scheme.
+- `ImproperlyConfigured: SECRET_KEY must be set when DEBUG=False` means the app is in production mode without a real `SECRET_KEY`.
+- `DATABASE_URL` errors or release migration failures usually mean the PostgreSQL credentials, hostname, or network access are wrong.
+- Missing CSS or JS usually means the build did not complete `collectstatic`, the release used the wrong working directory, or the deploy skipped the standard build step.
+- If `check --deploy` still warns, make sure you are not using the literal placeholder secret and explicitly set `SECURE_HSTS_INCLUDE_SUBDOMAINS=True` and `SECURE_HSTS_PRELOAD=True` when your domain policy allows it.
+- If local PostgreSQL test runs fail with `permission denied to create database`, grant the local role `CREATEDB` or pre-create the test database and run Django tests with `--keepdb`.
+- If invitation emails are not arriving, confirm the deployed `EMAIL_BACKEND` and SMTP provider settings or fall back to manual invite-link testing for the smoke pass.
+- If a bad code deploy reaches production-like testing, roll back to the previous app release first. Avoid ad-hoc schema reversals unless you have a deliberate migration rollback plan.
+
+## Useful routes
+
+- `/home/`
+- `/accounts/register-business/`
+- `/accounts/login/`
+- `/accounts/agent_login`
+- `/accounts/invitations/accept/<token>/`
+- `/businesses/settings/`
+- `/businesses/subscription/`
+- `/businesses/team/`
+- `/crm/agent/dashboard/`
+- `/crm/public_request/<business_slug>/`
+- `/crm/staff/clients/`
+- `/crm/staff/leads/`
+- `/crm/settings/service-categories/`
+- `/crm/settings/services/`
+- `/billings/`
+- `/admin/`
