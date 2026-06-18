@@ -237,8 +237,8 @@ Example deployment environment:
 ```bash
 SECRET_KEY='replace-this-with-a-long-random-secret'
 DEBUG=False
-ALLOWED_HOSTS=clarivo.example.com
-CSRF_TRUSTED_ORIGINS=https://clarivo.example.com
+ALLOWED_HOSTS=clarivo-2026-abc123.herokuapp.com,clarivo.example.com
+CSRF_TRUSTED_ORIGINS=https://clarivo-2026-abc123.herokuapp.com,https://clarivo.example.com
 DATABASE_URL=postgresql://app_user:app_password@db-host:5432/clarivo
 SECURE_SSL_REDIRECT=True
 SESSION_COOKIE_SECURE=True
@@ -256,6 +256,7 @@ LOG_LEVEL=INFO
 
 1. Create the app or web service and attach a managed PostgreSQL database.
 2. Set the required environment variables, especially `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, and `DATABASE_URL`.
+   For Heroku-hosted smoke testing, `ALLOWED_HOSTS` must include the exact generated `*.herokuapp.com` hostname shown in the browser or logs, and `CSRF_TRUSTED_ORIGINS` must include the matching `https://...` origin.
 3. Deploy the repo from the repository root so the platform can run `build.sh`.
 4. Let the build complete `uv sync --locked` and `collectstatic`.
 5. Let the `release` process run `python src/manage.py migrate` against PostgreSQL before the web process is promoted.
@@ -294,7 +295,9 @@ See [docs/USER_TESTING_PLAN.md](/home/mzero/main/repo/fio_projects/caribbean_aut
 ## Rollback and troubleshooting
 
 - `DisallowedHost` or HTTP 400 on first load usually means `ALLOWED_HOSTS` does not include the deployed hostname.
+- On Heroku, fix that with the full current hostname, for example `ALLOWED_HOSTS=clarivo-2026-abc123.herokuapp.com` or `ALLOWED_HOSTS=clarivo-2026-abc123.herokuapp.com,clarivo.example.com`.
 - CSRF origin failures usually mean `CSRF_TRUSTED_ORIGINS` is missing the exact HTTPS origin, including scheme.
+- On Heroku, that usually means `CSRF_TRUSTED_ORIGINS=https://clarivo-2026-abc123.herokuapp.com` plus any custom `https://...` domain you also use.
 - `ImproperlyConfigured: SECRET_KEY must be set when DEBUG=False` means the app is in production mode without a real `SECRET_KEY`.
 - `DATABASE_URL` errors or release migration failures usually mean the PostgreSQL credentials, hostname, or network access are wrong.
 - `/bin/sh: 1: uv: not found` on Heroku release or web dynos means the runtime command still depends on `uv`. Use `python` and `gunicorn` directly in `Procfile` and startup scripts.
