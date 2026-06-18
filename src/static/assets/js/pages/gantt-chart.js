@@ -1142,4 +1142,3 @@
   docReady(ganttChartInit);
 
 }));
-//# sourceMappingURL=gantt-chart.js.map

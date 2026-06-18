@@ -352,4 +352,3 @@
   docReady(topCouponsChartInit);
 
 }));
-//# sourceMappingURL=project-details.js.map

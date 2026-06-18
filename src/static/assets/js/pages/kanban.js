@@ -122,4 +122,3 @@
   docReady(createBoardInit);
 
 }));
-//# sourceMappingURL=kanban.js.map

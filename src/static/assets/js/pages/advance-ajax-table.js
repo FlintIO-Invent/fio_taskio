@@ -616,4 +616,3 @@
   docReady(advanceAjaxTableInit);
 
 }));
-//# sourceMappingURL=advance-ajax-table.js.map

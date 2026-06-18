@@ -2594,4 +2594,3 @@
   docReady(fileManagerInit);
 
 }));
-//# sourceMappingURL=file-manager.js.map
