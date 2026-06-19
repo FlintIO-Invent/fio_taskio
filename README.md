@@ -25,6 +25,18 @@ The internal Django package name remains `taskio` for now. That is expected.
 - Stripe billing
 - Major new product features
 
+## Development workflow
+
+While the live private-test app is being evaluated, keep feature work off the production line.
+
+- `main`: production and private-test stable branch
+- `develop`: preferred shared local or staging integration branch, if used
+- `feature/*`: new feature branches created from `develop`
+- `hotfix/*`: minimal production bug-fix branches created from `main`
+- This repo currently has both `develop` and `development` branch variants in Git history and remotes. Standardize on one shared integration branch name before active feature work resumes. The workflow docs use `develop`.
+
+See [docs/DEVELOPMENT_WORKFLOW.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/DEVELOPMENT_WORKFLOW.md) for the release checklist, hotfix checklist, and promotion flow.
+
 ## Local setup
 
 1. Install dependencies:
@@ -61,6 +73,44 @@ uv run --no-sync python src/manage.py runserver
 
 ```bash
 uv run --no-sync python src/manage.py createsuperuser
+```
+
+## Common local development commands
+
+Install dependencies:
+
+```bash
+uv sync --extra dev
+```
+
+Run migrations:
+
+```bash
+uv run --no-sync python src/manage.py migrate
+```
+
+Start the local server:
+
+```bash
+uv run --no-sync python src/manage.py runserver
+```
+
+Run a targeted app test module:
+
+```bash
+uv run --no-sync python src/manage.py test apps.businesses.tests
+```
+
+Run a more targeted test case:
+
+```bash
+uv run --no-sync python src/manage.py test apps.businesses.tests.BusinessSettingsViewTests
+```
+
+Run the migration drift check:
+
+```bash
+uv run --no-sync python src/manage.py makemigrations --check --dry-run
 ```
 
 ## Environment variables

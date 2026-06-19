@@ -9,6 +9,12 @@ Private-testing environment rule:
 - Use a PostgreSQL-backed deployment before inviting testers.
 - SQLite is only a temporary local fallback if a PostgreSQL test database cannot be created during development.
 
+Branch safety rule:
+
+- The live private-test deployment should track `main`.
+- Production fixes during the tester cycle should go through `hotfix/*` branches.
+- New feature work should stay on `develop` and `feature/*` branches until it passes the release checklist.
+
 ## In scope
 
 - Business workspace registration
