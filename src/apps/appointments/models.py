@@ -63,6 +63,16 @@ class Appointment(TimeStampedModel):
     def __str__(self) -> str:
         return f"{self.title} - {self.client} ({self.start_time:%Y-%m-%d %H:%M})"
 
+    @property
+    def status_badge_class(self) -> str:
+        badge_classes = {
+            self.Status.SCHEDULED: "badge-phoenix-primary",
+            self.Status.COMPLETED: "badge-phoenix-success",
+            self.Status.CANCELLED: "badge-phoenix-danger",
+            self.Status.NO_SHOW: "badge-phoenix-warning",
+        }
+        return badge_classes.get(self.status, "badge-phoenix-secondary")
+
     def clean(self):
         super().clean()
 
@@ -119,4 +129,3 @@ class Appointment(TimeStampedModel):
         self._apply_service_snapshot()
         self.full_clean()
         super().save(*args, **kwargs)
-

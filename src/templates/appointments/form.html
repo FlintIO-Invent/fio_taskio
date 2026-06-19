@@ -16,7 +16,7 @@
     <div class="row g-3 mb-4 justify-content-between align-items-center">
       <div class="col-lg-8">
         <h2 class="mb-2 text-body-emphasis">{{ page_title }}</h2>
-        <p class="text-body-tertiary mb-0">This appointment will belong only to {{ current_business.name }}.</p>
+        <p class="text-body-tertiary mb-0">This internal appointment will belong only to {{ current_business.name }}.</p>
       </div>
       <div class="col-auto d-flex gap-2">
         {% if appointment %}
@@ -88,10 +88,10 @@
             <h4 class="mb-3">Workspace Scope</h4>
             <p class="text-body-tertiary mb-3">Clients, services, and staff are filtered to the current workspace on the backend and in the form.</p>
             <div class="rounded-3 border p-3">
-              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Default Status</p>
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Status On Save</p>
               <h3 class="mb-0 text-capitalize">{{ appointment.get_status_display|default:"Scheduled" }}</h3>
             </div>
-            <p class="text-body-tertiary small mt-3 mb-0">Appointment status changes happen from the detail page so the schedule stays easy to review.</p>
+            <p class="text-body-tertiary small mt-3 mb-0">Status changes happen from the detail page so the schedule stays easy to review after creation.</p>
           </div>
         </div>
       </div>

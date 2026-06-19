@@ -107,6 +107,14 @@ class AppointmentModelAndFormTests(TestCase):
             unit_price=Decimal("150.00"),
             tax_rate=Decimal("6.50"),
         )
+        self.inactive_service = BusinessService.objects.create(
+            business=self.business,
+            name="Inactive Pumping",
+            description="Inactive service",
+            unit_price=Decimal("99.00"),
+            tax_rate=Decimal("6.50"),
+            is_active=False,
+        )
         self.other_service = BusinessService.objects.create(
             business=self.other_business,
             name="Roof Inspection",
@@ -218,6 +226,53 @@ class AppointmentModelAndFormTests(TestCase):
         )
 
         self.assertTrue(form.is_valid(), form.errors)
+
+    def test_appointment_form_limits_client_queryset_to_active_current_business_clients(self):
+        inactive_client = Client.objects.create(
+            business=self.business,
+            first_name="Inactive",
+            last_name="Client",
+            email="inactive@example.com",
+            phone="+1 721 555 4000",
+            company_name="Inactive Co",
+            street_address="78 Hidden Lane",
+            is_active=False,
+        )
+
+        form = AppointmentForm(current_business=self.business)
+
+        self.assertIn(self.client_record, form.fields["client"].queryset)
+        self.assertNotIn(self.other_client_record, form.fields["client"].queryset)
+        self.assertNotIn(inactive_client, form.fields["client"].queryset)
+
+    def test_appointment_form_limits_service_queryset_to_active_current_business_services(self):
+        form = AppointmentForm(current_business=self.business)
+
+        self.assertIn(self.service, form.fields["service"].queryset)
+        self.assertNotIn(self.other_service, form.fields["service"].queryset)
+        self.assertNotIn(self.inactive_service, form.fields["service"].queryset)
+
+    def test_appointment_form_limits_staff_queryset_to_active_current_business_members(self):
+        inactive_member_user = TaskIOUser.objects.create_user(
+            email="inactive-member@example.com",
+            password="testpass123",
+            first_name="Inactive",
+            last_name="Member",
+        )
+        BusinessUser.objects.create(
+            user=inactive_member_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+            is_active=False,
+        )
+
+        form = AppointmentForm(current_business=self.business)
+
+        self.assertIn(self.owner, form.fields["staff_member"].queryset)
+        self.assertIn(self.staff_user, form.fields["staff_member"].queryset)
+        self.assertIn(self.viewer_user, form.fields["staff_member"].queryset)
+        self.assertNotIn(self.other_staff_user, form.fields["staff_member"].queryset)
+        self.assertNotIn(inactive_member_user, form.fields["staff_member"].queryset)
 
 
 class AppointmentViewTests(TestCase):
@@ -463,13 +518,17 @@ class AppointmentViewTests(TestCase):
     def test_owner_can_create_update_and_change_status(self):
         self._login_as(self.owner, self.business)
 
-        create_response = self.client.post(reverse("appointment_create"), data=self._appointment_payload())
+        create_response = self.client.post(
+            reverse("appointment_create"),
+            data=self._appointment_payload(business=self.other_business.pk),
+        )
         created_appointment = Appointment.objects.get(title="Scheduled service visit")
 
         self.assertRedirects(
             create_response,
             reverse("appointment_detail", args=[created_appointment.id]),
         )
+        self.assertEqual(created_appointment.business, self.business)
 
         update_response = self.client.post(
             reverse("appointment_update", args=[created_appointment.id]),
@@ -620,3 +679,22 @@ class AppointmentViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Septic Pumping")
         self.assertNotContains(response, "Updated Service Name")
+
+    def test_appointment_list_hides_create_button_for_read_only_roles(self):
+        self._login_as(self.viewer_user, self.business)
+
+        viewer_response = self.client.get(reverse("appointment_list"))
+
+        self.assertEqual(viewer_response.status_code, 200)
+        self.assertNotContains(viewer_response, reverse("appointment_create"))
+        self.assertContains(viewer_response, "read-only appointment access")
+
+    def test_sidebar_shows_create_link_only_for_manage_roles(self):
+        self._login_as(self.owner, self.business)
+        owner_response = self.client.get(reverse("agent_dashboard"))
+        self.assertContains(owner_response, reverse("appointment_create"))
+
+        self.client.logout()
+        self._login_as(self.viewer_user, self.business)
+        viewer_response = self.client.get(reverse("agent_dashboard"))
+        self.assertNotContains(viewer_response, reverse("appointment_create"))

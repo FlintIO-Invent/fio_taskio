@@ -26,11 +26,17 @@
     <div class="col-auto">
       {% if role_access.can_manage_appointments %}
         <a class="btn btn-phoenix-primary" href="{% url 'appointment_create' %}">
-          <span class="fa-solid fa-plus me-2"></span>New Appointment
+          <span class="fa-solid fa-plus me-2"></span>Schedule Appointment
         </a>
       {% endif %}
     </div>
   </div>
+
+  {% if not role_access.can_manage_appointments %}
+    <div class="alert alert-light border mb-4" role="alert">
+      You have read-only appointment access in this workspace.
+    </div>
+  {% endif %}
 
   <div class="card mb-4">
     <div class="card-body">
@@ -102,7 +108,7 @@
                   </td>
                   <td>{{ appointment.start_time|date:"M d, Y H:i" }}</td>
                   <td>{{ appointment.end_time|date:"M d, Y H:i" }}</td>
-                  <td><span class="badge badge-phoenix badge-phoenix-info text-capitalize">{{ appointment.get_status_display }}</span></td>
+                  <td><span class="badge badge-phoenix {{ appointment.status_badge_class }}">{{ appointment.get_status_display }}</span></td>
                   <td>
                     <div class="d-flex gap-2">
                       <a href="{% url 'appointment_detail' appointment.pk %}" class="btn btn-sm btn-outline-primary">
@@ -131,14 +137,14 @@
         <h4 class="mb-3">No appointments found</h4>
         <p class="mb-4 text-body-secondary">
           {% if current_status or query %}
-            No appointments matched the current filters.
+            No appointments matched the current filters. Try clearing the search or status filter.
           {% else %}
             No appointments have been scheduled for this workspace yet.
           {% endif %}
         </p>
         {% if role_access.can_manage_appointments %}
           <a href="{% url 'appointment_create' %}" class="btn btn-phoenix-primary">
-            <span class="fa-solid fa-plus me-2"></span>Create Your First Appointment
+            <span class="fa-solid fa-plus me-2"></span>Schedule Your First Appointment
           </a>
         {% endif %}
       </div>
