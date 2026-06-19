@@ -46,6 +46,12 @@ LEAD_MANAGE_ROLES = (
     BusinessUser.Role.ADMIN,
     BusinessUser.Role.STAFF,
 )
+APPOINTMENT_VIEW_ROLES = ALL_WORKSPACE_ROLES
+APPOINTMENT_MANAGE_ROLES = (
+    BusinessUser.Role.OWNER,
+    BusinessUser.Role.ADMIN,
+    BusinessUser.Role.STAFF,
+)
 BILLING_VIEW_ROLES = (
     BusinessUser.Role.OWNER,
     BusinessUser.Role.ADMIN,

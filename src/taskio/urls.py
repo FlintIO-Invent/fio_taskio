@@ -32,6 +32,7 @@ urlpatterns = [
     path("home/", landing, name="home"),
     path("businesses/", include("apps.businesses.urls")),
     path("crm/", include("apps.crm.urls")),         
+    path("appointments/", include("apps.appointments.urls")),
     path("accounts/", include("apps.accounts.urls")),
     path("billings/", include("apps.billings.urls")),
 ]

@@ -1,0 +1,101 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'appointment_list' %}">Appointments</a></li>
+      <li class="breadcrumb-item active">{{ page_title }}</li>
+    </ol>
+  </nav>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="row g-3 mb-4 justify-content-between align-items-center">
+      <div class="col-lg-8">
+        <h2 class="mb-2 text-body-emphasis">{{ page_title }}</h2>
+        <p class="text-body-tertiary mb-0">This appointment will belong only to {{ current_business.name }}.</p>
+      </div>
+      <div class="col-auto d-flex gap-2">
+        {% if appointment %}
+          <a class="btn btn-phoenix-secondary" href="{% url 'appointment_detail' appointment.pk %}">Cancel</a>
+        {% else %}
+          <a class="btn btn-phoenix-secondary" href="{% url 'appointment_list' %}">Cancel</a>
+        {% endif %}
+        <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+      </div>
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors|striptags }}</div>
+    {% endif %}
+
+    <div class="row g-4">
+      <div class="col-12 col-xl-8">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4 p-lg-5">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.title.id_for_label }}">Title</label>
+                {{ form.title }}
+                {% if form.title.errors %}<div class="invalid-feedback d-block">{{ form.title.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.client.id_for_label }}">Client</label>
+                {{ form.client }}
+                {% if form.client.errors %}<div class="invalid-feedback d-block">{{ form.client.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.service.id_for_label }}">Service</label>
+                {{ form.service }}
+                {% if form.service.errors %}<div class="invalid-feedback d-block">{{ form.service.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.staff_member.id_for_label }}">Staff Member</label>
+                {{ form.staff_member }}
+                {% if form.staff_member.errors %}<div class="invalid-feedback d-block">{{ form.staff_member.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.start_time.id_for_label }}">Start Time</label>
+                {{ form.start_time }}
+                {% if form.start_time.errors %}<div class="invalid-feedback d-block">{{ form.start_time.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.end_time.id_for_label }}">End Time</label>
+                {{ form.end_time }}
+                {% if form.end_time.errors %}<div class="invalid-feedback d-block">{{ form.end_time.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ form.location.id_for_label }}">Location</label>
+                {{ form.location }}
+                {% if form.location.errors %}<div class="invalid-feedback d-block">{{ form.location.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ form.notes.id_for_label }}">Notes</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4">
+            <h4 class="mb-3">Workspace Scope</h4>
+            <p class="text-body-tertiary mb-3">Clients, services, and staff are filtered to the current workspace on the backend and in the form.</p>
+            <div class="rounded-3 border p-3">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Default Status</p>
+              <h3 class="mb-0 text-capitalize">{{ appointment.get_status_display|default:"Scheduled" }}</h3>
+            </div>
+            <p class="text-body-tertiary small mt-3 mb-0">Appointment status changes happen from the detail page so the schedule stays easy to review.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

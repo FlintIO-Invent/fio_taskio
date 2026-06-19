@@ -49,6 +49,11 @@
               <span class="fa-solid fa-file-invoice-dollar me-2"></span>Invoices
             </a>
           {% endif %}
+          {% if module_access.appointments and role_access.can_view_appointments %}
+            <a class="btn btn-outline-primary" href="{% url 'appointment_list' %}">
+              <span class="fa-solid fa-calendar-days me-2"></span>Appointments
+            </a>
+          {% endif %}
           {% if role_access.can_manage_subscription %}
             <a class="btn btn-outline-secondary" href="{% url 'business_subscription' %}">
               <span class="fa-solid fa-layer-group me-2"></span>Upgrade Plan
@@ -222,12 +227,18 @@
                 <p class="fs-9 text-body-tertiary mb-0">Scheduling and calendar tools.</p>
               </div>
               <span class="badge badge-phoenix {% if module_access.appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                {% if module_access.appointments %}Planned{% else %}Later{% endif %}
+                {% if module_access.appointments %}Included{% else %}Locked{% endif %}
               </span>
             </div>
-            <p class="fs-9 text-body-tertiary mb-0">
-              {% if module_access.appointments %}This plan reserves appointment access for a later rollout. It is not part of the current private-testing scope.{% else %}Appointments are not part of the current private-testing scope.{% endif %}
-            </p>
+            {% if module_access.appointments and role_access.can_view_appointments %}
+              <a class="btn btn-outline-primary btn-sm" href="{% url 'appointment_list' %}">
+                <span class="fa-solid fa-arrow-up-right-from-square me-2"></span>Open Appointments
+              </a>
+            {% elif module_access.appointments %}
+              <p class="fs-9 text-body-tertiary mb-0">Appointment access is limited by your workspace role.</p>
+            {% else %}
+              <p class="fs-9 text-body-tertiary mb-0">This module is not enabled for the current workspace plan.</p>
+            {% endif %}
           </div>
         </div>
       </div>

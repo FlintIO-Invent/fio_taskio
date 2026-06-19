@@ -1,0 +1,148 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  {% if messages %}
+    <div class="mb-4">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'appointment_list' %}">Appointments</a></li>
+      <li class="breadcrumb-item active">{{ appointment.title }}</li>
+    </ol>
+  </nav>
+
+  <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
+    <div class="col-auto">
+      <h2 class="mb-0 text-body-emphasis">{{ appointment.title }}</h2>
+    </div>
+    <div class="col-auto">
+      <div class="d-flex gap-3">
+        <a class="btn btn-phoenix-secondary" href="{% url 'appointment_list' %}">
+          <span class="fa-solid fa-arrow-left me-2"></span>Back to List
+        </a>
+        {% if role_access.can_manage_appointments %}
+          <a class="btn btn-phoenix-warning" href="{% url 'appointment_update' appointment.pk %}">
+            <span class="fa-solid fa-edit me-2"></span>Edit Appointment
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Appointment Details</h5>
+          <span class="badge badge-phoenix badge-phoenix-info text-capitalize">{{ appointment.get_status_display }}</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-4">
+            <div class="col-md-6">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Client</p>
+              <p class="mb-0 fw-semibold">{{ appointment.client.first_name }} {{ appointment.client.last_name }}</p>
+              {% if appointment.client.company_name %}
+                <small class="text-body-secondary">{{ appointment.client.company_name }}</small>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Service</p>
+              <p class="mb-0">{{ appointment.service_name|default:"Not set" }}</p>
+            </div>
+            <div class="col-md-6">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Staff Member</p>
+              <p class="mb-0">
+                {% if appointment.staff_member %}
+                  {{ appointment.staff_member.get_full_name|default:appointment.staff_member.email }}
+                {% else %}
+                  Unassigned
+                {% endif %}
+              </p>
+            </div>
+            <div class="col-md-6">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Location</p>
+              <p class="mb-0">{{ appointment.location|default:"Not set" }}</p>
+            </div>
+            <div class="col-md-6">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Start</p>
+              <p class="mb-0">{{ appointment.start_time|date:"M d, Y H:i" }}</p>
+            </div>
+            <div class="col-md-6">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">End</p>
+              <p class="mb-0">{{ appointment.end_time|date:"M d, Y H:i" }}</p>
+            </div>
+            <div class="col-md-6">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Created</p>
+              <p class="mb-0">{{ appointment.created_at|date:"M d, Y H:i" }}</p>
+            </div>
+            <div class="col-md-6">
+              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Updated</p>
+              <p class="mb-0">{{ appointment.updated_at|date:"M d, Y H:i" }}</p>
+            </div>
+            {% if appointment.notes %}
+              <div class="col-12">
+                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Notes</p>
+                <p class="mb-0">{{ appointment.notes }}</p>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Actions</h5>
+        </div>
+        <div class="card-body">
+          {% if role_access.can_manage_appointments %}
+            {% if available_statuses %}
+              <div class="d-grid gap-2">
+                {% if 'completed' in available_statuses %}
+                  <form method="post" action="{% url 'appointment_change_status' appointment.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="completed">
+                    <button type="submit" class="btn btn-phoenix-success w-100">Mark Completed</button>
+                  </form>
+                {% endif %}
+                {% if 'no_show' in available_statuses %}
+                  <form method="post" action="{% url 'appointment_change_status' appointment.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="no_show">
+                    <button type="submit" class="btn btn-phoenix-warning w-100">Mark No Show</button>
+                  </form>
+                {% endif %}
+                {% if 'cancelled' in available_statuses %}
+                  <form method="post" action="{% url 'appointment_change_status' appointment.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="cancelled">
+                    <button type="submit" class="btn btn-phoenix-danger w-100">Cancel Appointment</button>
+                  </form>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="alert alert-light border mb-0" role="alert">
+                This appointment no longer has any additional status changes available.
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="alert alert-light border mb-0" role="alert">
+              You have read-only appointment access in this workspace.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

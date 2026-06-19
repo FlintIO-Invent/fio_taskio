@@ -189,16 +189,36 @@
                             <p class="navbar-vertical-label">Modules</p>
                             <hr class="navbar-vertical-line"/>
                             
-                            <div class="nav-item-wrapper">
-                                <span class="nav-link label-1 d-flex align-items-center justify-content-between {% if not module_access.appointments %}text-body-tertiary{% endif %}">
-                                    <span class="d-flex align-items-center">
-                                        <span class="nav-link-icon"><span data-feather="calendar"></span></span><span class="nav-link-text">Appointments</span>
-                                    </span>
-                                    <span class="badge badge-phoenix {% if module_access.appointments %}badge-phoenix-info{% else %}badge-phoenix-warning{% endif %}">
-                                        {% if module_access.appointments %}Planned{% else %}Later{% endif %}
-                                    </span>
-                                </span>
-                            </div>
+                            {% if module_access.appointments and role_access.can_view_appointments %}
+                                <div class="nav-item-wrapper">
+                                    <a class="nav-link dropdown-indicator label-1" href="#nv-appointments" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-appointments">
+                                        <div class="d-flex align-items-center justify-content-between w-100">
+                                            <div class="d-flex align-items-center">
+                                                <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                                <span class="nav-link-icon"><span data-feather="calendar"></span></span><span class="nav-link-text">Appointments</span>
+                                            </div>
+                                            <span class="badge badge-phoenix badge-phoenix-success">Included</span>
+                                        </div>
+                                    </a>
+                                    <div class="parent-wrapper label-1">
+                                        <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-appointments">
+                                            <li class="collapsed-nav-item-title d-none"></li>
+                                            <li class="nav-item">
+                                                <a class="nav-link" href="{% url 'appointment_list' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">View All Appointments</span></div>
+                                                </a>
+                                            </li>
+                                            {% if role_access.can_manage_appointments %}
+                                                <li class="nav-item">
+                                                    <a class="nav-link" href="{% url 'appointment_create' %}">
+                                                        <div class="d-flex align-items-center"><span class="nav-link-text">Create Appointment</span></div>
+                                                    </a>
+                                                </li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            {% endif %}
                             <div class="nav-item-wrapper">
                                 <span class="nav-link label-1 d-flex align-items-center justify-content-between {% if not module_access.memberships %}text-body-tertiary{% endif %}">
                                     <span class="d-flex align-items-center">
