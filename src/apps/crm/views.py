@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -11,6 +12,7 @@ from django.db import transaction
 from django.db.models import Q, QuerySet, Sum
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_http_methods
 from loguru import logger
@@ -71,6 +73,16 @@ def _business_service_queryset_for_business(business: Business) -> QuerySet[Busi
         business,
         include_inactive=True,
     ).select_related("business", "category")
+
+
+def _appointment_queryset_for_business(business: Business) -> QuerySet[Appointment]:
+    return Appointment.objects.filter(business=business).select_related(
+        "business",
+        "client",
+        "service",
+        "source_lead",
+        "staff_member",
+    )
 
 
 def _normalize_csv_fieldname(value: str | None) -> str:
@@ -253,6 +265,27 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     paid_invoice_total = paid_invoices.aggregate(total=Sum("total"))["total"] or Decimal("0.00")
     recent_service_requests = service_requests.select_related("category")[:5]
     recent_invoices = invoices.order_by("-created_at")[:5]
+    upcoming_appointments = Appointment.objects.none()
+    today_upcoming_appointment_count = 0
+    upcoming_appointment_count = 0
+
+    if can_use_module(current_business, "appointments"):
+        now = timezone.now()
+        local_now = timezone.localtime(now)
+        start_of_tomorrow = local_now.replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        ) + timedelta(days=1)
+        upcoming_appointment_queryset = _appointment_queryset_for_business(
+            current_business
+        ).filter(start_time__gte=now).order_by("start_time", "pk")
+        upcoming_appointments = upcoming_appointment_queryset[:4]
+        upcoming_appointment_count = upcoming_appointment_queryset.count()
+        today_upcoming_appointment_count = upcoming_appointment_queryset.filter(
+            start_time__lt=start_of_tomorrow,
+        ).count()
 
     context: dict[str, Any] = {
         "current_business": current_business,
@@ -266,6 +299,9 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         "paid_invoice_count": paid_invoices.count(),
         "paid_invoice_total": paid_invoice_total,
         "recent_invoices": recent_invoices,
+        "upcoming_appointments": upcoming_appointments,
+        "today_upcoming_appointment_count": today_upcoming_appointment_count,
+        "upcoming_appointment_count": upcoming_appointment_count,
     }
     return render(request, "crm/agent_dashboard/agent_dashboard.html", context)
 
@@ -531,10 +567,29 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     """Display staff-facing details for a single client."""
     current_business = request.current_business
     client = get_object_or_404(_client_queryset_for_business(current_business), pk=client_id)
+    upcoming_appointments = Appointment.objects.none()
+    recent_appointment_history = Appointment.objects.none()
+
+    if can_use_module(current_business, "appointments"):
+        client_appointments = _appointment_queryset_for_business(current_business).filter(
+            client=client,
+        )
+        upcoming_appointments = client_appointments.filter(
+            start_time__gte=timezone.now(),
+        ).order_by("start_time", "pk")[:5]
+        recent_appointment_history = client_appointments.filter(
+            status__in=(
+                Appointment.Status.COMPLETED,
+                Appointment.Status.CANCELLED,
+            ),
+        ).order_by("-start_time", "-pk")[:5]
+
     context: dict[str, Any] = {
         "clients": [client],
         "total_clients": 1,
         "single_client": client,
+        "client_upcoming_appointments": upcoming_appointments,
+        "client_recent_appointment_history": recent_appointment_history,
     }
     return render(request, "crm/main/client_detail.html", context)
 

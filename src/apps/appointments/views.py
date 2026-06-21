@@ -14,7 +14,7 @@ from apps.businesses.utils import (
     business_module_required,
     business_role_required,
 )
-from apps.crm.models import BusinessService, Lead
+from apps.crm.models import BusinessService, Client, Lead
 from apps.crm.services import (
     find_matching_client_for_lead,
     get_missing_client_required_field_labels_for_lead,
@@ -52,6 +52,13 @@ def _request_lead_queryset_for_business(current_business):
         business=current_business,
         lead_type=Lead.LeadType.REQUEST,
     ).select_related("business", "category")
+
+
+def _client_queryset_for_business(current_business):
+    return Client.objects.filter(
+        business=current_business,
+        is_active=True,
+    ).order_by("first_name", "last_name", "pk")
 
 
 def _infer_service_from_request(current_business, lead: Lead) -> BusinessService | None:
@@ -132,6 +139,50 @@ def _build_notes_from_request(lead: Lead) -> str:
         notes.append(f"Internal lead notes: {lead.notes.strip()}")
 
     return "\n\n".join(notes)
+
+
+def _display_name_for_client(client: Client) -> str:
+    if client.company_name:
+        return client.company_name
+
+    return " ".join(
+        part for part in [client.first_name, client.last_name] if part
+    ).strip() or client.email
+
+
+def _build_location_from_client(client: Client) -> str:
+    client_location_parts = [
+        part
+        for part in [
+            (client.street_address or "").strip(),
+            client.get_district_display() if client.district else "",
+            (client.country or "").strip(),
+            (client.postal_code or "").strip(),
+        ]
+        if part
+    ]
+    return ", ".join(client_location_parts)[:255]
+
+
+def _build_initial_appointment_data_from_client(client: Client) -> dict[str, str | int]:
+    return {
+        "client": client.pk,
+        "title": f"Visit - {_display_name_for_client(client)}"[:160],
+        "location": _build_location_from_client(client),
+    }
+
+
+def _get_source_client_for_create(request: HttpRequest, current_business) -> Client | None:
+    client_id = (request.GET.get("client_id") or "").strip()
+    if not client_id:
+        return None
+
+    try:
+        client_pk = int(client_id)
+    except ValueError:
+        return None
+
+    return _client_queryset_for_business(current_business).filter(pk=client_pk).first()
 
 
 def _build_initial_appointment_data_from_request(lead: Lead, client) -> dict[str, str | int]:
@@ -224,6 +275,7 @@ def appointment_detail(request: HttpRequest, appointment_id: int) -> HttpRespons
 @require_http_methods(["GET", "POST"])
 def appointment_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
+    source_client = _get_source_client_for_create(request, current_business)
 
     if request.method == "POST":
         form = AppointmentForm(request.POST, current_business=current_business)
@@ -233,13 +285,17 @@ def appointment_create(request: HttpRequest) -> HttpResponse:
             return redirect("appointment_detail", appointment_id=appointment.id)
         messages.error(request, "Please correct the errors below.")
     else:
-        form = AppointmentForm(current_business=current_business)
+        initial: dict[str, str | int] = {}
+        if source_client is not None:
+            initial.update(_build_initial_appointment_data_from_client(source_client))
+        form = AppointmentForm(initial=initial, current_business=current_business)
 
     context: dict[str, Any] = {
         "form": form,
         "appointment": None,
         "page_title": "Create appointment",
         "submit_label": "Create appointment",
+        "source_client": source_client,
     }
     return render(request, "appointments/form.html", context)
 

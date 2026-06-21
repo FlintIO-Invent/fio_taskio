@@ -582,6 +582,31 @@ class AppointmentViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
+    def test_appointment_create_prefills_client_from_current_business_query_param(self):
+        self._login_as(self.owner, self.business)
+
+        response = self.client.get(
+            f"{reverse('appointment_create')}?client_id={self.client_record.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertEqual(form.initial["client"], self.client_record.pk)
+        self.assertIn("Alpha Client Co", form.initial["title"])
+        self.assertContains(response, reverse("staff_client_detail", args=[self.client_record.id]))
+
+    def test_appointment_create_ignores_other_business_client_query_param(self):
+        self._login_as(self.owner, self.business)
+
+        response = self.client.get(
+            f"{reverse('appointment_create')}?client_id={self.other_client_record.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertNotIn("client", form.initial)
+        self.assertNotContains(response, reverse("staff_client_detail", args=[self.other_client_record.id]))
+
     def test_owner_is_redirected_to_subscription_when_appointments_are_locked(self):
         subscription = BusinessSubscription.objects.get(business=self.business)
         subscription.plan = self.locked_plan
@@ -973,6 +998,29 @@ class AppointmentViewTests(TestCase):
         self.assertNotContains(viewer_response, reverse("appointment_update", args=[self.appointment.id]))
         self.assertNotContains(viewer_response, reverse("appointment_change_status", args=[self.appointment.id]))
 
+    def test_appointment_detail_links_back_to_client_and_request_safely(self):
+        lead = self._build_request_lead(
+            email=self.client_record.email,
+            phone=self.client_record.phone,
+        )
+        appointment = Appointment.objects.create(
+            business=self.business,
+            client=self.client_record,
+            service=self.service,
+            source_lead=lead,
+            title="Linked detail visit",
+            start_time=self.start_time + timedelta(days=1),
+            end_time=self.end_time + timedelta(days=1),
+        )
+        self._login_as(self.owner, self.business)
+
+        response = self.client.get(reverse("appointment_detail", args=[appointment.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("staff_client_detail", args=[self.client_record.id]))
+        self.assertContains(response, reverse("staff_lead_detail", args=[lead.id]))
+        self.assertNotContains(response, reverse("staff_client_detail", args=[self.other_client_record.id]))
+
     def test_appointment_detail_uses_snapshot_after_service_name_changes(self):
         self._login_as(self.owner, self.business)
         self.service.name = "Updated Service Name"
@@ -982,7 +1030,7 @@ class AppointmentViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Septic Pumping")
-        self.assertNotContains(response, "Updated Service Name")
+        self.assertContains(response, "Linked service record: Updated Service Name")
 
     def test_appointment_list_hides_create_button_for_read_only_roles(self):
         self._login_as(self.viewer_user, self.business)

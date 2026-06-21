@@ -165,6 +165,108 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_client_detail_shows_only_that_clients_current_business_appointments(self):
+        self._enable_appointments_for_business()
+        target_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="jamie-client@example.com",
+            phone="+1 721 555 1010",
+            company_name="Target Client Co",
+            street_address="12 Main Street",
+        )
+        other_current_business_client = Client.objects.create(
+            business=self.business,
+            first_name="Robin",
+            last_name="Client",
+            email="robin-client@example.com",
+            phone="+1 721 555 2020",
+            company_name="Other Current Co",
+            street_address="14 Main Street",
+        )
+        other_business_client = Client.objects.create(
+            business=self.other_business,
+            first_name="Taylor",
+            last_name="Client",
+            email="taylor-client@example.com",
+            phone="+1 721 555 3030",
+            company_name="Other Business Co",
+            street_address="99 Foreign Street",
+        )
+        start_time = timezone.now().replace(second=0, microsecond=0)
+        upcoming_appointment = Appointment.objects.create(
+            business=self.business,
+            client=target_client,
+            title="Target upcoming visit",
+            start_time=start_time + timedelta(days=1),
+            end_time=start_time + timedelta(days=1, hours=1),
+            status=Appointment.Status.SCHEDULED,
+        )
+        completed_appointment = Appointment.objects.create(
+            business=self.business,
+            client=target_client,
+            title="Target completed visit",
+            start_time=start_time - timedelta(days=2),
+            end_time=start_time - timedelta(days=2) + timedelta(hours=1),
+            status=Appointment.Status.COMPLETED,
+        )
+        Appointment.objects.create(
+            business=self.business,
+            client=other_current_business_client,
+            title="Other client visit",
+            start_time=start_time + timedelta(days=3),
+            end_time=start_time + timedelta(days=3, hours=1),
+            status=Appointment.Status.SCHEDULED,
+        )
+        Appointment.objects.create(
+            business=self.other_business,
+            client=other_business_client,
+            title="Foreign client visit",
+            start_time=start_time + timedelta(days=4),
+            end_time=start_time + timedelta(days=4, hours=1),
+            status=Appointment.Status.SCHEDULED,
+        )
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("staff_client_detail", args=[target_client.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("appointment_detail", args=[upcoming_appointment.id]))
+        self.assertContains(response, reverse("appointment_detail", args=[completed_appointment.id]))
+        self.assertContains(response, "Target upcoming visit")
+        self.assertContains(response, "Target completed visit")
+        self.assertNotContains(response, "Other client visit")
+        self.assertNotContains(response, "Foreign client visit")
+
+    def test_client_detail_shows_schedule_appointment_button_only_for_manage_roles(self):
+        self._enable_appointments_for_business()
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="schedule-client@example.com",
+            phone="+1 721 555 4040",
+            company_name="Schedule Client Co",
+            street_address="22 Main Street",
+        )
+        schedule_url = f"{reverse('appointment_create')}?client_id={client_record.id}"
+
+        self.client.force_login(self.staff_user)
+        staff_response = self.client.get(reverse("staff_client_detail", args=[client_record.id]))
+        self.assertContains(staff_response, schedule_url)
+
+        self.client.logout()
+        self.client.force_login(self.accountant_user)
+        accountant_response = self.client.get(reverse("staff_client_detail", args=[client_record.id]))
+        self.assertNotContains(accountant_response, schedule_url)
+
+        self.client.logout()
+        self.client.force_login(self.viewer_user)
+        viewer_response = self.client.get(reverse("staff_client_detail", args=[client_record.id]))
+        self.assertNotContains(viewer_response, schedule_url)
+
     def test_public_request_creates_business_scoped_lead_and_client(self):
         foreign_client = Client.objects.create(
             business=self.other_business,
@@ -781,6 +883,39 @@ class CRMBusinessScopingTests(TestCase):
         self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
         self.assertContains(response, "Latest linked appointment")
 
+    def test_service_request_detail_hides_duplicate_schedule_button_when_appointment_exists(self):
+        self._enable_appointments_for_business()
+        matched_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="linked-no-duplicate@example.com",
+            phone="+1 721 555 5757",
+            company_name="Linked Request Co",
+            street_address="12 Main Street",
+        )
+        lead = self._build_request_lead(
+            email=matched_client.email,
+            phone=matched_client.phone,
+        )
+        start_time = timezone.now().replace(second=0, microsecond=0)
+        appointment = Appointment.objects.create(
+            business=self.business,
+            client=matched_client,
+            source_lead=lead,
+            title="Already scheduled visit",
+            start_time=start_time,
+            end_time=start_time + timedelta(hours=1),
+        )
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
+        self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
+
     def test_service_request_detail_shows_appointments_plan_message_when_unavailable(self):
         matched_client = Client.objects.create(
             business=self.business,
@@ -880,6 +1015,65 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.context["paid_invoice_count"], 1)
         self.assertEqual(response.context["paid_invoice_total"], Decimal("125"))
         self.assertEqual(list(response.context["recent_service_requests"]), [current_request])
+
+    def test_dashboard_shows_appointment_card_when_plan_allows_appointments(self):
+        self._enable_appointments_for_business()
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Casey",
+            last_name="Client",
+            email="dashboard-appointment@example.com",
+            phone="+1 721 555 6161",
+            company_name="Dashboard Client Co",
+            street_address="11 Main Street",
+        )
+        start_time = timezone.now().replace(second=0, microsecond=0)
+        appointment = Appointment.objects.create(
+            business=self.business,
+            client=client_record,
+            title="Dashboard upcoming visit",
+            start_time=start_time + timedelta(hours=2),
+            end_time=start_time + timedelta(hours=3),
+            status=Appointment.Status.SCHEDULED,
+        )
+
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Today's Appointments")
+        self.assertContains(response, "Dashboard upcoming visit")
+        self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
+        self.assertNotContains(response, reverse("appointment_create"))
+
+    def test_dashboard_hides_appointment_card_when_plan_blocks_appointments(self):
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Casey",
+            last_name="Client",
+            email="dashboard-hidden@example.com",
+            phone="+1 721 555 6262",
+            company_name="Hidden Dashboard Co",
+            street_address="11 Main Street",
+        )
+        start_time = timezone.now().replace(second=0, microsecond=0)
+        Appointment.objects.create(
+            business=self.business,
+            client=client_record,
+            title="Hidden dashboard visit",
+            start_time=start_time + timedelta(hours=2),
+            end_time=start_time + timedelta(hours=3),
+            status=Appointment.Status.SCHEDULED,
+        )
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Today's Appointments")
+        self.assertNotContains(response, "Hidden dashboard visit")
 
     def test_business_service_category_management_is_scoped_and_archives_instead_of_deleting(self):
         own_category = ServiceCategory.objects.create(

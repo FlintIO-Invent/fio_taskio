@@ -100,7 +100,7 @@
               </a>
               {% endif %}
 
-              {% if role_access.can_manage_appointments and module_access.appointments and request_ready_for_appointment %}
+              {% if role_access.can_manage_appointments and module_access.appointments and request_ready_for_appointment and not request_appointment %}
               <a class="btn btn-phoenix-primary" href="{% url 'appointment_create_from_request' lead.id %}">
                 <span class="fa-solid fa-calendar-plus me-2"></span>Schedule Appointment
               </a>

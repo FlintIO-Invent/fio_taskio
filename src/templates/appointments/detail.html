@@ -29,6 +29,14 @@
         <a class="btn btn-phoenix-secondary" href="{% url 'appointment_list' %}">
           <span class="fa-solid fa-arrow-left me-2"></span>Back to List
         </a>
+        <a class="btn btn-phoenix-secondary" href="{% url 'staff_client_detail' appointment.client.pk %}">
+          <span class="fa-solid fa-user me-2"></span>View Client
+        </a>
+        {% if appointment.source_lead %}
+          <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_detail' appointment.source_lead.pk %}">
+            <span class="fa-solid fa-wrench me-2"></span>View Service Request
+          </a>
+        {% endif %}
         {% if role_access.can_manage_appointments %}
           <a class="btn btn-phoenix-warning" href="{% url 'appointment_update' appointment.pk %}">
             <span class="fa-solid fa-edit me-2"></span>Edit Appointment
@@ -49,14 +57,21 @@
           <div class="row g-4">
             <div class="col-md-6">
               <p class="text-body-tertiary text-uppercase fs-10 mb-1">Client</p>
-              <p class="mb-0 fw-semibold">{{ appointment.client.first_name }} {{ appointment.client.last_name }}</p>
+              <p class="mb-0 fw-semibold">
+                <a class="text-decoration-none" href="{% url 'staff_client_detail' appointment.client.pk %}">
+                  {{ appointment.client.first_name }} {{ appointment.client.last_name }}
+                </a>
+              </p>
               {% if appointment.client.company_name %}
                 <small class="text-body-secondary">{{ appointment.client.company_name }}</small>
               {% endif %}
             </div>
             <div class="col-md-6">
               <p class="text-body-tertiary text-uppercase fs-10 mb-1">Service</p>
-              <p class="mb-0">{{ appointment.service_name|default:"Not set" }}</p>
+              <p class="mb-0 fw-semibold">{{ appointment.service_name|default:"Not set" }}</p>
+              {% if appointment.service %}
+                <small class="text-body-secondary">Linked service record: {{ appointment.service.name }}</small>
+              {% endif %}
             </div>
             {% if appointment.source_lead %}
               <div class="col-md-6">
