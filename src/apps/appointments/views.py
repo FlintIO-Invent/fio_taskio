@@ -14,10 +14,15 @@ from apps.businesses.utils import (
     business_module_required,
     business_role_required,
 )
+from apps.crm.models import BusinessService, Lead
+from apps.crm.services import (
+    find_matching_client_for_lead,
+    get_missing_client_required_field_labels_for_lead,
+    sync_client_from_lead,
+)
 
 from .forms import AppointmentForm
 from .models import Appointment
-
 
 STATUS_TRANSITIONS: dict[str, set[str]] = {
     Appointment.Status.SCHEDULED: {
@@ -36,8 +41,121 @@ def _appointment_queryset_for_business(current_business):
         "business",
         "client",
         "service",
+        "source_lead",
+        "source_lead__category",
         "staff_member",
     )
+
+
+def _request_lead_queryset_for_business(current_business):
+    return Lead.objects.filter(
+        business=current_business,
+        lead_type=Lead.LeadType.REQUEST,
+    ).select_related("business", "category")
+
+
+def _infer_service_from_request(current_business, lead: Lead) -> BusinessService | None:
+    if lead.category_id is None:
+        return None
+
+    matching_services = list(
+        BusinessService.objects.filter(
+            business=current_business,
+            is_active=True,
+            category=lead.category,
+        )
+        .select_related("category", "business")
+        .order_by("name", "pk")[:2]
+    )
+    if len(matching_services) == 1:
+        return matching_services[0]
+    return None
+
+
+def _display_name_for_request_client(lead: Lead, client) -> str:
+    if client.company_name:
+        return client.company_name
+
+    full_name = " ".join(
+        part for part in [client.first_name, client.last_name] if part
+    ).strip()
+    if full_name:
+        return full_name
+
+    if lead.company_name:
+        return lead.company_name
+
+    return str(lead)
+
+
+def _build_appointment_title_from_request(lead: Lead, client) -> str:
+    service_label = lead.category.name if lead.category_id and lead.category else "Service request"
+    client_label = _display_name_for_request_client(lead, client)
+    return f"{service_label} - {client_label}"[:160]
+
+
+def _build_location_from_request(lead: Lead, client) -> str:
+    request_location_parts = [
+        part
+        for part in [
+            (lead.street_address or "").strip(),
+            lead.get_district_display() if lead.district else "",
+            (lead.country or "").strip(),
+            (lead.postal_code or "").strip(),
+        ]
+        if part
+    ]
+    if request_location_parts:
+        return ", ".join(request_location_parts)[:255]
+
+    client_location_parts = [
+        part
+        for part in [
+            (client.street_address or "").strip(),
+            client.get_district_display() if client.district else "",
+            (client.country or "").strip(),
+            (client.postal_code or "").strip(),
+        ]
+        if part
+    ]
+    return ", ".join(client_location_parts)[:255]
+
+
+def _build_notes_from_request(lead: Lead) -> str:
+    notes: list[str] = [f"Scheduled from service request #{lead.pk}."]
+
+    if lead.category_id and lead.category is not None:
+        notes.append(f"Requested service: {lead.category.name}")
+    if lead.message.strip():
+        notes.append(f"Request details: {lead.message.strip()}")
+    if lead.notes.strip():
+        notes.append(f"Internal lead notes: {lead.notes.strip()}")
+
+    return "\n\n".join(notes)
+
+
+def _build_initial_appointment_data_from_request(lead: Lead, client) -> dict[str, str | int]:
+    inferred_service = _infer_service_from_request(lead.business, lead)
+    return {
+        "client": client.pk,
+        "service": inferred_service.pk if inferred_service is not None else "",
+        "title": _build_appointment_title_from_request(lead, client),
+        "location": _build_location_from_request(lead, client),
+        "notes": _build_notes_from_request(lead),
+    }
+
+
+def _prepare_client_for_request_scheduling(lead: Lead):
+    matched_client = find_matching_client_for_lead(lead)
+    if matched_client is not None:
+        return matched_client, []
+
+    missing_client_fields = get_missing_client_required_field_labels_for_lead(lead)
+    if missing_client_fields:
+        return None, missing_client_fields
+
+    client, _created = sync_client_from_lead(lead)
+    return client, []
 
 
 @business_role_required(
@@ -122,6 +240,56 @@ def appointment_create(request: HttpRequest) -> HttpResponse:
         "appointment": None,
         "page_title": "Create appointment",
         "submit_label": "Create appointment",
+    }
+    return render(request, "appointments/form.html", context)
+
+
+@business_role_required(
+    *APPOINTMENT_MANAGE_ROLES,
+    redirect_url_name="appointment_list",
+    permission_message="You do not have permission to manage appointments.",
+    raise_exception=False,
+)
+@business_module_required("appointments")
+@require_http_methods(["GET", "POST"])
+def appointment_create_from_request(request: HttpRequest, lead_id: int) -> HttpResponse:
+    current_business = request.current_business
+    lead = get_object_or_404(
+        _request_lead_queryset_for_business(current_business),
+        pk=lead_id,
+    )
+    client, missing_client_fields = _prepare_client_for_request_scheduling(lead)
+
+    if client is None:
+        messages.info(
+            request,
+            "Complete the client details before scheduling an appointment.",
+        )
+        return redirect("staff_lead_convert_to_client", lead_id=lead.id)
+
+    if request.method == "POST":
+        form = AppointmentForm(request.POST, current_business=current_business)
+        if form.is_valid():
+            appointment = form.save(commit=False)
+            appointment.source_lead = lead
+            appointment.save()
+            messages.success(request, "Appointment created successfully from service request.")
+            return redirect("appointment_detail", appointment_id=appointment.id)
+        messages.error(request, "Please correct the errors below.")
+    else:
+        form = AppointmentForm(
+            initial=_build_initial_appointment_data_from_request(lead, client),
+            current_business=current_business,
+        )
+
+    context: dict[str, Any] = {
+        "form": form,
+        "appointment": None,
+        "page_title": "Schedule appointment from request",
+        "submit_label": "Create appointment",
+        "source_lead": lead,
+        "request_client": client,
+        "missing_client_fields": missing_client_fields,
     }
     return render(request, "appointments/form.html", context)
 

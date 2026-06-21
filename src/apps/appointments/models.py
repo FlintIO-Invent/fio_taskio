@@ -32,6 +32,13 @@ class Appointment(TimeStampedModel):
         blank=True,
         related_name="appointments",
     )
+    source_lead = models.ForeignKey(
+        "crm.Lead",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appointments",
+    )
     service_name = models.CharField(max_length=160, blank=True, default="")
     staff_member = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -94,6 +101,16 @@ class Appointment(TimeStampedModel):
 
         if self.service_id is not None and self.service.business_id != self.business_id:
             errors["service"] = "Selected service must belong to the current workspace."
+
+        if self.source_lead_id is not None:
+            if self.source_lead.business_id != self.business_id:
+                errors["source_lead"] = (
+                    "Linked service request must belong to the current workspace."
+                )
+            elif self.source_lead.lead_type != self.source_lead.LeadType.REQUEST:
+                errors["source_lead"] = (
+                    "Only service requests can be linked to appointments."
+                )
 
         if self.staff_member_id is not None:
             has_membership = BusinessUser.objects.filter(

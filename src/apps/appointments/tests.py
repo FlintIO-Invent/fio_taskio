@@ -11,7 +11,7 @@ from django.utils import timezone
 from apps.accounts.models import TaskIOUser
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
-from apps.crm.models import BusinessService, Client
+from apps.crm.models import BusinessService, Client, Lead, ServiceCategory
 
 from .forms import AppointmentForm
 from .models import Appointment
@@ -100,8 +100,17 @@ class AppointmentModelAndFormTests(TestCase):
             company_name="Legacy Co",
             street_address="56 Archive Road",
         )
+        self.category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Septic Pumping",
+        )
+        self.other_category = ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Roof Inspection",
+        )
         self.service = BusinessService.objects.create(
             business=self.business,
+            category=self.category,
             name="Septic Pumping",
             description="Routine pumping",
             unit_price=Decimal("150.00"),
@@ -109,6 +118,7 @@ class AppointmentModelAndFormTests(TestCase):
         )
         self.inactive_service = BusinessService.objects.create(
             business=self.business,
+            category=self.category,
             name="Inactive Pumping",
             description="Inactive service",
             unit_price=Decimal("99.00"),
@@ -117,6 +127,7 @@ class AppointmentModelAndFormTests(TestCase):
         )
         self.other_service = BusinessService.objects.create(
             business=self.other_business,
+            category=self.other_category,
             name="Roof Inspection",
             description="Roof inspection",
             unit_price=Decimal("225.00"),
@@ -191,6 +202,53 @@ class AppointmentModelAndFormTests(TestCase):
         appointment.refresh_from_db()
 
         self.assertEqual(appointment.service_name, "Septic Pumping")
+
+    def test_appointment_rejects_source_lead_from_other_business(self):
+        foreign_lead = Lead.objects.create(
+            business=self.other_business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            category=self.other_category,
+            first_name="Taylor",
+            last_name="Requester",
+            email="taylor-request@example.com",
+            phone="+1 721 555 7777",
+            company_name="Bravo Request Co",
+        )
+        appointment = Appointment(
+            business=self.business,
+            client=self.client_record,
+            source_lead=foreign_lead,
+            title="Cross-workspace source lead",
+            start_time=self.start_time,
+            end_time=self.end_time,
+        )
+
+        with self.assertRaises(ValidationError):
+            appointment.full_clean()
+
+    def test_appointment_rejects_non_request_source_lead(self):
+        interest_lead = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.INTEREST,
+            status=Lead.Status.NEW,
+            first_name="Jamie",
+            last_name="Interested",
+            email="interest@example.com",
+            phone="+1 721 555 8888",
+            company_name="Interest Only Co",
+        )
+        appointment = Appointment(
+            business=self.business,
+            client=self.client_record,
+            source_lead=interest_lead,
+            title="Interest lead source",
+            start_time=self.start_time,
+            end_time=self.end_time,
+        )
+
+        with self.assertRaises(ValidationError):
+            appointment.full_clean()
 
     def test_appointment_form_rejects_other_business_client(self):
         form = AppointmentForm(
@@ -392,8 +450,17 @@ class AppointmentViewTests(TestCase):
             company_name="Bravo Client Co",
             street_address="34 Side Street",
         )
+        self.category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Septic Pumping",
+        )
+        self.other_category = ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Roof Inspection",
+        )
         self.service = BusinessService.objects.create(
             business=self.business,
+            category=self.category,
             name="Septic Pumping",
             description="Routine pumping",
             unit_price=Decimal("150.00"),
@@ -401,6 +468,7 @@ class AppointmentViewTests(TestCase):
         )
         self.other_service = BusinessService.objects.create(
             business=self.other_business,
+            category=self.other_category,
             name="Roof Inspection",
             description="Roof inspection",
             unit_price=Decimal("225.00"),
@@ -452,6 +520,27 @@ class AppointmentViewTests(TestCase):
         }
         payload.update(overrides)
         return payload
+
+    def _build_request_lead(self, **overrides):
+        lead_data = {
+            "business": self.business,
+            "lead_type": Lead.LeadType.REQUEST,
+            "status": Lead.Status.NEW,
+            "category": self.category,
+            "first_name": "Jamie",
+            "last_name": "Requester",
+            "email": "jamie-request@example.com",
+            "phone": "+1 721 555 4444",
+            "company_name": "Alpha Request Co",
+            "street_address": "45 Front Street",
+            "district": Lead.DistrictChoices.PHILIPSBURG,
+            "country": "Sint Maarten",
+            "postal_code": "00000",
+            "message": "Need service this week.",
+            "notes": "Customer asked for an early visit.",
+        }
+        lead_data.update(overrides)
+        return Lead.objects.create(**lead_data)
 
     def test_appointment_list_only_shows_current_business_appointments(self):
         self._login_as(self.owner, self.business)
@@ -514,6 +603,191 @@ class AppointmentViewTests(TestCase):
 
         self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertContains(response, "Appointments is not included in the current workspace plan")
+
+    def test_manage_roles_can_schedule_from_request(self):
+        users = (
+            (self.owner, "Owner request visit"),
+            (self.admin_user, "Admin request visit"),
+            (self.staff_user, "Staff request visit"),
+        )
+
+        for user, title in users:
+            with self.subTest(role=user.email):
+                self.client.logout()
+                self._login_as(user, self.business)
+                lead = self._build_request_lead(
+                    email=self.client_record.email,
+                    phone=self.client_record.phone,
+                )
+
+                response = self.client.post(
+                    reverse("appointment_create_from_request", args=[lead.id]),
+                    data=self._appointment_payload(title=title),
+                )
+
+                appointment = Appointment.objects.get(title=title)
+                self.assertRedirects(
+                    response,
+                    reverse("appointment_detail", args=[appointment.id]),
+                )
+                self.assertEqual(appointment.business, self.business)
+                self.assertEqual(appointment.source_lead, lead)
+
+    def test_schedule_from_request_prefills_client_request_and_service_context(self):
+        self._login_as(self.owner, self.business)
+        lead = self._build_request_lead(
+            email=self.client_record.email,
+            phone=self.client_record.phone,
+        )
+
+        response = self.client.get(reverse("appointment_create_from_request", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertEqual(form.initial["client"], self.client_record.pk)
+        self.assertEqual(form.initial["service"], self.service.pk)
+        self.assertEqual(form.initial["title"], "Septic Pumping - Alpha Client Co")
+        self.assertIn("45 Front Street", form.initial["location"])
+        self.assertIn(f"Scheduled from service request #{lead.pk}.", form.initial["notes"])
+        self.assertContains(response, reverse("staff_lead_detail", args=[lead.id]))
+
+    def test_schedule_from_request_creates_business_scoped_client_only_within_current_business(self):
+        self._login_as(self.owner, self.business)
+        lead = self._build_request_lead(
+            email=self.other_client_record.email,
+            phone="+1 721 555 9090",
+        )
+
+        response = self.client.get(reverse("appointment_create_from_request", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        created_client = Client.objects.get(
+            business=self.business,
+            email=self.other_client_record.email,
+        )
+        self.assertNotEqual(created_client.pk, self.other_client_record.pk)
+        self.assertEqual(
+            Client.objects.filter(email=self.other_client_record.email).count(),
+            2,
+        )
+
+    def test_schedule_from_request_redirects_to_client_completion_when_details_are_missing(self):
+        self._login_as(self.owner, self.business)
+        lead = self._build_request_lead(
+            company_name="",
+            street_address="",
+            district="",
+        )
+
+        response = self.client.get(
+            reverse("appointment_create_from_request", args=[lead.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("staff_lead_convert_to_client", args=[lead.id]),
+        )
+        self.assertContains(response, "Complete the client details before scheduling an appointment.")
+
+    def test_schedule_from_request_blocks_other_business_lead(self):
+        self._login_as(self.owner, self.business)
+        foreign_lead = Lead.objects.create(
+            business=self.other_business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            category=self.other_category,
+            first_name="Taylor",
+            last_name="Requester",
+            email="foreign-request@example.com",
+            phone="+1 721 555 7878",
+            company_name="Bravo Request Co",
+            street_address="34 Side Street",
+        )
+
+        response = self.client.get(reverse("appointment_create_from_request", args=[foreign_lead.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_schedule_from_request_uses_service_snapshot_and_links_back_to_request(self):
+        self._login_as(self.owner, self.business)
+        lead = self._build_request_lead(
+            email=self.client_record.email,
+            phone=self.client_record.phone,
+        )
+
+        response = self.client.post(
+            reverse("appointment_create_from_request", args=[lead.id]),
+            data=self._appointment_payload(title="Request-linked visit"),
+        )
+        appointment = Appointment.objects.get(title="Request-linked visit")
+
+        self.assertRedirects(response, reverse("appointment_detail", args=[appointment.id]))
+        self.assertEqual(appointment.service_name, "Septic Pumping")
+
+        detail_response = self.client.get(reverse("appointment_detail", args=[appointment.id]))
+        self.assertContains(detail_response, reverse("staff_lead_detail", args=[lead.id]))
+
+    def test_schedule_from_request_does_not_overwrite_richer_existing_client_data(self):
+        rich_client = Client.objects.create(
+            business=self.business,
+            first_name="Riley",
+            last_name="Client",
+            email="rich-client@example.com",
+            phone="+1 721 555 6060",
+            company_name="Rich Client Co",
+            street_address="99 Existing Address",
+            notes="Longstanding account note.",
+        )
+        self._login_as(self.owner, self.business)
+        lead = self._build_request_lead(
+            first_name="Riley",
+            last_name="Requester",
+            email=rich_client.email,
+            phone=rich_client.phone,
+            company_name="",
+            street_address="",
+            message="Need a fast follow-up.",
+        )
+
+        response = self.client.post(
+            reverse("appointment_create_from_request", args=[lead.id]),
+            data=self._appointment_payload(
+                client=rich_client.pk,
+                title="Rich client request visit",
+            ),
+        )
+
+        rich_client.refresh_from_db()
+        self.assertRedirects(
+            response,
+            reverse(
+                "appointment_detail",
+                args=[Appointment.objects.get(title="Rich client request visit").id],
+            ),
+        )
+        self.assertEqual(rich_client.company_name, "Rich Client Co")
+        self.assertEqual(rich_client.street_address, "99 Existing Address")
+        self.assertEqual(rich_client.notes, "Longstanding account note.")
+
+    def test_schedule_from_request_rejects_invalid_times(self):
+        self._login_as(self.owner, self.business)
+        lead = self._build_request_lead(
+            email=self.client_record.email,
+            phone=self.client_record.phone,
+        )
+
+        response = self.client.post(
+            reverse("appointment_create_from_request", args=[lead.id]),
+            data=self._appointment_payload(
+                title="Broken request visit",
+                end_time=self.start_time.strftime("%Y-%m-%dT%H:%M"),
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "End time must be after the start time.")
+        self.assertFalse(Appointment.objects.filter(title="Broken request visit").exists())
 
     def test_owner_can_create_update_and_change_status(self):
         self._login_as(self.owner, self.business)
@@ -622,6 +896,21 @@ class AppointmentViewTests(TestCase):
         self.assertContains(update_response, "You do not have permission to manage appointments.")
         self.assertContains(status_response, "You do not have permission to manage appointments.")
 
+    def test_accountant_cannot_schedule_from_request(self):
+        self._login_as(self.accountant_user, self.business)
+        lead = self._build_request_lead(
+            email=self.client_record.email,
+            phone=self.client_record.phone,
+        )
+
+        response = self.client.get(
+            reverse("appointment_create_from_request", args=[lead.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("appointment_list"))
+        self.assertContains(response, "You do not have permission to manage appointments.")
+
     def test_viewer_can_view_but_cannot_create_update_or_change_status(self):
         self._login_as(self.viewer_user, self.business)
 
@@ -643,6 +932,21 @@ class AppointmentViewTests(TestCase):
         self.assertContains(create_response, "You do not have permission to manage appointments.")
         self.assertContains(update_response, "You do not have permission to manage appointments.")
         self.assertContains(status_response, "You do not have permission to manage appointments.")
+
+    def test_viewer_cannot_schedule_from_request(self):
+        self._login_as(self.viewer_user, self.business)
+        lead = self._build_request_lead(
+            email=self.client_record.email,
+            phone=self.client_record.phone,
+        )
+
+        response = self.client.get(
+            reverse("appointment_create_from_request", args=[lead.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("appointment_list"))
+        self.assertContains(response, "You do not have permission to manage appointments.")
 
     def test_dashboard_shows_appointment_link_only_when_plan_allows_viewing(self):
         self._login_as(self.viewer_user, self.business)

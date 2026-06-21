@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from decimal import Decimal
-from decimal import InvalidOperation
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.contrib import messages
@@ -16,6 +15,8 @@ from django.utils.text import slugify
 from django.views.decorators.http import require_http_methods
 from loguru import logger
 
+from apps.appointments.models import Appointment
+from apps.billings.models import Invoice
 from apps.businesses.models import Business
 from apps.businesses.utils import (
     ALL_WORKSPACE_ROLES,
@@ -23,15 +24,16 @@ from apps.businesses.utils import (
     CLIENT_MANAGE_ROLES,
     LEAD_MANAGE_ROLES,
     SERVICE_MANAGEMENT_ROLES,
-    business_required,
     business_module_required,
-    can_use_module,
+    business_required,
     business_role_required,
+    can_use_module,
     get_business_module_unavailable_message,
     get_current_business,
     redirect_for_unavailable_business_module,
 )
-from apps.billings.models import Invoice
+from helpers import upsert_client_from_lead
+
 from .forms import (
     BusinessServiceCSVImportForm,
     BusinessServiceForm,
@@ -47,7 +49,6 @@ from .services import (
     get_missing_client_required_field_labels_for_lead,
     sync_client_from_lead,
 )
-from helpers import upsert_client_from_lead
 
 
 def _client_queryset_for_business(business: Business) -> QuerySet[Client]:
@@ -551,14 +552,30 @@ def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     lead = get_object_or_404(_lead_queryset_for_business(current_business), pk=lead_id)
     matched_client = None
     missing_client_fields: list[str] = []
+    request_appointment = None
+    request_ready_for_appointment = False
     if lead.lead_type == Lead.LeadType.REQUEST:
         matched_client = find_matching_client_for_lead(lead)
         if matched_client is None:
             missing_client_fields = get_missing_client_required_field_labels_for_lead(lead)
+        request_ready_for_appointment = (
+            matched_client is not None or not missing_client_fields
+        )
+        request_appointment = (
+            Appointment.objects.filter(
+                business=current_business,
+                source_lead=lead,
+            )
+            .select_related("client", "service", "staff_member")
+            .order_by("-start_time", "-pk")
+            .first()
+        )
     context: dict[str, Any] = {
         "lead": lead,
         "matched_client": matched_client,
         "missing_client_fields": missing_client_fields,
+        "request_appointment": request_appointment,
+        "request_ready_for_appointment": request_ready_for_appointment,
     }
     return render(request, "crm/main/lead_detail.html", context)
 

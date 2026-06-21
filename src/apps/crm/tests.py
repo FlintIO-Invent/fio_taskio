@@ -1,11 +1,14 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.models import TaskIOUser
+from apps.appointments.models import Appointment
 from apps.billings.models import Invoice
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
@@ -109,6 +112,17 @@ class CRMBusinessScopingTests(TestCase):
         )
         subscription = BusinessSubscription.objects.get(business=self.business)
         subscription.plan = invoicing_plan
+        subscription.save(update_fields=["plan", "updated_at"])
+
+    def _enable_appointments_for_business(self):
+        appointments_plan = ClarivoPlan.objects.create(
+            name="Requests and Appointments",
+            slug="requests-and-appointments-tests",
+            allow_public_request_form=True,
+            allow_appointments=True,
+        )
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = appointments_plan
         subscription.save(update_fields=["plan", "updated_at"])
 
     def _build_request_lead(self, **overrides):
@@ -687,6 +701,108 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("staff_client_detail", args=[matched_client.id]))
         self.assertContains(response, reverse("staff_lead_create_invoice", args=[lead.id]))
+
+    def test_service_request_detail_shows_schedule_appointment_action_for_manage_roles(self):
+        self._enable_appointments_for_business()
+        matched_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="appointment-match@example.com",
+            phone="+1 721 555 5252",
+            company_name="Matched Appointment Co",
+            street_address="12 Main Street",
+        )
+        lead = self._build_request_lead(
+            email=matched_client.email,
+            phone=matched_client.phone,
+        )
+
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("appointment_create_from_request", args=[lead.id]))
+
+    def test_service_request_detail_hides_schedule_appointment_action_for_accountant(self):
+        self._enable_appointments_for_business()
+        matched_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="accountant-appointment@example.com",
+            phone="+1 721 555 5454",
+            company_name="Accountant Match Co",
+            street_address="12 Main Street",
+        )
+        lead = self._build_request_lead(
+            email=matched_client.email,
+            phone=matched_client.phone,
+        )
+
+        self.client.force_login(self.accountant_user)
+
+        response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
+
+    def test_service_request_detail_shows_linked_appointment_context(self):
+        self._enable_appointments_for_business()
+        matched_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="linked-appointment@example.com",
+            phone="+1 721 555 5656",
+            company_name="Linked Appointment Co",
+            street_address="12 Main Street",
+        )
+        lead = self._build_request_lead(
+            email=matched_client.email,
+            phone=matched_client.phone,
+        )
+        start_time = timezone.now().replace(second=0, microsecond=0)
+        appointment = Appointment.objects.create(
+            business=self.business,
+            client=matched_client,
+            source_lead=lead,
+            title="Linked request visit",
+            start_time=start_time,
+            end_time=start_time + timedelta(hours=1),
+        )
+
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
+        self.assertContains(response, "Latest linked appointment")
+
+    def test_service_request_detail_shows_appointments_plan_message_when_unavailable(self):
+        matched_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="plan-locked-appointment@example.com",
+            phone="+1 721 555 5858",
+            company_name="Locked Appointment Co",
+            street_address="12 Main Street",
+        )
+        lead = self._build_request_lead(
+            email=matched_client.email,
+            phone=matched_client.phone,
+        )
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Appointments are not included in the current workspace plan.")
+        self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
 
     def test_agent_dashboard_scopes_metrics_to_current_business(self):
         current_client = Client.objects.create(

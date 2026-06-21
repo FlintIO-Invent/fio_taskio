@@ -58,6 +58,16 @@
               <p class="text-body-tertiary text-uppercase fs-10 mb-1">Service</p>
               <p class="mb-0">{{ appointment.service_name|default:"Not set" }}</p>
             </div>
+            {% if appointment.source_lead %}
+              <div class="col-md-6">
+                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Service Request</p>
+                <p class="mb-0">
+                  <a href="{% url 'staff_lead_detail' appointment.source_lead.pk %}">
+                    {{ appointment.source_lead.first_name }} {{ appointment.source_lead.last_name }}
+                  </a>
+                </p>
+              </div>
+            {% endif %}
             <div class="col-md-6">
               <p class="text-body-tertiary text-uppercase fs-10 mb-1">Staff Member</p>
               <p class="mb-0">
