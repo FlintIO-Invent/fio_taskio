@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import TaskIOUser
+from apps.billings.models import Invoice
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 from apps.crm.models import BusinessService, Client, Lead, ServiceCategory
@@ -507,6 +508,10 @@ class AppointmentViewTests(TestCase):
         self._set_current_business_session(business)
         self.client.force_login(user)
 
+    def _enable_invoicing_for_appointment_workflow(self):
+        self.appointments_plan.allow_invoicing = True
+        self.appointments_plan.save(update_fields=["allow_invoicing", "updated_at"])
+
     def _appointment_payload(self, **overrides):
         payload = {
             "client": self.client_record.pk,
@@ -997,6 +1002,65 @@ class AppointmentViewTests(TestCase):
         viewer_response = self.client.get(reverse("appointment_detail", args=[self.appointment.id]))
         self.assertNotContains(viewer_response, reverse("appointment_update", args=[self.appointment.id]))
         self.assertNotContains(viewer_response, reverse("appointment_change_status", args=[self.appointment.id]))
+
+    def test_appointment_detail_shows_create_invoice_only_for_billing_manage_roles(self):
+        self._enable_invoicing_for_appointment_workflow()
+
+        manage_roles = (
+            self.owner,
+            self.admin_user,
+            self.accountant_user,
+        )
+        read_only_roles = (
+            self.staff_user,
+            self.viewer_user,
+        )
+
+        for user in manage_roles:
+            self.client.logout()
+            self._login_as(user, self.business)
+            response = self.client.get(reverse("appointment_detail", args=[self.appointment.id]))
+            self.assertContains(
+                response,
+                reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+            )
+
+        for user in read_only_roles:
+            self.client.logout()
+            self._login_as(user, self.business)
+            response = self.client.get(reverse("appointment_detail", args=[self.appointment.id]))
+            self.assertNotContains(
+                response,
+                reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+            )
+
+    def test_appointment_detail_hides_create_invoice_when_invoicing_is_locked(self):
+        self._login_as(self.owner, self.business)
+
+        response = self.client.get(reverse("appointment_detail", args=[self.appointment.id]))
+
+        self.assertNotContains(
+            response,
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+        )
+
+    def test_appointment_detail_shows_linked_invoice_when_present(self):
+        self._enable_invoicing_for_appointment_workflow()
+        invoice = Invoice.objects.create(
+            invoice_number="INV-APPT-0001",
+            business=self.business,
+            client=self.client_record,
+            appointment=self.appointment,
+        )
+        self._login_as(self.owner, self.business)
+
+        response = self.client.get(reverse("appointment_detail", args=[self.appointment.id]))
+
+        self.assertContains(response, reverse("invoice_detail", args=[invoice.id]))
+        self.assertNotContains(
+            response,
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+        )
 
     def test_appointment_detail_links_back_to_client_and_request_safely(self):
         lead = self._build_request_lead(

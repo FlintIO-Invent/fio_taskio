@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
+from typing import TYPE_CHECKING
 
 from apps.crm.models import ActivityLog, Client, Lead
 from apps.crm.services import log_activity
 
 from .models import Invoice
+
+if TYPE_CHECKING:
+    from apps.appointments.models import Appointment
 
 
 def _quantize_money(value: Decimal) -> Decimal:
@@ -68,16 +72,32 @@ def _client_from_lead(lead: Lead) -> Client:
     return client
 
 
-def create_invoice_for_client(*, actor, client: Client, lead: Lead | None = None) -> Invoice:
+def create_invoice_for_client(
+    *,
+    actor,
+    client: Client,
+    lead: Lead | None = None,
+    appointment: Appointment | None = None,
+    notes: str = "",
+) -> Invoice:
     business = client.business or (lead.business if lead is not None else None)
     if business is None:
         raise ValueError("Invoices require a business-scoped client or lead.")
 
+    if appointment is not None:
+        if appointment.business_id != business.id:
+            raise ValueError("Appointment must belong to the same workspace as the invoice client.")
+        if appointment.client_id != client.id:
+            raise ValueError("Appointment must belong to the same client as the invoice.")
+
+    linked_lead = lead if lead is not None else getattr(appointment, "source_lead", None)
     invoice = Invoice.objects.create(
         invoice_number=generate_invoice_number(business=business),
         business=business,
         client=client,
+        appointment=appointment,
         status=Invoice.Status.DRAFT,
+        notes=notes.strip(),
         tax=calculate_tax_amount(subtotal=Decimal("0.00"), tax_rate=business.tax_rate),
     )
 
@@ -87,12 +107,15 @@ def create_invoice_for_client(*, actor, client: Client, lead: Lead | None = None
 
     log_activity(
         actor=actor,
-        lead=lead,
+        lead=linked_lead,
         client=client,
         business=business,
         action_type=ActivityLog.ActionType.INVOICE_CREATED,
         summary=f"Invoice {invoice.invoice_number} created",
-        payload={"invoice_number": invoice.invoice_number},
+        payload={
+            "invoice_number": invoice.invoice_number,
+            "appointment_id": appointment.id if appointment is not None else None,
+        },
     )
     return invoice
 

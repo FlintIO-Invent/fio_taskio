@@ -8,11 +8,13 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
+from apps.billings.models import Invoice
 from apps.businesses.utils import (
     APPOINTMENT_MANAGE_ROLES,
     APPOINTMENT_VIEW_ROLES,
     business_module_required,
     business_role_required,
+    can_use_module,
 )
 from apps.crm.models import BusinessService, Client, Lead
 from apps.crm.services import (
@@ -52,6 +54,14 @@ def _request_lead_queryset_for_business(current_business):
         business=current_business,
         lead_type=Lead.LeadType.REQUEST,
     ).select_related("business", "category")
+
+
+def _invoice_queryset_for_business(current_business):
+    return Invoice.objects.filter(business=current_business).select_related(
+        "appointment",
+        "business",
+        "client",
+    )
 
 
 def _client_queryset_for_business(current_business):
@@ -258,9 +268,18 @@ def appointment_detail(request: HttpRequest, appointment_id: int) -> HttpRespons
         _appointment_queryset_for_business(request.current_business),
         pk=appointment_id,
     )
+    linked_invoice = None
+    if can_use_module(request.current_business, "invoicing"):
+        linked_invoice = (
+            _invoice_queryset_for_business(request.current_business)
+            .filter(appointment=appointment)
+            .order_by("-created_at", "-pk")
+            .first()
+        )
     context: dict[str, Any] = {
         "appointment": appointment,
         "available_statuses": STATUS_TRANSITIONS.get(appointment.status, set()),
+        "linked_invoice": linked_invoice,
     }
     return render(request, "appointments/detail.html", context)
 

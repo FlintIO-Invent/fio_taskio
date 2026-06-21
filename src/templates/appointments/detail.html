@@ -37,6 +37,15 @@
             <span class="fa-solid fa-wrench me-2"></span>View Service Request
           </a>
         {% endif %}
+        {% if linked_invoice and module_access.invoicing and role_access.can_view_invoices %}
+          <a class="btn btn-phoenix-secondary" href="{% url 'invoice_detail' linked_invoice.pk %}">
+            <span class="fa-solid fa-file-invoice me-2"></span>View Invoice
+          </a>
+        {% elif module_access.invoicing and role_access.can_manage_invoices %}
+          <a class="btn btn-phoenix-primary" href="{% url 'invoice_create_from_appointment' appointment.pk %}">
+            <span class="fa-solid fa-file-invoice-dollar me-2"></span>Create Invoice
+          </a>
+        {% endif %}
         {% if role_access.can_manage_appointments %}
           <a class="btn btn-phoenix-warning" href="{% url 'appointment_update' appointment.pk %}">
             <span class="fa-solid fa-edit me-2"></span>Edit Appointment
@@ -79,6 +88,16 @@
                 <p class="mb-0">
                   <a href="{% url 'staff_lead_detail' appointment.source_lead.pk %}">
                     {{ appointment.source_lead.first_name }} {{ appointment.source_lead.last_name }}
+                  </a>
+                </p>
+              </div>
+            {% endif %}
+            {% if linked_invoice and module_access.invoicing and role_access.can_view_invoices %}
+              <div class="col-md-6">
+                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Invoice</p>
+                <p class="mb-0">
+                  <a href="{% url 'invoice_detail' linked_invoice.pk %}">
+                    {{ linked_invoice.invoice_number }}
                   </a>
                 </p>
               </div>
