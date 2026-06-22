@@ -25,6 +25,8 @@ The internal Django package name remains `taskio` for now. That is expected.
 - Stripe billing
 - Major new product features
 
+Appointment release-candidate staging QA is tracked separately in [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md) and must pass before appointments move into private-tester scope.
+
 ## Development workflow
 
 While the live private-test app is being evaluated, keep feature work off the production line.
@@ -164,7 +166,7 @@ Recommended local verification commands:
 ```bash
 uv run --no-sync python src/manage.py check
 uv run --no-sync python src/manage.py makemigrations --check --dry-run
-uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests
+uv run --no-sync python src/manage.py test apps.accounts.tests apps.businesses.tests apps.crm.tests apps.billings.tests apps.appointments.tests
 ```
 
 Recommended PostgreSQL validation commands:
@@ -207,7 +209,7 @@ uv run --no-sync python src/manage.py check --deploy
 Recommended Django suite command:
 
 ```bash
-uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests --verbosity 2
+uv run --no-sync python src/manage.py test apps.accounts.tests apps.businesses.tests apps.crm.tests apps.billings.tests apps.appointments.tests --verbosity 2
 ```
 
 `python src/manage.py test` and `pytest` are also wired to the same four app suites by default.

@@ -39,6 +39,8 @@ Branch safety rule:
 - Stripe billing
 - Major new product features
 
+Before appointments move into tester scope, complete the separate staging gate in [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md).
+
 ## Test data and accounts
 
 Prepare these before testing:
