@@ -512,7 +512,7 @@ class ServiceCategoryForm(forms.ModelForm):
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
         help_texts = {
-            "code": "Optional. If left blank, Clarivo will generate a workspace-specific code from the name.",
+            "code": "Optional. If left blank, Motionmate will generate a workspace-specific code from the name.",
         }
 
     def __init__(self, *args, business=None, **kwargs):

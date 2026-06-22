@@ -141,7 +141,7 @@ class BusinessInvitationForm(forms.Form):
             if role_value in assignable_roles
         ]
         self.fields["email"].help_text = (
-            "Use the employee's company-specific email address. Clarivo MVP keeps "
+            "Use the employee's company-specific email address. Motionmate MVP keeps "
             "one active workspace per login and does not include a workspace switcher."
         )
         self.fields["role"].help_text = (

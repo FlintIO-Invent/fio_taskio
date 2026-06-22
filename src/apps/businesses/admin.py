@@ -8,6 +8,10 @@ from .models import (
     ClarivoPlan,
 )
 
+admin.site.site_header = "Motionmate Administration"
+admin.site.site_title = "Motionmate Admin"
+admin.site.index_title = "Motionmate Administration"
+
 
 @admin.register(Business)
 class BusinessAdmin(admin.ModelAdmin):

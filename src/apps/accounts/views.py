@@ -35,7 +35,7 @@ from .forms import (
 @require_http_methods(["GET", "POST"])
 def business_login(request: HttpRequest) -> HttpResponse:
     """
-    Authenticate and log in a Clarivo business user with an active workspace membership.
+    Authenticate and log in a Motionmate business user with an active workspace membership.
     """
     if request.user.is_authenticated and get_current_business(request) is not None:
         return redirect("agent_dashboard")
@@ -76,7 +76,7 @@ def business_login(request: HttpRequest) -> HttpResponse:
                         )
                         form.add_error(
                             None,
-                            "This account does not have an active Clarivo workspace yet.",
+                            "This account does not have an active Motionmate workspace yet.",
                         )
                     else:
                         login(request, user)
@@ -151,7 +151,7 @@ def customer_registration(request: HttpRequest) -> HttpResponse:
     """
     messages.info(
         request,
-        "Standalone customer signup is now legacy. Start by creating a Clarivo workspace instead.",
+        "Standalone customer signup is now legacy. Start by creating a Motionmate workspace instead.",
     )
     return redirect("register_business")
 
@@ -159,7 +159,7 @@ def customer_registration(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def register_business(request: HttpRequest) -> HttpResponse:
     """
-    Register a new Clarivo business owner and create the initial workspace.
+    Register a new Motionmate business owner and create the initial workspace.
     """
     if request.method == "POST":
         form = BusinessRegistrationForm(request.POST)
@@ -170,23 +170,23 @@ def register_business(request: HttpRequest) -> HttpResponse:
             login(request, user)
             set_current_business(request, business)
             logger.info(
-                "New Clarivo business registered with owner_email={} and business_slug={}",
+                "New Motionmate business registered with owner_email={} and business_slug={}",
                 user.email,
                 business.slug,
             )
             if subscription is not None:
                 messages.success(
                     request,
-                    "Your Clarivo workspace has been created with a 14-day trial. You can now review your workspace settings.",
+                    "Your Motionmate workspace has been created with a 14-day trial. You can now review your workspace settings.",
                 )
             else:
                 logger.warning(
-                    "Business {} created without a default trial subscription because no active Clarivo plan is configured.",
+                    "Business {} created without a default trial subscription because no active Motionmate plan is configured.",
                     business.slug,
                 )
                 messages.success(
                     request,
-                    "Your Clarivo workspace has been created. Subscription setup is pending because no active trial plan is configured yet.",
+                    "Your Motionmate workspace has been created. Subscription setup is pending because no active trial plan is configured yet.",
                 )
             return redirect("business_settings")
 

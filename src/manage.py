@@ -78,7 +78,7 @@ def _apply_local_runserver_defaults(argv: list[str]) -> None:
 
     os.environ.setdefault("ENV", "development")
     os.environ.setdefault("DEBUG", "True")
-    os.environ.setdefault("SECRET_KEY", "clarivo-local-development-secret-key")
+    os.environ.setdefault("SECRET_KEY", "motionmate-local-development-secret-key")
     os.environ.setdefault("ALLOWED_HOSTS", "127.0.0.1,localhost")
     os.environ.setdefault(
         "CSRF_TRUSTED_ORIGINS",

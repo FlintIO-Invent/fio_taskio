@@ -31,11 +31,11 @@ from .utils import (
 
 class BusinessModelTests(TestCase):
     def test_business_slug_is_unique(self):
-        Business.objects.create(name="Clarivo HQ", slug="clarivo-hq")
+        Business.objects.create(name="Motionmate HQ", slug="motionmate-hq")
 
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Business.objects.create(name="Clarivo HQ 2", slug="clarivo-hq")
+                Business.objects.create(name="Motionmate HQ 2", slug="motionmate-hq")
 
     def test_formatted_address_lines_prefers_structured_fields_and_falls_back_to_legacy_address(self):
         legacy_business = Business.objects.create(
@@ -69,7 +69,7 @@ class BusinessUserModelTests(TestCase):
             email="owner@example.com",
             password="testpass123",
         )
-        business = Business.objects.create(name="Clarivo HQ", slug="clarivo-hq")
+        business = Business.objects.create(name="Motionmate HQ", slug="motionmate-hq")
         BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.OWNER)
 
         with self.assertRaises(IntegrityError):
@@ -79,7 +79,7 @@ class BusinessUserModelTests(TestCase):
 
 class SubscriptionAccessTests(TestCase):
     def setUp(self):
-        self.business = Business.objects.create(name="Clarivo HQ", slug="clarivo-hq")
+        self.business = Business.objects.create(name="Motionmate HQ", slug="motionmate-hq")
         self.plan = ClarivoPlan.objects.create(
             name="Growth",
             slug="growth",
@@ -244,9 +244,9 @@ class BusinessSettingsViewTests(TestCase):
             last_name="Doe",
         )
         self.business = Business.objects.create(
-            name="Clarivo HQ",
-            slug="clarivo-hq",
-            email="hello@clarivo.test",
+            name="Motionmate HQ",
+            slug="motionmate-hq",
+            email="hello@motionmate.test",
             country="Sint Maarten",
         )
 
@@ -272,7 +272,7 @@ class BusinessSettingsViewTests(TestCase):
         self.assertContains(response, "Default locale")
         self.assertContains(response, "Tax label")
         self.assertContains(response, "Address line 1")
-        self.assertContains(response, "Clarivo HQ")
+        self.assertContains(response, "Motionmate HQ")
 
     def test_admin_can_update_business_settings(self):
         self._login_with_role(BusinessUser.Role.ADMIN)
@@ -280,9 +280,9 @@ class BusinessSettingsViewTests(TestCase):
         response = self.client.post(
             reverse("business_settings"),
             {
-                "name": "Clarivo Caribbean",
+                "name": "Motionmate Caribbean",
                 "business_type": "Cleaning Service",
-                "email": "billing@clarivo.test",
+                "email": "billing@motionmate.test",
                 "phone": "+1 721 555 0100",
                 "country": "Sint Maarten",
                 "currency": "XCD",
@@ -305,7 +305,7 @@ class BusinessSettingsViewTests(TestCase):
         self.business.refresh_from_db()
 
         self.assertRedirects(response, reverse("business_settings"))
-        self.assertEqual(self.business.name, "Clarivo Caribbean")
+        self.assertEqual(self.business.name, "Motionmate Caribbean")
         self.assertEqual(self.business.business_type, "Cleaning Service")
         self.assertEqual(self.business.currency, "XCD")
         self.assertEqual(self.business.timezone, "America/Lower_Princes")
@@ -348,9 +348,9 @@ class BusinessSubscriptionViewTests(TestCase):
             last_name="Doe",
         )
         self.business = Business.objects.create(
-            name="Clarivo HQ",
-            slug="clarivo-hq",
-            email="hello@clarivo.test",
+            name="Motionmate HQ",
+            slug="motionmate-hq",
+            email="hello@motionmate.test",
             country="Sint Maarten",
         )
         self.starter_plan = ClarivoPlan.objects.create(
@@ -389,7 +389,7 @@ class BusinessSubscriptionViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Subscription")
-        self.assertContains(response, "Clarivo HQ")
+        self.assertContains(response, "Motionmate HQ")
         self.assertContains(response, "Current Plan")
         self.assertContains(response, "Pro")
 
@@ -455,9 +455,9 @@ class BusinessInvitationViewTests(TestCase):
             last_name="User",
         )
         self.business = Business.objects.create(
-            name="Clarivo HQ",
-            slug="clarivo-hq-team",
-            email="hello@clarivo.test",
+            name="Motionmate HQ",
+            slug="motionmate-hq-team",
+            email="hello@motionmate.test",
             country="Sint Maarten",
         )
 

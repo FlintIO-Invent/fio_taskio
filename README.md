@@ -1,6 +1,6 @@
-# Clarivo
+# Motionmate
 
-Clarivo is a Django multi-tenant SaaS for Caribbean service businesses. The current private-testing release focuses on workspace onboarding, tenant-scoped CRM and billing, invitation-only employee access, role permissions, business-specific services and pricing, invoice service line selection, and plan-based access control.
+Motionmate is a Django multi-tenant SaaS for Caribbean service businesses. The current private-testing release focuses on workspace onboarding, tenant-scoped CRM and billing, invitation-only employee access, role permissions, business-specific services and pricing, invoice service line selection, and plan-based access control.
 
 The internal Django package name remains `taskio` for now. That is expected.
 
@@ -24,6 +24,20 @@ The internal Django package name remains `taskio` for now. That is expected.
 - Memberships
 - Stripe billing
 - Major new product features
+
+Appointment release-candidate staging QA is tracked separately in [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md) and must pass before appointments move into private-tester scope.
+
+## Development workflow
+
+While the live private-test app is being evaluated, keep feature work off the production line.
+
+- `main`: production and private-test stable branch
+- `develop`: preferred shared local or staging integration branch, if used
+- `feature/*`: new feature branches created from `develop`
+- `hotfix/*`: minimal production bug-fix branches created from `main`
+- This repo currently has both `develop` and `development` branch variants in Git history and remotes. Standardize on one shared integration branch name before active feature work resumes. The workflow docs use `develop`.
+
+See [docs/DEVELOPMENT_WORKFLOW.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/DEVELOPMENT_WORKFLOW.md) for the release checklist, hotfix checklist, and promotion flow.
 
 ## Local setup
 
@@ -63,11 +77,49 @@ uv run --no-sync python src/manage.py runserver
 uv run --no-sync python src/manage.py createsuperuser
 ```
 
+## Common local development commands
+
+Install dependencies:
+
+```bash
+uv sync --extra dev
+```
+
+Run migrations:
+
+```bash
+uv run --no-sync python src/manage.py migrate
+```
+
+Start the local server:
+
+```bash
+uv run --no-sync python src/manage.py runserver
+```
+
+Run a targeted app test module:
+
+```bash
+uv run --no-sync python src/manage.py test apps.businesses.tests
+```
+
+Run a more targeted test case:
+
+```bash
+uv run --no-sync python src/manage.py test apps.businesses.tests.BusinessSettingsViewTests
+```
+
+Run the migration drift check:
+
+```bash
+uv run --no-sync python src/manage.py makemigrations --check --dry-run
+```
+
 ## Environment variables
 
 `DATABASE_URL` takes priority over the individual `DB_*` variables.
 
-Clarivo private testing and production requirements:
+Motionmate private testing and production requirements:
 
 - PostgreSQL is required before inviting external testers.
 - Validate migrations and smoke flows against a real PostgreSQL-backed deployment.
@@ -114,7 +166,7 @@ Recommended local verification commands:
 ```bash
 uv run --no-sync python src/manage.py check
 uv run --no-sync python src/manage.py makemigrations --check --dry-run
-uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests
+uv run --no-sync python src/manage.py test apps.accounts.tests apps.businesses.tests apps.crm.tests apps.billings.tests apps.appointments.tests
 ```
 
 Recommended PostgreSQL validation commands:
@@ -122,28 +174,28 @@ Recommended PostgreSQL validation commands:
 ```bash
 DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
 DEBUG=False \
-SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+SECRET_KEY='motionmate-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
 uv run --no-sync python src/manage.py migrate
 ```
 
 ```bash
 DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
 DEBUG=False \
-SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+SECRET_KEY='motionmate-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
 uv run --no-sync python src/manage.py check
 ```
 
 ```bash
 DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
 DEBUG=False \
-SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+SECRET_KEY='motionmate-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
 uv run --no-sync python src/manage.py makemigrations --check --dry-run
 ```
 
 ```bash
 DATABASE_URL='postgresql://taskio_user_dev:self.taskio@localhost:5432/taskio_database_dev' \
 DEBUG=False \
-SECRET_KEY='clarivo-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+SECRET_KEY='motionmate-audit-secret-key-1234567890-ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
 SECURE_SSL_REDIRECT=True \
 SESSION_COOKIE_SECURE=True \
 CSRF_COOKIE_SECURE=True \
@@ -157,7 +209,7 @@ uv run --no-sync python src/manage.py check --deploy
 Recommended Django suite command:
 
 ```bash
-uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests --verbosity 2
+uv run --no-sync python src/manage.py test apps.accounts.tests apps.businesses.tests apps.crm.tests apps.billings.tests apps.appointments.tests --verbosity 2
 ```
 
 `python src/manage.py test` and `pytest` are also wired to the same four app suites by default.
@@ -169,7 +221,7 @@ If your local PostgreSQL role does not have `CREATEDB`, Django cannot create the
 
 ## Deployment
 
-Clarivo is set up for Heroku-style or Render-style PaaS deployment with a release phase and a Gunicorn web process.
+Motionmate is set up for Heroku-style or Render-style PaaS deployment with a release phase and a Gunicorn web process.
 The repo root is the expected working directory for build, release, and web commands.
 
 Build behavior:
@@ -196,7 +248,7 @@ Confirmed deployment behavior for this repo:
 
 ## Private Production Test Deployment
 
-Clarivo private testing must use a real PostgreSQL-backed deployment.
+Motionmate private testing must use a real PostgreSQL-backed deployment.
 Do not use SQLite as the private test app database.
 
 ### Required environment variables
@@ -237,9 +289,9 @@ Example deployment environment:
 ```bash
 SECRET_KEY='replace-this-with-a-long-random-secret'
 DEBUG=False
-ALLOWED_HOSTS=clarivo-2026-abc123.herokuapp.com,clarivo.example.com
-CSRF_TRUSTED_ORIGINS=https://clarivo-2026-abc123.herokuapp.com,https://clarivo.example.com
-DATABASE_URL=postgresql://app_user:app_password@db-host:5432/clarivo
+ALLOWED_HOSTS=motionmate-2026-abc123.herokuapp.com,motionmate.example.com
+CSRF_TRUSTED_ORIGINS=https://motionmate-2026-abc123.herokuapp.com,https://motionmate.example.com
+DATABASE_URL=postgresql://app_user:app_password@db-host:5432/motionmate
 SECURE_SSL_REDIRECT=True
 SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
@@ -247,7 +299,7 @@ SECURE_HSTS_SECONDS=3600
 SECURE_HSTS_INCLUDE_SUBDOMAINS=True
 SECURE_HSTS_PRELOAD=True
 USE_X_FORWARDED_PROTO=True
-DEFAULT_FROM_EMAIL=no-reply@clarivo.example.com
+DEFAULT_FROM_EMAIL=no-reply@motionmate.example.com
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 LOG_LEVEL=INFO
 ```
@@ -295,9 +347,9 @@ See [docs/USER_TESTING_PLAN.md](/home/mzero/main/repo/fio_projects/caribbean_aut
 ## Rollback and troubleshooting
 
 - `DisallowedHost` or HTTP 400 on first load usually means `ALLOWED_HOSTS` does not include the deployed hostname.
-- On Heroku, fix that with the full current hostname, for example `ALLOWED_HOSTS=clarivo-2026-abc123.herokuapp.com` or `ALLOWED_HOSTS=clarivo-2026-abc123.herokuapp.com,clarivo.example.com`.
+- On Heroku, fix that with the full current hostname, for example `ALLOWED_HOSTS=motionmate-2026-abc123.herokuapp.com` or `ALLOWED_HOSTS=motionmate-2026-abc123.herokuapp.com,motionmate.example.com`.
 - CSRF origin failures usually mean `CSRF_TRUSTED_ORIGINS` is missing the exact HTTPS origin, including scheme.
-- On Heroku, that usually means `CSRF_TRUSTED_ORIGINS=https://clarivo-2026-abc123.herokuapp.com` plus any custom `https://...` domain you also use.
+- On Heroku, that usually means `CSRF_TRUSTED_ORIGINS=https://motionmate-2026-abc123.herokuapp.com` plus any custom `https://...` domain you also use.
 - `ImproperlyConfigured: SECRET_KEY must be set when DEBUG=False` means the app is in production mode without a real `SECRET_KEY`.
 - `DATABASE_URL` errors or release migration failures usually mean the PostgreSQL credentials, hostname, or network access are wrong.
 - `/bin/sh: 1: uv: not found` on Heroku release or web dynos means the runtime command still depends on `uv`. Use `python` and `gunicorn` directly in `Procfile` and startup scripts.

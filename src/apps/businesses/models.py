@@ -251,7 +251,7 @@ class BusinessUser(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="memberships",
     )
-    # Clarivo MVP keeps exactly one role per user inside a workspace.
+    # Motionmate MVP keeps exactly one role per user inside a workspace.
     # Use Admin when someone needs both operational and billing permissions.
     role = models.CharField(
         max_length=20,

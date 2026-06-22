@@ -238,9 +238,9 @@ def sync_client_from_lead(lead: Lead) -> tuple[Client, bool]:
 
 def lead_to_client(lead: Lead) -> Client:
     """
-    Compatibility helper for older TaskIO code paths.
+    Compatibility helper for older Motionmate code paths.
 
-    New Clarivo lead capture flows should prefer ``upsert_client_from_lead`` or
+    New Motionmate lead capture flows should prefer ``upsert_client_from_lead`` or
     ``sync_client_from_lead`` so lead-to-client conversion stays business-scoped.
     """
     client, _created = sync_client_from_lead(lead)

@@ -5,8 +5,10 @@ from django.contrib import messages
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
+from apps.appointments.models import Appointment
 from apps.businesses.models import Business
 from apps.businesses.utils import (
     BILLING_MANAGE_ROLES,
@@ -19,7 +21,6 @@ from apps.crm.services import log_activity
 
 from .models import Invoice, InvoiceLine
 from .services import calculate_tax_amount, create_invoice_for_client, generate_invoice_number
-
 
 STATUS_TRANSITIONS: dict[str, set[str]] = {
     Invoice.Status.DRAFT: {Invoice.Status.SENT, Invoice.Status.CANCELLED},
@@ -68,7 +69,20 @@ def _service_queryset_for_business(business: Business):
 
 
 def _invoice_queryset_for_business(business: Business):
-    return Invoice.objects.filter(business=business).select_related("client", "business")
+    return Invoice.objects.filter(business=business).select_related(
+        "appointment",
+        "client",
+        "business",
+    )
+
+
+def _appointment_queryset_for_business(business: Business):
+    return Appointment.objects.filter(business=business).select_related(
+        "business",
+        "client",
+        "service",
+        "source_lead",
+    )
 
 
 def _posted_value(values: list[str], index: int, default: str = "") -> str:
@@ -144,6 +158,17 @@ def _service_snapshot_description(service: BusinessService) -> str:
     return (service.description or "").strip() or service.name
 
 
+def _service_snapshot_unit_price(
+    service: BusinessService,
+    *,
+    posted_unit_price: str = "",
+) -> Decimal:
+    if service.unit_price != Decimal("0.00"):
+        return service.unit_price
+
+    return _parse_optional_decimal(posted_unit_price) or Decimal("0.00")
+
+
 def _should_refresh_existing_service_snapshot(
     *,
     existing_line: InvoiceLine,
@@ -204,13 +229,19 @@ def _clean_line_rows(
                     posted_unit_price=unit_price,
                 ):
                     description_value = _service_snapshot_description(service)
-                    unit_price_value = service.unit_price
+                    unit_price_value = _service_snapshot_unit_price(
+                        service,
+                        posted_unit_price=unit_price,
+                    )
                 else:
                     description_value = existing_line.description
                     unit_price_value = existing_line.unit_price
             else:
                 description_value = _service_snapshot_description(service)
-                unit_price_value = service.unit_price
+                unit_price_value = _service_snapshot_unit_price(
+                    service,
+                    posted_unit_price=unit_price,
+                )
         else:
             description_value = description or "Line item"
             unit_price_value = _parse_decimal(unit_price)
@@ -228,23 +259,88 @@ def _clean_line_rows(
     return cleaned_rows, errors
 
 
-@business_role_required(
-    *BILLING_MANAGE_ROLES,
-    redirect_url_name="agent_dashboard",
-    permission_message="You do not have permission to manage invoices.",
-    raise_exception=False,
-)
-@business_module_required("invoicing")
-@require_http_methods(["GET", "POST"])
-def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResponse:
+def _existing_invoice_for_appointment(
+    *,
+    business: Business,
+    appointment: Appointment,
+) -> Invoice | None:
+    return (
+        _invoice_queryset_for_business(business)
+        .filter(appointment=appointment)
+        .order_by("-created_at", "-pk")
+        .first()
+    )
+
+
+def _build_invoice_notes_for_appointment(appointment: Appointment) -> str:
+    local_start = timezone.localtime(appointment.start_time)
+    local_end = timezone.localtime(appointment.end_time)
+    notes = [
+        f"Created from appointment #{appointment.pk}.",
+        f"Appointment time: {local_start:%b %d, %Y %H:%M} to {local_end:%H:%M}.",
+        f"Appointment title: {appointment.title}",
+    ]
+
+    if appointment.location:
+        notes.append(f"Location: {appointment.location}")
+    if appointment.source_lead_id is not None:
+        notes.append(f"Linked service request #{appointment.source_lead_id}.")
+
+    return "\n".join(notes)
+
+
+def _initial_line_rows_for_appointment(appointment: Appointment) -> list[dict[str, Any]]:
+    if appointment.service_id is not None:
+        return [
+            {
+                "service_id": str(appointment.service_id),
+                "description": _service_snapshot_description(appointment.service),
+                "quantity": "1",
+                "unit_price": (
+                    ""
+                    if appointment.service.unit_price == Decimal("0.00")
+                    else appointment.service.unit_price
+                ),
+            }
+        ]
+
+    if appointment.service_name.strip():
+        return [
+            {
+                "service_id": "",
+                "description": appointment.service_name.strip(),
+                "quantity": "1",
+                "unit_price": "",
+            }
+        ]
+
+    return _new_line_rows(default_blank_row=True)
+
+
+def _invoice_create_response(
+    request: HttpRequest,
+    *,
+    client: Client,
+    source_appointment: Appointment | None = None,
+) -> HttpResponse:
     current_business = request.current_business
-    client = get_object_or_404(_client_queryset_for_business(current_business), pk=client_id)
     available_services = list(_service_queryset_for_business(current_business))
     active_services_by_id = {str(service.pk): service for service in available_services}
-    line_rows = _new_line_rows(default_blank_row=True)
+    appointment_notes = (
+        _build_invoice_notes_for_appointment(source_appointment)
+        if source_appointment is not None
+        else ""
+    )
+    line_rows = (
+        _initial_line_rows_for_appointment(source_appointment)
+        if source_appointment is not None
+        else _new_line_rows(default_blank_row=True)
+    )
+    draft_notes = appointment_notes
 
     if request.method == "POST":
         line_rows = _build_line_rows_from_post(request, default_blank_row=True)
+        draft_notes = request.POST.get("notes", "").strip() or appointment_notes
         cleaned_line_rows, errors = _clean_line_rows(
             rows=line_rows,
             active_services_by_id=active_services_by_id,
@@ -256,7 +352,12 @@ def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResp
                 messages.error(request, error)
         else:
             with transaction.atomic():
-                invoice = create_invoice_for_client(actor=request.user, client=client)
+                invoice = create_invoice_for_client(
+                    actor=request.user,
+                    client=client,
+                    appointment=source_appointment,
+                    notes=draft_notes,
+                )
 
                 for line_row in cleaned_line_rows:
                     InvoiceLine.objects.create(
@@ -275,11 +376,59 @@ def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResp
     context: dict[str, Any] = {
         "client": client,
         "current_business": current_business,
+        "draft_notes": draft_notes,
         "invoice_number_preview": generate_invoice_number(business=current_business),
         "available_services": available_services,
         "line_rows": line_rows,
+        "source_appointment": source_appointment,
     }
     return render(request, "billings/invoice_create.html", context)
+
+
+@business_role_required(
+    *BILLING_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage invoices.",
+    raise_exception=False,
+)
+@business_module_required("invoicing")
+@require_http_methods(["GET", "POST"])
+def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResponse:
+    current_business = request.current_business
+    client = get_object_or_404(_client_queryset_for_business(current_business), pk=client_id)
+    return _invoice_create_response(request, client=client)
+
+
+@business_role_required(
+    *BILLING_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage invoices.",
+    raise_exception=False,
+)
+@business_module_required("invoicing")
+@require_http_methods(["GET", "POST"])
+def invoice_create_from_appointment(request: HttpRequest, appointment_id: int) -> HttpResponse:
+    current_business = request.current_business
+    appointment = get_object_or_404(
+        _appointment_queryset_for_business(current_business),
+        pk=appointment_id,
+    )
+    existing_invoice = _existing_invoice_for_appointment(
+        business=current_business,
+        appointment=appointment,
+    )
+    if existing_invoice is not None:
+        messages.info(
+            request,
+            f"Invoice {existing_invoice.invoice_number} is already linked to this appointment.",
+        )
+        return redirect("invoice_detail", invoice_id=existing_invoice.id)
+
+    return _invoice_create_response(
+        request,
+        client=appointment.client,
+        source_appointment=appointment,
+    )
 
 
 @business_role_required(

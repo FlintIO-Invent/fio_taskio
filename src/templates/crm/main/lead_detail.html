@@ -61,7 +61,20 @@
               <p class="text-body-secondary mb-0">Missing: {{ missing_client_fields|join:", " }}.</p>
               {% else %}
               <p class="mb-1">This request is ready to be converted into a client record.</p>
-              <p class="text-body-secondary mb-0">Clarivo will reuse an existing client in this workspace if the submitted email or phone matches safely.</p>
+              <p class="text-body-secondary mb-0">Motionmate will reuse an existing client in this workspace if the submitted email or phone matches safely.</p>
+              {% endif %}
+
+              {% if request_appointment and module_access.appointments and role_access.can_view_appointments %}
+              <div class="mt-3">
+                <p class="mb-1">
+                  Latest linked appointment:
+                  <a href="{% url 'appointment_detail' request_appointment.id %}">{{ request_appointment.title }}</a>
+                  on {{ request_appointment.start_time|date:"M d, Y H:i" }}.
+                </p>
+                <p class="text-body-secondary mb-0">Status: {{ request_appointment.get_status_display }}.</p>
+              </div>
+              {% elif role_access.can_manage_appointments and not module_access.appointments %}
+              <p class="text-body-secondary small mb-0 mt-3">Appointments are not included in the current workspace plan.</p>
               {% endif %}
             </div>
             <div class="d-flex gap-2 flex-wrap">
@@ -80,6 +93,18 @@
                 <span class="fa-solid fa-file-invoice me-2"></span>Create Invoice
               </a>
               {% endif %}
+
+              {% if request_appointment and module_access.appointments and role_access.can_view_appointments %}
+              <a class="btn btn-phoenix-secondary" href="{% url 'appointment_detail' request_appointment.id %}">
+                <span class="fa-solid fa-calendar-day me-2"></span>View Appointment
+              </a>
+              {% endif %}
+
+              {% if role_access.can_manage_appointments and module_access.appointments and request_ready_for_appointment and not request_appointment %}
+              <a class="btn btn-phoenix-primary" href="{% url 'appointment_create_from_request' lead.id %}">
+                <span class="fa-solid fa-calendar-plus me-2"></span>Schedule Appointment
+              </a>
+              {% endif %}
             </div>
           </div>
           {% if not matched_client and not role_access.can_manage_clients %}
@@ -87,6 +112,9 @@
           {% endif %}
           {% if not matched_client and role_access.can_manage_invoices and module_access.invoicing %}
           <p class="text-body-secondary small mb-0 mt-2">Create Invoice becomes available after a client is created or matched in this workspace.</p>
+          {% endif %}
+          {% if role_access.can_manage_appointments and module_access.appointments and not request_ready_for_appointment %}
+          <p class="text-body-secondary small mb-0 mt-2">Complete the client details before scheduling an appointment.</p>
           {% endif %}
         </div>
       </div>

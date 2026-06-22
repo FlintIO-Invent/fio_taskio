@@ -1,10 +1,13 @@
+from datetime import timedelta
 from decimal import Decimal
 
-from django.db import IntegrityError
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.models import TaskIOUser
+from apps.appointments.models import Appointment
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.crm.models import ActivityLog, BusinessService, Client
 
@@ -134,6 +137,55 @@ class BillingBusinessScopingTests(TestCase):
             unit_price=Decimal("175.00"),
             tax_rate=Decimal("10.00"),
         )
+        self.unpriced_service = BusinessService.objects.create(
+            business=self.business,
+            name="Custom Follow-up",
+            description="Custom follow-up service",
+            unit_price=Decimal("0.00"),
+            tax_rate=Decimal("6.50"),
+        )
+        self.start_time = timezone.now().replace(second=0, microsecond=0)
+        self.appointment = Appointment.objects.create(
+            business=self.business,
+            client=self.client_record,
+            service=self.business_service,
+            staff_member=self.staff_user,
+            title="Scheduled septic visit",
+            start_time=self.start_time,
+            end_time=self.start_time + timedelta(hours=2),
+            location="12 Main Street",
+        )
+        self.other_appointment = Appointment.objects.create(
+            business=self.other_business,
+            client=self.other_client_record,
+            service=self.other_business_service,
+            staff_member=self.other_user,
+            title="Other workspace visit",
+            start_time=self.start_time,
+            end_time=self.start_time + timedelta(hours=2),
+            location="34 Side Street",
+        )
+        self.manual_name_appointment = Appointment.objects.create(
+            business=self.business,
+            client=self.client_record,
+            service=None,
+            service_name="Emergency Callout",
+            staff_member=self.staff_user,
+            title="Emergency visit",
+            start_time=self.start_time + timedelta(days=1),
+            end_time=self.start_time + timedelta(days=1, hours=1),
+            location="Client warehouse",
+        )
+        self.unpriced_appointment = Appointment.objects.create(
+            business=self.business,
+            client=self.client_record,
+            service=self.unpriced_service,
+            staff_member=self.staff_user,
+            title="Unpriced visit",
+            start_time=self.start_time + timedelta(days=2),
+            end_time=self.start_time + timedelta(days=2, hours=1),
+            location="Client warehouse",
+        )
 
         self.invoice = Invoice.objects.create(
             invoice_number="INV-ALPHA-001",
@@ -253,6 +305,144 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(created_invoice.tax, Decimal("9.75"))
         self.assertEqual(created_invoice.total, Decimal("159.75"))
 
+    def test_invoice_create_from_appointment_prefills_context_on_get(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_appointment", args=[self.appointment.id])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Create Invoice from Appointment")
+        self.assertContains(response, reverse("appointment_detail", args=[self.appointment.id]))
+        self.assertContains(response, self.business_service.description)
+        self.assertContains(response, "Created from appointment")
+
+    def test_invoice_create_from_appointment_sets_business_client_and_relation(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+            data={
+                "service_id": [str(self.business_service.id)],
+                "description": [""],
+                "quantity": ["1"],
+                "unit_price": [""],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(created_invoice.business, self.business)
+        self.assertEqual(created_invoice.client, self.appointment.client)
+        self.assertEqual(created_invoice.appointment, self.appointment)
+        self.assertIn("Created from appointment", created_invoice.notes)
+
+    def test_invoice_create_from_appointment_blocks_other_business_appointment(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_appointment", args=[self.other_appointment.id])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_invoice_create_from_appointment_uses_service_snapshot_values(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+            data={
+                "service_id": [str(self.business_service.id)],
+                "description": [""],
+                "quantity": [""],
+                "unit_price": [""],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+        line = created_invoice.lines.get()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(line.service, self.business_service)
+        self.assertEqual(line.description, self.business_service.description)
+        self.assertEqual(line.unit_price, Decimal("125.00"))
+        self.assertEqual(created_invoice.appointment, self.appointment)
+
+    def test_invoice_create_from_appointment_allows_manual_line_item(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_appointment", args=[self.manual_name_appointment.id]),
+            data={
+                "service_id": [""],
+                "description": ["Emergency Callout"],
+                "quantity": ["2"],
+                "unit_price": ["85.00"],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+        line = created_invoice.lines.get()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertIsNone(line.service)
+        self.assertEqual(line.description, "Emergency Callout")
+        self.assertEqual(line.unit_price, Decimal("85.00"))
+        self.assertEqual(created_invoice.appointment, self.manual_name_appointment)
+
+    def test_invoice_create_from_appointment_allows_manual_price_for_unpriced_service(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_appointment", args=[self.unpriced_appointment.id]),
+            data={
+                "service_id": [str(self.unpriced_service.id)],
+                "description": [self.unpriced_service.description],
+                "quantity": ["1"],
+                "unit_price": ["95.00"],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+        line = created_invoice.lines.get()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(line.service, self.unpriced_service)
+        self.assertEqual(line.description, self.unpriced_service.description)
+        self.assertEqual(line.unit_price, Decimal("95.00"))
+        self.assertEqual(line.line_total, Decimal("95.00"))
+
+    def test_invoice_create_from_appointment_redirects_when_linked_invoice_exists(self):
+        linked_invoice = Invoice.objects.create(
+            invoice_number="CLR-0249",
+            business=self.business,
+            client=self.client_record,
+            appointment=self.appointment,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[linked_invoice.id]))
+        self.assertContains(response, linked_invoice.invoice_number)
+
     def test_invoice_create_rejects_service_from_other_business(self):
         self.client.force_login(self.user)
 
@@ -307,6 +497,27 @@ class BillingBusinessScopingTests(TestCase):
         self.assertRedirects(response, reverse("business_subscription"))
         self.assertContains(response, "Invoicing is not included in the current workspace plan")
 
+    def test_invoice_create_from_appointment_redirects_owner_to_subscription_when_locked(self):
+        locked_plan = ClarivoPlan.objects.create(
+            name="CRM Only Appointment Lock",
+            slug="crm-only-appointment-billing-tests",
+            allow_invoicing=False,
+            allow_appointments=True,
+        )
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = locked_plan
+        subscription.save(update_fields=["plan", "updated_at"])
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertContains(response, "Invoicing is not included in the current workspace plan")
+
     def test_staff_cannot_view_invoices(self):
         self.client.force_login(self.staff_user)
 
@@ -320,6 +531,17 @@ class BillingBusinessScopingTests(TestCase):
 
         response = self.client.get(
             reverse("invoice_create_from_client", args=[self.client_record.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertContains(response, "You do not have permission to manage invoices.")
+
+    def test_staff_cannot_open_invoice_create_from_appointment_page(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
             follow=True,
         )
 
@@ -343,6 +565,17 @@ class BillingBusinessScopingTests(TestCase):
         response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]), follow=True)
 
         self.assertRedirects(response, reverse("invoice_list"))
+        self.assertContains(response, "You do not have permission to manage invoices.")
+
+    def test_viewer_cannot_open_invoice_create_from_appointment_page(self):
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertContains(response, "You do not have permission to manage invoices.")
 
     def test_accountant_can_open_invoice_edit_page(self):
@@ -373,6 +606,59 @@ class BillingBusinessScopingTests(TestCase):
         self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
         self.assertEqual(created_invoice.client, self.client_record)
 
+    def test_admin_can_create_invoice_from_appointment(self):
+        admin_user = TaskIOUser.objects.create_user(
+            email="admin-billing@example.com",
+            first_name="Admin",
+            last_name="Billing",
+            password="testpass123",
+        )
+        BusinessUser.objects.create(
+            user=admin_user,
+            business=self.business,
+            role=BusinessUser.Role.ADMIN,
+        )
+        self.client.force_login(admin_user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+            data={
+                "service_id": [str(self.business_service.id)],
+                "description": [""],
+                "quantity": ["1"],
+                "unit_price": [""],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(created_invoice.appointment, self.appointment)
+
+    def test_accountant_can_create_invoice_from_appointment(self):
+        self.client.force_login(self.accountant_user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_appointment", args=[self.appointment.id]),
+            data={
+                "service_id": [str(self.business_service.id)],
+                "description": [""],
+                "quantity": ["1"],
+                "unit_price": [""],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(created_invoice.appointment, self.appointment)
+
     def test_viewer_invoice_detail_hides_edit_and_status_actions(self):
         self.client.force_login(self.viewer_user)
 
@@ -381,6 +667,23 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, reverse("invoice_edit", args=[self.invoice.id]))
         self.assertNotContains(response, reverse("invoice_change_status", args=[self.invoice.id]))
+
+    def test_invoice_detail_links_back_to_appointment_when_linked(self):
+        self.invoicing_plan.allow_appointments = True
+        self.invoicing_plan.save(update_fields=["allow_appointments", "updated_at"])
+        linked_invoice = Invoice.objects.create(
+            invoice_number="INV-ALPHA-APPT",
+            business=self.business,
+            client=self.client_record,
+            appointment=self.appointment,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_detail", args=[linked_invoice.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("appointment_detail", args=[self.appointment.id]))
+        self.assertContains(response, self.appointment.title)
 
     def test_staff_invoice_list_is_not_shown_in_dashboard_navigation(self):
         self.client.force_login(self.staff_user)
@@ -405,12 +708,43 @@ class BillingBusinessScopingTests(TestCase):
 
         self.assertEqual(cross_business_invoice.business, self.other_business)
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(ValidationError):
             Invoice.objects.create(
                 invoice_number="SHARED-0001",
                 business=self.business,
                 client=self.client_record,
             )
+
+    def test_invoice_rejects_linked_appointment_from_other_business(self):
+        invoice = Invoice(
+            invoice_number="INV-BAD-APPT",
+            business=self.business,
+            client=self.client_record,
+            appointment=self.other_appointment,
+        )
+
+        with self.assertRaises(ValidationError):
+            invoice.full_clean()
+
+    def test_invoice_rejects_linked_appointment_for_other_client(self):
+        mismatch_client = Client.objects.create(
+            business=self.business,
+            first_name="Mismatch",
+            last_name="Client",
+            email="mismatch@example.com",
+            phone="+1 721 555 9090",
+            company_name="Mismatch Co",
+            street_address="90 Other Street",
+        )
+        invoice = Invoice(
+            invoice_number="INV-BAD-CLIENT",
+            business=self.business,
+            client=mismatch_client,
+            appointment=self.appointment,
+        )
+
+        with self.assertRaises(ValidationError):
+            invoice.full_clean()
 
     def test_invoice_edit_recalculates_tax_from_business_rate(self):
         self.client.force_login(self.user)
