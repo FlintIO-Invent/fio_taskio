@@ -32,7 +32,7 @@ DEBUG = settings.debug
 if settings.secret_key:
     SECRET_KEY = settings.secret_key
 elif DEBUG:
-    SECRET_KEY = "clarivo-local-development-secret-key"
+    SECRET_KEY = "motionmate-local-development-secret-key"
 else:
     raise ImproperlyConfigured("SECRET_KEY must be set when DEBUG=False.")
 

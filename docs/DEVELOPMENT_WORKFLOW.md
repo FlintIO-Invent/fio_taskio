@@ -1,6 +1,6 @@
-# Clarivo Development Workflow
+# Motionmate Development Workflow
 
-Clarivo is currently live for a small private tester group. During this cycle, keep the deployed app stable and move new feature work off the production line until it is ready to promote.
+Motionmate is currently live for a small private tester group. During this cycle, keep the deployed app stable and move new feature work off the production line until it is ready to promote.
 
 ## Branch roles
 

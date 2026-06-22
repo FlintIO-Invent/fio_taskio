@@ -61,7 +61,7 @@
               <p class="text-body-secondary mb-0">Missing: {{ missing_client_fields|join:", " }}.</p>
               {% else %}
               <p class="mb-1">This request is ready to be converted into a client record.</p>
-              <p class="text-body-secondary mb-0">Clarivo will reuse an existing client in this workspace if the submitted email or phone matches safely.</p>
+              <p class="text-body-secondary mb-0">Motionmate will reuse an existing client in this workspace if the submitted email or phone matches safely.</p>
               {% endif %}
 
               {% if request_appointment and module_access.appointments and role_access.can_view_appointments %}

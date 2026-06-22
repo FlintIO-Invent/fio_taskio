@@ -6,14 +6,14 @@
   <div class="row flex-center min-vh-100 py-5">
     <div class="col-sm-10 col-md-8 col-lg-5 col-xl-5 col-xxl-4">
       <a class="d-flex flex-center text-decoration-none mb-4" href="{% url 'home' %}">
-        <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Clarivo" width="58">
+        <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Motionmate" width="58">
       </a>
 
       <div class="card shadow-sm border-0">
         <div class="card-body p-4 p-sm-5">
           <div class="text-center mb-5">
             <h3 class="text-body-highlight mb-2">Sign in to your workspace</h3>
-            <p class="text-body-tertiary mb-0">Use your Clarivo email and password to open your business dashboard.</p>
+            <p class="text-body-tertiary mb-0">Use your Motionmate email and password to open your business dashboard.</p>
           </div>
 
           {% if messages %}
@@ -55,7 +55,7 @@
           </form>
 
           <div class="text-center mt-4">
-            <p class="text-body-tertiary mb-2">Need a workspace first? <a href="{% url 'register_business' %}">Start with Clarivo</a>.</p>
+            <p class="text-body-tertiary mb-2">Need a workspace first? <a href="{% url 'register_business' %}">Start with Motionmate</a>.</p>
             <p class="text-body-tertiary mb-0">Need internal team access instead? <a href="{% url 'agent_login' %}">Use the staff portal</a>.</p>
           </div>
         </div>

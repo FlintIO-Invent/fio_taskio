@@ -1,8 +1,8 @@
-# Clarivo User Testing Plan
+# Motionmate User Testing Plan
 
 ## Purpose
 
-This plan covers the current Clarivo MVP that is being prepared for private production testing. It is intentionally limited to the features that already exist and are safe to evaluate.
+This plan covers the current Motionmate MVP that is being prepared for private production testing. It is intentionally limited to the features that already exist and are safe to evaluate.
 
 Private-testing environment rule:
 
@@ -157,7 +157,7 @@ Checks:
 
 Expected result:
 
-- Role boundaries match the current Clarivo permission design
+- Role boundaries match the current Motionmate permission design
 
 ### E. CRM flow
 

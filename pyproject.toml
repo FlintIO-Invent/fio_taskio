@@ -1,7 +1,7 @@
 [project]
 name = "fio_taskio"
 version = "0.1.0"
-description = "TaskIO is a project designed to ingest service requests and "
+description = "Motionmate is a project designed to ingest service requests and "
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }

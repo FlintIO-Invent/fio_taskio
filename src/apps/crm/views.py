@@ -1078,5 +1078,5 @@ def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
     )
 
     response = HttpResponse(output.getvalue(), content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="clarivo_services_sample.csv"'
+    response["Content-Disposition"] = 'attachment; filename="motionmate_services_sample.csv"'
     return response
