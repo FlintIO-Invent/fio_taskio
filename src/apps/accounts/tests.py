@@ -268,7 +268,7 @@ class BusinessLoginViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "does not have an active Clarivo workspace yet")
+        self.assertContains(response, "does not have an active Motionmate workspace yet")
         self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_agent_login_remains_staff_only_for_business_owners(self):
@@ -512,7 +512,7 @@ class SaaSProfileViewTests(TestCase):
                 "invoice_accent_color": "#0B6E4F",
                 "show_company_address_on_invoice": "on",
                 "payment_instructions": "Bank transfer only.",
-                "invoice_footer_note": "Thanks for trusting TaskIO.",
+                "invoice_footer_note": "Thanks for trusting Motionmate.",
             },
             follow=True,
         )

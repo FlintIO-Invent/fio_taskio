@@ -24,7 +24,79 @@
     </div>
   </div>
 
-  
+  {% if single_client and module_access.appointments and role_access.can_view_appointments %}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center gap-3">
+      <div>
+        <h4 class="mb-1">Appointments</h4>
+        <p class="text-body-tertiary mb-0">Upcoming and recent scheduling activity for {{ single_client.first_name }} {{ single_client.last_name }}.</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'appointment_list' %}">View Appointments</a>
+        {% if role_access.can_manage_appointments %}
+        <a class="btn btn-sm btn-primary" href="{% url 'appointment_create' %}?client_id={{ single_client.id }}">
+          <span class="fa-solid fa-calendar-plus me-2"></span>Schedule Appointment
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-12 col-xl-7">
+          <h6 class="text-body-secondary mb-3">Upcoming</h6>
+          {% if client_upcoming_appointments %}
+          <div class="list-group list-group-flush border rounded-3">
+            {% for appointment in client_upcoming_appointments %}
+            <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'appointment_detail' appointment.id %}">
+              <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <div class="fw-semibold">{{ appointment.title }}</div>
+                  <div class="text-body-secondary fs-9">
+                    {{ appointment.start_time|date:"M j, Y g:i A" }}
+                    {% if appointment.staff_member %}· {{ appointment.staff_member.get_full_name|default:appointment.staff_member.email }}{% endif %}
+                  </div>
+                  {% if appointment.location %}
+                  <div class="text-body-tertiary fs-10">{{ appointment.location }}</div>
+                  {% endif %}
+                </div>
+                <span class="badge badge-phoenix {{ appointment.status_badge_class }}">{{ appointment.get_status_display }}</span>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="border rounded-3 p-3 bg-body-tertiary">
+            <p class="text-body-tertiary mb-0">No upcoming appointments are scheduled for this client.</p>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <h6 class="text-body-secondary mb-3">Recent History</h6>
+          {% if client_recent_appointment_history %}
+          <div class="list-group list-group-flush border rounded-3">
+            {% for appointment in client_recent_appointment_history %}
+            <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'appointment_detail' appointment.id %}">
+              <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <div class="fw-semibold">{{ appointment.title }}</div>
+                  <div class="text-body-secondary fs-9">{{ appointment.start_time|date:"M j, Y g:i A" }}</div>
+                </div>
+                <span class="badge badge-phoenix {{ appointment.status_badge_class }}">{{ appointment.get_status_display }}</span>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="border rounded-3 p-3 bg-body-tertiary">
+            <p class="text-body-tertiary mb-0">No completed or cancelled appointments are recorded for this client yet.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Clients Table/List -->
   <div class="row pb-9 gx-4">
@@ -612,7 +684,7 @@
     <div class="row g-0 justify-content-between align-items-center h-100">
       <div class="col-12 col-sm-auto text-center">
         <p class="mb-0 mt-2 mt-sm-0 text-body">
-          Powered by Clarivo<span class="d-none d-sm-inline-block"></span>
+          Powered by Motionmate<span class="d-none d-sm-inline-block"></span>
           <span class="d-none d-sm-inline-block mx-1">|</span><br class="d-sm-none" />2025 &copy;
         </p>
       </div>

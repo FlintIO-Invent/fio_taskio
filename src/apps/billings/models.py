@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from decimal import Decimal
+
+from django.core.exceptions import ValidationError
 from django.db import models
 
-from apps.crm.models import TimeStampedModel, Client
+from apps.crm.models import Client, TimeStampedModel
 
 
 class Invoice(TimeStampedModel):
@@ -20,6 +22,13 @@ class Invoice(TimeStampedModel):
         related_name="invoices",
     )
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="invoices")
+    appointment = models.ForeignKey(
+        "appointments.Appointment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoices",
+    )
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     notes = models.TextField(blank=True)
@@ -51,6 +60,30 @@ class Invoice(TimeStampedModel):
         if self.business_id and self.business:
             return self.business.tax_rate
         return Decimal("0.00")
+
+    def clean(self) -> None:
+        super().clean()
+
+        errors: dict[str, str] = {}
+
+        if self.business_id is not None and self.client_id is not None:
+            if self.client.business_id != self.business_id:
+                errors["client"] = "Selected client must belong to the current workspace."
+
+        if self.appointment_id is not None and self.business_id is not None:
+            if self.appointment.business_id != self.business_id:
+                errors["appointment"] = "Linked appointment must belong to the current workspace."
+            elif self.client_id is not None and self.appointment.client_id != self.client_id:
+                errors["appointment"] = (
+                    "Linked appointment must belong to the selected client in this workspace."
+                )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class InvoiceLine(TimeStampedModel):

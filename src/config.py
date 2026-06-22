@@ -116,7 +116,7 @@ class Settings(BaseSettings):
     )
 
     default_from_email: str = Field(
-        default="no-reply@clarivo.local",
+        default="no-reply@motionmate.local",
         description="Default sender email address.",
     )
     email_backend: str = Field(

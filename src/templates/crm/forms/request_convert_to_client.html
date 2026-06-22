@@ -11,6 +11,16 @@
     </ol>
   </nav>
 
+  {% if messages %}
+  <div class="mb-4">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <form class="mb-9" method="post" novalidate>
     {% csrf_token %}
 
@@ -124,7 +134,7 @@
             <hr class="my-4" />
             <ul class="mb-0 text-body-secondary">
               <li>This request stays in the current workspace only.</li>
-              <li>Clarivo will reuse an existing client in this workspace if the email or phone matches safely.</li>
+              <li>Motionmate will reuse an existing client in this workspace if the email or phone matches safely.</li>
               <li>Existing client records only receive empty-field backfills from this request.</li>
               <li>Once a client exists, you can start an invoice from the request detail page.</li>
             </ul>

@@ -5,7 +5,7 @@
   <div class="row g-3 mb-4 justify-content-between align-items-center">
     <div class="col-lg-8">
       <h2 class="mb-2 text-body-emphasis">Subscription</h2>
-      <p class="text-body-tertiary mb-0">Review your current Clarivo plan and change workspace access before Stripe billing is added.</p>
+      <p class="text-body-tertiary mb-0">Review your current Motionmate plan and change workspace access before Stripe billing is added.</p>
     </div>
     <div class="col-auto d-flex gap-2">
       <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>
@@ -40,7 +40,7 @@
               {% elif subscription.current_period_end %}
                 Current period ends on {{ subscription.current_period_end|date:"M j, Y, g:i a" }}.
               {% else %}
-                Workspace access follows the current Clarivo subscription settings.
+                Workspace access follows the current Motionmate subscription settings.
               {% endif %}
             </p>
           {% else %}
@@ -72,7 +72,7 @@
         <div class="card-body p-4 p-lg-5">
           <h4 class="mb-3">How plan changes work right now</h4>
           <p class="text-body-tertiary mb-3">
-            Plan changes update the workspace subscription record immediately so Clarivo modules can react to the selected plan.
+            Plan changes update the workspace subscription record immediately so Motionmate modules can react to the selected plan.
           </p>
           <div class="alert alert-info mb-0" role="alert">
             Payment checkout is not connected yet. Plan changes here are temporary admin-style updates until Stripe checkout and webhooks replace this flow.
@@ -90,7 +90,7 @@
             <div class="d-flex justify-content-between align-items-start mb-3">
               <div>
                 <h4 class="mb-1">{{ plan.name }}</h4>
-                <p class="text-body-tertiary mb-0">{{ plan.description|default:"Clarivo workspace access and module availability." }}</p>
+                <p class="text-body-tertiary mb-0">{{ plan.description|default:"Motionmate workspace access and module availability." }}</p>
               </div>
               {% if subscription and subscription.plan_id == plan.id %}
                 <span class="badge badge-phoenix badge-phoenix-primary">Current Plan</span>
@@ -162,7 +162,7 @@
     {% empty %}
       <div class="col-12">
         <div class="alert alert-warning mb-0" role="alert">
-          No active Clarivo plans are configured yet. Registration can still work, but a trial plan cannot be attached until an active plan exists.
+          No active Motionmate plans are configured yet. Registration can still work, but a trial plan cannot be attached until an active plan exists.
         </div>
       </div>
     {% endfor %}

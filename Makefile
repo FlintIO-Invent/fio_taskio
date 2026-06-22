@@ -1,4 +1,4 @@
-# Makefile for Clarivo Django Project
+# Makefile for Motionmate Django Project
 
 .PHONY: help install migrate runserver test lint format clean
 

@@ -46,6 +46,12 @@ LEAD_MANAGE_ROLES = (
     BusinessUser.Role.ADMIN,
     BusinessUser.Role.STAFF,
 )
+APPOINTMENT_VIEW_ROLES = ALL_WORKSPACE_ROLES
+APPOINTMENT_MANAGE_ROLES = (
+    BusinessUser.Role.OWNER,
+    BusinessUser.Role.ADMIN,
+    BusinessUser.Role.STAFF,
+)
 BILLING_VIEW_ROLES = (
     BusinessUser.Role.OWNER,
     BusinessUser.Role.ADMIN,
@@ -116,7 +122,7 @@ def get_current_business(request: HttpRequest) -> Business | None:
         if business is None:
             fallback_membership = memberships.first()
             if fallback_membership is not None:
-                # Clarivo MVP does not expose a workspace switcher. We keep this
+                # Motionmate MVP does not expose a workspace switcher. We keep this
                 # first-membership fallback for legacy multi-workspace accounts
                 # until they can be cleaned up safely.
                 business = fallback_membership.business
@@ -274,7 +280,7 @@ def get_business_module_unavailable_message(
     if subscription is None:
         return (
             f"{module_label} is not available because this workspace does not have "
-            "an active Clarivo subscription yet."
+            "an active Motionmate subscription yet."
         )
 
     if not subscription.has_access:

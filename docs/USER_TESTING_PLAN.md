@@ -1,13 +1,19 @@
-# Clarivo User Testing Plan
+# Motionmate User Testing Plan
 
 ## Purpose
 
-This plan covers the current Clarivo MVP that is being prepared for private production testing. It is intentionally limited to the features that already exist and are safe to evaluate.
+This plan covers the current Motionmate MVP that is being prepared for private production testing. It is intentionally limited to the features that already exist and are safe to evaluate.
 
 Private-testing environment rule:
 
 - Use a PostgreSQL-backed deployment before inviting testers.
 - SQLite is only a temporary local fallback if a PostgreSQL test database cannot be created during development.
+
+Branch safety rule:
+
+- The live private-test deployment should track `main`.
+- Production fixes during the tester cycle should go through `hotfix/*` branches.
+- New feature work should stay on `develop` and `feature/*` branches until it passes the release checklist.
 
 ## In scope
 
@@ -32,6 +38,8 @@ Private-testing environment rule:
 - Memberships
 - Stripe billing
 - Major new product features
+
+Before appointments move into tester scope, complete the separate staging gate in [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md).
 
 ## Test data and accounts
 
@@ -151,7 +159,7 @@ Checks:
 
 Expected result:
 
-- Role boundaries match the current Clarivo permission design
+- Role boundaries match the current Motionmate permission design
 
 ### E. CRM flow
 
