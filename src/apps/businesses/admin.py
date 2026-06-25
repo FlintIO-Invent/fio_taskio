@@ -2,10 +2,12 @@ from django.contrib import admin
 
 from .models import (
     Business,
+    BusinessBookingSettings,
     BusinessInvitation,
     BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
+    WeeklyAvailability,
 )
 
 admin.site.site_header = "Motionmate Administration"
@@ -94,6 +96,40 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
     search_fields = ("business__name", "business__slug", "plan__name")
     autocomplete_fields = ("business", "plan")
     list_select_related = ("business", "plan")
+
+
+@admin.register(BusinessBookingSettings)
+class BusinessBookingSettingsAdmin(admin.ModelAdmin):
+    list_display = (
+        "business",
+        "booking_enabled",
+        "confirmation_mode",
+        "default_duration_minutes",
+        "minimum_notice_hours",
+        "maximum_days_ahead",
+        "buffer_minutes",
+        "updated_at",
+    )
+    list_filter = ("booking_enabled", "confirmation_mode")
+    search_fields = ("business__name", "business__slug")
+    autocomplete_fields = ("business",)
+    list_select_related = ("business",)
+
+
+@admin.register(WeeklyAvailability)
+class WeeklyAvailabilityAdmin(admin.ModelAdmin):
+    list_display = (
+        "business",
+        "day_of_week",
+        "start_time",
+        "end_time",
+        "is_active",
+        "updated_at",
+    )
+    list_filter = ("is_active", "day_of_week", "business")
+    search_fields = ("business__name", "business__slug")
+    autocomplete_fields = ("business",)
+    list_select_related = ("business",)
 
 
 @admin.register(BusinessUser)

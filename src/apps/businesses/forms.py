@@ -1,7 +1,13 @@
 from django import forms
 from django.core.exceptions import ValidationError
 
-from .models import Business, BusinessUser, ClarivoPlan
+from .models import (
+    Business,
+    BusinessBookingSettings,
+    BusinessUser,
+    ClarivoPlan,
+    WeeklyAvailability,
+)
 from .utils import can_assign_business_role, get_assignable_business_roles
 
 
@@ -118,6 +124,158 @@ class BusinessSubscriptionPlanForm(forms.Form):
         super().__init__(*args, **kwargs)
         queryset = plans if plans is not None else ClarivoPlan.objects.filter(is_active=True)
         self.fields["plan"].queryset = queryset
+
+
+class BusinessBookingSettingsForm(forms.ModelForm):
+    class Meta:
+        model = BusinessBookingSettings
+        fields = [
+            "booking_enabled",
+            "default_duration_minutes",
+            "minimum_notice_hours",
+            "maximum_days_ahead",
+            "buffer_minutes",
+            "confirmation_mode",
+            "public_booking_instructions",
+            "cancellation_policy_text",
+            "reschedule_policy_text",
+        ]
+        widgets = {
+            "booking_enabled": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "default_duration_minutes": forms.NumberInput(
+                attrs={"class": "form-control", "min": 1, "step": 1}
+            ),
+            "minimum_notice_hours": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "step": 1}
+            ),
+            "maximum_days_ahead": forms.NumberInput(
+                attrs={"class": "form-control", "min": 1, "step": 1}
+            ),
+            "buffer_minutes": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "step": 1}
+            ),
+            "confirmation_mode": forms.Select(attrs={"class": "form-select"}),
+            "public_booking_instructions": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Optional instructions shown before customers submit a booking request.",
+                }
+            ),
+            "cancellation_policy_text": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Optional cancellation policy text for future public booking pages.",
+                }
+            ),
+            "reschedule_policy_text": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Optional reschedule policy text for future public booking pages.",
+                }
+            ),
+        }
+        labels = {
+            "booking_enabled": "Enable public booking requests",
+            "default_duration_minutes": "Default duration",
+            "minimum_notice_hours": "Minimum notice",
+            "maximum_days_ahead": "Maximum days ahead",
+            "buffer_minutes": "Buffer time",
+            "confirmation_mode": "Confirmation mode",
+        }
+        help_texts = {
+            "booking_enabled": "This prepares the workspace for public booking. Public booking URLs are not active in this block.",
+            "default_duration_minutes": "Used later as the default appointment request length.",
+            "minimum_notice_hours": "How much advance notice public visitors must give before requesting a time.",
+            "maximum_days_ahead": "How far into the future public visitors may request a time.",
+            "buffer_minutes": "Optional spacing to reserve around requested appointment times.",
+            "confirmation_mode": "Request-first/manual confirmation is the only supported behavior right now.",
+        }
+
+    def __init__(self, *args, business: Business | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.business = business
+        if business is not None:
+            self.instance.business = business
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if self.business is None:
+            raise ValidationError("A current business is required to manage booking settings.")
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.business = self.business
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
+class WeeklyAvailabilityForm(forms.ModelForm):
+    class Meta:
+        model = WeeklyAvailability
+        fields = [
+            "day_of_week",
+            "start_time",
+            "end_time",
+            "is_active",
+        ]
+        widgets = {
+            "day_of_week": forms.Select(attrs={"class": "form-select"}),
+            "start_time": forms.TimeInput(
+                attrs={"class": "form-control", "type": "time"},
+                format="%H:%M",
+            ),
+            "end_time": forms.TimeInput(
+                attrs={"class": "form-control", "type": "time"},
+                format="%H:%M",
+            ),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+        labels = {
+            "day_of_week": "Day",
+            "start_time": "Start time",
+            "end_time": "End time",
+            "is_active": "Active",
+        }
+        help_texts = {
+            "is_active": "Inactive blocks are ignored by public booking availability.",
+        }
+
+    def __init__(self, *args, business: Business | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.business = business
+        if business is not None:
+            self.instance.business = business
+        self.fields["start_time"].input_formats = ["%H:%M"]
+        self.fields["end_time"].input_formats = ["%H:%M"]
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if self.business is None:
+            raise ValidationError("A current business is required to manage availability.")
+
+        start_time = cleaned_data.get("start_time")
+        end_time = cleaned_data.get("end_time")
+        if start_time and end_time and end_time <= start_time:
+            self.add_error("end_time", "End time must be after the start time.")
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.business = self.business
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class BusinessInvitationForm(forms.Form):

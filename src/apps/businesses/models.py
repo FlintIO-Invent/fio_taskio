@@ -5,6 +5,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -116,6 +117,135 @@ class Business(TimeStampedModel):
         except BusinessSubscription.DoesNotExist:
             return False
         return subscription.can_use_module(module_name)
+
+
+class BusinessBookingSettings(TimeStampedModel):
+    class ConfirmationMode(models.TextChoices):
+        REQUEST_ONLY = "request_only", "Request first / manual confirmation"
+        AUTO_CONFIRM_LATER = "auto_confirm_later", "Auto-confirm later"
+
+    business = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="booking_settings",
+    )
+    booking_enabled = models.BooleanField(default=False)
+    default_duration_minutes = models.PositiveIntegerField(
+        default=60,
+        validators=[MinValueValidator(1)],
+    )
+    minimum_notice_hours = models.PositiveIntegerField(
+        default=24,
+        validators=[MinValueValidator(0)],
+    )
+    maximum_days_ahead = models.PositiveIntegerField(
+        default=30,
+        validators=[MinValueValidator(1)],
+    )
+    buffer_minutes = models.PositiveIntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+    )
+    confirmation_mode = models.CharField(
+        max_length=30,
+        choices=ConfirmationMode.choices,
+        default=ConfirmationMode.REQUEST_ONLY,
+    )
+    public_booking_instructions = models.TextField(blank=True)
+    cancellation_policy_text = models.TextField(blank=True)
+    reschedule_policy_text = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["business__name"]
+        verbose_name = "business booking settings"
+        verbose_name_plural = "business booking settings"
+
+    def __str__(self) -> str:
+        return f"Booking settings for {self.business}"
+
+    def clean(self):
+        super().clean()
+
+        errors: dict[str, str] = {}
+
+        if self.business_id is None:
+            errors["business"] = "Booking settings must belong to a workspace."
+
+        if self.default_duration_minutes is not None and self.default_duration_minutes <= 0:
+            errors["default_duration_minutes"] = "Default duration must be greater than zero."
+
+        if self.minimum_notice_hours is not None and self.minimum_notice_hours < 0:
+            errors["minimum_notice_hours"] = "Minimum notice cannot be negative."
+
+        if self.maximum_days_ahead is not None and self.maximum_days_ahead <= 0:
+            errors["maximum_days_ahead"] = "Maximum days ahead must be greater than zero."
+
+        if self.buffer_minutes is not None and self.buffer_minutes < 0:
+            errors["buffer_minutes"] = "Buffer time cannot be negative."
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class WeeklyAvailability(TimeStampedModel):
+    class DayOfWeek(models.IntegerChoices):
+        MONDAY = 0, "Monday"
+        TUESDAY = 1, "Tuesday"
+        WEDNESDAY = 2, "Wednesday"
+        THURSDAY = 3, "Thursday"
+        FRIDAY = 4, "Friday"
+        SATURDAY = 5, "Saturday"
+        SUNDAY = 6, "Sunday"
+
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="weekly_availability",
+    )
+    day_of_week = models.PositiveSmallIntegerField(choices=DayOfWeek.choices)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["day_of_week", "start_time", "pk"]
+        indexes = [
+            models.Index(fields=["business", "day_of_week", "is_active"]),
+        ]
+        verbose_name = "weekly availability"
+        verbose_name_plural = "weekly availability"
+
+    def __str__(self) -> str:
+        return (
+            f"{self.business} - {self.get_day_of_week_display()} "
+            f"{self.start_time:%H:%M}-{self.end_time:%H:%M}"
+        )
+
+    def clean(self):
+        super().clean()
+
+        errors: dict[str, str] = {}
+
+        if self.business_id is None:
+            errors["business"] = "Availability must belong to a workspace."
+
+        valid_days = {choice.value for choice in self.DayOfWeek}
+        if self.day_of_week is not None and self.day_of_week not in valid_days:
+            errors["day_of_week"] = "Select a valid day of the week."
+
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            errors["end_time"] = "End time must be after the start time."
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class ClarivoPlan(TimeStampedModel):
