@@ -107,6 +107,7 @@ def _parse_csv_boolean(
     *,
     default: bool,
     row_number: int,
+    field_name: str = "is_active",
 ) -> bool:
     normalized_value = value.strip().lower()
     if not normalized_value:
@@ -118,8 +119,34 @@ def _parse_csv_boolean(
         return False
 
     raise ValidationError(
-        f"Row {row_number}: is_active must be one of true/false, yes/no, or 1/0."
+        f"Row {row_number}: {field_name} must be one of true/false, yes/no, or 1/0."
     )
+
+
+def _parse_optional_csv_integer(
+    value: str,
+    *,
+    row_number: int,
+    field_name: str,
+    minimum: int,
+) -> int | None:
+    normalized_value = value.strip()
+    if not normalized_value:
+        return None
+
+    try:
+        parsed_value = int(normalized_value)
+    except ValueError as exc:
+        raise ValidationError(
+            f"Row {row_number}: {field_name} must be a whole number."
+        ) from exc
+
+    if parsed_value < minimum:
+        if minimum == 1:
+            raise ValidationError(f"Row {row_number}: {field_name} must be greater than zero.")
+        raise ValidationError(f"Row {row_number}: {field_name} cannot be negative.")
+
+    return parsed_value
 
 
 def _get_or_create_service_category_for_import(
@@ -208,6 +235,38 @@ def _import_business_services_from_csv(
                 default=True,
                 row_number=row_number,
             )
+            is_bookable_online = None
+            if "is_bookable_online" in row:
+                is_bookable_online = _parse_csv_boolean(
+                    row.get("is_bookable_online", ""),
+                    default=False,
+                    row_number=row_number,
+                    field_name="is_bookable_online",
+                )
+            requires_manual_confirmation = None
+            if "requires_manual_confirmation" in row:
+                requires_manual_confirmation = _parse_csv_boolean(
+                    row.get("requires_manual_confirmation", ""),
+                    default=True,
+                    row_number=row_number,
+                    field_name="requires_manual_confirmation",
+                )
+            default_duration_minutes = None
+            if "default_duration_minutes" in row:
+                default_duration_minutes = _parse_optional_csv_integer(
+                    row.get("default_duration_minutes", ""),
+                    row_number=row_number,
+                    field_name="default_duration_minutes",
+                    minimum=1,
+                )
+            booking_buffer_minutes = None
+            if "booking_buffer_minutes" in row:
+                booking_buffer_minutes = _parse_optional_csv_integer(
+                    row.get("booking_buffer_minutes", ""),
+                    row_number=row_number,
+                    field_name="booking_buffer_minutes",
+                    minimum=0,
+                )
             category, category_created = _get_or_create_service_category_for_import(
                 business=business,
                 category_value=row.get("category", ""),
@@ -240,6 +299,16 @@ def _import_business_services_from_csv(
             service.tax_rate = tax_rate
             service.is_active = is_active
             service.external_code = external_code
+            if is_bookable_online is not None:
+                service.is_bookable_online = is_bookable_online
+            if "default_duration_minutes" in row:
+                service.default_duration_minutes = default_duration_minutes
+            if "booking_buffer_minutes" in row:
+                service.booking_buffer_minutes = booking_buffer_minutes
+            if "public_description" in row:
+                service.public_description = row.get("public_description", "")
+            if requires_manual_confirmation is not None:
+                service.requires_manual_confirmation = requires_manual_confirmation
             service.save()
 
     return {
@@ -885,12 +954,23 @@ def business_service_category_archive(request: HttpRequest, category_id: int) ->
 def business_service_list(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
     services = _business_service_queryset_for_business(current_business)
+    public_booking_allowed = can_use_module(current_business, "public_booking")
 
     context: dict[str, Any] = {
         "business": current_business,
         "services": services,
         "active_service_count": services.filter(is_active=True).count(),
         "archived_service_count": services.filter(is_active=False).count(),
+        "bookable_service_count": services.filter(
+            is_active=True,
+            is_bookable_online=True,
+        ).count(),
+        "public_booking_allowed": public_booking_allowed,
+        "public_booking_unavailable_message": (
+            ""
+            if public_booking_allowed
+            else get_business_module_unavailable_message(current_business, "public_booking")
+        ),
     }
     return render(request, "crm/settings/business_service_list.html", context)
 
@@ -920,7 +1000,13 @@ def business_service_create(request: HttpRequest) -> HttpResponse:
         "business": current_business,
         "page_title": "Create service",
         "submit_label": "Create service",
+        "public_booking_allowed": can_use_module(current_business, "public_booking"),
     }
+    if not context["public_booking_allowed"]:
+        context["public_booking_unavailable_message"] = get_business_module_unavailable_message(
+            current_business,
+            "public_booking",
+        )
     return render(request, "crm/settings/business_service_form.html", context)
 
 
@@ -958,7 +1044,13 @@ def business_service_update(request: HttpRequest, service_id: int) -> HttpRespon
         "service": service,
         "page_title": f"Edit service: {service.name}",
         "submit_label": "Save changes",
+        "public_booking_allowed": can_use_module(current_business, "public_booking"),
     }
+    if not context["public_booking_allowed"]:
+        context["public_booking_unavailable_message"] = get_business_module_unavailable_message(
+            current_business,
+            "public_booking",
+        )
     return render(request, "crm/settings/business_service_form.html", context)
 
 
@@ -1052,6 +1144,11 @@ def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
             "category",
             "is_active",
             "external_code",
+            "is_bookable_online",
+            "default_duration_minutes",
+            "booking_buffer_minutes",
+            "public_description",
+            "requires_manual_confirmation",
         ]
     )
     writer.writerow(
@@ -1063,6 +1160,11 @@ def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
             "Urgent Response",
             "true",
             "EMERGENCY-001",
+            "true",
+            "60",
+            "15",
+            "Request an after-hours emergency service call.",
+            "true",
         ]
     )
     writer.writerow(
@@ -1074,6 +1176,11 @@ def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
             "",
             "true",
             "",
+            "false",
+            "",
+            "",
+            "",
+            "true",
         ]
     )
 

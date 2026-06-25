@@ -576,6 +576,11 @@ class BusinessServiceForm(forms.ModelForm):
             "unit_price",
             "tax_rate",
             "is_active",
+            "is_bookable_online",
+            "default_duration_minutes",
+            "booking_buffer_minutes",
+            "public_description",
+            "requires_manual_confirmation",
         ]
         widgets = {
             "category": forms.Select(attrs={"class": "form-select"}),
@@ -599,9 +604,38 @@ class BusinessServiceForm(forms.ModelForm):
                 attrs={"class": "form-control", "min": 0, "max": 100, "step": "0.01"}
             ),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_bookable_online": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "default_duration_minutes": forms.NumberInput(
+                attrs={"class": "form-control", "min": 1, "step": 1}
+            ),
+            "booking_buffer_minutes": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "step": 1}
+            ),
+            "public_description": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Describe this service for future public booking pages.",
+                }
+            ),
+            "requires_manual_confirmation": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
+        }
+        labels = {
+            "is_bookable_online": "Bookable online",
+            "default_duration_minutes": "Default booking duration",
+            "booking_buffer_minutes": "Booking buffer",
+            "public_description": "Public description",
+            "requires_manual_confirmation": "Requires manual confirmation",
         }
         help_texts = {
             "external_code": "Optional. Useful for matching future CSV imports without guessing by name.",
+            "is_bookable_online": "Only services marked bookable online will appear later on the public booking form.",
+            "default_duration_minutes": "Optional service-specific duration in minutes. Leave blank to use workspace booking settings.",
+            "booking_buffer_minutes": "Optional service-specific buffer in minutes. Leave blank to use workspace booking settings.",
+            "public_description": "Optional public-facing copy for the future booking form.",
+            "requires_manual_confirmation": "Manual confirmation is the current supported Motionmate booking behavior.",
         }
 
     def __init__(self, *args, business=None, **kwargs):
@@ -612,6 +646,9 @@ class BusinessServiceForm(forms.ModelForm):
         self.fields["category"].required = False
         self.fields["external_code"].required = False
         self.fields["tax_rate"].required = False
+        self.fields["default_duration_minutes"].required = False
+        self.fields["booking_buffer_minutes"].required = False
+        self.fields["requires_manual_confirmation"].initial = True
         self.fields["category"].queryset = _service_category_queryset(
             business=business,
             instance=self.instance,

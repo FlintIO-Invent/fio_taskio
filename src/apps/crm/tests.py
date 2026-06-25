@@ -1158,6 +1158,44 @@ class CRMBusinessScopingTests(TestCase):
         with self.assertRaises(ValidationError):
             service.save()
 
+    def test_business_service_booking_fields_have_safe_defaults(self):
+        service = BusinessService.objects.create(
+            business=self.business,
+            name="Default Booking Settings Service",
+            unit_price=Decimal("25.00"),
+            tax_rate=Decimal("6.50"),
+        )
+
+        self.assertFalse(service.is_bookable_online)
+        self.assertIsNone(service.default_duration_minutes)
+        self.assertIsNone(service.booking_buffer_minutes)
+        self.assertEqual(service.public_description, "")
+        self.assertTrue(service.requires_manual_confirmation)
+
+    def test_business_service_booking_duration_must_be_positive_if_provided(self):
+        service = BusinessService(
+            business=self.business,
+            name="Invalid Duration Service",
+            unit_price=Decimal("25.00"),
+            tax_rate=Decimal("6.50"),
+            default_duration_minutes=0,
+        )
+
+        with self.assertRaises(ValidationError):
+            service.full_clean()
+
+    def test_business_service_booking_buffer_cannot_be_negative(self):
+        service = BusinessService(
+            business=self.business,
+            name="Invalid Buffer Service",
+            unit_price=Decimal("25.00"),
+            tax_rate=Decimal("6.50"),
+            booking_buffer_minutes=-1,
+        )
+
+        with self.assertRaises(ValidationError):
+            service.full_clean()
+
     def test_business_service_management_is_scoped_and_archives_instead_of_deleting(self):
         current_category = ServiceCategory.objects.create(
             business=self.business,
@@ -1169,8 +1207,10 @@ class CRMBusinessScopingTests(TestCase):
             name="Leak Inspection",
             unit_price=Decimal("75.00"),
             tax_rate=Decimal("6.50"),
+            is_bookable_online=True,
+            default_duration_minutes=45,
         )
-        BusinessService.objects.create(
+        foreign_service = BusinessService.objects.create(
             business=self.other_business,
             name="Foreign Service",
             unit_price=Decimal("99.00"),
@@ -1186,6 +1226,12 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(list_response.status_code, 200)
         self.assertContains(list_response, own_service.name)
+        self.assertContains(list_response, "Bookable")
+        self.assertContains(
+            list_response,
+            "You can still prepare service booking settings now.",
+        )
+        self.assertEqual(list_response.context["bookable_service_count"], 1)
         self.assertNotContains(list_response, "Foreign Service")
 
         create_response = self.client.post(
@@ -1198,6 +1244,11 @@ class CRMBusinessScopingTests(TestCase):
                 "unit_price": "125.00",
                 "tax_rate": "",
                 "is_active": "on",
+                "is_bookable_online": "on",
+                "default_duration_minutes": "60",
+                "booking_buffer_minutes": "15",
+                "public_description": "Fast public dispatch option.",
+                "requires_manual_confirmation": "on",
             },
             follow=True,
         )
@@ -1208,6 +1259,11 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(created_service.business, self.business)
         self.assertEqual(created_service.category, current_category)
         self.assertEqual(created_service.tax_rate, self.business.tax_rate)
+        self.assertTrue(created_service.is_bookable_online)
+        self.assertEqual(created_service.default_duration_minutes, 60)
+        self.assertEqual(created_service.booking_buffer_minutes, 15)
+        self.assertEqual(created_service.public_description, "Fast public dispatch option.")
+        self.assertTrue(created_service.requires_manual_confirmation)
 
         update_response = self.client.post(
             reverse("business_service_update", args=[created_service.id]),
@@ -1219,6 +1275,11 @@ class CRMBusinessScopingTests(TestCase):
                 "unit_price": "145.00",
                 "tax_rate": "7.25",
                 "is_active": "on",
+                "is_bookable_online": "on",
+                "default_duration_minutes": "75",
+                "booking_buffer_minutes": "20",
+                "public_description": "Updated public service description.",
+                "requires_manual_confirmation": "on",
             },
             follow=True,
         )
@@ -1230,6 +1291,9 @@ class CRMBusinessScopingTests(TestCase):
         self.assertIsNone(created_service.category)
         self.assertEqual(created_service.unit_price, Decimal("145.00"))
         self.assertEqual(created_service.tax_rate, Decimal("7.25"))
+        self.assertEqual(created_service.default_duration_minutes, 75)
+        self.assertEqual(created_service.booking_buffer_minutes, 20)
+        self.assertEqual(created_service.public_description, "Updated public service description.")
 
         archive_response = self.client.post(
             reverse("business_service_archive", args=[created_service.id]),
@@ -1243,6 +1307,102 @@ class CRMBusinessScopingTests(TestCase):
         self.assertTrue(
             BusinessService.objects.filter(pk=created_service.pk).exists()
         )
+
+        foreign_update_response = self.client.get(
+            reverse("business_service_update", args=[foreign_service.id]),
+        )
+        self.assertEqual(foreign_update_response.status_code, 404)
+
+    def test_admin_can_set_service_as_bookable_online(self):
+        admin_user = TaskIOUser.objects.create_user(
+            email="service-admin@example.com",
+            first_name="Service",
+            last_name="Admin",
+            password="testpass123",
+        )
+        BusinessUser.objects.create(
+            user=admin_user,
+            business=self.business,
+            role=BusinessUser.Role.ADMIN,
+        )
+        self.client.force_login(admin_user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.post(
+            reverse("business_service_create"),
+            {
+                "category": "",
+                "name": "Admin Bookable Service",
+                "external_code": "",
+                "description": "Configured by an admin.",
+                "unit_price": "85.00",
+                "tax_rate": "6.50",
+                "is_active": "on",
+                "is_bookable_online": "on",
+                "default_duration_minutes": "45",
+                "booking_buffer_minutes": "5",
+                "public_description": "Admin-created public description.",
+                "requires_manual_confirmation": "on",
+            },
+            follow=True,
+        )
+        service = BusinessService.objects.get(name="Admin Bookable Service")
+
+        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertEqual(service.business, self.business)
+        self.assertTrue(service.is_bookable_online)
+        self.assertEqual(service.default_duration_minutes, 45)
+        self.assertEqual(service.booking_buffer_minutes, 5)
+        self.assertEqual(service.public_description, "Admin-created public description.")
+        self.assertTrue(service.requires_manual_confirmation)
+
+    def test_service_management_roles_cannot_edit_bookable_service_settings(self):
+        service = BusinessService.objects.create(
+            business=self.business,
+            name="Restricted Booking Settings",
+            unit_price=Decimal("25.00"),
+            tax_rate=Decimal("6.50"),
+        )
+        restricted_roles = [
+            (self.staff_user, BusinessUser.Role.STAFF),
+            (self.accountant_user, BusinessUser.Role.ACCOUNTANT),
+            (self.viewer_user, BusinessUser.Role.VIEWER),
+        ]
+
+        for user, role in restricted_roles:
+            with self.subTest(role=role):
+                self.client.logout()
+                self.client.force_login(user)
+                session = self.client.session
+                session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+                session.save()
+
+                response = self.client.post(
+                    reverse("business_service_update", args=[service.id]),
+                    {
+                        "name": "Tampered Service",
+                        "unit_price": "99.00",
+                        "tax_rate": "6.50",
+                        "is_active": "on",
+                        "is_bookable_online": "on",
+                        "default_duration_minutes": "60",
+                        "booking_buffer_minutes": "0",
+                        "public_description": "Should not save.",
+                        "requires_manual_confirmation": "on",
+                    },
+                    follow=True,
+                )
+                service.refresh_from_db()
+
+                self.assertRedirects(response, reverse("agent_dashboard"))
+                self.assertContains(
+                    response,
+                    "You do not have permission to manage services or categories.",
+                )
+                self.assertEqual(service.name, "Restricted Booking Settings")
+                self.assertFalse(service.is_bookable_online)
 
     def test_business_service_csv_import_uses_current_business_scope_and_defaults(self):
         existing_category = ServiceCategory.objects.create(
@@ -1260,13 +1420,18 @@ class CRMBusinessScopingTests(TestCase):
             external_code="PIPE-001",
             unit_price=Decimal("60.00"),
             tax_rate=Decimal("3.00"),
+            is_bookable_online=True,
+            default_duration_minutes=45,
+            booking_buffer_minutes=5,
+            public_description="Existing public description",
+            requires_manual_confirmation=True,
         )
 
         csv_content = "\n".join(
             [
-                "name,unit_price,description,tax_rate,category,is_active,external_code",
-                "Pipe Inspection,95.00,Updated inspection package,,Maintenance,true,PIPE-001",
-                "Drain Cleaning,120.00,Deep clean service,,Diagnostics,false,",
+                "name,unit_price,description,tax_rate,category,is_active,external_code,is_bookable_online,default_duration_minutes,booking_buffer_minutes,public_description,requires_manual_confirmation",
+                "Pipe Inspection,95.00,Updated inspection package,,Maintenance,true,PIPE-001,false,30,0,Updated public inspection copy,true",
+                "Drain Cleaning,120.00,Deep clean service,,Diagnostics,false,,true,90,10,Public drain cleaning copy,true",
             ]
         )
 
@@ -1299,12 +1464,66 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(existing_service.unit_price, Decimal("95.00"))
         self.assertEqual(existing_service.tax_rate, self.business.tax_rate)
         self.assertEqual(existing_service.category, existing_category)
+        self.assertFalse(existing_service.is_bookable_online)
+        self.assertEqual(existing_service.default_duration_minutes, 30)
+        self.assertEqual(existing_service.booking_buffer_minutes, 0)
+        self.assertEqual(existing_service.public_description, "Updated public inspection copy")
+        self.assertTrue(existing_service.requires_manual_confirmation)
 
         self.assertEqual(imported_service.business, self.business)
         self.assertEqual(imported_service.category, created_category)
         self.assertNotEqual(imported_service.category, foreign_category)
         self.assertEqual(imported_service.tax_rate, self.business.tax_rate)
         self.assertFalse(imported_service.is_active)
+        self.assertTrue(imported_service.is_bookable_online)
+        self.assertEqual(imported_service.default_duration_minutes, 90)
+        self.assertEqual(imported_service.booking_buffer_minutes, 10)
+        self.assertEqual(imported_service.public_description, "Public drain cleaning copy")
+        self.assertTrue(imported_service.requires_manual_confirmation)
+
+    def test_business_service_csv_import_without_booking_columns_preserves_existing_booking_fields(self):
+        existing_service = BusinessService.objects.create(
+            business=self.business,
+            name="Booked Inspection",
+            external_code="BOOKED-001",
+            unit_price=Decimal("60.00"),
+            tax_rate=Decimal("3.00"),
+            is_bookable_online=True,
+            default_duration_minutes=45,
+            booking_buffer_minutes=5,
+            public_description="Existing public copy",
+            requires_manual_confirmation=True,
+        )
+        csv_content = "\n".join(
+            [
+                "name,unit_price,description,tax_rate,category,is_active,external_code",
+                "Booked Inspection,95.00,Updated internal copy,,Maintenance,true,BOOKED-001",
+            ]
+        )
+        upload = SimpleUploadedFile(
+            "services.csv",
+            csv_content.encode("utf-8"),
+            content_type="text/csv",
+        )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.post(
+            reverse("business_service_import"),
+            {"csv_file": upload},
+            follow=True,
+        )
+        existing_service.refresh_from_db()
+
+        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertTrue(existing_service.is_bookable_online)
+        self.assertEqual(existing_service.default_duration_minutes, 45)
+        self.assertEqual(existing_service.booking_buffer_minutes, 5)
+        self.assertEqual(existing_service.public_description, "Existing public copy")
+        self.assertTrue(existing_service.requires_manual_confirmation)
 
     def test_business_service_sample_csv_downloads_template(self):
         self.client.force_login(self.user)
@@ -1317,7 +1536,10 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/csv")
         self.assertIn("attachment; filename=", response["Content-Disposition"])
-        self.assertIn("name,unit_price,description,tax_rate,category,is_active,external_code", response.content.decode("utf-8"))
+        self.assertIn(
+            "name,unit_price,description,tax_rate,category,is_active,external_code,is_bookable_online,default_duration_minutes,booking_buffer_minutes,public_description,requires_manual_confirmation",
+            response.content.decode("utf-8"),
+        )
 
     def test_dashboard_shows_invoicing_links_when_plan_allows_module(self):
         plan = ClarivoPlan.objects.create(

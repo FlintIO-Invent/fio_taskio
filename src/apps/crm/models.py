@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from decimal import Decimal
 
 from django.conf import settings
@@ -46,7 +47,7 @@ class ServiceCategory(TimeStampedModel):
         business,
         *,
         include_inactive: bool = False,
-    ) -> models.QuerySet["ServiceCategory"]:
+    ) -> models.QuerySet[ServiceCategory]:
         if business is None:
             return cls.objects.none()
 
@@ -128,12 +129,26 @@ class BusinessService(TimeStampedModel):
         ],
     )
     is_active = models.BooleanField(default=True)
+    is_bookable_online = models.BooleanField(default=False)
+    default_duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1)],
+    )
+    booking_buffer_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+    public_description = models.TextField(blank=True)
+    requires_manual_confirmation = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["name", "pk"]
         indexes = [
             models.Index(fields=["business", "is_active", "name"]),
             models.Index(fields=["business", "category", "is_active"]),
+            models.Index(fields=["business", "is_bookable_online", "is_active"]),
         ]
 
     @classmethod
@@ -142,7 +157,7 @@ class BusinessService(TimeStampedModel):
         business,
         *,
         include_inactive: bool = False,
-    ) -> models.QuerySet["BusinessService"]:
+    ) -> models.QuerySet[BusinessService]:
         if business is None:
             return cls.objects.none()
 
@@ -154,15 +169,24 @@ class BusinessService(TimeStampedModel):
     def clean(self):
         super().clean()
 
-        if self.category_id is None:
-            return
+        errors: dict[str, str] = {}
 
-        if self.category.business_id != self.business_id:
-            raise ValidationError(
-                {
-                    "category": "Selected service category must belong to the current workspace.",
-                }
-            )
+        if self.category_id is None:
+            category_is_valid = True
+        else:
+            category_is_valid = self.category.business_id == self.business_id
+
+        if not category_is_valid:
+            errors["category"] = "Selected service category must belong to the current workspace."
+
+        if self.default_duration_minutes is not None and self.default_duration_minutes <= 0:
+            errors["default_duration_minutes"] = "Default booking duration must be greater than zero."
+
+        if self.booking_buffer_minutes is not None and self.booking_buffer_minutes < 0:
+            errors["booking_buffer_minutes"] = "Booking buffer cannot be negative."
+
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         self.full_clean()
