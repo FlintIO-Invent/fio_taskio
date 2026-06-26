@@ -154,12 +154,18 @@ def _build_location_from_request(lead: Lead, client) -> str:
 def _build_notes_from_request(lead: Lead) -> str:
     notes: list[str] = [f"Scheduled from service request #{lead.pk}."]
 
+    if lead.request_source:
+        notes.append(f"Request source: {lead.get_request_source_display()}")
     if lead.requested_service_id and lead.requested_service is not None:
         notes.append(f"Requested service: {lead.requested_service.name}")
     elif lead.category_id and lead.category is not None:
         notes.append(f"Requested service: {lead.category.name}")
     if lead.preferred_start_time:
         notes.append(f"Preferred start: {lead.preferred_start_time:%Y-%m-%d %H:%M}")
+    if lead.preferred_end_time:
+        notes.append(f"Preferred end: {lead.preferred_end_time:%Y-%m-%d %H:%M}")
+    if lead.requested_duration_minutes is not None:
+        notes.append(f"Requested duration: {lead.requested_duration_minutes} minutes")
     if lead.message.strip():
         notes.append(f"Request details: {lead.message.strip()}")
     if lead.notes.strip():
@@ -212,15 +218,20 @@ def _get_source_client_for_create(request: HttpRequest, current_business) -> Cli
     return _client_queryset_for_business(current_business).filter(pk=client_pk).first()
 
 
-def _build_initial_appointment_data_from_request(lead: Lead, client) -> dict[str, str | int]:
+def _build_initial_appointment_data_from_request(lead: Lead, client) -> dict[str, Any]:
     inferred_service = _infer_service_from_request(lead.business, lead)
-    return {
+    initial_data = {
         "client": client.pk,
         "service": inferred_service.pk if inferred_service is not None else "",
         "title": _build_appointment_title_from_request(lead, client),
         "location": _build_location_from_request(lead, client),
         "notes": _build_notes_from_request(lead),
     }
+    if lead.preferred_start_time:
+        initial_data["start_time"] = lead.preferred_start_time
+    if lead.preferred_end_time:
+        initial_data["end_time"] = lead.preferred_end_time
+    return initial_data
 
 
 def _prepare_client_for_request_scheduling(lead: Lead):

@@ -32,7 +32,7 @@
   <h2 class="text-bold text-body-emphasis mb-5">Service Request</h2>
 
   <div class="pb-6">
-    <div id="lealsTable" data-list='{"valueNames":["name","email","phone","status","date"],"page":10,"pagination":true}'>
+    <div id="lealsTable" data-list='{"valueNames":["name","email","phone","leadtype","booking","status","date"],"page":10,"pagination":true}'>
       <div class="row g-3 justify-content-between mb-4">
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
@@ -137,7 +137,16 @@
                 </div>
               </th>
 
-              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="status" style="width:20%;">
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="booking" style="width:20%; min-width: 220px;">
+                <div class="d-inline-flex flex-center">
+                  <div class="d-flex align-items-center px-1 py-1 bg-primary-subtle rounded me-2">
+                    <span class="text-primary-dark" data-feather="calendar"></span>
+                  </div>
+                  <span>Booking Context</span>
+                </div>
+              </th>
+
+              <th class="sort align-middle ps-4 pe-5 text-uppercase border-end border-translucent" scope="col" data-sort="status" style="width:14%;">
                 <div class="d-inline-flex flex-center">
                   <div class="d-flex align-items-center px-1 py-1 bg-info-subtle rounded me-2">
                     <span class="text-warning-dark" data-feather="tag"></span>
@@ -179,6 +188,9 @@
                       <span class="badge badge-phoenix badge-phoenix-info leadtype">
                         {{ lead.get_lead_type_display }}
                       </span>
+                      {% if lead.is_public_booking_request %}
+                        <span class="badge badge-phoenix badge-phoenix-primary">Booking Request</span>
+                      {% endif %}
 
                       {% if lead.status == "NEW" %}
                         <span class="badge badge-phoenix badge-phoenix-primary status">{{ lead.get_status_display }}</span>
@@ -212,6 +224,30 @@
                 {{ lead.get_lead_type_display }}
               </td>
 
+              <td class="booking align-middle ps-4 border-end border-translucent">
+                {% if lead.requested_service or lead.preferred_start_time or lead.is_public_booking_request %}
+                  <div class="fw-semibold text-body-highlight">
+                    {% if lead.requested_service %}
+                      {{ lead.requested_service.name }}
+                    {% elif lead.category %}
+                      {{ lead.category.name }}
+                    {% else %}
+                      Booking request
+                    {% endif %}
+                  </div>
+                  <div class="small text-body-tertiary">
+                    {% if lead.preferred_start_time %}
+                      Preferred {{ lead.preferred_start_time|date:"M d, Y H:i" }}
+                      {% if lead.preferred_end_time %}-{{ lead.preferred_end_time|date:"H:i" }}{% endif %}
+                    {% else %}
+                      {{ lead.get_request_source_display|default:"No preferred time" }}
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span class="text-body-tertiary">—</span>
+                {% endif %}
+              </td>
+
               <td class="status align-middle white-space-nowrap ps-4 fw-semibold text-body-highlight">
                 {{ lead.get_status_display }}
               </td>
@@ -236,7 +272,7 @@
             </tr>
             {% empty %}
             <tr>
-              <td colspan="8" class="text-center py-6 text-body-tertiary">
+              <td colspan="9" class="text-center py-6 text-body-tertiary">
                 No leads found for the selected filters.
               </td>
             </tr>

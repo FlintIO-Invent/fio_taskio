@@ -276,6 +276,22 @@ class Lead(TimeStampedModel):
         name = f"{self.first_name} {self.last_name}".strip()
         return name or self.email
 
+    @property
+    def is_public_booking_request(self) -> bool:
+        return self.request_source == self.RequestSource.PUBLIC_BOOKING
+
+    @property
+    def requested_duration_minutes(self) -> int | None:
+        if not self.preferred_start_time or not self.preferred_end_time:
+            return None
+
+        duration_seconds = (
+            self.preferred_end_time - self.preferred_start_time
+        ).total_seconds()
+        if duration_seconds <= 0:
+            return None
+        return int(duration_seconds // 60)
+
 
 class Client(TimeStampedModel):
 
