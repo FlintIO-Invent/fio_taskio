@@ -1,11 +1,14 @@
+from datetime import datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.text import slugify
 
-from apps.businesses.models import BusinessUser
+from apps.businesses.models import BusinessUser, WeeklyAvailability
 
 from .models import BusinessService, Client, Lead, ServiceCategory
 from .services import CLIENT_REQUIRED_FIELDS_FOR_REQUEST_CONVERSION
@@ -32,6 +35,29 @@ def _service_category_queryset(*, business=None, instance=None, include_inactive
         .distinct()
         .order_by("name", "pk")
     )
+
+
+def _bookable_service_queryset(*, business=None):
+    if business is None:
+        return BusinessService.objects.none()
+
+    return (
+        BusinessService.objects.filter(
+            business=business,
+            is_active=True,
+            is_bookable_online=True,
+        )
+        .select_related("business", "category")
+        .order_by("name", "pk")
+    )
+
+
+def _timezone_for_business(business):
+    timezone_name = getattr(business, "timezone", "") or "UTC"
+    try:
+        return ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("UTC")
 
 
 class PrivateClientForm(forms.ModelForm):
@@ -426,6 +452,173 @@ class PublicLeadForm(forms.ModelForm):
             "postal_code": "Postal Code",
             "consent_to_contact": "I consent to be contacted via email and phone for service requests and updates.",
         }
+
+
+class PublicBookingForm(forms.Form):
+    service = forms.ModelChoiceField(
+        queryset=BusinessService.objects.none(),
+        empty_label="Select a service",
+        label="Service",
+        widget=forms.Select(attrs={"class": "form-select mb-3"}),
+    )
+    preferred_date = forms.DateField(
+        input_formats=["%Y-%m-%d"],
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+    preferred_time = forms.TimeField(
+        input_formats=["%H:%M"],
+        widget=forms.TimeInput(attrs={"class": "form-control", "type": "time"}, format="%H:%M"),
+    )
+    first_name = forms.CharField(
+        max_length=80,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "First name"}),
+    )
+    last_name = forms.CharField(
+        max_length=80,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Last name"}),
+    )
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "name@example.com"}),
+    )
+    phone = forms.CharField(
+        max_length=40,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "+1 (721) 456-7890"}),
+    )
+    company_name = forms.CharField(
+        max_length=120,
+        label="Company or household",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Company or household"}),
+    )
+    street_address = forms.CharField(
+        max_length=255,
+        label="Service location",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Street address"}),
+    )
+    district = forms.ChoiceField(
+        choices=[("", "---------"), *Lead.DistrictChoices.choices],
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    country = forms.CharField(
+        max_length=100,
+        required=False,
+        initial="Sint Maarten",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Country"}),
+    )
+    postal_code = forms.CharField(
+        max_length=20,
+        required=False,
+        initial="N/A",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Postal code"}),
+    )
+    message = forms.CharField(
+        required=False,
+        label="Message / notes",
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 4,
+                "placeholder": "Anything the team should know before confirming?",
+            }
+        ),
+    )
+    consent_to_contact = forms.BooleanField(
+        label="I consent to be contacted about this booking request.",
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
+    def __init__(self, *args, business=None, booking_settings=None, selected_service_id=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.business = business
+        self.booking_settings = booking_settings
+        self.fields["service"].queryset = _bookable_service_queryset(business=business)
+
+        if selected_service_id:
+            try:
+                selected_service_pk = int(selected_service_id)
+            except (TypeError, ValueError):
+                selected_service_pk = None
+            if selected_service_pk and self.fields["service"].queryset.filter(
+                pk=selected_service_pk,
+            ).exists():
+                self.fields["service"].initial = selected_service_pk
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        business = self.business
+        booking_settings = self.booking_settings
+        service = cleaned_data.get("service")
+        preferred_date = cleaned_data.get("preferred_date")
+        preferred_time = cleaned_data.get("preferred_time")
+
+        if business is None or booking_settings is None:
+            raise forms.ValidationError("Booking requests are unavailable right now.")
+
+        if service is not None and service.business_id != business.id:
+            self.add_error("service", "Select a valid service.")
+
+        if not (service and preferred_date and preferred_time):
+            return cleaned_data
+
+        business_tz = _timezone_for_business(business)
+        preferred_start_time = datetime.combine(
+            preferred_date,
+            preferred_time,
+            tzinfo=business_tz,
+        )
+        duration_minutes = (
+            service.default_duration_minutes
+            or booking_settings.default_duration_minutes
+        )
+        preferred_end_time = preferred_start_time + timedelta(minutes=duration_minutes)
+
+        if preferred_end_time <= preferred_start_time:
+            self.add_error("preferred_time", "Preferred end time must be after the start time.")
+            return cleaned_data
+
+        local_now = timezone.now().astimezone(business_tz)
+        earliest_start_time = local_now + timedelta(
+            hours=booking_settings.minimum_notice_hours,
+        )
+        if preferred_start_time < earliest_start_time:
+            self.add_error(
+                "preferred_time",
+                "Choose a time with enough advance notice.",
+            )
+
+        latest_date = local_now.date() + timedelta(
+            days=booking_settings.maximum_days_ahead,
+        )
+        if preferred_start_time.date() > latest_date:
+            self.add_error(
+                "preferred_date",
+                "Choose a date within the booking window.",
+            )
+
+        if preferred_end_time.date() != preferred_start_time.date():
+            self.add_error(
+                "preferred_time",
+                "Choose a time that ends within the same business day.",
+            )
+        else:
+            availability_exists = WeeklyAvailability.objects.filter(
+                business=business,
+                day_of_week=preferred_start_time.weekday(),
+                is_active=True,
+                start_time__lte=preferred_start_time.time(),
+                end_time__gte=preferred_end_time.time(),
+            ).exists()
+            if not availability_exists:
+                self.add_error(
+                    "preferred_time",
+                    "Choose a time within the business's available hours.",
+                )
+
+        cleaned_data["preferred_start_time"] = preferred_start_time
+        cleaned_data["preferred_end_time"] = preferred_end_time
+        cleaned_data["duration_minutes"] = duration_minutes
+        return cleaned_data
 
 
 class LeadClientConversionForm(forms.ModelForm):

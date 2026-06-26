@@ -1,5 +1,6 @@
-from datetime import timedelta
+from datetime import time, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -10,7 +11,14 @@ from django.utils import timezone
 from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice
-from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
+from apps.businesses.models import (
+    Business,
+    BusinessBookingSettings,
+    BusinessSubscription,
+    BusinessUser,
+    ClarivoPlan,
+    WeeklyAvailability,
+)
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 
 from .forms import PrivateClientForm, PrivateLeadForm
@@ -1648,3 +1656,422 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertContains(response, "You do not have permission to manage services or categories.")
+
+
+class PublicBookingTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(
+            name="Motionmate Booking",
+            slug="motionmate-booking",
+            timezone="Europe/Berlin",
+            tax_rate=Decimal("6.50"),
+        )
+        self.other_business = Business.objects.create(
+            name="Other Booking",
+            slug="other-booking",
+            timezone="Europe/Berlin",
+        )
+        self.public_booking_plan = ClarivoPlan.objects.create(
+            name="Public Booking Enabled",
+            slug="public-booking-enabled-tests",
+            allow_public_booking=True,
+            allow_appointments=True,
+        )
+        self.locked_plan = ClarivoPlan.objects.create(
+            name="Public Booking Locked",
+            slug="public-booking-locked-tests",
+            allow_public_booking=False,
+            allow_appointments=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.public_booking_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessSubscription.objects.create(
+            business=self.other_business,
+            plan=self.public_booking_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        self.booking_settings = BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+            default_duration_minutes=60,
+            minimum_notice_hours=1,
+            maximum_days_ahead=30,
+        )
+        BusinessBookingSettings.objects.create(
+            business=self.other_business,
+            booking_enabled=True,
+        )
+
+        self.category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Consultation",
+        )
+        self.other_category = ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Foreign Service",
+        )
+        self.service = BusinessService.objects.create(
+            business=self.business,
+            category=self.category,
+            name="Online Consultation",
+            description="Bookable service",
+            unit_price=Decimal("100.00"),
+            tax_rate=Decimal("6.50"),
+            is_bookable_online=True,
+            default_duration_minutes=45,
+        )
+        self.inactive_service = BusinessService.objects.create(
+            business=self.business,
+            category=self.category,
+            name="Inactive Consultation",
+            description="Inactive service",
+            unit_price=Decimal("75.00"),
+            tax_rate=Decimal("6.50"),
+            is_active=False,
+            is_bookable_online=True,
+        )
+        self.non_bookable_service = BusinessService.objects.create(
+            business=self.business,
+            category=self.category,
+            name="Internal Consultation",
+            description="Internal only",
+            unit_price=Decimal("80.00"),
+            tax_rate=Decimal("6.50"),
+            is_bookable_online=False,
+        )
+        self.other_service = BusinessService.objects.create(
+            business=self.other_business,
+            category=self.other_category,
+            name="Foreign Consultation",
+            description="Foreign service",
+            unit_price=Decimal("90.00"),
+            tax_rate=Decimal("7.00"),
+            is_bookable_online=True,
+        )
+
+        self.valid_start = self._future_local_datetime(days=3, hour=10)
+        self._create_availability_for(self.valid_start)
+
+        self.owner_user = TaskIOUser.objects.create_user(
+            email="booking-owner@example.com",
+            password="testpass123",
+            first_name="Owner",
+            last_name="User",
+        )
+        self.staff_user = TaskIOUser.objects.create_user(
+            email="booking-staff@example.com",
+            password="testpass123",
+            first_name="Staff",
+            last_name="User",
+        )
+        self.accountant_user = TaskIOUser.objects.create_user(
+            email="booking-accountant@example.com",
+            password="testpass123",
+            first_name="Accountant",
+            last_name="User",
+        )
+        self.viewer_user = TaskIOUser.objects.create_user(
+            email="booking-viewer@example.com",
+            password="testpass123",
+            first_name="Viewer",
+            last_name="User",
+        )
+        BusinessUser.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        BusinessUser.objects.create(
+            user=self.staff_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+        BusinessUser.objects.create(
+            user=self.accountant_user,
+            business=self.business,
+            role=BusinessUser.Role.ACCOUNTANT,
+        )
+        BusinessUser.objects.create(
+            user=self.viewer_user,
+            business=self.business,
+            role=BusinessUser.Role.VIEWER,
+        )
+
+    @property
+    def business_timezone(self):
+        return ZoneInfo(self.business.timezone)
+
+    def _future_local_datetime(self, *, days: int, hour: int):
+        local_now = timezone.now().astimezone(self.business_timezone)
+        return (local_now + timedelta(days=days)).replace(
+            hour=hour,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
+    def _create_availability_for(
+        self,
+        local_start,
+        *,
+        start_time=time(9, 0),
+        end_time=time(17, 0),
+        is_active=True,
+    ):
+        return WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=local_start.weekday(),
+            start_time=start_time,
+            end_time=end_time,
+            is_active=is_active,
+        )
+
+    def _booking_payload(self, **overrides):
+        start_time = overrides.pop("start_time", self.valid_start)
+        service = overrides.pop("service", self.service)
+        payload = {
+            "service": service.pk,
+            "preferred_date": start_time.date().isoformat(),
+            "preferred_time": start_time.strftime("%H:%M"),
+            "first_name": "Jamie",
+            "last_name": "Booker",
+            "company_name": "Booking Household",
+            "email": "booking@example.com",
+            "phone": "+1 721 555 8080",
+            "street_address": "45 Front Street",
+            "district": Lead.DistrictChoices.PHILIPSBURG,
+            "country": "Sint Maarten",
+            "postal_code": "00000",
+            "message": "Please confirm if this time works.",
+            "consent_to_contact": "on",
+        }
+        payload.update(overrides)
+        return payload
+
+    def _create_valid_booking(self, **overrides):
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(**overrides),
+        )
+        self.assertRedirects(
+            response,
+            reverse("public_booking_thank_you", args=[self.business.slug]),
+        )
+        return Lead.objects.get(email=overrides.get("email", "booking@example.com"))
+
+    def test_public_booking_page_loads_for_enabled_business(self):
+        response = self.client.get(reverse("public_booking", args=[self.business.slug]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Booking Request")
+        self.assertContains(response, self.service.name)
+
+    def test_public_booking_page_unavailable_when_plan_blocks_public_booking(self):
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = self.locked_plan
+        subscription.save(update_fields=["plan", "updated_at"])
+
+        response = self.client.get(reverse("public_booking", args=[self.business.slug]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Booking Requests Unavailable", status_code=403)
+        self.assertContains(
+            response,
+            "Online booking requests are not available for this business right now.",
+            status_code=403,
+        )
+        self.assertNotContains(response, "current workspace plan", status_code=403)
+
+    def test_public_booking_page_unavailable_when_settings_disabled(self):
+        self.booking_settings.booking_enabled = False
+        self.booking_settings.save(update_fields=["booking_enabled", "updated_at"])
+
+        response = self.client.get(reverse("public_booking", args=[self.business.slug]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Booking Requests Unavailable", status_code=403)
+
+    def test_public_booking_page_unavailable_without_bookable_services(self):
+        BusinessService.objects.filter(business=self.business).update(
+            is_bookable_online=False,
+        )
+
+        response = self.client.get(reverse("public_booking", args=[self.business.slug]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Booking Requests Unavailable", status_code=403)
+
+    def test_public_booking_page_unavailable_without_active_availability(self):
+        WeeklyAvailability.objects.filter(business=self.business).update(is_active=False)
+
+        response = self.client.get(reverse("public_booking", args=[self.business.slug]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Booking Requests Unavailable", status_code=403)
+
+    def test_public_booking_only_shows_active_bookable_current_business_services(self):
+        response = self.client.get(reverse("public_booking", args=[self.business.slug]))
+
+        self.assertContains(response, self.service.name)
+        self.assertNotContains(response, self.inactive_service.name)
+        self.assertNotContains(response, self.non_bookable_service.name)
+        self.assertNotContains(response, self.other_service.name)
+
+    def test_public_booking_rejects_cross_business_service_id(self):
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(service=self.other_service, email="foreign-service@example.com"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertFalse(Lead.objects.filter(email="foreign-service@example.com").exists())
+
+    def test_public_booking_rejects_inactive_and_non_bookable_services(self):
+        services = [
+            (self.inactive_service, "inactive-service@example.com"),
+            (self.non_bookable_service, "non-bookable-service@example.com"),
+        ]
+
+        for service, email in services:
+            with self.subTest(service=service.name):
+                response = self.client.post(
+                    reverse("public_booking", args=[self.business.slug]),
+                    data=self._booking_payload(service=service, email=email),
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Select a valid choice")
+                self.assertFalse(Lead.objects.filter(email=email).exists())
+
+    def test_public_booking_preferred_time_respects_business_timezone(self):
+        lead = self._create_valid_booking(email="timezone-booking@example.com")
+
+        self.assertTrue(timezone.is_aware(lead.preferred_start_time))
+        local_start = lead.preferred_start_time.astimezone(self.business_timezone)
+        local_end = lead.preferred_end_time.astimezone(self.business_timezone)
+        self.assertEqual(local_start.date(), self.valid_start.date())
+        self.assertEqual(local_start.time(), time(10, 0))
+        self.assertEqual(local_end.time(), time(10, 45))
+
+    def test_public_booking_minimum_notice_validation(self):
+        self.booking_settings.minimum_notice_hours = 48
+        self.booking_settings.save(update_fields=["minimum_notice_hours", "updated_at"])
+        near_start = self._future_local_datetime(days=1, hour=10)
+        self._create_availability_for(near_start)
+
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(start_time=near_start, email="too-soon@example.com"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Choose a time with enough advance notice.")
+        self.assertFalse(Lead.objects.filter(email="too-soon@example.com").exists())
+
+    def test_public_booking_maximum_days_ahead_validation(self):
+        far_start = self._future_local_datetime(days=31, hour=10)
+        self._create_availability_for(far_start)
+
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(start_time=far_start, email="too-far@example.com"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Choose a date within the booking window.")
+        self.assertFalse(Lead.objects.filter(email="too-far@example.com").exists())
+
+    def test_public_booking_weekly_availability_validation(self):
+        outside_start = self.valid_start.replace(hour=18)
+
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(
+                start_time=outside_start,
+                email="outside-availability@example.com",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Choose a time within the business&#x27;s available hours.")
+        self.assertFalse(Lead.objects.filter(email="outside-availability@example.com").exists())
+
+    def test_valid_public_booking_creates_request_lead_and_client_but_no_appointment(self):
+        lead = self._create_valid_booking()
+        client = Client.objects.get(business=self.business, email="booking@example.com")
+
+        self.assertEqual(lead.business, self.business)
+        self.assertEqual(lead.lead_type, Lead.LeadType.REQUEST)
+        self.assertEqual(lead.status, Lead.Status.NEW)
+        self.assertEqual(lead.request_source, Lead.RequestSource.PUBLIC_BOOKING)
+        self.assertEqual(lead.requested_service, self.service)
+        self.assertEqual(lead.category, self.category)
+        self.assertEqual(client.company_name, "Booking Household")
+        self.assertIn("Public booking #", client.communication_notes)
+        self.assertIn("Requested service: Online Consultation", client.communication_notes)
+        self.assertFalse(Appointment.objects.filter(source_lead=lead).exists())
+
+    def test_public_booking_does_not_overwrite_richer_existing_client_data(self):
+        existing_client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Stored",
+            email="rich-booking@example.com",
+            phone="+1 721 555 1111",
+            company_name="Stored Company",
+            street_address="Stored Address",
+            district=Client.DistrictChoices.MAHO,
+            country="Curacao",
+            postal_code="1111",
+            communication_notes="Existing note.",
+            notes="VIP account note.",
+        )
+
+        self._create_valid_booking(
+            email="rich-booking@example.com",
+            phone="+1 721 555 9999",
+            company_name="Incoming Company",
+            street_address="Incoming Address",
+        )
+        existing_client.refresh_from_db()
+
+        self.assertEqual(existing_client.phone, "+1 721 555 1111")
+        self.assertEqual(existing_client.company_name, "Stored Company")
+        self.assertEqual(existing_client.street_address, "Stored Address")
+        self.assertEqual(existing_client.district, Client.DistrictChoices.MAHO)
+        self.assertEqual(existing_client.country, "Curacao")
+        self.assertEqual(existing_client.postal_code, "1111")
+        self.assertEqual(existing_client.notes, "VIP account note.")
+        self.assertIn("Existing note.", existing_client.communication_notes)
+        self.assertIn("Public booking #", existing_client.communication_notes)
+
+    def test_booking_created_lead_can_later_be_scheduled_internally(self):
+        lead = self._create_valid_booking(email="schedule-booking@example.com")
+
+        self.client.force_login(self.staff_user)
+        response = self.client.get(reverse("appointment_create_from_request", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertEqual(form.initial["service"], self.service.pk)
+        self.assertEqual(form.initial["client"], Client.objects.get(email="schedule-booking@example.com").pk)
+        self.assertContains(response, reverse("staff_lead_detail", args=[lead.id]))
+
+    def test_accountant_and_viewer_cannot_schedule_booking_created_lead(self):
+        lead = self._create_valid_booking(email="read-only-booking@example.com")
+
+        for user in [self.accountant_user, self.viewer_user]:
+            with self.subTest(user=user.email):
+                self.client.logout()
+                self.client.force_login(user)
+                response = self.client.get(
+                    reverse("appointment_create_from_request", args=[lead.id]),
+                    follow=True,
+                )
+
+                self.assertRedirects(response, reverse("appointment_list"))
+                self.assertContains(response, "You do not have permission to manage appointments.")

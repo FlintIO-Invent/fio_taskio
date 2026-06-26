@@ -4,8 +4,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
-from .models import Lead, Client, ActivityLog
-
+from .models import ActivityLog, Client, Lead
 
 CLIENT_REQUIRED_FIELDS_FOR_REQUEST_CONVERSION = (
     "first_name",
@@ -64,6 +63,8 @@ def _default_client_status(_lead: Lead) -> str:
 
 
 def _request_context_marker(lead: Lead) -> str:
+    if lead.request_source == Lead.RequestSource.PUBLIC_BOOKING:
+        return f"Public booking #{lead.pk}"
     return f"Public request #{lead.pk}"
 
 
@@ -73,8 +74,19 @@ def _request_context_block(lead: Lead) -> str:
 
     lines = [f"{_request_context_marker(lead)} received on {received_at:%Y-%m-%d %H:%M}"]
 
-    if lead.category_id and lead.category is not None:
+    if lead.requested_service_id and lead.requested_service is not None:
+        lines.append(f"Requested service: {lead.requested_service.name}")
+    elif lead.category_id and lead.category is not None:
         lines.append(f"Category: {lead.category.name}")
+    if lead.preferred_start_time:
+        preferred_start_time = timezone.localtime(lead.preferred_start_time)
+        preferred_time_label = f"Preferred start: {preferred_start_time:%Y-%m-%d %H:%M}"
+        if lead.preferred_end_time:
+            preferred_end_time = timezone.localtime(lead.preferred_end_time)
+            preferred_time_label = (
+                f"{preferred_time_label}-{preferred_end_time:%H:%M}"
+            )
+        lines.append(preferred_time_label)
     if _normalized_text(lead.message):
         lines.append(f"Message: {lead.message.strip()}")
 

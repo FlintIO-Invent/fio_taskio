@@ -135,6 +135,27 @@
             <label class="form-label">Service Category</label>
             <p class="mb-0">{{ lead.category.name|default:"Not specified" }}</p>
           </div>
+          {% if lead.requested_service %}
+          <div class="mb-3">
+            <label class="form-label">Requested Service</label>
+            <p class="mb-0">{{ lead.requested_service.name }}</p>
+          </div>
+          {% endif %}
+          {% if lead.preferred_start_time %}
+          <div class="mb-3">
+            <label class="form-label">Preferred Time</label>
+            <p class="mb-0">
+              {{ lead.preferred_start_time|date:"M d, Y H:i" }}
+              {% if lead.preferred_end_time %} - {{ lead.preferred_end_time|date:"H:i" }}{% endif %}
+            </p>
+          </div>
+          {% endif %}
+          {% if lead.request_source %}
+          <div class="mb-3">
+            <label class="form-label">Source</label>
+            <p class="mb-0">{{ lead.get_request_source_display }}</p>
+          </div>
+          {% endif %}
           <div class="mb-3">
             <label class="form-label">Created</label>
             <p class="mb-0">{{ lead.created_at|date:"M d, Y H:i" }}</p>

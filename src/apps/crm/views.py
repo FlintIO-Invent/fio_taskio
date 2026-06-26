@@ -19,7 +19,7 @@ from loguru import logger
 
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice
-from apps.businesses.models import Business
+from apps.businesses.models import Business, BusinessBookingSettings, WeeklyAvailability
 from apps.businesses.utils import (
     ALL_WORKSPACE_ROLES,
     BILLING_MANAGE_ROLES,
@@ -42,6 +42,7 @@ from .forms import (
     LeadClientConversionForm,
     PrivateClientForm,
     PrivateLeadForm,
+    PublicBookingForm,
     PublicLeadForm,
     ServiceCategoryForm,
 )
@@ -58,7 +59,7 @@ def _client_queryset_for_business(business: Business) -> QuerySet[Client]:
 
 
 def _lead_queryset_for_business(business: Business) -> QuerySet[Lead]:
-    return Lead.objects.filter(business=business).select_related("category")
+    return Lead.objects.filter(business=business).select_related("category", "requested_service")
 
 
 def _service_category_queryset_for_business(business: Business) -> QuerySet[ServiceCategory]:
@@ -83,6 +84,54 @@ def _appointment_queryset_for_business(business: Business) -> QuerySet[Appointme
         "source_lead",
         "staff_member",
     )
+
+
+def _public_booking_unavailable_response(
+    request: HttpRequest,
+    *,
+    business: Business,
+    status: int = 403,
+) -> HttpResponse:
+    return render(
+        request,
+        "crm/success_fail/public_booking_unavailable.html",
+        {
+            "public_business": business,
+            "availability_message": (
+                "Online booking requests are not available for this business right now."
+            ),
+        },
+        status=status,
+    )
+
+
+def _public_booking_settings_for_business(
+    business: Business,
+) -> BusinessBookingSettings | None:
+    try:
+        return business.booking_settings
+    except BusinessBookingSettings.DoesNotExist:
+        return None
+
+
+def _public_booking_is_available(
+    business: Business,
+    booking_settings: BusinessBookingSettings | None,
+) -> bool:
+    if not can_use_module(business, "public_booking"):
+        return False
+    if booking_settings is None or not booking_settings.booking_enabled:
+        return False
+    if not BusinessService.objects.filter(
+        business=business,
+        is_active=True,
+        is_bookable_online=True,
+    ).exists():
+        return False
+    return WeeklyAvailability.objects.filter(
+        business=business,
+        is_active=True,
+    ).exists()
 
 
 def _normalize_csv_fieldname(value: str | None) -> str:
@@ -414,6 +463,7 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
         if form.is_valid():
             lead = form.save(commit=False)
             lead.business = business
+            lead.request_source = Lead.RequestSource.PUBLIC_REQUEST
             lead.save()
 
             if lead.lead_type == Lead.LeadType.REQUEST:
@@ -429,6 +479,78 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
         request,
         "crm/forms/public_request.html",
         {"form": form, "public_business": business},
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
+    business = get_object_or_404(Business, slug=business_slug, is_active=True)
+    booking_settings = _public_booking_settings_for_business(business)
+
+    if not _public_booking_is_available(business, booking_settings):
+        return _public_booking_unavailable_response(
+            request,
+            business=business,
+        )
+
+    selected_service_id = request.GET.get("service")
+    if request.method == "POST":
+        form = PublicBookingForm(
+            request.POST,
+            business=business,
+            booking_settings=booking_settings,
+        )
+        if form.is_valid():
+            service = form.cleaned_data["service"]
+            with transaction.atomic():
+                lead = Lead.objects.create(
+                    business=business,
+                    lead_type=Lead.LeadType.REQUEST,
+                    status=Lead.Status.NEW,
+                    category=service.category,
+                    requested_service=service,
+                    preferred_start_time=form.cleaned_data["preferred_start_time"],
+                    preferred_end_time=form.cleaned_data["preferred_end_time"],
+                    request_source=Lead.RequestSource.PUBLIC_BOOKING,
+                    first_name=form.cleaned_data["first_name"],
+                    last_name=form.cleaned_data["last_name"],
+                    company_name=form.cleaned_data["company_name"],
+                    email=form.cleaned_data["email"],
+                    phone=form.cleaned_data["phone"],
+                    street_address=form.cleaned_data["street_address"],
+                    district=form.cleaned_data.get("district") or "",
+                    country=form.cleaned_data.get("country") or "Sint Maarten",
+                    postal_code=form.cleaned_data.get("postal_code") or "N/A",
+                    message=form.cleaned_data.get("message") or "",
+                    consent_to_contact=form.cleaned_data["consent_to_contact"],
+                )
+                sync_client_from_lead(lead)
+            return redirect("public_booking_thank_you", business_slug=business.slug)
+    else:
+        form = PublicBookingForm(
+            business=business,
+            booking_settings=booking_settings,
+            selected_service_id=selected_service_id,
+        )
+
+    return render(
+        request,
+        "crm/forms/public_booking.html",
+        {
+            "form": form,
+            "public_business": business,
+            "booking_settings": booking_settings,
+        },
+    )
+
+
+@require_http_methods(["GET"])
+def public_booking_thank_you(request: HttpRequest, business_slug: str) -> HttpResponse:
+    business = get_object_or_404(Business, slug=business_slug, is_active=True)
+    return render(
+        request,
+        "crm/success_fail/public_booking_thank_you.html",
+        {"public_business": business},
     )
 
 

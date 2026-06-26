@@ -207,6 +207,12 @@ class Lead(TimeStampedModel):
         INVOICED = "INVOICED", "Invoiced"
         CLOSED = "CLOSED", "Closed"
 
+    class RequestSource(models.TextChoices):
+        PUBLIC_REQUEST = "public_request", "Public request form"
+        PUBLIC_BOOKING = "public_booking", "Public booking form"
+        STAFF = "staff", "Staff-entered"
+        OTHER = "other", "Other"
+
     class DistrictChoices(models.TextChoices):
         MIDDLE_REGION = "MIDDLEREGION", "Middle Region"
         DUTCH_QUARTER = "DUTCH_QUARTER", "Dutch Quarter"
@@ -242,6 +248,10 @@ class Lead(TimeStampedModel):
     lead_type           = models.CharField(max_length=20, choices=LeadType.choices, db_index=True)
     status              = models.CharField(max_length=20,choices=Status.choices,default=Status.NEW, db_index=True)
     category            = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="leads",)
+    requested_service   = models.ForeignKey(BusinessService, on_delete=models.SET_NULL, null=True, blank=True, related_name="requested_leads")
+    preferred_start_time = models.DateTimeField(null=True, blank=True)
+    preferred_end_time  = models.DateTimeField(null=True, blank=True)
+    request_source      = models.CharField(max_length=40, choices=RequestSource.choices, blank=True, default="")
     first_name          = models.CharField(max_length=80)
     last_name           = models.CharField(max_length=80)
     email               = models.EmailField()

@@ -53,7 +53,7 @@ def _request_lead_queryset_for_business(current_business):
     return Lead.objects.filter(
         business=current_business,
         lead_type=Lead.LeadType.REQUEST,
-    ).select_related("business", "category")
+    ).select_related("business", "category", "requested_service")
 
 
 def _invoice_queryset_for_business(current_business):
@@ -72,6 +72,14 @@ def _client_queryset_for_business(current_business):
 
 
 def _infer_service_from_request(current_business, lead: Lead) -> BusinessService | None:
+    if (
+        lead.requested_service_id is not None
+        and lead.requested_service is not None
+        and lead.requested_service.business_id == current_business.id
+        and lead.requested_service.is_active
+    ):
+        return lead.requested_service
+
     if lead.category_id is None:
         return None
 
@@ -106,7 +114,12 @@ def _display_name_for_request_client(lead: Lead, client) -> str:
 
 
 def _build_appointment_title_from_request(lead: Lead, client) -> str:
-    service_label = lead.category.name if lead.category_id and lead.category else "Service request"
+    if lead.requested_service_id and lead.requested_service is not None:
+        service_label = lead.requested_service.name
+    elif lead.category_id and lead.category:
+        service_label = lead.category.name
+    else:
+        service_label = "Service request"
     client_label = _display_name_for_request_client(lead, client)
     return f"{service_label} - {client_label}"[:160]
 
@@ -141,8 +154,12 @@ def _build_location_from_request(lead: Lead, client) -> str:
 def _build_notes_from_request(lead: Lead) -> str:
     notes: list[str] = [f"Scheduled from service request #{lead.pk}."]
 
-    if lead.category_id and lead.category is not None:
+    if lead.requested_service_id and lead.requested_service is not None:
+        notes.append(f"Requested service: {lead.requested_service.name}")
+    elif lead.category_id and lead.category is not None:
         notes.append(f"Requested service: {lead.category.name}")
+    if lead.preferred_start_time:
+        notes.append(f"Preferred start: {lead.preferred_start_time:%Y-%m-%d %H:%M}")
     if lead.message.strip():
         notes.append(f"Request details: {lead.message.strip()}")
     if lead.notes.strip():
