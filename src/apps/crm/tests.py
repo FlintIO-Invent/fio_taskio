@@ -136,6 +136,19 @@ class CRMBusinessScopingTests(TestCase):
         subscription.plan = appointments_plan
         subscription.save(update_fields=["plan", "updated_at"])
 
+    def _enable_reporting_modules_for_business(self):
+        reporting_plan = ClarivoPlan.objects.create(
+            name="Reporting Workspace",
+            slug="reporting-workspace-tests",
+            allow_public_request_form=True,
+            allow_public_booking=True,
+            allow_appointments=True,
+            allow_invoicing=True,
+        )
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = reporting_plan
+        subscription.save(update_fields=["plan", "updated_at"])
+
     def _build_request_lead(self, **overrides):
         lead_data = {
             "business": self.business,
@@ -951,6 +964,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
 
     def test_agent_dashboard_scopes_metrics_to_current_business(self):
+        self._enable_reporting_modules_for_business()
         current_client = Client.objects.create(
             business=self.business,
             first_name="Casey",
@@ -969,11 +983,26 @@ class CRMBusinessScopingTests(TestCase):
             company_name="Bravo Co",
             street_address="12 Main Street",
         )
+        category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Septic Service",
+        )
+        requested_service = BusinessService.objects.create(
+            business=self.business,
+            category=category,
+            name="Tank Cleaning",
+            unit_price=Decimal("150.00"),
+            tax_rate=Decimal("6.50"),
+        )
 
         current_request = Lead.objects.create(
             business=self.business,
             lead_type=Lead.LeadType.REQUEST,
             status=Lead.Status.NEW,
+            requested_service=requested_service,
+            preferred_start_time=timezone.now() + timedelta(days=2),
+            preferred_end_time=timezone.now() + timedelta(days=2, hours=1),
+            request_source=Lead.RequestSource.PUBLIC_BOOKING,
             first_name="Jamie",
             last_name="Requester",
             email="jamie-request@example.com",
@@ -989,6 +1018,24 @@ class CRMBusinessScopingTests(TestCase):
             email="morgan-request@example.com",
             phone="+1 721 555 0103",
             company_name="Bravo Request",
+        )
+        start_time = timezone.now().replace(second=0, microsecond=0)
+        current_appointment = Appointment.objects.create(
+            business=self.business,
+            client=current_client,
+            service=requested_service,
+            title="Alpha scheduled visit",
+            start_time=start_time + timedelta(hours=2),
+            end_time=start_time + timedelta(hours=3),
+            status=Appointment.Status.SCHEDULED,
+        )
+        Appointment.objects.create(
+            business=self.other_business,
+            client=other_client,
+            title="Bravo scheduled visit",
+            start_time=start_time + timedelta(hours=4),
+            end_time=start_time + timedelta(hours=5),
+            status=Appointment.Status.SCHEDULED,
         )
 
         Invoice.objects.create(
@@ -1021,11 +1068,25 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.context["service_request_count"], 1)
         self.assertEqual(response.context["open_service_request_count"], 1)
         self.assertEqual(response.context["new_service_request_count"], 1)
+        self.assertEqual(response.context["public_booking_pending_review_count"], 1)
+        self.assertEqual(response.context["upcoming_appointment_count"], 1)
+        self.assertEqual(list(response.context["upcoming_appointments"]), [current_appointment])
         self.assertEqual(response.context["invoice_count"], 2)
         self.assertEqual(response.context["unpaid_invoice_count"], 1)
+        self.assertEqual(response.context["draft_invoice_count"], 0)
+        self.assertEqual(response.context["sent_invoice_count"], 1)
+        self.assertEqual(response.context["open_invoice_count"], 1)
         self.assertEqual(response.context["paid_invoice_count"], 1)
         self.assertEqual(response.context["paid_invoice_total"], Decimal("125"))
-        self.assertEqual(list(response.context["recent_service_requests"]), [current_request])
+        self.assertEqual(response.context["invoice_value_this_month"], Decimal("175"))
+        self.assertEqual(response.context["unpaid_invoice_total"], Decimal("50"))
+        self.assertEqual(list(response.context["service_request_followups"]), [current_request])
+        self.assertContains(response, "Alpha scheduled visit")
+        self.assertContains(response, "ALPHA-1001")
+        self.assertContains(response, "Public Booking Review")
+        self.assertNotContains(response, "Bravo scheduled visit")
+        self.assertNotContains(response, "BRAVO-1000")
+        self.assertNotContains(response, "Bravo Request")
 
     def test_dashboard_shows_appointment_card_when_plan_allows_appointments(self):
         self._enable_appointments_for_business()
@@ -1053,7 +1114,7 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("agent_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Today's Appointments")
+        self.assertContains(response, "Upcoming Activity")
         self.assertContains(response, "Dashboard upcoming visit")
         self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
         self.assertNotContains(response, reverse("appointment_create"))
@@ -1083,8 +1144,115 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("agent_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Today's Appointments")
+        self.assertContains(response, "Appointments Locked")
+        self.assertNotContains(response, "Upcoming Activity")
         self.assertNotContains(response, "Hidden dashboard visit")
+
+    def test_staff_dashboard_hides_invoice_totals_when_plan_allows_billing(self):
+        self._enable_reporting_modules_for_business()
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Casey",
+            last_name="Client",
+            email="staff-hidden-invoice@example.com",
+            phone="+1 721 555 6363",
+            company_name="Staff Hidden Billing Co",
+            street_address="11 Main Street",
+        )
+        Invoice.objects.create(
+            business=self.business,
+            client=client_record,
+            invoice_number="STAFF-HIDDEN-1000",
+            status=Invoice.Status.SENT,
+            total=Decimal("600.00"),
+        )
+
+        self.client.force_login(self.staff_user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["dashboard_invoices_enabled"])
+        self.assertEqual(response.context["invoice_count"], 0)
+        self.assertContains(response, "Invoices Restricted")
+        self.assertNotContains(response, "STAFF-HIDDEN-1000")
+        self.assertNotContains(response, "Unpaid Invoice Value")
+
+    def test_accountant_dashboard_shows_billing_and_read_only_activity(self):
+        self._enable_reporting_modules_for_business()
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Avery",
+            last_name="Client",
+            email="accountant-dashboard@example.com",
+            phone="+1 721 555 6464",
+            company_name="Accountant Visible Co",
+            street_address="11 Main Street",
+        )
+        Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.CONTACTED,
+            first_name="Avery",
+            last_name="Requester",
+            email="accountant-request@example.com",
+            phone="+1 721 555 6465",
+            company_name="Accountant Request Co",
+        )
+        start_time = timezone.now().replace(second=0, microsecond=0)
+        Appointment.objects.create(
+            business=self.business,
+            client=client_record,
+            title="Accountant visible appointment",
+            start_time=start_time + timedelta(hours=2),
+            end_time=start_time + timedelta(hours=3),
+            status=Appointment.Status.SCHEDULED,
+        )
+        Invoice.objects.create(
+            business=self.business,
+            client=client_record,
+            invoice_number="ACCOUNTANT-1000",
+            status=Invoice.Status.DRAFT,
+            total=Decimal("225.00"),
+        )
+
+        self.client.force_login(self.accountant_user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["dashboard_invoices_enabled"])
+        self.assertContains(response, "ACCOUNTANT-1000")
+        self.assertContains(response, "Accountant Request Co")
+        self.assertContains(response, "Accountant visible appointment")
+        self.assertNotContains(response, reverse("staff_lead_create"))
+        self.assertNotContains(response, reverse("appointment_create"))
+
+    def test_dashboard_handles_no_operational_data(self):
+        self._enable_reporting_modules_for_business()
+
+        self.client.force_login(self.viewer_user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["client_count"], 0)
+        self.assertEqual(response.context["open_service_request_count"], 0)
+        self.assertEqual(response.context["public_booking_pending_review_count"], 0)
+        self.assertEqual(response.context["upcoming_appointment_count"], 0)
+        self.assertEqual(response.context["open_invoice_count"], 0)
+        self.assertContains(response, "No open service requests need follow-up.")
+        self.assertContains(response, "No upcoming appointments are scheduled.")
+        self.assertContains(response, "No open invoices need follow-up.")
 
     def test_business_service_category_management_is_scoped_and_archives_instead_of_deleting(self):
         own_category = ServiceCategory.objects.create(
@@ -1568,7 +1736,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("invoice_list"))
         self.assertContains(response, "Open Invoices")
-        self.assertContains(response, "Included")
+        self.assertContains(response, "Invoice Follow-Up")
 
     def test_dashboard_hides_invoicing_links_when_plan_disables_module(self):
         plan = ClarivoPlan.objects.create(
@@ -1586,7 +1754,6 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, reverse("invoice_list"))
         self.assertContains(response, "Invoices Locked")
-        self.assertContains(response, "Billing Module")
         self.assertContains(response, "Locked")
 
     def test_viewer_cannot_open_client_create_page(self):
