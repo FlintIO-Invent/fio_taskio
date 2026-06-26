@@ -1,0 +1,9 @@
+Motionmate
+
+{{ inviter_name }} invited you to join {{ business.name }}.
+
+Role: {{ role_label }}
+Accept your invitation: {{ accept_url }}
+Expires: {{ invitation.expires_at|date:"F j, Y, g:i A T" }}
+
+This invitation is only for the email address {{ invitation.email }}.

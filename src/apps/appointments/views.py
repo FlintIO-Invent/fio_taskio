@@ -22,6 +22,7 @@ from apps.crm.services import (
     get_missing_client_required_field_labels_for_lead,
     sync_client_from_lead,
 )
+from apps.notifications.emails import send_appointment_confirmation_email
 
 from .forms import AppointmentForm
 from .models import Appointment
@@ -53,7 +54,7 @@ def _request_lead_queryset_for_business(current_business):
     return Lead.objects.filter(
         business=current_business,
         lead_type=Lead.LeadType.REQUEST,
-    ).select_related("business", "category")
+    ).select_related("business", "category", "requested_service")
 
 
 def _invoice_queryset_for_business(current_business):
@@ -71,7 +72,14 @@ def _client_queryset_for_business(current_business):
     ).order_by("first_name", "last_name", "pk")
 
 
+def _requested_service_is_valid_for_request(lead: Lead) -> bool:
+    return lead.has_valid_requested_service
+
+
 def _infer_service_from_request(current_business, lead: Lead) -> BusinessService | None:
+    if _requested_service_is_valid_for_request(lead):
+        return lead.requested_service
+
     if lead.category_id is None:
         return None
 
@@ -106,7 +114,12 @@ def _display_name_for_request_client(lead: Lead, client) -> str:
 
 
 def _build_appointment_title_from_request(lead: Lead, client) -> str:
-    service_label = lead.category.name if lead.category_id and lead.category else "Service request"
+    if _requested_service_is_valid_for_request(lead):
+        service_label = lead.requested_service.name
+    elif lead.category_id and lead.category:
+        service_label = lead.category.name
+    else:
+        service_label = "Service request"
     client_label = _display_name_for_request_client(lead, client)
     return f"{service_label} - {client_label}"[:160]
 
@@ -141,8 +154,18 @@ def _build_location_from_request(lead: Lead, client) -> str:
 def _build_notes_from_request(lead: Lead) -> str:
     notes: list[str] = [f"Scheduled from service request #{lead.pk}."]
 
-    if lead.category_id and lead.category is not None:
+    if lead.request_source:
+        notes.append(f"Request source: {lead.get_request_source_display()}")
+    if _requested_service_is_valid_for_request(lead):
+        notes.append(f"Requested service: {lead.requested_service.name}")
+    elif lead.category_id and lead.category is not None:
         notes.append(f"Requested service: {lead.category.name}")
+    if lead.preferred_start_time:
+        notes.append(f"Preferred start: {lead.preferred_start_time:%Y-%m-%d %H:%M}")
+    if lead.preferred_end_time:
+        notes.append(f"Preferred end: {lead.preferred_end_time:%Y-%m-%d %H:%M}")
+    if lead.requested_duration_minutes is not None:
+        notes.append(f"Requested duration: {lead.requested_duration_minutes} minutes")
     if lead.message.strip():
         notes.append(f"Request details: {lead.message.strip()}")
     if lead.notes.strip():
@@ -195,15 +218,20 @@ def _get_source_client_for_create(request: HttpRequest, current_business) -> Cli
     return _client_queryset_for_business(current_business).filter(pk=client_pk).first()
 
 
-def _build_initial_appointment_data_from_request(lead: Lead, client) -> dict[str, str | int]:
+def _build_initial_appointment_data_from_request(lead: Lead, client) -> dict[str, Any]:
     inferred_service = _infer_service_from_request(lead.business, lead)
-    return {
+    initial_data = {
         "client": client.pk,
         "service": inferred_service.pk if inferred_service is not None else "",
         "title": _build_appointment_title_from_request(lead, client),
         "location": _build_location_from_request(lead, client),
         "notes": _build_notes_from_request(lead),
     }
+    if lead.preferred_start_time:
+        initial_data["start_time"] = lead.preferred_start_time
+    if lead.preferred_end_time:
+        initial_data["end_time"] = lead.preferred_end_time
+    return initial_data
 
 
 def _prepare_client_for_request_scheduling(lead: Lead):
@@ -348,6 +376,8 @@ def appointment_create_from_request(request: HttpRequest, lead_id: int) -> HttpR
             appointment = form.save(commit=False)
             appointment.source_lead = lead
             appointment.save()
+            if lead.is_public_booking_request:
+                send_appointment_confirmation_email(appointment)
             messages.success(request, "Appointment created successfully from service request.")
             return redirect("appointment_detail", appointment_id=appointment.id)
         messages.error(request, "Please correct the errors below.")

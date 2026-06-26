@@ -1,8 +1,9 @@
 from datetime import timedelta
 from decimal import Decimal
 
+from django.core import mail
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -198,6 +199,42 @@ class BillingBusinessScopingTests(TestCase):
             client=self.other_client_record,
         )
 
+    def _add_invoice_line(
+        self,
+        invoice: Invoice | None = None,
+        *,
+        description: str = "Scheduled septic pumping service",
+        quantity: Decimal = Decimal("1.00"),
+        unit_price: Decimal = Decimal("125.00"),
+    ) -> InvoiceLine:
+        invoice = invoice or self.invoice
+        line = InvoiceLine.objects.create(
+            invoice=invoice,
+            description=description,
+            quantity=quantity,
+            unit_price=unit_price,
+        )
+        line.refresh_from_db()
+        invoice.subtotal = line.line_total
+        invoice.tax = Decimal("8.13")
+        invoice.total = Decimal("133.13")
+        invoice.save(update_fields=["subtotal", "tax", "total"])
+        return line
+
+    def _create_admin_user(self) -> TaskIOUser:
+        admin_user = TaskIOUser.objects.create_user(
+            email="admin-billing@example.com",
+            first_name="Admin",
+            last_name="Billing",
+            password="testpass123",
+        )
+        BusinessUser.objects.create(
+            user=admin_user,
+            business=self.business,
+            role=BusinessUser.Role.ADMIN,
+        )
+        return admin_user
+
     def test_invoice_list_only_shows_current_business_invoices(self):
         self.client.force_login(self.user)
 
@@ -213,6 +250,156 @@ class BillingBusinessScopingTests(TestCase):
         response = self.client.get(reverse("invoice_detail", args=[self.other_invoice.id]))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_owner_admin_accountant_and_viewer_can_download_invoice_pdf(self):
+        self._add_invoice_line()
+        admin_user = self._create_admin_user()
+
+        for user in [self.user, admin_user, self.accountant_user, self.viewer_user]:
+            with self.subTest(user=user.email):
+                self.client.force_login(user)
+                response = self.client.get(reverse("invoice_pdf_download", args=[self.invoice.id]))
+                self.client.logout()
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response["Content-Type"], "application/pdf")
+                self.assertIn('filename="invoice-INV-ALPHA-001.pdf"', response["Content-Disposition"])
+                self.assertTrue(response.content.startswith(b"%PDF"))
+                self.assertIn(b"INV-ALPHA-001", response.content)
+                self.assertIn(b"XCD 133.13", response.content)
+
+    def test_staff_cannot_download_invoice_pdf(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("invoice_pdf_download", args=[self.invoice.id]))
+
+        self.assertRedirects(
+            response,
+            reverse("agent_dashboard"),
+            fetch_redirect_response=False,
+        )
+
+    def test_invoice_pdf_download_blocks_other_business_invoice(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_pdf_download", args=[self.other_invoice.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_invoice_email_sends_pdf_attachment_and_tracks_delivery(self):
+        mail.outbox.clear()
+        self._add_invoice_line()
+        original_status = self.invoice.status
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_email_send", args=[self.invoice.id]),
+            follow=True,
+        )
+
+        self.invoice.refresh_from_db()
+        activity_log = ActivityLog.objects.get(
+            client=self.client_record,
+            action_type=ActivityLog.ActionType.EMAIL_SENT,
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
+        self.assertContains(response, "Invoice emailed to alicia@example.com.")
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["alicia@example.com"])
+        self.assertIn("Invoice INV-ALPHA-001 from Alpha Workspace", message.subject)
+        self.assertIn("Motionmate", message.body)
+        self.assertIn("Amount due: XCD 133.13", message.body)
+        self.assertEqual(len(message.attachments), 1)
+        attachment_name, attachment_content, mimetype = message.attachments[0]
+        self.assertEqual(attachment_name, "invoice-INV-ALPHA-001.pdf")
+        self.assertEqual(mimetype, "application/pdf")
+        self.assertTrue(attachment_content.startswith(b"%PDF"))
+        self.assertIn(b"INV-ALPHA-001", attachment_content)
+        self.assertEqual(self.invoice.emailed_to, "alicia@example.com")
+        self.assertIsNotNone(self.invoice.emailed_at)
+        self.assertEqual(self.invoice.email_send_count, 1)
+        self.assertEqual(self.invoice.status, original_status)
+        self.assertEqual(activity_log.business, self.business)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_invoice_email_fails_gracefully_when_client_email_missing(self):
+        mail.outbox.clear()
+        self.client_record.email = ""
+        self.client_record.save(update_fields=["email", "updated_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_email_send", args=[self.invoice.id]),
+            follow=True,
+        )
+
+        self.invoice.refresh_from_db()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
+        self.assertContains(response, "valid email address")
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(self.invoice.emailed_to, "")
+        self.assertIsNone(self.invoice.emailed_at)
+        self.assertEqual(self.invoice.email_send_count, 0)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_invoice_email_blocks_other_business_invoice(self):
+        mail.outbox.clear()
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("invoice_email_send", args=[self.other_invoice.id]))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_staff_and_viewer_cannot_email_invoice(self):
+        mail.outbox.clear()
+
+        for user in [self.staff_user, self.viewer_user]:
+            with self.subTest(user=user.email):
+                self.client.force_login(user)
+                response = self.client.post(reverse("invoice_email_send", args=[self.invoice.id]))
+                self.client.logout()
+
+                self.assertRedirects(
+                    response,
+                    reverse("invoice_list"),
+                    fetch_redirect_response=False,
+                )
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_appointment_created_invoice_supports_pdf_and_email(self):
+        mail.outbox.clear()
+        linked_invoice = Invoice.objects.create(
+            invoice_number="INV-ALPHA-APPT",
+            business=self.business,
+            client=self.client_record,
+            appointment=self.appointment,
+        )
+        self._add_invoice_line(linked_invoice)
+        self.client.force_login(self.accountant_user)
+
+        pdf_response = self.client.get(reverse("invoice_pdf_download", args=[linked_invoice.id]))
+        email_response = self.client.post(reverse("invoice_email_send", args=[linked_invoice.id]))
+
+        linked_invoice.refresh_from_db()
+
+        self.assertEqual(pdf_response.status_code, 200)
+        self.assertIn(b"INV-ALPHA-APPT", pdf_response.content)
+        self.assertIn(b"Scheduled septic visit", pdf_response.content)
+        self.assertRedirects(
+            email_response,
+            reverse("invoice_detail", args=[linked_invoice.id]),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["alicia@example.com"])
+        self.assertEqual(linked_invoice.email_send_count, 1)
 
     def test_invoice_create_from_client_sets_invoice_business(self):
         self.client.force_login(self.user)
@@ -607,17 +794,7 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(created_invoice.client, self.client_record)
 
     def test_admin_can_create_invoice_from_appointment(self):
-        admin_user = TaskIOUser.objects.create_user(
-            email="admin-billing@example.com",
-            first_name="Admin",
-            last_name="Billing",
-            password="testpass123",
-        )
-        BusinessUser.objects.create(
-            user=admin_user,
-            business=self.business,
-            role=BusinessUser.Role.ADMIN,
-        )
+        admin_user = self._create_admin_user()
         self.client.force_login(admin_user)
 
         response = self.client.post(

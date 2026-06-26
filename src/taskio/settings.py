@@ -11,7 +11,6 @@ from pathlib import Path
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
@@ -167,7 +166,14 @@ if _secure_bool(settings.use_x_forwarded_proto, True):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 DEFAULT_FROM_EMAIL = settings.default_from_email
+SERVER_EMAIL = settings.server_email or DEFAULT_FROM_EMAIL
 EMAIL_BACKEND = settings.email_backend
+EMAIL_HOST = settings.email_host
+EMAIL_PORT = settings.email_port or (465 if settings.email_use_ssl else 587 if settings.email_use_tls else 25)
+EMAIL_HOST_USER = settings.email_host_user
+EMAIL_HOST_PASSWORD = settings.email_host_password
+EMAIL_USE_TLS = settings.email_use_tls
+EMAIL_USE_SSL = settings.email_use_ssl
 
 LOGGING = {
     "version": 1,

@@ -1,0 +1,12 @@
+Motionmate
+
+Your appointment with {{ business.name }} has been scheduled.
+
+Service: {{ service_name }}
+Time: {{ appointment_window }}
+Location: {{ appointment.location|default:"To be confirmed" }}
+
+Business contact:
+{{ business_contact }}
+
+Reply to {{ business.name }} if any details need to change.

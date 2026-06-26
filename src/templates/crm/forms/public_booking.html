@@ -1,0 +1,155 @@
+{% extends 'inheritance/split_forms_parent.html'%}
+{% load static %}
+
+{% block content %}
+<div class="row flex-center position-relative min-vh-100 g-0 py-5">
+  <div class="col-12 col-lg-10 col-xl-8">
+    <div class="card border border-translucent auth-card">
+      <div class="card-body p-5 pe-md-0">
+        <div class="row align-items-center gx-0 gy-7">
+
+          <div class="col-auto bg-body-highlight dark__bg-gray-1100 rounded-3 position-relative overflow-hidden auth-title-box">
+            <div class="bg-holder" style="background-image:url('{% static 'assets/img/bg/38.png' %}');"></div>
+
+            <div class="position-relative px-5 py-9 text-center text-md-start card-sign-up" style="min-height: 640px;">
+              <h3 class="mb-3 text-body-emphasis fs-7">Motionmate</h3>
+              <h4 class="mb-3 text-body-emphasis">{{ public_business.name }}</h4>
+              <p class="text-body-tertiary">
+                Send a preferred service time and the team will review your request before confirming the appointment.
+              </p>
+              {% if booking_settings.public_booking_instructions %}
+                <p class="text-body-tertiary">{{ booking_settings.public_booking_instructions }}</p>
+              {% endif %}
+            </div>
+
+            <div class="position-relative z-n1 mb-6 d-none d-md-block text-center mt-md-15">
+              <img class="auth-title-box-img d-dark-none" src="{% static 'assets/img/spot-illustrations/auth.png' %}" alt="" />
+              <img class="auth-title-box-img d-light-none" src="{% static 'assets/img/spot-illustrations/auth-dark.png' %}" alt="" />
+            </div>
+          </div>
+
+          <div class="col-8">
+            <div class="auth-form-box mx-auto" style="max-width: 640px;">
+
+              <div class="text-center mb-7">
+                <a class="d-flex flex-center text-decoration-none mb-4" href="{% url 'home' %}">
+                  <div class="d-flex align-items-center fw-bolder fs-3 d-inline-block">
+                    <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Motionmate" width="58" />
+                  </div>
+                </a>
+              </div>
+
+              <div class="position-relative mt-4">
+                <hr class="bg-body-secondary" />
+                <div class="divider-content-center bg-body-emphasis">Booking Request</div>
+              </div>
+
+              <form method="post" action="{% url 'public_booking' public_business.slug %}">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                  <div class="alert alert-danger">
+                    {{ form.non_field_errors }}
+                  </div>
+                {% endif %}
+
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.service.id_for_label }}">Service</label>
+                  {{ form.service }}
+                  {% if form.service.errors %}<div class="text-danger small">{{ form.service.errors }}</div>{% endif %}
+                </div>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-sm-6 text-start">
+                    <label class="form-label" for="{{ form.preferred_date.id_for_label }}">Preferred date</label>
+                    {{ form.preferred_date }}
+                    {% if form.preferred_date.errors %}<div class="text-danger small">{{ form.preferred_date.errors }}</div>{% endif %}
+                  </div>
+                  <div class="col-sm-6 text-start">
+                    <label class="form-label" for="{{ form.preferred_time.id_for_label }}">Preferred time</label>
+                    {{ form.preferred_time }}
+                    {% if form.preferred_time.errors %}<div class="text-danger small">{{ form.preferred_time.errors }}</div>{% endif %}
+                  </div>
+                </div>
+
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.company_name.id_for_label }}">Company or household</label>
+                  {{ form.company_name }}
+                  {% if form.company_name.errors %}<div class="text-danger small">{{ form.company_name.errors }}</div>{% endif %}
+                </div>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-sm-6 text-start">
+                    <label class="form-label" for="{{ form.first_name.id_for_label }}">First name</label>
+                    {{ form.first_name }}
+                    {% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors }}</div>{% endif %}
+                  </div>
+                  <div class="col-sm-6 text-start">
+                    <label class="form-label" for="{{ form.last_name.id_for_label }}">Last name</label>
+                    {{ form.last_name }}
+                    {% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors }}</div>{% endif %}
+                  </div>
+                </div>
+
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.email.id_for_label }}">Email address</label>
+                  {{ form.email }}
+                  {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.phone.id_for_label }}">Phone number</label>
+                  {{ form.phone }}
+                  {% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.street_address.id_for_label }}">Service location</label>
+                  {{ form.street_address }}
+                  {% if form.street_address.errors %}<div class="text-danger small">{{ form.street_address.errors }}</div>{% endif %}
+                </div>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-sm-5 text-start">
+                    <label class="form-label" for="{{ form.district.id_for_label }}">District</label>
+                    {{ form.district }}
+                    {% if form.district.errors %}<div class="text-danger small">{{ form.district.errors }}</div>{% endif %}
+                  </div>
+                  <div class="col-sm-3 text-start">
+                    <label class="form-label" for="{{ form.country.id_for_label }}">Country</label>
+                    {{ form.country }}
+                    {% if form.country.errors %}<div class="text-danger small">{{ form.country.errors }}</div>{% endif %}
+                  </div>
+                  <div class="col-sm-4 text-start">
+                    <label class="form-label" for="{{ form.postal_code.id_for_label }}">Postal code</label>
+                    {{ form.postal_code }}
+                    {% if form.postal_code.errors %}<div class="text-danger small">{{ form.postal_code.errors }}</div>{% endif %}
+                  </div>
+                </div>
+
+                <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.message.id_for_label }}">Message / notes</label>
+                  {{ form.message }}
+                  {% if form.message.errors %}<div class="text-danger small">{{ form.message.errors }}</div>{% endif %}
+                </div>
+
+                <div class="form-check mb-3">
+                  {{ form.consent_to_contact }}
+                  <label class="form-label fs-9 text-transform-none" for="{{ form.consent_to_contact.id_for_label }}">
+                    I consent to be contacted about this booking request.
+                  </label>
+                  {% if form.consent_to_contact.errors %}<div class="text-danger small">{{ form.consent_to_contact.errors }}</div>{% endif %}
+                </div>
+
+                <button class="btn btn-primary w-100 mb-3" type="submit">Send booking request</button>
+              </form>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

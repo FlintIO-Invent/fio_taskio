@@ -15,10 +15,11 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import include, path
 from django.shortcuts import render
+from django.urls import include, path
 from django.views.generic import RedirectView
 
+from apps.crm.views import public_booking, public_booking_thank_you
 
 
 def landing(request):
@@ -30,6 +31,12 @@ urlpatterns = [
     path("", RedirectView.as_view(pattern_name="home", permanent=False)),
     path("admin/", admin.site.urls),
     path("home/", landing, name="home"),
+    path("book/<slug:business_slug>/", public_booking, name="public_booking"),
+    path(
+        "book/<slug:business_slug>/thanks/",
+        public_booking_thank_you,
+        name="public_booking_thank_you",
+    ),
     path("businesses/", include("apps.businesses.urls")),
     path("crm/", include("apps.crm.urls")),         
     path("appointments/", include("apps.appointments.urls")),

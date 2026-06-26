@@ -1,0 +1,1 @@
+Motionmate invitation to join {{ business.name }}

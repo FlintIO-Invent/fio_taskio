@@ -37,9 +37,17 @@ class BusinessServiceAdmin(admin.ModelAdmin):
         "unit_price",
         "tax_rate",
         "is_active",
+        "is_bookable_online",
+        "requires_manual_confirmation",
         "created_at",
     )
-    list_filter = ("business", "category", "is_active")
+    list_filter = (
+        "business",
+        "category",
+        "is_active",
+        "is_bookable_online",
+        "requires_manual_confirmation",
+    )
     search_fields = ("name", "external_code", "description", "business__name", "category__name")
     ordering = ("business__name", "name", "pk")
 

@@ -1,0 +1,13 @@
+Motionmate
+
+Hi {{ requester_name }},
+
+{{ business.name }} has received your booking request.
+
+This is not a confirmed appointment. The business will review your request and follow up to confirm the appointment details.
+
+Requested service: {{ service_name }}
+Preferred time: {{ preferred_window }}
+
+Business contact:
+{{ business_contact }}

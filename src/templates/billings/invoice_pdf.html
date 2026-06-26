@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Invoice {{ invoice.invoice_number }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #1f2937; font-size: 13px; }
+    .header { display: flex; justify-content: space-between; border-bottom: 1px solid #d8dee9; padding-bottom: 18px; margin-bottom: 24px; }
+    .brand { font-size: 20px; font-weight: 700; }
+    .invoice-title { font-size: 26px; font-weight: 700; text-align: right; }
+    .muted { color: #6b7280; }
+    .section { margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th { text-align: left; background: #f4f6f8; padding: 8px; }
+    td { padding: 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    .text-end { text-align: right; }
+    .totals { margin-left: auto; width: 280px; }
+    .powered { margin-top: 28px; text-align: center; color: #6b7280; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">{{ business.name }}</div>
+      {% for line in business_address_lines %}<div>{{ line }}</div>{% endfor %}
+      {% if business.email %}<div>Email: {{ business.email }}</div>{% endif %}
+      {% if business.phone %}<div>Phone: {{ business.phone }}</div>{% endif %}
+    </div>
+    <div>
+      <div class="invoice-title">Invoice</div>
+      <div>Invoice #: {{ invoice.invoice_number }}</div>
+      <div>Date: {{ issue_date|date:"M d, Y" }}</div>
+      <div>Status: {{ invoice.get_status_display }}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <strong>Bill To</strong>
+    <div>{{ client_name }}</div>
+    {% for line in client_address_lines %}<div>{{ line }}</div>{% endfor %}
+  </div>
+
+  {% if invoice.appointment %}
+    <div class="section">
+      <strong>Appointment</strong>
+      <div>{{ invoice.appointment.title }}</div>
+      {% if invoice.appointment.location %}<div>{{ invoice.appointment.location }}</div>{% endif %}
+    </div>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th class="text-end">Quantity</th>
+        <th class="text-end">Unit Price</th>
+        <th class="text-end">Line Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td class="text-end">{{ line.quantity }}</td>
+          <td class="text-end">{{ invoice.currency_code }} {{ line.unit_price }}</td>
+          <td class="text-end">{{ invoice.currency_code }} {{ line.line_total }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="4">No invoice lines added yet.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr>
+      <td>Subtotal</td>
+      <td class="text-end">{{ invoice.currency_code }} {{ invoice.subtotal }}</td>
+    </tr>
+    {% if invoice.tax %}
+      <tr>
+        <td>Tax ({{ invoice.tax_rate_percentage }}%)</td>
+        <td class="text-end">{{ invoice.currency_code }} {{ invoice.tax }}</td>
+      </tr>
+    {% endif %}
+    <tr>
+      <td><strong>Total</strong></td>
+      <td class="text-end"><strong>{{ invoice.currency_code }} {{ invoice.total }}</strong></td>
+    </tr>
+  </table>
+
+  {% if invoice.notes %}
+    <div class="section">
+      <strong>Notes</strong>
+      <div>{{ invoice.notes|linebreaksbr }}</div>
+    </div>
+  {% endif %}
+
+  <div class="powered">{{ powered_by }}</div>
+</body>
+</html>

@@ -10,6 +10,7 @@
     <div class="col-auto d-flex gap-2">
       {% if membership.role == "owner" or membership.role == "admin" %}
         <a class="btn btn-phoenix-secondary" href="{% url 'business_team_members' %}">Team Members</a>
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_booking_settings' %}">Booking Settings</a>
       {% endif %}
       {% if membership.role == "owner" %}
         <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Subscription</a>
