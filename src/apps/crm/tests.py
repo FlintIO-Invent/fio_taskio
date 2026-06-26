@@ -889,7 +889,7 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
-        self.assertContains(response, "Latest linked appointment")
+        self.assertContains(response, "Confirmed appointment")
 
     def test_service_request_detail_hides_duplicate_schedule_button_when_appointment_exists(self):
         self._enable_appointments_for_business()
@@ -1677,6 +1677,12 @@ class PublicBookingTests(TestCase):
             allow_public_booking=True,
             allow_appointments=True,
         )
+        self.booking_without_appointments_plan = ClarivoPlan.objects.create(
+            name="Public Booking Without Appointments",
+            slug="public-booking-no-appointments-tests",
+            allow_public_booking=True,
+            allow_appointments=False,
+        )
         self.locked_plan = ClarivoPlan.objects.create(
             name="Public Booking Locked",
             slug="public-booking-locked-tests",
@@ -1761,6 +1767,12 @@ class PublicBookingTests(TestCase):
             first_name="Owner",
             last_name="User",
         )
+        self.admin_user = TaskIOUser.objects.create_user(
+            email="booking-admin@example.com",
+            password="testpass123",
+            first_name="Admin",
+            last_name="User",
+        )
         self.staff_user = TaskIOUser.objects.create_user(
             email="booking-staff@example.com",
             password="testpass123",
@@ -1783,6 +1795,11 @@ class PublicBookingTests(TestCase):
             user=self.owner_user,
             business=self.business,
             role=BusinessUser.Role.OWNER,
+        )
+        BusinessUser.objects.create(
+            user=self.admin_user,
+            business=self.business,
+            role=BusinessUser.Role.ADMIN,
         )
         BusinessUser.objects.create(
             user=self.staff_user,
@@ -1861,6 +1878,18 @@ class PublicBookingTests(TestCase):
             reverse("public_booking_thank_you", args=[self.business.slug]),
         )
         return Lead.objects.get(email=overrides.get("email", "booking@example.com"))
+
+    def _create_booking_appointment(self, lead):
+        client = Client.objects.get(business=self.business, email=lead.email)
+        return Appointment.objects.create(
+            business=self.business,
+            client=client,
+            service=self.service,
+            source_lead=lead,
+            title="Confirmed booking visit",
+            start_time=lead.preferred_start_time,
+            end_time=lead.preferred_end_time,
+        )
 
     def test_public_booking_page_loads_for_enabled_business(self):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
@@ -2015,6 +2044,75 @@ class PublicBookingTests(TestCase):
         self.assertIn("Requested service: Online Consultation", client.communication_notes)
         self.assertFalse(Appointment.objects.filter(source_lead=lead).exists())
 
+    def test_booking_request_list_shows_booking_context(self):
+        lead = self._create_valid_booking(email="list-booking@example.com")
+
+        self.client.force_login(self.viewer_user)
+        response = self.client.get(reverse("staff_lead_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Booking Request")
+        self.assertContains(response, self.service.name)
+        self.assertContains(response, lead.preferred_start_time.strftime("%b"))
+        self.assertContains(response, "Preferred")
+
+    def test_booking_request_detail_shows_booking_context_and_confirm_action_for_manage_roles(self):
+        lead = self._create_valid_booking(email="detail-booking@example.com")
+
+        for user in [self.owner_user, self.admin_user, self.staff_user]:
+            with self.subTest(user=user.email):
+                self.client.logout()
+                self.client.force_login(user)
+                response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Booking Request")
+                self.assertContains(response, "Public Booking")
+                self.assertContains(response, self.service.name)
+                self.assertContains(response, "45 minutes")
+                self.assertContains(response, "Please confirm if this time works.")
+                self.assertContains(response, "Confirm / Schedule Appointment")
+                self.assertContains(response, reverse("appointment_create_from_request", args=[lead.id]))
+
+    def test_booking_request_detail_hides_confirm_action_for_read_only_roles(self):
+        lead = self._create_valid_booking(email="readonly-detail-booking@example.com")
+
+        for user in [self.accountant_user, self.viewer_user]:
+            with self.subTest(user=user.email):
+                self.client.logout()
+                self.client.force_login(user)
+                response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Booking Request")
+                self.assertNotContains(response, "Confirm / Schedule Appointment")
+                self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
+
+    def test_booking_request_detail_hides_duplicate_confirm_action_when_appointment_exists(self):
+        lead = self._create_valid_booking(email="linked-booking@example.com")
+        appointment = self._create_booking_appointment(lead)
+
+        self.client.force_login(self.owner_user)
+        response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
+        self.assertContains(response, "View Confirmed Appointment")
+        self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
+
+    def test_booking_request_detail_shows_plan_message_when_appointments_unavailable(self):
+        lead = self._create_valid_booking(email="plan-locked-booking@example.com")
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = self.booking_without_appointments_plan
+        subscription.save(update_fields=["plan", "updated_at"])
+
+        self.client.force_login(self.owner_user)
+        response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Appointments are not included in the current workspace plan.")
+        self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
+
     def test_public_booking_does_not_overwrite_richer_existing_client_data(self):
         existing_client = Client.objects.create(
             business=self.business,
@@ -2059,7 +2157,40 @@ class PublicBookingTests(TestCase):
         form = response.context["form"]
         self.assertEqual(form.initial["service"], self.service.pk)
         self.assertEqual(form.initial["client"], Client.objects.get(email="schedule-booking@example.com").pk)
+        self.assertEqual(form.initial["start_time"], lead.preferred_start_time)
+        self.assertEqual(form.initial["end_time"], lead.preferred_end_time)
+        self.assertIn("Request source: Public booking form", form.initial["notes"])
+        self.assertIn("Requested duration: 45 minutes", form.initial["notes"])
         self.assertContains(response, reverse("staff_lead_detail", args=[lead.id]))
+
+    def test_confirming_booking_request_creates_appointment_with_booking_context(self):
+        lead = self._create_valid_booking(email="confirm-booking@example.com")
+        booking_client = Client.objects.get(business=self.business, email=lead.email)
+
+        self.client.force_login(self.staff_user)
+        response = self.client.post(
+            reverse("appointment_create_from_request", args=[lead.id]),
+            data={
+                "client": booking_client.pk,
+                "service": self.service.pk,
+                "staff_member": self.staff_user.pk,
+                "title": "Confirmed online consultation",
+                "start_time": lead.preferred_start_time.strftime("%Y-%m-%dT%H:%M"),
+                "end_time": lead.preferred_end_time.strftime("%Y-%m-%dT%H:%M"),
+                "location": "45 Front Street, Philipsburg, Sint Maarten, 00000",
+                "notes": "Confirmed from booking request.",
+            },
+        )
+
+        appointment = Appointment.objects.get(title="Confirmed online consultation")
+
+        self.assertRedirects(response, reverse("appointment_detail", args=[appointment.id]))
+        self.assertEqual(appointment.business, self.business)
+        self.assertEqual(appointment.client, booking_client)
+        self.assertEqual(appointment.service, self.service)
+        self.assertEqual(appointment.source_lead, lead)
+        self.assertEqual(appointment.start_time, lead.preferred_start_time)
+        self.assertEqual(appointment.end_time, lead.preferred_end_time)
 
     def test_accountant_and_viewer_cannot_schedule_booking_created_lead(self):
         lead = self._create_valid_booking(email="read-only-booking@example.com")
@@ -2075,3 +2206,54 @@ class PublicBookingTests(TestCase):
 
                 self.assertRedirects(response, reverse("appointment_list"))
                 self.assertContains(response, "You do not have permission to manage appointments.")
+
+    def test_appointments_plan_blocks_booking_confirmation_route(self):
+        lead = self._create_valid_booking(email="route-plan-locked-booking@example.com")
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        subscription.plan = self.booking_without_appointments_plan
+        subscription.save(update_fields=["plan", "updated_at"])
+
+        self.client.force_login(self.owner_user)
+        response = self.client.get(
+            reverse("appointment_create_from_request", args=[lead.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertContains(response, "Appointments is not included in the current workspace plan")
+
+    def test_other_business_cannot_confirm_booking_request(self):
+        foreign_lead = Lead.objects.create(
+            business=self.other_business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            request_source=Lead.RequestSource.PUBLIC_BOOKING,
+            requested_service=self.other_service,
+            preferred_start_time=self.valid_start,
+            preferred_end_time=self.valid_start + timedelta(minutes=45),
+            first_name="Foreign",
+            last_name="Booker",
+            email="foreign-booking@example.com",
+            phone="+1 721 555 9090",
+            company_name="Foreign Booking",
+            street_address="Foreign Street",
+        )
+
+        self.client.force_login(self.owner_user)
+        response = self.client.get(reverse("appointment_create_from_request", args=[foreign_lead.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_another_business_requested_service_is_not_prefilled_for_confirmation(self):
+        lead = self._create_valid_booking(email="foreign-requested-service@example.com")
+        lead.requested_service = self.other_service
+        lead.category = self.other_category
+        lead.save(update_fields=["requested_service", "category", "updated_at"])
+
+        self.client.force_login(self.owner_user)
+        response = self.client.get(reverse("appointment_create_from_request", args=[lead.id]))
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertEqual(form.initial["service"], "")
+        self.assertNotContains(response, self.other_service.name)

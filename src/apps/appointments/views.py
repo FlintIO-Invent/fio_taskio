@@ -71,13 +71,12 @@ def _client_queryset_for_business(current_business):
     ).order_by("first_name", "last_name", "pk")
 
 
+def _requested_service_is_valid_for_request(lead: Lead) -> bool:
+    return lead.has_valid_requested_service
+
+
 def _infer_service_from_request(current_business, lead: Lead) -> BusinessService | None:
-    if (
-        lead.requested_service_id is not None
-        and lead.requested_service is not None
-        and lead.requested_service.business_id == current_business.id
-        and lead.requested_service.is_active
-    ):
+    if _requested_service_is_valid_for_request(lead):
         return lead.requested_service
 
     if lead.category_id is None:
@@ -114,7 +113,7 @@ def _display_name_for_request_client(lead: Lead, client) -> str:
 
 
 def _build_appointment_title_from_request(lead: Lead, client) -> str:
-    if lead.requested_service_id and lead.requested_service is not None:
+    if _requested_service_is_valid_for_request(lead):
         service_label = lead.requested_service.name
     elif lead.category_id and lead.category:
         service_label = lead.category.name
@@ -156,7 +155,7 @@ def _build_notes_from_request(lead: Lead) -> str:
 
     if lead.request_source:
         notes.append(f"Request source: {lead.get_request_source_display()}")
-    if lead.requested_service_id and lead.requested_service is not None:
+    if _requested_service_is_valid_for_request(lead):
         notes.append(f"Requested service: {lead.requested_service.name}")
     elif lead.category_id and lead.category is not None:
         notes.append(f"Requested service: {lead.category.name}")

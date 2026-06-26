@@ -281,6 +281,16 @@ class Lead(TimeStampedModel):
         return self.request_source == self.RequestSource.PUBLIC_BOOKING
 
     @property
+    def has_valid_requested_service(self) -> bool:
+        return (
+            self.requested_service_id is not None
+            and self.requested_service is not None
+            and self.business_id is not None
+            and self.requested_service.business_id == self.business_id
+            and self.requested_service.is_active
+        )
+
+    @property
     def requested_duration_minutes(self) -> int | None:
         if not self.preferred_start_time or not self.preferred_end_time:
             return None

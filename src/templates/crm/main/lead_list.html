@@ -225,9 +225,9 @@
               </td>
 
               <td class="booking align-middle ps-4 border-end border-translucent">
-                {% if lead.requested_service or lead.preferred_start_time or lead.is_public_booking_request %}
+                {% if lead.has_valid_requested_service or lead.preferred_start_time or lead.is_public_booking_request %}
                   <div class="fw-semibold text-body-highlight">
-                    {% if lead.requested_service %}
+                    {% if lead.has_valid_requested_service %}
                       {{ lead.requested_service.name }}
                     {% elif lead.category %}
                       {{ lead.category.name }}

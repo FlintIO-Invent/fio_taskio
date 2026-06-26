@@ -623,6 +623,7 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
             | Q(last_name__icontains=query)
             | Q(email__icontains=query)
             | Q(phone__icontains=query)
+            | Q(requested_service__name__icontains=query)
         )
 
     context: dict[str, Any] = {

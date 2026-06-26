@@ -74,7 +74,7 @@ def _request_context_block(lead: Lead) -> str:
 
     lines = [f"{_request_context_marker(lead)} received on {received_at:%Y-%m-%d %H:%M}"]
 
-    if lead.requested_service_id and lead.requested_service is not None:
+    if lead.has_valid_requested_service:
         lines.append(f"Requested service: {lead.requested_service.name}")
     elif lead.category_id and lead.category is not None:
         lines.append(f"Category: {lead.category.name}")
