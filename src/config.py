@@ -7,7 +7,6 @@ from typing import Annotated
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-
 BASE_DIR = Path(__file__).resolve().parent  # => .../fio_taskio/src
 
 
@@ -119,9 +118,37 @@ class Settings(BaseSettings):
         default="no-reply@motionmate.local",
         description="Default sender email address.",
     )
+    server_email: str | None = Field(
+        default=None,
+        description="Sender address for server error emails. Defaults to DEFAULT_FROM_EMAIL.",
+    )
     email_backend: str = Field(
         default="django.core.mail.backends.console.EmailBackend",
         description="Django email backend path.",
+    )
+    email_host: str = Field(
+        default="",
+        description="SMTP host used when EMAIL_BACKEND is Django's SMTP backend.",
+    )
+    email_port: int | None = Field(
+        default=None,
+        description="SMTP port. Defaults to 465 with SSL, 587 with TLS, otherwise 25.",
+    )
+    email_host_user: str = Field(
+        default="",
+        description="SMTP username.",
+    )
+    email_host_password: str = Field(
+        default="",
+        description="SMTP password.",
+    )
+    email_use_tls: bool = Field(
+        default=False,
+        description="Use STARTTLS for SMTP email delivery.",
+    )
+    email_use_ssl: bool = Field(
+        default=False,
+        description="Use SSL/TLS for SMTP email delivery.",
     )
     log_level: str = Field(
         default="INFO",
@@ -152,6 +179,13 @@ class Settings(BaseSettings):
         if isinstance(value, (tuple, set)):
             return [str(item).strip() for item in value if str(item).strip()]
 
+        return value
+
+    @field_validator("email_port", mode="before")
+    @classmethod
+    def normalize_optional_int(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
         return value
 
     @field_validator("log_level", mode="before")

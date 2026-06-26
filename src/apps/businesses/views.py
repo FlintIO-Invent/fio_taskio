@@ -2,8 +2,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+
+from apps.notifications.emails import send_business_invitation_email
 
 from .forms import (
     BusinessBookingSettingsForm,
@@ -241,10 +244,30 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
                 role=invite_form.cleaned_data["role"],
                 invited_by=request.user,
             )
-            if created:
-                messages.success(request, "Invitation created successfully.")
+            accept_url = request.build_absolute_uri(
+                reverse("accept_business_invitation", args=[invitation.token]),
+            )
+            email_sent = send_business_invitation_email(invitation, accept_url=accept_url)
+            if created and email_sent:
+                messages.success(
+                    request,
+                    "Invitation created and emailed successfully. The fallback link remains below.",
+                )
+            elif created:
+                messages.warning(
+                    request,
+                    "Invitation created, but email could not be sent. Copy the fallback link below.",
+                )
+            elif email_sent:
+                messages.info(
+                    request,
+                    "A pending invitation was refreshed and emailed again.",
+                )
             else:
-                messages.info(request, "A pending invitation was refreshed for this email.")
+                messages.warning(
+                    request,
+                    "A pending invitation was refreshed, but email could not be sent. Copy the fallback link below.",
+                )
             return redirect("business_team_members")
     else:
         invite_form = BusinessInvitationForm(business=business, membership=membership)

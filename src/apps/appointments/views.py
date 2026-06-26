@@ -22,6 +22,7 @@ from apps.crm.services import (
     get_missing_client_required_field_labels_for_lead,
     sync_client_from_lead,
 )
+from apps.notifications.emails import send_appointment_confirmation_email
 
 from .forms import AppointmentForm
 from .models import Appointment
@@ -375,6 +376,8 @@ def appointment_create_from_request(request: HttpRequest, lead_id: int) -> HttpR
             appointment = form.save(commit=False)
             appointment.source_lead = lead
             appointment.save()
+            if lead.is_public_booking_request:
+                send_appointment_confirmation_email(appointment)
             messages.success(request, "Appointment created successfully from service request.")
             return redirect("appointment_detail", appointment_id=appointment.id)
         messages.error(request, "Please correct the errors below.")

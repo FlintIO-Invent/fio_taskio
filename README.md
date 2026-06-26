@@ -147,7 +147,14 @@ Important settings for local and production use:
 - `USE_X_FORWARDED_PROTO`
 - `SECURE_REFERRER_POLICY`
 - `DEFAULT_FROM_EMAIL`
+- `SERVER_EMAIL`
 - `EMAIL_BACKEND`
+- `EMAIL_HOST`
+- `EMAIL_PORT`
+- `EMAIL_HOST_USER`
+- `EMAIL_HOST_PASSWORD`
+- `EMAIL_USE_TLS`
+- `EMAIL_USE_SSL`
 - `LOG_LEVEL`
 
 Production notes:
@@ -276,8 +283,10 @@ Recommended explicit production security values:
 Email and invitation notes:
 
 - `DEFAULT_FROM_EMAIL` should be set to the sending identity you want testers to see.
-- `EMAIL_BACKEND` defaults to the console backend locally. For a real hosted smoke test, configure a real email backend if you want invitations delivered automatically.
-- If live email is not configured yet, use manual invitation-token testing from the team flow and admin flow rather than assuming invite delivery is live.
+- `SERVER_EMAIL` defaults to `DEFAULT_FROM_EMAIL` when it is not set.
+- `EMAIL_BACKEND` defaults to the console backend locally.
+- For staging or production SMTP delivery, set `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend` plus `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, and either `EMAIL_USE_TLS=True` or `EMAIL_USE_SSL=True` according to the provider.
+- If live email is not configured yet, use the manual invitation link fallback from the team flow rather than assuming invite delivery is live.
 
 Static-file note:
 
@@ -300,7 +309,14 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS=True
 SECURE_HSTS_PRELOAD=True
 USE_X_FORWARDED_PROTO=True
 DEFAULT_FROM_EMAIL=no-reply@motionmate.example.com
+SERVER_EMAIL=no-reply@motionmate.example.com
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=motionmate-smtp-user
+EMAIL_HOST_PASSWORD=replace-with-smtp-password
+EMAIL_USE_TLS=True
+EMAIL_USE_SSL=False
 LOG_LEVEL=INFO
 ```
 
@@ -356,7 +372,7 @@ See [docs/USER_TESTING_PLAN.md](/home/mzero/main/repo/fio_projects/caribbean_aut
 - Missing CSS or JS usually means the build did not complete `collectstatic`, the release used the wrong working directory, or the deploy skipped the standard build step.
 - If `check --deploy` still warns, make sure you are not using the literal placeholder secret and explicitly set `SECURE_HSTS_INCLUDE_SUBDOMAINS=True` and `SECURE_HSTS_PRELOAD=True` when your domain policy allows it.
 - If local PostgreSQL test runs fail with `permission denied to create database`, grant the local role `CREATEDB` or pre-create the test database and run Django tests with `--keepdb`.
-- If invitation emails are not arriving, confirm the deployed `EMAIL_BACKEND` and SMTP provider settings or fall back to manual invite-link testing for the smoke pass.
+- If invitation or booking emails are not arriving, confirm the deployed `EMAIL_BACKEND` and SMTP provider settings or fall back to manual invite-link testing for the smoke pass.
 - If a bad code deploy reaches production-like testing, roll back to the previous app release first. Avoid ad-hoc schema reversals unless you have a deliberate migration rollback plan.
 
 ## Useful routes

@@ -1,0 +1,1 @@
+Motionmate booking request received by {{ business.name }}

@@ -57,7 +57,7 @@
               {% if invite_form.role.help_text %}<div class="form-text">{{ invite_form.role.help_text }}</div>{% endif %}
               {% if invite_form.role.errors %}<div class="invalid-feedback d-block">{{ invite_form.role.errors|striptags }}</div>{% endif %}
             </div>
-            <button class="btn btn-primary w-100" type="submit">Create invitation</button>
+            <button class="btn btn-primary w-100" type="submit">Send invitation</button>
           </form>
 
           <div class="alert alert-info mt-4 mb-0" role="alert">
@@ -73,7 +73,7 @@
           <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
               <h4 class="mb-1">Pending Invitations</h4>
-              <p class="text-body-tertiary mb-0">Share these links locally for testing or copy them into your own email flow.</p>
+              <p class="text-body-tertiary mb-0">Email is attempted automatically. Copy the fallback link when delivery is not configured.</p>
             </div>
             <span class="badge badge-phoenix badge-phoenix-secondary">{{ pending_invitations|length }}</span>
           </div>
@@ -99,7 +99,7 @@
                       <td>{{ invitation.get_role_display }}</td>
                       <td>{{ invitation.expires_at|date:"M j, Y, g:i a" }}</td>
                       <td>
-                        <code class="small">{% url 'accept_business_invitation' invitation.token %}</code>
+                        <code class="small">{{ request.scheme }}://{{ request.get_host }}{% url 'accept_business_invitation' invitation.token %}</code>
                       </td>
                     </tr>
                   {% endfor %}

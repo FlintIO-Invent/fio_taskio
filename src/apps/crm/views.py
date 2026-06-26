@@ -12,6 +12,7 @@ from django.db import transaction
 from django.db.models import Q, QuerySet, Sum
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_http_methods
@@ -33,6 +34,10 @@ from apps.businesses.utils import (
     get_business_module_unavailable_message,
     get_current_business,
     redirect_for_unavailable_business_module,
+)
+from apps.notifications.emails import (
+    send_internal_booking_notification_email,
+    send_public_booking_request_received_email,
 )
 from helpers import upsert_client_from_lead
 
@@ -525,6 +530,9 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
                     consent_to_contact=form.cleaned_data["consent_to_contact"],
                 )
                 sync_client_from_lead(lead)
+            request_url = request.build_absolute_uri(reverse("staff_lead_detail", args=[lead.id]))
+            send_public_booking_request_received_email(lead)
+            send_internal_booking_notification_email(lead, request_url=request_url)
             return redirect("public_booking_thank_you", business_slug=business.slug)
     else:
         form = PublicBookingForm(

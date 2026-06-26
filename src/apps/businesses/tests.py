@@ -1,13 +1,16 @@
 from datetime import time
 from decimal import Decimal
+from unittest import mock
 
+from django.core import mail
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import TaskIOUser
+from config import Settings
 
 from .models import (
     Business,
@@ -64,6 +67,32 @@ class BusinessModelTests(TestCase):
             structured_business.formatted_address_lines,
             ["Herengracht 101", "Amsterdam, North Holland", "1015 BJ Netherlands"],
         )
+
+
+class EmailConfigurationTests(TestCase):
+    def test_email_settings_support_env_driven_smtp_without_hardcoded_credentials(self):
+        app_settings = Settings(
+            _env_file=None,
+            default_from_email="no-reply@motionmate.test",
+            server_email="server@motionmate.test",
+            email_backend="django.core.mail.backends.smtp.EmailBackend",
+            email_host="smtp.motionmate.test",
+            email_port=2525,
+            email_host_user="motionmate-smtp-user",
+            email_host_password="",
+            email_use_tls=True,
+            email_use_ssl=False,
+        )
+
+        self.assertEqual(app_settings.default_from_email, "no-reply@motionmate.test")
+        self.assertEqual(app_settings.server_email, "server@motionmate.test")
+        self.assertEqual(app_settings.email_backend, "django.core.mail.backends.smtp.EmailBackend")
+        self.assertEqual(app_settings.email_host, "smtp.motionmate.test")
+        self.assertEqual(app_settings.email_port, 2525)
+        self.assertEqual(app_settings.email_host_user, "motionmate-smtp-user")
+        self.assertEqual(app_settings.email_host_password, "")
+        self.assertTrue(app_settings.email_use_tls)
+        self.assertFalse(app_settings.email_use_ssl)
 
 
 class BusinessUserModelTests(TestCase):
@@ -729,7 +758,9 @@ class BusinessInvitationViewTests(TestCase):
         session.save()
         self.client.force_login(user)
 
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_owner_can_create_workspace_invitation(self):
+        mail.outbox.clear()
         self._login(self.owner, BusinessUser.Role.OWNER)
 
         response = self.client.post(
@@ -748,7 +779,37 @@ class BusinessInvitationViewTests(TestCase):
         self.assertEqual(invitation.role, BusinessUser.Role.STAFF)
         self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
         self.assertEqual(invitation.invited_by, self.owner)
-        self.assertContains(response, "Invitation created successfully.")
+        self.assertContains(response, "Invitation created and emailed successfully.")
+        self.assertContains(response, reverse("accept_business_invitation", args=[invitation.token]))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["employee@example.com"])
+        self.assertIn("Motionmate", mail.outbox[0].body)
+        self.assertIn(self.business.name, mail.outbox[0].body)
+        self.assertIn("Staff", mail.outbox[0].body)
+        self.assertIn(reverse("accept_business_invitation", args=[invitation.token]), mail.outbox[0].body)
+
+    def test_invite_still_exists_if_email_send_fails(self):
+        self._login(self.owner, BusinessUser.Role.OWNER)
+
+        with mock.patch(
+            "apps.businesses.views.send_business_invitation_email",
+            return_value=False,
+        ):
+            response = self.client.post(
+                reverse("business_team_members"),
+                {
+                    "email": "failed-email@example.com",
+                    "role": BusinessUser.Role.STAFF,
+                },
+                follow=True,
+            )
+
+        invitation = BusinessInvitation.objects.get(email="failed-email@example.com")
+
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertEqual(invitation.business, self.business)
+        self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
+        self.assertContains(response, "email could not be sent")
         self.assertContains(response, reverse("accept_business_invitation", args=[invitation.token]))
 
     def test_admin_cannot_invite_owner_role(self):

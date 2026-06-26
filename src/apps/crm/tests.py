@@ -1,10 +1,12 @@
 from datetime import time, timedelta
 from decimal import Decimal
+from unittest import mock
 from zoneinfo import ZoneInfo
 
+from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -20,6 +22,7 @@ from apps.businesses.models import (
     WeeklyAvailability,
 )
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
+from apps.notifications.emails import get_internal_booking_notification_recipient
 
 from .forms import PrivateClientForm, PrivateLeadForm
 from .models import BusinessService, Client, Lead, ServiceCategory
@@ -2044,6 +2047,67 @@ class PublicBookingTests(TestCase):
         self.assertIn("Requested service: Online Consultation", client.communication_notes)
         self.assertFalse(Appointment.objects.filter(source_lead=lead).exists())
 
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_public_booking_sends_requester_confirmation_and_internal_notification(self):
+        mail.outbox.clear()
+        self.business.email = "dispatch@motionmate.test"
+        self.business.save(update_fields=["email", "updated_at"])
+
+        lead = self._create_valid_booking(email="notify-booking@example.com")
+
+        self.assertEqual(len(mail.outbox), 2)
+        requester_email = next(
+            message for message in mail.outbox if message.to == ["notify-booking@example.com"]
+        )
+        internal_email = next(
+            message for message in mail.outbox if message.to == ["dispatch@motionmate.test"]
+        )
+        self.assertIn("Motionmate", requester_email.body)
+        self.assertIn(self.business.name, requester_email.body)
+        self.assertIn(self.service.name, requester_email.body)
+        self.assertIn("This is not a confirmed appointment", requester_email.body)
+        self.assertNotIn("Your appointment is confirmed", requester_email.body)
+        self.assertIn("Motionmate", internal_email.body)
+        self.assertIn("New booking request received", internal_email.body)
+        self.assertIn("notify-booking@example.com", internal_email.body)
+        self.assertIn(reverse("staff_lead_detail", args=[lead.id]), internal_email.body)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_public_booking_flow_still_succeeds_if_email_backend_raises(self):
+        mail.outbox.clear()
+
+        with mock.patch(
+            "apps.notifications.emails.EmailMultiAlternatives.send",
+            side_effect=RuntimeError("SMTP unavailable"),
+        ):
+            response = self.client.post(
+                reverse("public_booking", args=[self.business.slug]),
+                data=self._booking_payload(email="email-down-booking@example.com"),
+            )
+
+        self.assertRedirects(
+            response,
+            reverse("public_booking_thank_you", args=[self.business.slug]),
+        )
+        self.assertTrue(Lead.objects.filter(email="email-down-booking@example.com").exists())
+
+    def test_internal_booking_notification_recipient_prefers_business_email_then_owner(self):
+        self.business.email = "office@motionmate.test"
+        self.business.save(update_fields=["email", "updated_at"])
+
+        self.assertEqual(
+            get_internal_booking_notification_recipient(self.business),
+            "office@motionmate.test",
+        )
+
+        self.business.email = ""
+        self.business.save(update_fields=["email", "updated_at"])
+
+        self.assertEqual(
+            get_internal_booking_notification_recipient(self.business),
+            self.owner_user.email,
+        )
+
     def test_booking_request_list_shows_booking_context(self):
         lead = self._create_valid_booking(email="list-booking@example.com")
 
@@ -2191,6 +2255,39 @@ class PublicBookingTests(TestCase):
         self.assertEqual(appointment.source_lead, lead)
         self.assertEqual(appointment.start_time, lead.preferred_start_time)
         self.assertEqual(appointment.end_time, lead.preferred_end_time)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_confirming_booking_request_sends_appointment_confirmation_email(self):
+        mail.outbox.clear()
+        lead = self._create_valid_booking(email="appointment-email@example.com")
+        booking_client = Client.objects.get(business=self.business, email=lead.email)
+        mail.outbox.clear()
+
+        self.client.force_login(self.staff_user)
+        response = self.client.post(
+            reverse("appointment_create_from_request", args=[lead.id]),
+            data={
+                "client": booking_client.pk,
+                "service": self.service.pk,
+                "staff_member": self.staff_user.pk,
+                "title": "Confirmed online consultation",
+                "start_time": lead.preferred_start_time.strftime("%Y-%m-%dT%H:%M"),
+                "end_time": lead.preferred_end_time.strftime("%Y-%m-%dT%H:%M"),
+                "location": "45 Front Street, Philipsburg, Sint Maarten, 00000",
+                "notes": "Confirmed from booking request.",
+            },
+        )
+
+        appointment = Appointment.objects.get(title="Confirmed online consultation")
+
+        self.assertRedirects(response, reverse("appointment_detail", args=[appointment.id]))
+        self.assertEqual(len(mail.outbox), 1)
+        confirmation_email = mail.outbox[0]
+        self.assertEqual(confirmation_email.to, ["appointment-email@example.com"])
+        self.assertIn("Motionmate", confirmation_email.body)
+        self.assertIn("Your appointment with Motionmate Booking has been scheduled", confirmation_email.body)
+        self.assertIn(self.service.name, confirmation_email.body)
+        self.assertIn("45 Front Street", confirmation_email.body)
 
     def test_accountant_and_viewer_cannot_schedule_booking_created_lead(self):
         lead = self._create_valid_booking(email="read-only-booking@example.com")
