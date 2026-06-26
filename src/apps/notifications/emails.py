@@ -49,6 +49,7 @@ def send_templated_email(
     recipient_list: list[str] | tuple[str, ...],
     log_label: str,
     html_template: str | None = None,
+    attachments: list[tuple[str, bytes, str]] | None = None,
     fail_safely: bool = True,
 ) -> bool:
     recipients = _normalize_recipients(recipient_list)
@@ -69,6 +70,8 @@ def send_templated_email(
         if html_template:
             html_body = render_to_string(html_template, context)
             message.attach_alternative(html_body, "text/html")
+        for attachment in attachments or []:
+            message.attach(*attachment)
         sent_count = message.send(fail_silently=False)
     except Exception:
         logger.exception("Failed to send %s email notification.", log_label)
@@ -284,4 +287,26 @@ def send_appointment_confirmation_email(appointment: Appointment) -> bool:
         context=context,
         recipient_list=[appointment.client.email],
         log_label="appointment confirmation",
+    )
+
+
+def send_invoice_email(
+    invoice,
+    *,
+    pdf_bytes: bytes,
+    filename: str,
+) -> bool:
+    context = {
+        "invoice": invoice,
+        "business": invoice.business,
+        "client": invoice.client,
+        "amount_due": f"{invoice.currency_code} {invoice.total:.2f}",
+    }
+    return send_templated_email(
+        subject_template="emails/invoice_subject.txt",
+        body_template="emails/invoice_body.txt",
+        context=context,
+        recipient_list=[invoice.client.email],
+        attachments=[(filename, pdf_bytes, "application/pdf")],
+        log_label="invoice email",
     )

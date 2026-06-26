@@ -50,6 +50,14 @@
     </ol>
   </nav>
 
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
   <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
     <div class="col-auto">
       <h2 class="mb-0 text-body-emphasis">Invoice {{ invoice.invoice_number }}</h2>
@@ -62,6 +70,9 @@
             <span class="fa-solid fa-calendar-day me-2"></span>View Appointment
           </a>
         {% endif %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'invoice_pdf_download' invoice.pk %}">
+          <span class="fa-solid fa-file-pdf me-2"></span>Download PDF
+        </a>
         <button class="btn btn-phoenix-primary" onclick="window.print()">
           <span class="fa-solid fa-print me-2"></span>Print
         </button>
@@ -237,6 +248,39 @@
           <h5 class="mb-0">Actions</h5>
         </div>
         <div class="card-body">
+          <div class="d-grid gap-2 mb-3">
+            <a href="{% url 'invoice_pdf_download' invoice.pk %}" class="btn btn-phoenix-secondary">
+              <span class="fa-solid fa-file-pdf me-2"></span>Download PDF
+            </a>
+            {% if role_access.can_manage_invoices %}
+              {% if invoice.client.email %}
+                <form method="post" action="{% url 'invoice_email_send' invoice.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-phoenix-primary w-100" onclick="return confirm('Email this invoice PDF to {{ invoice.client.email }}?')">
+                    <span class="fa-solid fa-envelope me-2"></span>Email Invoice
+                  </button>
+                </form>
+              {% else %}
+                <div class="alert alert-warning mb-0" role="alert">
+                  Add a client email address before sending this invoice.
+                </div>
+              {% endif %}
+            {% endif %}
+          </div>
+
+          <div class="border-top pt-3 mb-3">
+            <div class="invoice-detail-label">Email Delivery</div>
+            {% if invoice.emailed_at %}
+              <p class="invoice-detail-value">
+                Last emailed {{ invoice.emailed_at|date:"M d, Y, g:i a" }}
+                {% if invoice.emailed_to %}to {{ invoice.emailed_to }}{% endif %}
+              </p>
+              <small class="text-body-tertiary">Sent {{ invoice.email_send_count }} time{{ invoice.email_send_count|pluralize }}.</small>
+            {% else %}
+              <p class="invoice-detail-value text-body-tertiary">This invoice has not been emailed yet.</p>
+            {% endif %}
+          </div>
+
           {% if role_access.can_manage_invoices %}
             <div class="d-grid gap-2">
               {% if invoice.status == 'DRAFT' %}
