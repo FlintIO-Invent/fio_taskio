@@ -1034,12 +1034,10 @@ class AppointmentViewTests(TestCase):
         manage_roles = (
             self.owner,
             self.admin_user,
+            self.staff_user,
             self.accountant_user,
         )
-        read_only_roles = (
-            self.staff_user,
-            self.viewer_user,
-        )
+        read_only_roles = (self.viewer_user,)
 
         for user in manage_roles:
             self.client.logout()

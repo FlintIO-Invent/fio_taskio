@@ -1167,7 +1167,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertNotContains(response, "Upcoming Activity")
         self.assertNotContains(response, "Hidden dashboard visit")
 
-    def test_staff_dashboard_hides_invoice_totals_when_plan_allows_billing(self):
+    def test_staff_dashboard_shows_invoice_totals_when_plan_allows_billing(self):
         self._enable_reporting_modules_for_business()
         client_record = Client.objects.create(
             business=self.business,
@@ -1194,11 +1194,11 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("agent_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.context["dashboard_invoices_enabled"])
-        self.assertEqual(response.context["invoice_count"], 0)
-        self.assertContains(response, "Invoices Restricted")
-        self.assertNotContains(response, "STAFF-HIDDEN-1000")
-        self.assertNotContains(response, "Unpaid Invoice Value")
+        self.assertTrue(response.context["dashboard_invoices_enabled"])
+        self.assertEqual(response.context["invoice_count"], 1)
+        self.assertContains(response, "STAFF-HIDDEN-1000")
+        self.assertContains(response, "Unpaid Invoice Value")
+        self.assertNotContains(response, "Invoices Restricted")
 
     def test_accountant_dashboard_shows_billing_and_read_only_activity(self):
         self._enable_reporting_modules_for_business()

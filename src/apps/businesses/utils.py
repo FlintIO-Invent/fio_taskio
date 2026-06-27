@@ -55,12 +55,14 @@ APPOINTMENT_MANAGE_ROLES = (
 BILLING_VIEW_ROLES = (
     BusinessUser.Role.OWNER,
     BusinessUser.Role.ADMIN,
+    BusinessUser.Role.STAFF,
     BusinessUser.Role.ACCOUNTANT,
     BusinessUser.Role.VIEWER,
 )
 BILLING_MANAGE_ROLES = (
     BusinessUser.Role.OWNER,
     BusinessUser.Role.ADMIN,
+    BusinessUser.Role.STAFF,
     BusinessUser.Role.ACCOUNTANT,
 )
 SERVICE_MANAGEMENT_ROLES = OWNER_ADMIN_ROLES
