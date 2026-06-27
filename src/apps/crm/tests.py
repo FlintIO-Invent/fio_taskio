@@ -2027,6 +2027,53 @@ class CRMBusinessScopingTests(TestCase):
         self.assertContains(all_response, active_request.email)
         self.assertContains(all_response, closed_request.email)
 
+    def test_service_request_list_orders_active_requests_for_followup(self):
+        base_time = timezone.now().replace(second=0, microsecond=0)
+        contacted_soon = self._build_request_lead(
+            first_name="Contacted",
+            last_name="Soon",
+            email="contacted-soon@example.com",
+            status=Lead.Status.CONTACTED,
+            preferred_start_time=base_time + timedelta(hours=1),
+        )
+        new_later = self._build_request_lead(
+            first_name="New",
+            last_name="Later",
+            email="new-later@example.com",
+            status=Lead.Status.NEW,
+            preferred_start_time=base_time + timedelta(days=2),
+        )
+        new_soon = self._build_request_lead(
+            first_name="New",
+            last_name="Soon",
+            email="new-soon@example.com",
+            status=Lead.Status.NEW,
+            preferred_start_time=base_time + timedelta(hours=3),
+        )
+        new_without_time = self._build_request_lead(
+            first_name="New",
+            last_name="No Time",
+            email="new-no-time@example.com",
+            status=Lead.Status.NEW,
+        )
+        closed_request = self._build_request_lead(
+            first_name="Closed",
+            last_name="Done",
+            email="closed-done@example.com",
+            status=Lead.Status.CLOSED,
+            preferred_start_time=base_time + timedelta(minutes=30),
+        )
+        self.client.force_login(self.viewer_user)
+
+        response = self.client.get(reverse("staff_lead_list"))
+
+        self.assertEqual(
+            list(response.context["leads"]),
+            [new_soon, new_later, new_without_time, contacted_soon],
+        )
+        self.assertContains(response, "Next up")
+        self.assertNotContains(response, closed_request.email)
+
     def test_accountant_cannot_open_service_management(self):
         self.client.force_login(self.accountant_user)
         session = self.client.session

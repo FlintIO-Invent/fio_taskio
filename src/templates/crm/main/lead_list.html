@@ -200,6 +200,9 @@
                       <span class="badge badge-phoenix badge-phoenix-info leadtype">
                         {{ lead.get_lead_type_display }}
                       </span>
+                      {% if forloop.first and filters.status_group == 'active' and not filters.status %}
+                        <span class="badge badge-phoenix badge-phoenix-warning">Next up</span>
+                      {% endif %}
                       {% if lead.is_public_booking_request %}
                         <span class="badge badge-phoenix badge-phoenix-primary">Booking Request</span>
                       {% endif %}
@@ -285,7 +288,13 @@
             {% empty %}
             <tr>
               <td colspan="9" class="text-center py-6 text-body-tertiary">
-                No service requests found for the selected filters.
+                {% if filters.status_group == 'active' and not filters.status %}
+                  No active service requests need follow-up.
+                {% elif filters.status_group == 'completed' and not filters.status %}
+                  No completed service requests found.
+                {% else %}
+                  No service requests found for the selected filters.
+                {% endif %}
               </td>
             </tr>
             {% endfor %}

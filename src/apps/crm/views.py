@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q, QuerySet, Sum
+from django.db.models import Case, IntegerField, Q, QuerySet, Sum, Value, When
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -67,6 +67,33 @@ from .services import (
     get_missing_client_required_field_labels_for_lead,
     sync_client_from_lead,
 )
+
+SERVICE_REQUEST_ACTIVE_STATUSES = (Lead.Status.NEW, Lead.Status.CONTACTED)
+SERVICE_REQUEST_COMPLETED_STATUSES = (Lead.Status.INVOICED, Lead.Status.CLOSED)
+
+
+def _order_service_requests_for_followup(qs: QuerySet[Lead]) -> QuerySet[Lead]:
+    return qs.annotate(
+        _request_status_priority=Case(
+            When(status=Lead.Status.NEW, then=Value(0)),
+            When(status=Lead.Status.CONTACTED, then=Value(1)),
+            When(status=Lead.Status.INVOICED, then=Value(2)),
+            When(status=Lead.Status.CLOSED, then=Value(3)),
+            default=Value(9),
+            output_field=IntegerField(),
+        ),
+        _request_time_priority=Case(
+            When(preferred_start_time__isnull=False, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        ),
+    ).order_by(
+        "_request_status_priority",
+        "_request_time_priority",
+        "preferred_start_time",
+        "created_at",
+        "pk",
+    )
 
 
 def _client_queryset_for_business(business: Business) -> QuerySet[Client]:
@@ -753,16 +780,17 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     service_requests = _lead_queryset_for_business(current_business).filter(
         lead_type=Lead.LeadType.REQUEST
     )
-    open_request_statuses = [Lead.Status.NEW, Lead.Status.CONTACTED]
-    open_service_requests = service_requests.filter(status__in=open_request_statuses)
+    open_service_requests = service_requests.filter(status__in=SERVICE_REQUEST_ACTIVE_STATUSES)
     booking_requests_needing_review = service_requests.filter(
         request_source=Lead.RequestSource.PUBLIC_BOOKING,
         status=Lead.Status.NEW,
     )
-    service_request_followups = open_service_requests.select_related(
-        "category",
-        "requested_service",
-    ).order_by("-created_at", "-pk")[:5]
+    service_request_followups = _order_service_requests_for_followup(
+        open_service_requests.select_related(
+            "category",
+            "requested_service",
+        )
+    )[:5]
     booking_request_followups = booking_requests_needing_review.select_related(
         "category",
         "requested_service",
@@ -1114,19 +1142,16 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
     status_group: str = (request.GET.get("status_group") or "active").strip()
     lead_type: str = (request.GET.get("lead_type") or "").strip()
     query: str = (request.GET.get("q") or "").strip()
-    active_request_statuses = [Lead.Status.NEW, Lead.Status.CONTACTED]
-    completed_request_statuses = [Lead.Status.INVOICED, Lead.Status.CLOSED]
-
     if status:
         qs = qs.filter(status=status)
         status_group = ""
     elif status_group == "all":
         pass
     elif status_group == "completed":
-        qs = qs.filter(status__in=completed_request_statuses)
+        qs = qs.filter(status__in=SERVICE_REQUEST_COMPLETED_STATUSES)
     else:
         status_group = "active"
-        qs = qs.filter(status__in=active_request_statuses)
+        qs = qs.filter(status__in=SERVICE_REQUEST_ACTIVE_STATUSES)
 
     if lead_type:
         qs = qs.filter(lead_type=lead_type)
@@ -1140,7 +1165,7 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
         )
 
     context: dict[str, Any] = {
-        "leads": qs,
+        "leads": _order_service_requests_for_followup(qs),
         "filters": {
             "status": status,
             "status_group": status_group or (request.GET.get("status_group") or "active"),
