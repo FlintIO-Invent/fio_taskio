@@ -1,4 +1,5 @@
 {% extends "inheritance/dashboard_parent.html" %}
+{% load money %}
 
 {% block content %}
 <div class="content">
@@ -101,7 +102,7 @@
                       <span class="text-body-tertiary">Uncategorized</span>
                     {% endif %}
                   </td>
-                  <td>{{ business.currency }} {{ service.unit_price|floatformat:2 }}</td>
+                  <td>{{ service.unit_price|money:business }}</td>
                   <td>{{ service.tax_rate|floatformat:2 }}%</td>
                   <td>
                     {% if service.is_bookable_online %}

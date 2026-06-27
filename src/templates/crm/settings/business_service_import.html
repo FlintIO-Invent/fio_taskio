@@ -80,10 +80,77 @@
             <li><code>public_description</code></li>
             <li><code>requires_manual_confirmation</code></li>
           </ul>
-          <p class="text-body-tertiary mb-2">If <code>tax_rate</code> is blank, Motionmate uses the current workspace default tax rate of {{ business.tax_rate|floatformat:2 }}%.</p>
+          <p class="text-body-tertiary mb-2">Prices are stored as decimals. Use <code>1234.56</code>, or <code>{{ price_input_example }}</code> for this workspace format.</p>
+          <p class="text-body-tertiary mb-2">If <code>tax_rate</code> is blank, Motionmate uses the current workspace default {{ business.tax_label|default:"Tax" }} rate of {{ business.tax_rate|floatformat:2 }}%.</p>
           <p class="text-body-tertiary mb-0">If booking columns are omitted, existing booking settings on matched services are left unchanged.</p>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-body p-4 p-lg-5">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <h4 class="mb-1">View Import Examples</h4>
+          <p class="text-body-tertiary mb-0">Review the columns and sample rows here before downloading or uploading a CSV.</p>
+        </div>
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Download sample CSV</a>
+      </div>
+
+      <div class="table-responsive mb-4">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Column</th>
+              <th>Required</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for column in import_columns %}
+              <tr>
+                <td><code>{{ column.name }}</code></td>
+                <td>{{ column.required }}</td>
+                <td>{{ column.description }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-responsive mb-4">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              {% for column in import_columns %}
+                <th><code>{{ column.name }}</code></th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in sample_rows %}
+              <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.unit_price }}</td>
+                <td>{{ row.description }}</td>
+                <td>{{ row.tax_rate }}</td>
+                <td>{{ row.category }}</td>
+                <td>{{ row.is_active }}</td>
+                <td>{{ row.external_code }}</td>
+                <td>{{ row.is_bookable_online }}</td>
+                <td>{{ row.default_duration_minutes }}</td>
+                <td>{{ row.booking_buffer_minutes }}</td>
+                <td>{{ row.public_description }}</td>
+                <td>{{ row.requires_manual_confirmation }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <label class="form-label" for="sample-csv-text">Copyable CSV</label>
+      <textarea id="sample-csv-text" class="form-control font-monospace" rows="6" readonly>{{ sample_csv_text }}</textarea>
     </div>
   </div>
 </div>

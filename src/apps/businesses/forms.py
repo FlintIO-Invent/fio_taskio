@@ -35,11 +35,12 @@ class BusinessSettingsForm(forms.ModelForm):
             "address",
         ]
         widgets = {
-            "name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Acme Freight"}
-            ),
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Acme Freight"}),
             "business_type": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Electrician, Cleaning Service, Consultant..."}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Electrician, Cleaning Service, Consultant...",
+                }
             ),
             "email": forms.EmailInput(
                 attrs={"class": "form-control", "placeholder": "hello@example.com"}
@@ -61,25 +62,29 @@ class BusinessSettingsForm(forms.ModelForm):
                 attrs={"class": "form-control", "placeholder": "VAT, BTW, GST, Tax"}
             ),
             "tax_rate": forms.NumberInput(
-                attrs={"class": "form-control", "min": 0, "max": 100, "step": "0.01"}
+                attrs={"class": "form-control", "min": 0, "max": 100, "step": "1.00"}
             ),
             "invoice_prefix": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "INV"}
             ),
-            "invoice_start_number": forms.NumberInput(
-                attrs={"class": "form-control", "min": 1}
-            ),
+            "invoice_start_number": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
             "address_line_1": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Street and building number"}
             ),
             "address_line_2": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Suite, floor, or additional details"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Suite, floor, or additional details",
+                }
             ),
             "city": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Amsterdam or Philipsburg"}
             ),
             "region": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "North Holland, district, province, or state"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "North Holland, district, province, or state",
+                }
             ),
             "postal_code": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Optional postal or ZIP code"}

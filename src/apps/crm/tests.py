@@ -24,7 +24,7 @@ from apps.businesses.models import (
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 from apps.notifications.emails import get_internal_booking_notification_recipient
 
-from .forms import PrivateClientForm, PrivateLeadForm
+from .forms import PrivateClientForm, PrivateLeadForm, PublicBookingForm
 from .models import BusinessService, Client, Lead, ServiceCategory
 from .services import sync_client_from_lead
 
@@ -258,7 +258,9 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("appointment_detail", args=[upcoming_appointment.id]))
-        self.assertContains(response, reverse("appointment_detail", args=[completed_appointment.id]))
+        self.assertContains(
+            response, reverse("appointment_detail", args=[completed_appointment.id])
+        )
         self.assertContains(response, "Target upcoming visit")
         self.assertContains(response, "Target completed visit")
         self.assertNotContains(response, "Other client visit")
@@ -283,7 +285,9 @@ class CRMBusinessScopingTests(TestCase):
 
         self.client.logout()
         self.client.force_login(self.accountant_user)
-        accountant_response = self.client.get(reverse("staff_client_detail", args=[client_record.id]))
+        accountant_response = self.client.get(
+            reverse("staff_client_detail", args=[client_record.id])
+        )
         self.assertNotContains(accountant_response, schedule_url)
 
         self.client.logout()
@@ -510,7 +514,7 @@ class CRMBusinessScopingTests(TestCase):
             [legacy_category, current_category],
         )
 
-    def test_public_request_only_shows_and_accepts_categories_for_target_business(self):
+    def test_public_request_redirects_get_to_unified_public_booking_form(self):
         current_category = ServiceCategory.objects.create(
             business=self.business,
             name="Tank Pumping",
@@ -522,8 +526,11 @@ class CRMBusinessScopingTests(TestCase):
 
         response = self.client.get(reverse("public_request", args=[self.business.slug]))
 
-        self.assertContains(response, current_category.name)
-        self.assertNotContains(response, foreign_category.name)
+        self.assertRedirects(
+            response,
+            reverse("public_booking", args=[self.business.slug]),
+            fetch_redirect_response=False,
+        )
 
         invalid_response = self.client.post(
             reverse("public_request", args=[self.business.slug]),
@@ -547,6 +554,8 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(invalid_response.status_code, 200)
         self.assertContains(invalid_response, "Select a valid choice")
         self.assertFalse(Lead.objects.filter(email="blocked@example.com").exists())
+        self.assertEqual(current_category.business, self.business)
+        self.assertEqual(foreign_category.business, self.other_business)
 
     def test_public_request_returns_unavailable_page_when_plan_disables_form(self):
         locked_plan = ClarivoPlan.objects.create(
@@ -683,7 +692,9 @@ class CRMBusinessScopingTests(TestCase):
         lead.refresh_from_db()
 
         self.assertRedirects(response, reverse("staff_client_detail", args=[existing_client.id]))
-        self.assertEqual(Client.objects.filter(business=self.business, email=existing_client.email).count(), 1)
+        self.assertEqual(
+            Client.objects.filter(business=self.business, email=existing_client.email).count(), 1
+        )
         self.assertEqual(lead.email, existing_client.email)
         self.assertIn("Public request #", existing_client.communication_notes)
 
@@ -718,7 +729,11 @@ class CRMBusinessScopingTests(TestCase):
         self.assertContains(get_response, "Street address")
         self.assertEqual(post_response.status_code, 200)
         self.assertContains(post_response, "This field is required.")
-        self.assertFalse(Client.objects.filter(business=self.business, email="missing-required@example.com").exists())
+        self.assertFalse(
+            Client.objects.filter(
+                business=self.business, email="missing-required@example.com"
+            ).exists()
+        )
 
     def test_other_business_cannot_convert_request(self):
         foreign_lead = Lead.objects.create(
@@ -784,7 +799,9 @@ class CRMBusinessScopingTests(TestCase):
             fetch_redirect_response=False,
         )
         self.assertRedirects(edit_response, reverse("staff_lead_list"))
-        self.assertContains(edit_response, "You do not have permission to create or edit service requests.")
+        self.assertContains(
+            edit_response, "You do not have permission to create or edit service requests."
+        )
 
     def test_create_invoice_from_request_requires_client(self):
         self._enable_invoicing_for_business()
@@ -960,7 +977,9 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Appointments are not included in the current workspace plan.")
+        self.assertContains(
+            response, "Appointments are not included in the current workspace plan."
+        )
         self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
 
     def test_agent_dashboard_scopes_metrics_to_current_business(self):
@@ -1316,9 +1335,7 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertRedirects(archive_response, reverse("business_service_category_list"))
         self.assertFalse(created_category.is_active)
-        self.assertTrue(
-            ServiceCategory.objects.filter(pk=created_category.pk).exists()
-        )
+        self.assertTrue(ServiceCategory.objects.filter(pk=created_category.pk).exists())
 
     def test_business_service_rejects_category_from_another_business(self):
         foreign_category = ServiceCategory.objects.create(
@@ -1483,14 +1500,107 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertRedirects(archive_response, reverse("business_service_list"))
         self.assertFalse(created_service.is_active)
-        self.assertTrue(
-            BusinessService.objects.filter(pk=created_service.pk).exists()
-        )
+        self.assertTrue(BusinessService.objects.filter(pk=created_service.pk).exists())
 
         foreign_update_response = self.client.get(
             reverse("business_service_update", args=[foreign_service.id]),
         )
         self.assertEqual(foreign_update_response.status_code, 404)
+
+    def test_business_service_price_display_and_input_follow_business_locale(self):
+        self.business.country = "Netherlands"
+        self.business.currency = Business.Currency.EUR
+        self.business.default_locale = "nl-NL"
+        self.business.tax_label = "VAT"
+        self.business.tax_rate = Decimal("21.00")
+        self.business.save(
+            update_fields=[
+                "country",
+                "currency",
+                "default_locale",
+                "tax_label",
+                "tax_rate",
+                "updated_at",
+            ]
+        )
+        BusinessService.objects.create(
+            business=self.business,
+            name="Dutch Priced Service",
+            unit_price=Decimal("1234.56"),
+            tax_rate=Decimal("21.00"),
+        )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        list_response = self.client.get(reverse("business_service_list"))
+        create_page = self.client.get(reverse("business_service_create"))
+        create_response = self.client.post(
+            reverse("business_service_create"),
+            {
+                "category": "",
+                "name": "Comma Decimal Service",
+                "external_code": "",
+                "description": "Uses European price input.",
+                "unit_price": "1.234,56",
+                "tax_rate": "",
+                "is_active": "on",
+                "default_duration_minutes": "",
+                "booking_buffer_minutes": "",
+                "public_description": "",
+                "requires_manual_confirmation": "on",
+            },
+            follow=True,
+        )
+
+        created_service = BusinessService.objects.get(name="Comma Decimal Service")
+
+        self.assertContains(list_response, "€1.234,56")
+        self.assertContains(create_page, "Example: 1.234,56")
+        self.assertRedirects(create_response, reverse("business_service_list"))
+        self.assertEqual(created_service.unit_price, Decimal("1234.56"))
+        self.assertEqual(created_service.tax_rate, Decimal("21.00"))
+
+    def test_business_service_tax_defaults_apply_to_new_services_only(self):
+        service = BusinessService.objects.create(
+            business=self.business,
+            name="Existing Tax Service",
+            unit_price=Decimal("25.00"),
+            tax_rate=Decimal("6.50"),
+        )
+        self.business.tax_rate = Decimal("9.00")
+        self.business.save(update_fields=["tax_rate", "updated_at"])
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        update_response = self.client.post(
+            reverse("business_service_update", args=[service.id]),
+            {
+                "category": "",
+                "name": "Existing Tax Service Updated",
+                "external_code": "",
+                "description": "Tax field left blank on edit.",
+                "unit_price": "30.00",
+                "tax_rate": "",
+                "is_active": "on",
+                "default_duration_minutes": "",
+                "booking_buffer_minutes": "",
+                "public_description": "",
+                "requires_manual_confirmation": "on",
+            },
+            follow=True,
+        )
+
+        service.refresh_from_db()
+
+        self.assertRedirects(update_response, reverse("business_service_list"))
+        self.assertEqual(service.tax_rate, Decimal("6.50"))
+        self.assertEqual(service.unit_price, Decimal("30.00"))
 
     def test_admin_can_set_service_as_bookable_online(self):
         admin_user = TaskIOUser.objects.create_user(
@@ -1660,7 +1770,46 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(imported_service.public_description, "Public drain cleaning copy")
         self.assertTrue(imported_service.requires_manual_confirmation)
 
-    def test_business_service_csv_import_without_booking_columns_preserves_existing_booking_fields(self):
+    def test_business_service_csv_import_accepts_comma_decimal_for_locale(self):
+        self.business.country = "Netherlands"
+        self.business.currency = Business.Currency.EUR
+        self.business.default_locale = "nl-NL"
+        self.business.tax_rate = Decimal("21.00")
+        self.business.save(
+            update_fields=["country", "currency", "default_locale", "tax_rate", "updated_at"]
+        )
+        csv_content = "\n".join(
+            [
+                "name,unit_price,description,tax_rate,category,is_active,external_code",
+                'Locale Import,"1.234,56",Imported with comma decimal,"21,00",,true,LOCALE-001',
+            ]
+        )
+        upload = SimpleUploadedFile(
+            "services.csv",
+            csv_content.encode("utf-8"),
+            content_type="text/csv",
+        )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.post(
+            reverse("business_service_import"),
+            {"csv_file": upload},
+            follow=True,
+        )
+
+        imported_service = BusinessService.objects.get(external_code="LOCALE-001")
+
+        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertEqual(imported_service.unit_price, Decimal("1234.56"))
+        self.assertEqual(imported_service.tax_rate, Decimal("21.00"))
+
+    def test_business_service_csv_import_without_booking_columns_preserves_existing_booking_fields(
+        self,
+    ):
         existing_service = BusinessService.objects.create(
             business=self.business,
             name="Booked Inspection",
@@ -1720,6 +1869,22 @@ class CRMBusinessScopingTests(TestCase):
             response.content.decode("utf-8"),
         )
 
+    def test_business_service_import_page_displays_examples_in_browser(self):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.get(reverse("business_service_import"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "View Import Examples")
+        self.assertContains(response, "Required columns")
+        self.assertContains(response, "Optional columns")
+        self.assertContains(response, "Emergency Callout")
+        self.assertContains(response, "Copyable CSV")
+        self.assertContains(response, "is_bookable_online")
+
     def test_dashboard_shows_invoicing_links_when_plan_allows_module(self):
         plan = ClarivoPlan.objects.create(
             name="Pro",
@@ -1777,7 +1942,9 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("staff_lead_create"), follow=True)
 
         self.assertRedirects(response, reverse("staff_lead_list"))
-        self.assertContains(response, "You do not have permission to create or edit service requests.")
+        self.assertContains(
+            response, "You do not have permission to create or edit service requests."
+        )
 
     def test_viewer_client_list_hides_create_and_edit_actions(self):
         client_record = Client.objects.create(
@@ -1869,7 +2036,9 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("business_service_list"), follow=True)
 
         self.assertRedirects(response, reverse("agent_dashboard"))
-        self.assertContains(response, "You do not have permission to manage services or categories.")
+        self.assertContains(
+            response, "You do not have permission to manage services or categories."
+        )
 
 
 class PublicBookingTests(TestCase):
@@ -2005,6 +2174,12 @@ class PublicBookingTests(TestCase):
             first_name="Viewer",
             last_name="User",
         )
+        self.other_staff_user = TaskIOUser.objects.create_user(
+            email="foreign-booking-staff@example.com",
+            password="testpass123",
+            first_name="Foreign",
+            last_name="Staff",
+        )
         BusinessUser.objects.create(
             user=self.owner_user,
             business=self.business,
@@ -2029,6 +2204,11 @@ class PublicBookingTests(TestCase):
             user=self.viewer_user,
             business=self.business,
             role=BusinessUser.Role.VIEWER,
+        )
+        BusinessUser.objects.create(
+            user=self.other_staff_user,
+            business=self.other_business,
+            role=BusinessUser.Role.STAFF,
         )
 
     @property
@@ -2093,6 +2273,22 @@ class PublicBookingTests(TestCase):
         )
         return Lead.objects.get(email=overrides.get("email", "booking@example.com"))
 
+    def _create_valid_book_now(self, **overrides):
+        payload = self._booking_payload(
+            booking_intent=PublicBookingForm.BOOK_NOW,
+            staff_member=self.staff_user.pk,
+            **overrides,
+        )
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=payload,
+        )
+        self.assertRedirects(
+            response,
+            reverse("public_booking_thank_you", args=[self.business.slug]),
+        )
+        return Lead.objects.get(email=overrides.get("email", "booking@example.com"))
+
     def _create_booking_appointment(self, lead):
         client = Client.objects.get(business=self.business, email=lead.email)
         return Appointment.objects.create(
@@ -2109,8 +2305,14 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Booking Request")
+        self.assertContains(response, "Public Booking Form")
+        self.assertContains(response, "Book an appointment now")
+        self.assertContains(response, "Contact me before booking")
         self.assertContains(response, self.service.name)
+        self.assertContains(response, "$100.00")
+        self.assertContains(response, "Staff User")
+        self.assertNotContains(response, "Accountant User")
+        self.assertNotContains(response, "Viewer User")
 
     def test_public_booking_page_unavailable_when_plan_blocks_public_booking(self):
         subscription = BusinessSubscription.objects.get(business=self.business)
@@ -2166,7 +2368,9 @@ class PublicBookingTests(TestCase):
     def test_public_booking_rejects_cross_business_service_id(self):
         response = self.client.post(
             reverse("public_booking", args=[self.business.slug]),
-            data=self._booking_payload(service=self.other_service, email="foreign-service@example.com"),
+            data=self._booking_payload(
+                service=self.other_service, email="foreign-service@example.com"
+            ),
         )
 
         self.assertEqual(response.status_code, 200)
@@ -2258,6 +2462,74 @@ class PublicBookingTests(TestCase):
         self.assertIn("Requested service: Online Consultation", client.communication_notes)
         self.assertFalse(Appointment.objects.filter(source_lead=lead).exists())
 
+    def test_book_now_creates_request_client_and_scheduled_appointment_for_selected_staff(self):
+        lead = self._create_valid_book_now(email="book-now@example.com")
+        client = Client.objects.get(business=self.business, email="book-now@example.com")
+        appointment = Appointment.objects.get(source_lead=lead)
+
+        self.assertEqual(lead.business, self.business)
+        self.assertEqual(lead.request_source, Lead.RequestSource.PUBLIC_BOOKING)
+        self.assertEqual(lead.requested_service, self.service)
+        self.assertEqual(client.client_status, Client.ClientStatus.LEAD)
+        self.assertEqual(appointment.business, self.business)
+        self.assertEqual(appointment.client, client)
+        self.assertEqual(appointment.service, self.service)
+        self.assertEqual(appointment.staff_member, self.staff_user)
+        self.assertEqual(appointment.start_time, lead.preferred_start_time)
+        self.assertEqual(appointment.end_time, lead.preferred_end_time)
+        self.assertIn("Booking intent: book an appointment now.", lead.notes)
+        self.assertIn("Preferred staff: Staff User.", lead.notes)
+
+    def test_book_now_rejects_staff_member_from_other_business(self):
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(
+                booking_intent=PublicBookingForm.BOOK_NOW,
+                staff_member=self.other_staff_user.pk,
+                email="foreign-staff-choice@example.com",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertFalse(Lead.objects.filter(email="foreign-staff-choice@example.com").exists())
+
+    def test_book_now_rejects_selected_staff_member_when_already_booked(self):
+        client = Client.objects.create(
+            business=self.business,
+            first_name="Existing",
+            last_name="Client",
+            email="existing-client@example.com",
+            phone="+1 721 555 0100",
+            company_name="Existing Client",
+            street_address="1 Existing Street",
+        )
+        Appointment.objects.create(
+            business=self.business,
+            client=client,
+            service=self.service,
+            staff_member=self.staff_user,
+            title="Existing booking",
+            start_time=self.valid_start,
+            end_time=self.valid_start + timedelta(minutes=45),
+        )
+
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(
+                booking_intent=PublicBookingForm.BOOK_NOW,
+                staff_member=self.staff_user.pk,
+                email="staff-conflict@example.com",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "That staff member is already booked at the selected time.",
+        )
+        self.assertFalse(Lead.objects.filter(email="staff-conflict@example.com").exists())
+
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_public_booking_sends_requester_confirmation_and_internal_notification(self):
         mail.outbox.clear()
@@ -2347,7 +2619,9 @@ class PublicBookingTests(TestCase):
                 self.assertContains(response, "45 minutes")
                 self.assertContains(response, "Please confirm if this time works.")
                 self.assertContains(response, "Confirm / Schedule Appointment")
-                self.assertContains(response, reverse("appointment_create_from_request", args=[lead.id]))
+                self.assertContains(
+                    response, reverse("appointment_create_from_request", args=[lead.id])
+                )
 
     def test_booking_request_detail_hides_confirm_action_for_read_only_roles(self):
         lead = self._create_valid_booking(email="readonly-detail-booking@example.com")
@@ -2361,7 +2635,9 @@ class PublicBookingTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Booking Request")
                 self.assertNotContains(response, "Confirm / Schedule Appointment")
-                self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
+                self.assertNotContains(
+                    response, reverse("appointment_create_from_request", args=[lead.id])
+                )
 
     def test_booking_request_detail_hides_duplicate_confirm_action_when_appointment_exists(self):
         lead = self._create_valid_booking(email="linked-booking@example.com")
@@ -2385,7 +2661,9 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Appointments are not included in the current workspace plan.")
+        self.assertContains(
+            response, "Appointments are not included in the current workspace plan."
+        )
         self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
 
     def test_public_booking_does_not_overwrite_richer_existing_client_data(self):
@@ -2431,7 +2709,9 @@ class PublicBookingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         form = response.context["form"]
         self.assertEqual(form.initial["service"], self.service.pk)
-        self.assertEqual(form.initial["client"], Client.objects.get(email="schedule-booking@example.com").pk)
+        self.assertEqual(
+            form.initial["client"], Client.objects.get(email="schedule-booking@example.com").pk
+        )
         self.assertEqual(form.initial["start_time"], lead.preferred_start_time)
         self.assertEqual(form.initial["end_time"], lead.preferred_end_time)
         self.assertIn("Request source: Public booking form", form.initial["notes"])
@@ -2496,7 +2776,9 @@ class PublicBookingTests(TestCase):
         confirmation_email = mail.outbox[0]
         self.assertEqual(confirmation_email.to, ["appointment-email@example.com"])
         self.assertIn("Motionmate", confirmation_email.body)
-        self.assertIn("Your appointment with Motionmate Booking has been scheduled", confirmation_email.body)
+        self.assertIn(
+            "Your appointment with Motionmate Booking has been scheduled", confirmation_email.body
+        )
         self.assertIn(self.service.name, confirmation_email.body)
         self.assertIn("45 Front Street", confirmation_email.body)
 
@@ -2548,7 +2830,9 @@ class PublicBookingTests(TestCase):
         )
 
         self.client.force_login(self.owner_user)
-        response = self.client.get(reverse("appointment_create_from_request", args=[foreign_lead.id]))
+        response = self.client.get(
+            reverse("appointment_create_from_request", args=[foreign_lead.id])
+        )
 
         self.assertEqual(response.status_code, 404)
 

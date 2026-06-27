@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django import forms
@@ -8,6 +8,11 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.text import slugify
 
+from apps.businesses.localization import (
+    format_money_for_business,
+    localized_price_input_example,
+    parse_localized_decimal,
+)
 from apps.businesses.models import BusinessUser, WeeklyAvailability
 
 from .models import BusinessService, Client, Lead, ServiceCategory
@@ -50,6 +55,39 @@ def _bookable_service_queryset(*, business=None):
         .select_related("business", "category")
         .order_by("name", "pk")
     )
+
+
+def _public_booking_staff_queryset(*, business=None):
+    if business is None:
+        return get_user_model().objects.none()
+
+    return (
+        get_user_model()
+        .objects.filter(
+            business_memberships__business=business,
+            business_memberships__is_active=True,
+            business_memberships__business__is_active=True,
+            business_memberships__role__in=(
+                BusinessUser.Role.OWNER,
+                BusinessUser.Role.ADMIN,
+                BusinessUser.Role.STAFF,
+            ),
+            is_active=True,
+        )
+        .distinct()
+        .order_by("first_name", "last_name", "email")
+    )
+
+
+def _public_staff_label(user) -> str:
+    get_full_name = getattr(user, "get_full_name", None)
+    full_name = (get_full_name() if callable(get_full_name) else "") or getattr(
+        user,
+        "full_name",
+        "",
+    )
+    full_name = full_name.strip()
+    return full_name or user.email
 
 
 def _timezone_for_business(business):
@@ -95,7 +133,6 @@ class PrivateClientForm(forms.ModelForm):
             "company_name",
             "email",
             "phone",
-
             # business details
             "business_legal_name",
             "trade_name",
@@ -103,7 +140,6 @@ class PrivateClientForm(forms.ModelForm):
             "business_description",
             "website",
             "registration_number",
-
             # contact context
             "job_title",
             "department",
@@ -112,20 +148,17 @@ class PrivateClientForm(forms.ModelForm):
             "whatsapp_number",
             "preferred_language",
             "preferred_contact_method",
-
             # relationship / crm
             "lead_source",
             "client_status",
             "priority",
             "assigned_to",
             "interested_services",
-
             # location
             "street_address",
             "district",
             "country",
             "postal_code",
-
             # notes / consent
             "message",
             "communication_notes",
@@ -142,7 +175,6 @@ class PrivateClientForm(forms.ModelForm):
             "priority": forms.Select(attrs={"class": "form-select mb-3"}),
             "assigned_to": forms.Select(attrs={"class": "form-select mb-3"}),
             "district": forms.Select(attrs={"class": "form-select"}),
-
             # Text inputs
             "company_name": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "SimonSays N.V."}
@@ -195,13 +227,10 @@ class PrivateClientForm(forms.ModelForm):
             "street_address": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Street address"}
             ),
-            "country": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Country"}
-            ),
+            "country": forms.TextInput(attrs={"class": "form-control", "placeholder": "Country"}),
             "postal_code": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Postal code"}
             ),
-
             # Textareas
             "business_description": forms.Textarea(
                 attrs={
@@ -238,7 +267,6 @@ class PrivateClientForm(forms.ModelForm):
                     "placeholder": "Notes about the request / context...",
                 }
             ),
-
             # Checkbox
             "consent_to_contact": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -316,9 +344,7 @@ class PrivateLeadForm(forms.ModelForm):
                 attrs={"class": "form-control", "placeholder": "Street address"}
             ),
             "district": forms.Select(attrs={"class": "form-select"}),
-            "country": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Country"}
-            ),
+            "country": forms.TextInput(attrs={"class": "form-control", "placeholder": "Country"}),
             "postal_code": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Postal code"}
             ),
@@ -363,86 +389,98 @@ class PublicLeadForm(forms.ModelForm):
             "category",
             "first_name",
             "last_name",
-            "company_name", 
+            "company_name",
             "email",
             "phone",
             "street_address",
             "district",
-            "country",        # make sure this exists in your model
+            "country",  # make sure this exists in your model
             "postal_code",
             "message",
             "consent_to_contact",
         ]
 
         widgets = {
-
             # Dropdowns
-            "lead_type": forms.Select(attrs={
-                "class": "form-select mb-3",
-            }),
-
-            "category": forms.Select(attrs={
-                "class": "form-select mb-3",
-            }),
-
-            "district": forms.Select(attrs={
-                "class": "form-select",
-            }),
-
-            "company_name": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "SimonSays N.V.",
-            }),
-          
-
+            "lead_type": forms.Select(
+                attrs={
+                    "class": "form-select mb-3",
+                }
+            ),
+            "category": forms.Select(
+                attrs={
+                    "class": "form-select mb-3",
+                }
+            ),
+            "district": forms.Select(
+                attrs={
+                    "class": "form-select",
+                }
+            ),
+            "company_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "SimonSays N.V.",
+                }
+            ),
             # Text Inputs
-            "first_name": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "First name",
-            }),
-
-            "last_name": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Last name",
-            }),
-
-            "email": forms.EmailInput(attrs={
-                "class": "form-control",
-                "placeholder": "name@example.com",
-            }),
-
-            "phone": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "+1 (721) 456-7890",
-            }),
-
-            "street_address": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Street address",
-            }),
-
-            "country": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Country",
-                "value": "SXM",   
-            }),
-
-            "postal_code": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Postal code",
-            }),
-
+            "first_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "First name",
+                }
+            ),
+            "last_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Last name",
+                }
+            ),
+            "email": forms.EmailInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "name@example.com",
+                }
+            ),
+            "phone": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "+1 (721) 456-7890",
+                }
+            ),
+            "street_address": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Street address",
+                }
+            ),
+            "country": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Country",
+                    "value": "SXM",
+                }
+            ),
+            "postal_code": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Postal code",
+                }
+            ),
             # Textarea
-            "message": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 4,
-                "placeholder": "Tell us what you need...",
-            }),
-
+            "message": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Tell us what you need...",
+                }
+            ),
             # Checkbox
-            "consent_to_contact": forms.CheckboxInput(attrs={
-                "class": "form-check-input",
-            }),
+            "consent_to_contact": forms.CheckboxInput(
+                attrs={
+                    "class": "form-check-input",
+                }
+            ),
         }
 
         labels = {
@@ -455,18 +493,42 @@ class PublicLeadForm(forms.ModelForm):
 
 
 class PublicBookingForm(forms.Form):
+    BOOK_NOW = "book_now"
+    BOOK_LATER = "book_later"
+    BOOKING_INTENT_CHOICES = (
+        (BOOK_NOW, "Book an appointment now"),
+        (BOOK_LATER, "Contact me before booking"),
+    )
+
+    booking_intent = forms.ChoiceField(
+        choices=BOOKING_INTENT_CHOICES,
+        required=False,
+        label="When would you like to book?",
+        widget=forms.Select(attrs={"class": "form-select mb-3"}),
+    )
     service = forms.ModelChoiceField(
         queryset=BusinessService.objects.none(),
         empty_label="Select a service",
         label="Service",
         widget=forms.Select(attrs={"class": "form-select mb-3"}),
     )
+    staff_member = forms.ModelChoiceField(
+        queryset=get_user_model().objects.none(),
+        empty_label="Select a staff member",
+        required=False,
+        label="Preferred staff member",
+        widget=forms.Select(attrs={"class": "form-select mb-3"}),
+    )
     preferred_date = forms.DateField(
         input_formats=["%Y-%m-%d"],
+        required=False,
+        label="Available date",
         widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
     )
     preferred_time = forms.TimeField(
         input_formats=["%H:%M"],
+        required=False,
+        label="Available time",
         widget=forms.TimeInput(attrs={"class": "form-control", "type": "time"}, format="%H:%M"),
     )
     first_name = forms.CharField(
@@ -487,7 +549,9 @@ class PublicBookingForm(forms.Form):
     company_name = forms.CharField(
         max_length=120,
         label="Company or household",
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Company or household"}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Company or household"}
+        ),
     )
     street_address = forms.CharField(
         max_length=255,
@@ -527,20 +591,48 @@ class PublicBookingForm(forms.Form):
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
 
-    def __init__(self, *args, business=None, booking_settings=None, selected_service_id=None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        business=None,
+        booking_settings=None,
+        selected_service_id=None,
+        appointments_enabled=True,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.business = business
         self.booking_settings = booking_settings
+        self.appointments_enabled = appointments_enabled
+        self.fields["booking_intent"].initial = (
+            self.BOOK_NOW if appointments_enabled else self.BOOK_LATER
+        )
+        if not appointments_enabled:
+            self.fields["booking_intent"].choices = (
+                (self.BOOK_LATER, "Contact me before booking"),
+            )
         self.fields["service"].queryset = _bookable_service_queryset(business=business)
+        self.fields["service"].label_from_instance = (
+            lambda service: f"{service.name} - {format_money_for_business(service.unit_price, business)}"
+        )
+        self.fields["staff_member"].queryset = _public_booking_staff_queryset(
+            business=business,
+        )
+        self.fields["staff_member"].label_from_instance = _public_staff_label
 
         if selected_service_id:
             try:
                 selected_service_pk = int(selected_service_id)
             except (TypeError, ValueError):
                 selected_service_pk = None
-            if selected_service_pk and self.fields["service"].queryset.filter(
-                pk=selected_service_pk,
-            ).exists():
+            if (
+                selected_service_pk
+                and self.fields["service"]
+                .queryset.filter(
+                    pk=selected_service_pk,
+                )
+                .exists()
+            ):
                 self.fields["service"].initial = selected_service_pk
 
     def clean(self):
@@ -548,15 +640,35 @@ class PublicBookingForm(forms.Form):
 
         business = self.business
         booking_settings = self.booking_settings
+        booking_intent = cleaned_data.get("booking_intent") or self.BOOK_LATER
         service = cleaned_data.get("service")
+        staff_member = cleaned_data.get("staff_member")
         preferred_date = cleaned_data.get("preferred_date")
         preferred_time = cleaned_data.get("preferred_time")
+        wants_appointment = booking_intent == self.BOOK_NOW
+
+        cleaned_data["booking_intent"] = booking_intent
 
         if business is None or booking_settings is None:
             raise forms.ValidationError("Booking requests are unavailable right now.")
 
         if service is not None and service.business_id != business.id:
             self.add_error("service", "Select a valid service.")
+
+        if wants_appointment and not self.appointments_enabled:
+            self.add_error(
+                "booking_intent",
+                "Online appointment booking is unavailable right now.",
+            )
+
+        if wants_appointment and staff_member is None:
+            self.add_error("staff_member", "Select the staff member you want to book with.")
+
+        if wants_appointment and preferred_date is None:
+            self.add_error("preferred_date", "Select an available date.")
+
+        if wants_appointment and preferred_time is None:
+            self.add_error("preferred_time", "Select an available time.")
 
         if not (service and preferred_date and preferred_time):
             return cleaned_data
@@ -568,8 +680,7 @@ class PublicBookingForm(forms.Form):
             tzinfo=business_tz,
         )
         duration_minutes = (
-            service.default_duration_minutes
-            or booking_settings.default_duration_minutes
+            service.default_duration_minutes or booking_settings.default_duration_minutes
         )
         preferred_end_time = preferred_start_time + timedelta(minutes=duration_minutes)
 
@@ -615,6 +726,22 @@ class PublicBookingForm(forms.Form):
                     "Choose a time within the business's available hours.",
                 )
 
+        if staff_member is not None:
+            from apps.appointments.models import Appointment
+
+            has_conflict = Appointment.objects.filter(
+                business=business,
+                staff_member=staff_member,
+                status=Appointment.Status.SCHEDULED,
+                start_time__lt=preferred_end_time,
+                end_time__gt=preferred_start_time,
+            ).exists()
+            if has_conflict:
+                self.add_error(
+                    "preferred_time",
+                    "That staff member is already booked at the selected time.",
+                )
+
         cleaned_data["preferred_start_time"] = preferred_start_time
         cleaned_data["preferred_end_time"] = preferred_end_time
         cleaned_data["duration_minutes"] = duration_minutes
@@ -657,9 +784,7 @@ class LeadClientConversionForm(forms.ModelForm):
                 attrs={"class": "form-control", "placeholder": "Street address"}
             ),
             "district": forms.Select(attrs={"class": "form-select"}),
-            "country": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Country"}
-            ),
+            "country": forms.TextInput(attrs={"class": "form-control", "placeholder": "Country"}),
             "postal_code": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Postal code"}
             ),
@@ -726,7 +851,9 @@ class ServiceCategoryForm(forms.ModelForm):
         code = cleaned_data.get("code") or slugify(name).replace("-", "_")
 
         if not self.business:
-            raise forms.ValidationError("A current business is required to manage service categories.")
+            raise forms.ValidationError(
+                "A current business is required to manage service categories."
+            )
 
         if not code:
             self.add_error("name", "Enter a category name.")
@@ -759,6 +886,16 @@ class ServiceCategoryForm(forms.ModelForm):
 
 
 class BusinessServiceForm(forms.ModelForm):
+    unit_price = forms.CharField(
+        label="Unit price",
+        widget=forms.TextInput(attrs={"class": "form-control", "inputmode": "decimal"}),
+    )
+    tax_rate = forms.CharField(
+        label="Tax rate",
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "inputmode": "decimal"}),
+    )
+
     class Meta:
         model = BusinessService
         fields = [
@@ -789,12 +926,6 @@ class BusinessServiceForm(forms.ModelForm):
                     "rows": 4,
                     "placeholder": "Describe what this service includes...",
                 }
-            ),
-            "unit_price": forms.NumberInput(
-                attrs={"class": "form-control", "min": 0, "step": "0.01"}
-            ),
-            "tax_rate": forms.NumberInput(
-                attrs={"class": "form-control", "min": 0, "max": 100, "step": "0.01"}
             ),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "is_bookable_online": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -849,10 +980,48 @@ class BusinessServiceForm(forms.ModelForm):
 
         if business is not None and not self.instance.pk:
             self.fields["tax_rate"].initial = business.tax_rate
+        if business is not None:
+            price_example = localized_price_input_example(business)
+            self.fields["unit_price"].help_text = (
+                f"Stored as a decimal. Display uses {business.currency} and workspace locale. "
+                f"Example: {price_example}."
+            )
+            self.fields["tax_rate"].help_text = (
+                f"Leave blank to use the workspace default {business.tax_label} rate "
+                f"of {business.tax_rate:.2f}% for new services. Existing services keep their "
+                "current tax rate when this field is left blank."
+            )
 
     def clean_external_code(self):
         external_code = (self.cleaned_data.get("external_code") or "").strip()
         return external_code or None
+
+    def clean_unit_price(self):
+        value = self.cleaned_data.get("unit_price")
+        try:
+            unit_price = parse_localized_decimal(value, self.business)
+        except InvalidOperation as exc:
+            raise forms.ValidationError("Enter a valid price.") from exc
+
+        if unit_price < Decimal("0.00"):
+            raise forms.ValidationError("Price cannot be negative.")
+
+        return unit_price
+
+    def clean_tax_rate(self):
+        value = self.cleaned_data.get("tax_rate")
+        if value in (None, ""):
+            return None
+
+        try:
+            tax_rate = parse_localized_decimal(value, self.business)
+        except InvalidOperation as exc:
+            raise forms.ValidationError("Enter a valid tax rate.") from exc
+
+        if tax_rate < Decimal("0.00") or tax_rate > Decimal("100.00"):
+            raise forms.ValidationError("Tax rate must be between 0 and 100.")
+
+        return tax_rate
 
     def clean(self):
         cleaned_data = super().clean()
@@ -861,7 +1030,10 @@ class BusinessServiceForm(forms.ModelForm):
             raise forms.ValidationError("A current business is required to manage services.")
 
         if cleaned_data.get("tax_rate") in (None, ""):
-            cleaned_data["tax_rate"] = self.business.tax_rate or Decimal("0.00")
+            if self.instance.pk:
+                cleaned_data["tax_rate"] = self.instance.tax_rate
+            else:
+                cleaned_data["tax_rate"] = self.business.tax_rate or Decimal("0.00")
 
         external_code = cleaned_data.get("external_code")
         if external_code:
@@ -893,7 +1065,5 @@ class BusinessServiceForm(forms.ModelForm):
 
 class BusinessServiceCSVImportForm(forms.Form):
     csv_file = forms.FileField(
-        widget=forms.ClearableFileInput(
-            attrs={"class": "form-control", "accept": ".csv,text/csv"}
-        )
+        widget=forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".csv,text/csv"})
     )

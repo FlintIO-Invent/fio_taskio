@@ -263,7 +263,9 @@ class BillingBusinessScopingTests(TestCase):
 
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response["Content-Type"], "application/pdf")
-                self.assertIn('filename="invoice-INV-ALPHA-001.pdf"', response["Content-Disposition"])
+                self.assertIn(
+                    'filename="invoice-INV-ALPHA-001.pdf"', response["Content-Disposition"]
+                )
                 self.assertTrue(response.content.startswith(b"%PDF"))
                 self.assertIn(b"INV-ALPHA-001", response.content)
                 self.assertIn(b"XCD 133.13", response.content)
@@ -404,7 +406,9 @@ class BillingBusinessScopingTests(TestCase):
     def test_invoice_create_from_client_sets_invoice_business(self):
         self.client.force_login(self.user)
 
-        response = self.client.post(reverse("invoice_create_from_client", args=[self.client_record.id]))
+        response = self.client.post(
+            reverse("invoice_create_from_client", args=[self.client_record.id])
+        )
 
         created_invoice = Invoice.objects.get(
             business=self.business,
@@ -428,11 +432,32 @@ class BillingBusinessScopingTests(TestCase):
     def test_invoice_create_page_only_lists_current_business_services(self):
         self.client.force_login(self.user)
 
-        response = self.client.get(reverse("invoice_create_from_client", args=[self.client_record.id]))
+        response = self.client.get(
+            reverse("invoice_create_from_client", args=[self.client_record.id])
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.business_service.name)
+        self.assertContains(response, "$125.00")
         self.assertNotContains(response, self.other_business_service.name)
+
+    def test_invoice_create_page_line_item_numbers_step_in_whole_units(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_client", args=[self.client_record.id])
+        )
+        html = response.content.decode()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            'name="quantity" value="" step="1.00" min="1.00" inputmode="numeric"',
+            html,
+        )
+        self.assertIn('name="unit_price" value="" step="1.00" min="0"', html)
+        self.assertNotIn('step="0.01"', html)
+        self.assertIn("function isWholeUnitQuantity(value)", html)
+        self.assertIn("quantityInput.value = '1.00';", html)
 
     def test_invoice_create_from_client_uses_service_snapshot_values(self):
         self.client.force_login(self.user)
@@ -661,7 +686,9 @@ class BillingBusinessScopingTests(TestCase):
         )
 
         self.invoice.refresh_from_db()
-        activity_log = ActivityLog.objects.get(client=self.client_record, action_type=ActivityLog.ActionType.STATUS_CHANGED)
+        activity_log = ActivityLog.objects.get(
+            client=self.client_record, action_type=ActivityLog.ActionType.STATUS_CHANGED
+        )
 
         self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
         self.assertEqual(self.invoice.status, Invoice.Status.SENT)
@@ -771,6 +798,30 @@ class BillingBusinessScopingTests(TestCase):
         response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]))
 
         self.assertEqual(response.status_code, 200)
+
+    def test_invoice_edit_page_line_item_numbers_step_in_whole_units(self):
+        self._add_invoice_line()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]))
+        html = response.content.decode()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            'name="quantity" value="1.00" step="1.00" min="1.00" inputmode="numeric"',
+            html,
+        )
+        self.assertIn(
+            'name="new_quantity" step="1.00" min="1.00" inputmode="numeric" disabled',
+            html,
+        )
+        self.assertIn('name="unit_price" value="125.00" step="1.00" min="0"', html)
+        self.assertNotIn('step="0.01"', html)
+        self.assertIn("function isWholeUnitQuantity(value)", html)
+        self.assertIn(
+            "setInputValue(lineItem, 'quantity', 'new_quantity', '1.00');",
+            html,
+        )
 
     def test_accountant_can_create_invoice_from_client(self):
         self.client.force_login(self.accountant_user)

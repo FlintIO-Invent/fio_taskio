@@ -1,4 +1,5 @@
 {% extends "inheritance/dashboard_parent.html" %}
+{% load money %}
 
 {% block content %}
   <div class="content">
@@ -187,7 +188,7 @@
             <div class="card-body">
               <p class="fs-9 text-body-tertiary mb-1">Invoice Value This Month</p>
               <div class="d-flex align-items-end justify-content-between gap-2">
-                <h3 class="mb-0">{{ current_business.currency }} {{ invoice_value_this_month|floatformat:2 }}</h3>
+                <h3 class="mb-0">{{ invoice_value_this_month|money:current_business }}</h3>
                 <span class="fa-solid fa-chart-line text-body-tertiary"></span>
               </div>
             </div>
@@ -198,7 +199,7 @@
             <div class="card-body">
               <p class="fs-9 text-body-tertiary mb-1">Unpaid Invoice Value</p>
               <div class="d-flex align-items-end justify-content-between gap-2">
-                <h3 class="mb-0">{{ current_business.currency }} {{ unpaid_invoice_total|floatformat:2 }}</h3>
+                <h3 class="mb-0">{{ unpaid_invoice_total|money:current_business }}</h3>
                 <span class="fa-solid fa-hand-holding-dollar text-body-tertiary"></span>
               </div>
             </div>
@@ -366,7 +367,7 @@
                           <p class="text-body-tertiary fs-10 mb-0">{{ invoice.created_at|date:"M j, Y g:i A" }}</p>
                         </div>
                         <div class="text-end">
-                          <div class="fw-semibold text-body-emphasis">{{ invoice.currency_code }} {{ invoice.total|floatformat:2 }}</div>
+                          <div class="fw-semibold text-body-emphasis">{{ invoice.total|money:invoice.business }}</div>
                           <span class="badge badge-phoenix badge-phoenix-secondary">{{ invoice.get_status_display }}</span>
                         </div>
                       </div>

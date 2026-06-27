@@ -12,6 +12,7 @@ from django.urls import reverse
 from apps.accounts.models import TaskIOUser
 from config import Settings
 
+from .localization import format_money_for_business, parse_localized_decimal
 from .models import (
     Business,
     BusinessBookingSettings,
@@ -43,7 +44,9 @@ class BusinessModelTests(TestCase):
             with transaction.atomic():
                 Business.objects.create(name="Motionmate HQ 2", slug="motionmate-hq")
 
-    def test_formatted_address_lines_prefers_structured_fields_and_falls_back_to_legacy_address(self):
+    def test_formatted_address_lines_prefers_structured_fields_and_falls_back_to_legacy_address(
+        self,
+    ):
         legacy_business = Business.objects.create(
             name="Legacy Address Workspace",
             slug="legacy-address-workspace",
@@ -66,6 +69,31 @@ class BusinessModelTests(TestCase):
         self.assertEqual(
             structured_business.formatted_address_lines,
             ["Herengracht 101", "Amsterdam, North Holland", "1015 BJ Netherlands"],
+        )
+
+    def test_money_formatting_uses_business_currency_locale_and_country(self):
+        dutch_business = Business.objects.create(
+            name="Amsterdam Workspace",
+            slug="amsterdam-workspace",
+            country="Netherlands",
+            currency=Business.Currency.EUR,
+            default_locale="nl-NL",
+        )
+        caribbean_business = Business.objects.create(
+            name="Caribbean Workspace",
+            slug="caribbean-workspace",
+            country="Sint Maarten",
+            currency=Business.Currency.USD,
+            default_locale="en-SX",
+        )
+
+        self.assertEqual(format_money_for_business(Decimal("1234.56"), dutch_business), "€1.234,56")
+        self.assertEqual(
+            format_money_for_business(Decimal("1234.56"), caribbean_business), "$1,234.56"
+        )
+        self.assertEqual(parse_localized_decimal("1.234,56", dutch_business), Decimal("1234.56"))
+        self.assertEqual(
+            parse_localized_decimal("1,234.56", caribbean_business), Decimal("1234.56")
         )
 
 
@@ -106,7 +134,9 @@ class BusinessUserModelTests(TestCase):
 
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.ADMIN)
+                BusinessUser.objects.create(
+                    user=user, business=business, role=BusinessUser.Role.ADMIN
+                )
 
 
 class SubscriptionAccessTests(TestCase):
@@ -175,8 +205,12 @@ class CurrentBusinessTests(TestCase):
     def test_get_current_business_prefers_valid_session_business(self):
         first_business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
         second_business = Business.objects.create(name="Beta Workspace", slug="beta-workspace")
-        BusinessUser.objects.create(user=self.user, business=first_business, role=BusinessUser.Role.STAFF)
-        BusinessUser.objects.create(user=self.user, business=second_business, role=BusinessUser.Role.OWNER)
+        BusinessUser.objects.create(
+            user=self.user, business=first_business, role=BusinessUser.Role.STAFF
+        )
+        BusinessUser.objects.create(
+            user=self.user, business=second_business, role=BusinessUser.Role.OWNER
+        )
 
         request = self._build_request({CURRENT_BUSINESS_SESSION_KEY: second_business.id})
 
@@ -188,8 +222,12 @@ class CurrentBusinessTests(TestCase):
     def test_get_current_business_falls_back_to_first_active_membership(self):
         first_business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
         second_business = Business.objects.create(name="Beta Workspace", slug="beta-workspace")
-        BusinessUser.objects.create(user=self.user, business=first_business, role=BusinessUser.Role.STAFF)
-        BusinessUser.objects.create(user=self.user, business=second_business, role=BusinessUser.Role.OWNER)
+        BusinessUser.objects.create(
+            user=self.user, business=first_business, role=BusinessUser.Role.STAFF
+        )
+        BusinessUser.objects.create(
+            user=self.user, business=second_business, role=BusinessUser.Role.OWNER
+        )
 
         request = self._build_request({CURRENT_BUSINESS_SESSION_KEY: 999999})
 
@@ -305,6 +343,8 @@ class BusinessSettingsViewTests(TestCase):
         self.assertContains(response, "Tax label")
         self.assertContains(response, "Address line 1")
         self.assertContains(response, "Motionmate HQ")
+        self.assertContains(response, 'name="tax_rate"')
+        self.assertContains(response, 'step="1.00"')
 
     def test_admin_can_update_business_settings(self):
         self._login_with_role(BusinessUser.Role.ADMIN)
@@ -491,9 +531,7 @@ class BusinessBookingSettingsTests(TestCase):
         response = self.client.get(reverse("business_booking_settings"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(
-            BusinessBookingSettings.objects.filter(business=self.business).exists()
-        )
+        self.assertTrue(BusinessBookingSettings.objects.filter(business=self.business).exists())
         self.assertFalse(
             BusinessBookingSettings.objects.filter(business=self.other_business).exists()
         )
@@ -780,13 +818,17 @@ class BusinessInvitationViewTests(TestCase):
         self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
         self.assertEqual(invitation.invited_by, self.owner)
         self.assertContains(response, "Invitation created and emailed successfully.")
-        self.assertContains(response, reverse("accept_business_invitation", args=[invitation.token]))
+        self.assertContains(
+            response, reverse("accept_business_invitation", args=[invitation.token])
+        )
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["employee@example.com"])
         self.assertIn("Motionmate", mail.outbox[0].body)
         self.assertIn(self.business.name, mail.outbox[0].body)
         self.assertIn("Staff", mail.outbox[0].body)
-        self.assertIn(reverse("accept_business_invitation", args=[invitation.token]), mail.outbox[0].body)
+        self.assertIn(
+            reverse("accept_business_invitation", args=[invitation.token]), mail.outbox[0].body
+        )
 
     def test_invite_still_exists_if_email_send_fails(self):
         self._login(self.owner, BusinessUser.Role.OWNER)
@@ -810,7 +852,9 @@ class BusinessInvitationViewTests(TestCase):
         self.assertEqual(invitation.business, self.business)
         self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
         self.assertContains(response, "email could not be sent")
-        self.assertContains(response, reverse("accept_business_invitation", args=[invitation.token]))
+        self.assertContains(
+            response, reverse("accept_business_invitation", args=[invitation.token])
+        )
 
     def test_admin_cannot_invite_owner_role(self):
         self._login(self.admin, BusinessUser.Role.ADMIN)

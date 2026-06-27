@@ -1,5 +1,6 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% load static %}
+{% load money %}
 {% block content %}
 
 <style>
@@ -195,25 +196,25 @@
                 <tr>
                   <td>{{ line.description }}</td>
                   <td class="text-end">{{ line.quantity }}</td>
-                  <td class="text-end">{{ invoice.currency_code }} {{ line.unit_price }}</td>
-                  <td class="text-end">{{ invoice.currency_code }} {{ line.line_total }}</td>
+                  <td class="text-end">{{ line.unit_price|money:invoice.business }}</td>
+                  <td class="text-end">{{ line.line_total|money:invoice.business }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
               <tfoot>
                 <tr>
                   <td colspan="3" class="text-end fw-bold">Subtotal:</td>
-                  <td class="text-end fw-bold">{{ invoice.currency_code }} {{ invoice.subtotal }}</td>
+                  <td class="text-end fw-bold">{{ invoice.subtotal|money:invoice.business }}</td>
                 </tr>
                 {% if invoice.tax %}
                 <tr>
                   <td colspan="3" class="text-end">Tax ({{ invoice.tax_rate_percentage }}%):</td>
-                  <td class="text-end">{{ invoice.currency_code }} {{ invoice.tax }}</td>
+                  <td class="text-end">{{ invoice.tax|money:invoice.business }}</td>
                 </tr>
                 {% endif %}
                 <tr>
                   <td colspan="3" class="text-end fw-bold">Total:</td>
-                  <td class="text-end fw-bold">{{ invoice.currency_code }} {{ invoice.total }}</td>
+                  <td class="text-end fw-bold">{{ invoice.total|money:invoice.business }}</td>
                 </tr>
               </tfoot>
             </table>

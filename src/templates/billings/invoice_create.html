@@ -1,5 +1,6 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% load static %}
+{% load money %}
 {% block content %}
 
 <style>
@@ -193,7 +194,7 @@
                       data-tax-rate="{{ service.tax_rate }}"
                       {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
                     >
-                      {{ service.name }} - {{ current_business.currency }} {{ service.unit_price }}
+                      {{ service.name }} - {{ service.unit_price|money:current_business }}
                     </option>
                     {% endfor %}
                   </select>
@@ -203,15 +204,15 @@
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Quantity</label>
-                  <input type="number" class="form-control" name="quantity" value="{{ line.quantity }}" step="0.01" min="0">
+                  <input type="number" class="form-control" name="quantity" value="{{ line.quantity }}" step="1.00" min="1.00" inputmode="numeric">
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Unit Price</label>
-                  <input type="number" class="form-control" name="unit_price" value="{{ line.unit_price }}" step="0.01" min="0">
+                  <input type="number" class="form-control" name="unit_price" value="{{ line.unit_price }}" step="1.00" min="0">
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Line Total</label>
-                  <input type="text" class="form-control line-total-display" value="{{ current_business.currency }} 0.00" readonly>
+                  <input type="text" class="form-control line-total-display" value="{{ 0|money:current_business }}" readonly>
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
                   <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
@@ -235,7 +236,7 @@
                     data-unit-price="{{ service.unit_price }}"
                     data-tax-rate="{{ service.tax_rate }}"
                   >
-                    {{ service.name }} - {{ current_business.currency }} {{ service.unit_price }}
+                    {{ service.name }} - {{ service.unit_price|money:current_business }}
                   </option>
                   {% endfor %}
                 </select>
@@ -245,15 +246,15 @@
               </div>
               <div class="col-md-2">
                 <label class="form-label">Quantity</label>
-                <input type="number" class="form-control" name="quantity" step="0.01" min="0" disabled>
+                <input type="number" class="form-control" name="quantity" step="1.00" min="1.00" inputmode="numeric" disabled>
               </div>
               <div class="col-md-2">
                 <label class="form-label">Unit Price</label>
-                <input type="number" class="form-control" name="unit_price" step="0.01" min="0" disabled>
+                <input type="number" class="form-control" name="unit_price" step="1.00" min="0" disabled>
               </div>
               <div class="col-md-2">
                 <label class="form-label">Line Total</label>
-                <input type="text" class="form-control line-total-display" value="{{ current_business.currency }} 0.00" readonly disabled>
+                <input type="text" class="form-control line-total-display" value="{{ 0|money:current_business }}" readonly disabled>
               </div>
               <div class="col-md-1 d-flex align-items-end">
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
@@ -301,15 +302,15 @@
             <div class="border rounded-3 p-3 mb-4">
               <div class="d-flex justify-content-between mb-2">
                 <span>Subtotal:</span>
-                <span id="subtotal-display">{{ current_business.currency }} 0.00</span>
+                <span id="subtotal-display">{{ 0|money:current_business }}</span>
               </div>
               <div class="d-flex justify-content-between mb-2">
                 <span>Tax ({{ current_business.tax_rate }}%):</span>
-                <span id="tax-display">{{ current_business.currency }} 0.00</span>
+                <span id="tax-display">{{ 0|money:current_business }}</span>
               </div>
               <div class="d-flex justify-content-between fw-bold">
                 <span>Total:</span>
-                <span id="total-display">{{ current_business.currency }} 0.00</span>
+                <span id="total-display">{{ 0|money:current_business }}</span>
               </div>
             </div>
 
@@ -329,6 +330,11 @@
 const currencyCode = "{{ current_business.currency }}";
 const taxRate = parseFloat("{{ current_business.tax_rate }}") || 0;
 
+function isWholeUnitQuantity(value) {
+  const quantity = parseFloat(value);
+  return value && Number.isFinite(quantity) && quantity >= 1 && Number.isInteger(quantity);
+}
+
 function applySelectedService(selectElement) {
   const selectedOption = selectElement.options[selectElement.selectedIndex];
   if (!selectedOption || !selectedOption.value) {
@@ -342,8 +348,8 @@ function applySelectedService(selectElement) {
 
   descriptionInput.value = selectedOption.dataset.description || selectedOption.dataset.name || '';
   unitPriceInput.value = selectedOption.dataset.unitPrice || '';
-  if (!quantityInput.value) {
-    quantityInput.value = '1';
+  if (!isWholeUnitQuantity(quantityInput.value)) {
+    quantityInput.value = '1.00';
   }
 
   updateTotals();

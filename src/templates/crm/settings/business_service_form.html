@@ -63,11 +63,13 @@
               <div class="col-md-3">
                 <label class="form-label" for="{{ form.unit_price.id_for_label }}">Unit price</label>
                 {{ form.unit_price }}
+                {% if form.unit_price.help_text %}<div class="form-text">{{ form.unit_price.help_text }}</div>{% endif %}
                 {% if form.unit_price.errors %}<div class="invalid-feedback d-block">{{ form.unit_price.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-3">
                 <label class="form-label" for="{{ form.tax_rate.id_for_label }}">Tax rate</label>
                 {{ form.tax_rate }}
+                {% if form.tax_rate.help_text %}<div class="form-text">{{ form.tax_rate.help_text }}</div>{% endif %}
                 {% if form.tax_rate.errors %}<div class="invalid-feedback d-block">{{ form.tax_rate.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">
@@ -151,8 +153,9 @@
             <div class="rounded-3 border p-3">
               <p class="text-body-tertiary text-uppercase fs-10 mb-1">Default Tax Rate</p>
               <h3 class="mb-0">{{ business.tax_rate|floatformat:2 }}%</h3>
+              <p class="text-body-tertiary small mt-2 mb-0">{{ business.tax_label|default:"Tax" }} from Business Settings is prefilled for new services when tax rate is left blank.</p>
             </div>
-            <p class="text-body-tertiary small mt-3 mb-0">You can leave the category blank if the service should stay uncategorized for now.</p>
+            <p class="text-body-tertiary small mt-3 mb-0">Changing business tax defaults affects new services only. Existing services keep their current tax rate unless edited manually.</p>
           </div>
         </div>
       </div>

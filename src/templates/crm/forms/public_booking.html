@@ -44,7 +44,7 @@
 
               <div class="position-relative mt-4">
                 <hr class="bg-body-secondary" />
-                <div class="divider-content-center bg-body-emphasis">Booking Request</div>
+                <div class="divider-content-center bg-body-emphasis">Public Booking Form</div>
               </div>
 
               <form method="post" action="{% url 'public_booking' public_business.slug %}">
@@ -57,21 +57,35 @@
                 {% endif %}
 
                 <div class="mb-3 text-start">
+                  <label class="form-label" for="{{ form.booking_intent.id_for_label }}">When would you like to book?</label>
+                  {{ form.booking_intent }}
+                  {% if form.booking_intent.errors %}<div class="text-danger small">{{ form.booking_intent.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3 text-start">
                   <label class="form-label" for="{{ form.service.id_for_label }}">Service</label>
                   {{ form.service }}
                   {% if form.service.errors %}<div class="text-danger small">{{ form.service.errors }}</div>{% endif %}
                 </div>
 
-                <div class="row g-3 mb-3">
-                  <div class="col-sm-6 text-start">
-                    <label class="form-label" for="{{ form.preferred_date.id_for_label }}">Preferred date</label>
-                    {{ form.preferred_date }}
-                    {% if form.preferred_date.errors %}<div class="text-danger small">{{ form.preferred_date.errors }}</div>{% endif %}
+                <div data-book-now-section>
+                  <div class="mb-3 text-start">
+                    <label class="form-label" for="{{ form.staff_member.id_for_label }}">Staff member</label>
+                    {{ form.staff_member }}
+                    {% if form.staff_member.errors %}<div class="text-danger small">{{ form.staff_member.errors }}</div>{% endif %}
                   </div>
-                  <div class="col-sm-6 text-start">
-                    <label class="form-label" for="{{ form.preferred_time.id_for_label }}">Preferred time</label>
-                    {{ form.preferred_time }}
-                    {% if form.preferred_time.errors %}<div class="text-danger small">{{ form.preferred_time.errors }}</div>{% endif %}
+
+                  <div class="row g-3 mb-3">
+                    <div class="col-sm-6 text-start">
+                      <label class="form-label" for="{{ form.preferred_date.id_for_label }}">Available date</label>
+                      {{ form.preferred_date }}
+                      {% if form.preferred_date.errors %}<div class="text-danger small">{{ form.preferred_date.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-sm-6 text-start">
+                      <label class="form-label" for="{{ form.preferred_time.id_for_label }}">Available time</label>
+                      {{ form.preferred_time }}
+                      {% if form.preferred_time.errors %}<div class="text-danger small">{{ form.preferred_time.errors }}</div>{% endif %}
+                    </div>
                   </div>
                 </div>
 
@@ -155,4 +169,26 @@
     </div>
   </div>
 </div>
+<script>
+  (function () {
+    const intentField = document.getElementById('{{ form.booking_intent.id_for_label }}');
+    const bookingSection = document.querySelector('[data-book-now-section]');
+
+    function syncBookingSection() {
+      if (!intentField || !bookingSection) {
+        return;
+      }
+      const isBookNow = intentField.value === 'book_now';
+      bookingSection.classList.toggle('d-none', !isBookNow);
+      bookingSection.querySelectorAll('select, input').forEach((field) => {
+        field.required = isBookNow;
+      });
+    }
+
+    syncBookingSection();
+    if (intentField) {
+      intentField.addEventListener('change', syncBookingSection);
+    }
+  })();
+</script>
 {% endblock %}

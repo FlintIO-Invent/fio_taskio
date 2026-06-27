@@ -21,6 +21,10 @@ from loguru import logger
 
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice
+from apps.businesses.localization import (
+    localized_price_input_example,
+    parse_localized_decimal,
+)
 from apps.businesses.models import Business, BusinessBookingSettings, WeeklyAvailability
 from apps.businesses.utils import (
     ALL_WORKSPACE_ROLES,
@@ -41,6 +45,7 @@ from apps.businesses.utils import (
     redirect_for_unavailable_business_module,
 )
 from apps.notifications.emails import (
+    send_appointment_confirmation_email,
     send_internal_booking_notification_email,
     send_public_booking_request_received_email,
 )
@@ -105,6 +110,87 @@ def _appointment_queryset_for_business(business: Business) -> QuerySet[Appointme
         "source_lead",
         "staff_member",
     )
+
+
+def _display_name_for_public_booking_client(lead: Lead, client: Client) -> str:
+    if client.company_name:
+        return client.company_name
+
+    full_name = " ".join(part for part in [client.first_name, client.last_name] if part).strip()
+    return full_name or lead.company_name or lead.email
+
+
+def _display_name_for_public_staff(user) -> str:
+    if user is None:
+        return ""
+    get_full_name = getattr(user, "get_full_name", None)
+    full_name = (get_full_name() if callable(get_full_name) else "") or getattr(
+        user,
+        "full_name",
+        "",
+    )
+    full_name = full_name.strip()
+    return full_name or user.email
+
+
+def _build_public_booking_location(lead: Lead, client: Client) -> str:
+    request_location_parts = [
+        part
+        for part in [
+            (lead.street_address or "").strip(),
+            lead.get_district_display() if lead.district else "",
+            (lead.country or "").strip(),
+            (lead.postal_code or "").strip(),
+        ]
+        if part
+    ]
+    if request_location_parts:
+        return ", ".join(request_location_parts)[:255]
+
+    client_location_parts = [
+        part
+        for part in [
+            (client.street_address or "").strip(),
+            client.get_district_display() if client.district else "",
+            (client.country or "").strip(),
+            (client.postal_code or "").strip(),
+        ]
+        if part
+    ]
+    return ", ".join(client_location_parts)[:255]
+
+
+def _build_public_booking_title(
+    *,
+    lead: Lead,
+    client: Client,
+    service: BusinessService,
+) -> str:
+    client_label = _display_name_for_public_booking_client(lead, client)
+    return f"{service.name} - {client_label}"[:160]
+
+
+def _build_public_booking_lead_notes(*, booking_intent: str, staff_member) -> str:
+    notes = [
+        (
+            "Booking intent: book an appointment now."
+            if booking_intent == PublicBookingForm.BOOK_NOW
+            else "Booking intent: contact before booking."
+        )
+    ]
+    staff_label = _display_name_for_public_staff(staff_member)
+    if staff_label:
+        notes.append(f"Preferred staff: {staff_label}.")
+    return "\n".join(notes)
+
+
+def _build_public_booking_appointment_notes(lead: Lead) -> str:
+    notes = [f"Scheduled from public booking request #{lead.pk}."]
+    if lead.message.strip():
+        notes.append(f"Customer message: {lead.message.strip()}")
+    if lead.notes.strip():
+        notes.append(lead.notes.strip())
+    return "\n\n".join(notes)
 
 
 def _public_booking_unavailable_response(
@@ -175,17 +261,124 @@ def _normalize_csv_fieldname(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
-def _parse_csv_decimal(value: str, *, row_number: int, field_name: str) -> Decimal:
-    normalized_value = value.strip().replace(",", "")
+def _parse_csv_decimal(
+    value: str,
+    *,
+    row_number: int,
+    field_name: str,
+    business: Business,
+) -> Decimal:
+    normalized_value = value.strip()
     if not normalized_value:
         raise ValidationError(f"Row {row_number}: {field_name} is required.")
 
     try:
-        return Decimal(normalized_value)
+        return parse_localized_decimal(normalized_value, business)
     except InvalidOperation as exc:
         raise ValidationError(
             f"Row {row_number}: {field_name} must be a valid decimal number."
         ) from exc
+
+
+def _service_import_example_rows(business: Business) -> list[dict[str, str]]:
+    return [
+        {
+            "name": "Emergency Callout",
+            "unit_price": "125.00",
+            "description": "After-hours emergency service call",
+            "tax_rate": f"{business.tax_rate:.2f}",
+            "category": "Urgent Response",
+            "is_active": "true",
+            "external_code": "EMERGENCY-001",
+            "is_bookable_online": "true",
+            "default_duration_minutes": "60",
+            "booking_buffer_minutes": "15",
+            "public_description": "Request an after-hours emergency service call.",
+            "requires_manual_confirmation": "true",
+        },
+        {
+            "name": "Standard Consultation",
+            "unit_price": "75.00",
+            "description": "Initial consultation visit",
+            "tax_rate": "",
+            "category": "",
+            "is_active": "true",
+            "external_code": "",
+            "is_bookable_online": "false",
+            "default_duration_minutes": "",
+            "booking_buffer_minutes": "",
+            "public_description": "",
+            "requires_manual_confirmation": "true",
+        },
+    ]
+
+
+def _service_import_columns() -> list[dict[str, str]]:
+    return [
+        {"name": "name", "required": "Required", "description": "Service name."},
+        {"name": "unit_price", "required": "Required", "description": "Decimal service price."},
+        {
+            "name": "description",
+            "required": "Optional",
+            "description": "Internal service description.",
+        },
+        {
+            "name": "tax_rate",
+            "required": "Optional",
+            "description": "Service tax percentage. Blank uses the workspace default.",
+        },
+        {
+            "name": "category",
+            "required": "Optional",
+            "description": "Existing or new category name for this workspace.",
+        },
+        {
+            "name": "is_active",
+            "required": "Optional",
+            "description": "true/false, yes/no, or 1/0. Blank defaults to true.",
+        },
+        {
+            "name": "external_code",
+            "required": "Optional",
+            "description": "Stable code used to update matching services later.",
+        },
+        {
+            "name": "is_bookable_online",
+            "required": "Optional",
+            "description": "true only when the service should appear on public booking.",
+        },
+        {
+            "name": "default_duration_minutes",
+            "required": "Optional",
+            "description": "Whole-number booking duration in minutes.",
+        },
+        {
+            "name": "booking_buffer_minutes",
+            "required": "Optional",
+            "description": "Whole-number buffer in minutes.",
+        },
+        {
+            "name": "public_description",
+            "required": "Optional",
+            "description": "Public booking description.",
+        },
+        {
+            "name": "requires_manual_confirmation",
+            "required": "Optional",
+            "description": "true/false. Current Motionmate booking flow is manual confirmation.",
+        },
+    ]
+
+
+def _service_import_example_csv_text(business: Business) -> str:
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[column["name"] for column in _service_import_columns()],
+    )
+    writer.writeheader()
+    writer.writerows(_service_import_example_rows(business))
+    return output.getvalue().strip()
 
 
 def _parse_csv_boolean(
@@ -223,9 +416,7 @@ def _parse_optional_csv_integer(
     try:
         parsed_value = int(normalized_value)
     except ValueError as exc:
-        raise ValidationError(
-            f"Row {row_number}: {field_name} must be a whole number."
-        ) from exc
+        raise ValidationError(f"Row {row_number}: {field_name} must be a whole number.") from exc
 
     if parsed_value < minimum:
         if minimum == 1:
@@ -305,6 +496,7 @@ def _import_business_services_from_csv(
                 row.get("unit_price", ""),
                 row_number=row_number,
                 field_name="unit_price",
+                business=business,
             )
             tax_rate_value = row.get("tax_rate", "")
             tax_rate = (
@@ -312,6 +504,7 @@ def _import_business_services_from_csv(
                     tax_rate_value,
                     row_number=row_number,
                     field_name="tax_rate",
+                    business=business,
                 )
                 if tax_rate_value
                 else business.tax_rate
@@ -453,21 +646,25 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     today_appointment_count = 0
 
     if can_view_appointment_activity:
-        upcoming_appointment_queryset = _appointment_queryset_for_business(
-            current_business
-        ).filter(
-            status=Appointment.Status.SCHEDULED,
-            start_time__gte=now,
-        ).order_by("start_time", "pk")
+        upcoming_appointment_queryset = (
+            _appointment_queryset_for_business(current_business)
+            .filter(
+                status=Appointment.Status.SCHEDULED,
+                start_time__gte=now,
+            )
+            .order_by("start_time", "pk")
+        )
         upcoming_appointments = upcoming_appointment_queryset[:5]
         upcoming_appointment_count = upcoming_appointment_queryset.count()
-        today_appointment_count = _appointment_queryset_for_business(
-            current_business
-        ).filter(
-            status=Appointment.Status.SCHEDULED,
-            start_time__gte=start_of_today,
-            start_time__lt=start_of_tomorrow,
-        ).count()
+        today_appointment_count = (
+            _appointment_queryset_for_business(current_business)
+            .filter(
+                status=Appointment.Status.SCHEDULED,
+                start_time__gte=start_of_today,
+                start_time__lt=start_of_tomorrow,
+            )
+            .count()
+        )
 
     invoices = Invoice.objects.none()
     recent_invoices = Invoice.objects.none()
@@ -496,19 +693,13 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         sent_invoice_count = invoices.filter(status=Invoice.Status.SENT).count()
         open_invoice_count = invoices.filter(status__in=unpaid_statuses).count()
         paid_invoice_count = paid_invoices.count()
-        paid_invoice_total = paid_invoices.aggregate(total=Sum("total"))["total"] or Decimal(
-            "0.00"
-        )
-        invoice_value_this_month = (
-            invoices.filter(created_at__gte=start_of_month)
-            .exclude(status=Invoice.Status.CANCELLED)
-            .aggregate(total=Sum("total"))["total"]
-            or Decimal("0.00")
-        )
-        unpaid_invoice_total = (
-            invoices.filter(status__in=unpaid_statuses).aggregate(total=Sum("total"))["total"]
-            or Decimal("0.00")
-        )
+        paid_invoice_total = paid_invoices.aggregate(total=Sum("total"))["total"] or Decimal("0.00")
+        invoice_value_this_month = invoices.filter(created_at__gte=start_of_month).exclude(
+            status=Invoice.Status.CANCELLED
+        ).aggregate(total=Sum("total"))["total"] or Decimal("0.00")
+        unpaid_invoice_total = invoices.filter(status__in=unpaid_statuses).aggregate(
+            total=Sum("total")
+        )["total"] or Decimal("0.00")
 
     context: dict[str, Any] = {
         "current_business": current_business,
@@ -567,20 +758,26 @@ def public_request_entry(request: HttpRequest) -> HttpResponse:
     current_business = get_current_business(request)
     if current_business is None:
         raise Http404("A business-specific request link is required.")
-    if not can_use_module(current_business, "public_request_form"):
+    if not (
+        can_use_module(current_business, "public_booking")
+        or can_use_module(current_business, "public_request_form")
+    ):
         return redirect_for_unavailable_business_module(request, "public_request_form")
-    return redirect("public_request", business_slug=current_business.slug)
+    return redirect("public_booking", business_slug=current_business.slug)
 
 
 @require_http_methods(["GET", "POST"])
 def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
     """
-    Create a public lead request.
+    Compatibility endpoint for old public request links.
 
-    - Always creates a Lead.
-    - If lead_type == REQUEST: auto-create/update Client.
-    - If lead_type == INTEREST: keep as Lead only.
+    Public visitors now use the single public booking form. Existing POST
+    submissions are still accepted so old embedded forms do not drop requests.
     """
+    if request.method == "GET":
+        business = get_object_or_404(Business, slug=business_slug, is_active=True)
+        return redirect("public_booking", business_slug=business.slug)
+
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
     if not can_use_module(business, "public_request_form"):
         return render(
@@ -624,6 +821,7 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
 def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
     booking_settings = _public_booking_settings_for_business(business)
+    appointments_enabled = can_use_module(business, "appointments")
 
     if not _public_booking_is_available(business, booking_settings):
         return _public_booking_unavailable_response(
@@ -637,9 +835,14 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
             request.POST,
             business=business,
             booking_settings=booking_settings,
+            appointments_enabled=appointments_enabled,
         )
         if form.is_valid():
             service = form.cleaned_data["service"]
+            staff_member = form.cleaned_data.get("staff_member")
+            booking_intent = form.cleaned_data["booking_intent"]
+            wants_appointment = booking_intent == PublicBookingForm.BOOK_NOW
+            appointment = None
             with transaction.atomic():
                 lead = Lead.objects.create(
                     business=business,
@@ -660,11 +863,35 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
                     country=form.cleaned_data.get("country") or "Sint Maarten",
                     postal_code=form.cleaned_data.get("postal_code") or "N/A",
                     message=form.cleaned_data.get("message") or "",
+                    notes=_build_public_booking_lead_notes(
+                        booking_intent=booking_intent,
+                        staff_member=staff_member,
+                    ),
                     consent_to_contact=form.cleaned_data["consent_to_contact"],
                 )
-                sync_client_from_lead(lead)
+                client, _created = sync_client_from_lead(lead)
+                if wants_appointment:
+                    appointment = Appointment.objects.create(
+                        business=business,
+                        client=client,
+                        service=service,
+                        source_lead=lead,
+                        staff_member=staff_member,
+                        title=_build_public_booking_title(
+                            lead=lead,
+                            client=client,
+                            service=service,
+                        ),
+                        start_time=lead.preferred_start_time,
+                        end_time=lead.preferred_end_time,
+                        location=_build_public_booking_location(lead, client),
+                        notes=_build_public_booking_appointment_notes(lead),
+                    )
             request_url = request.build_absolute_uri(reverse("staff_lead_detail", args=[lead.id]))
-            send_public_booking_request_received_email(lead)
+            if appointment is not None:
+                send_appointment_confirmation_email(appointment)
+            else:
+                send_public_booking_request_received_email(lead)
             send_internal_booking_notification_email(lead, request_url=request_url)
             return redirect("public_booking_thank_you", business_slug=business.slug)
     else:
@@ -672,6 +899,7 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
             business=business,
             booking_settings=booking_settings,
             selected_service_id=selected_service_id,
+            appointments_enabled=appointments_enabled,
         )
 
     return render(
@@ -681,6 +909,7 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
             "form": form,
             "public_business": business,
             "booking_settings": booking_settings,
+            "appointments_enabled": appointments_enabled,
         },
     )
 
@@ -701,7 +930,7 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/success_fail/success.html")
 
 
-# Functions below relate to client/leads management for staff users. 
+# Functions below relate to client/leads management for staff users.
 @business_role_required(
     *LEAD_MANAGE_ROLES,
     redirect_url_name="staff_lead_list",
@@ -820,7 +1049,7 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
     else:
         form = PrivateClientForm(business=current_business)
 
-    context={"form": form}
+    context = {"form": form}
     return render(request, "crm/forms/client_create.html", context)
 
 
@@ -967,9 +1196,7 @@ def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
         matched_client = find_matching_client_for_lead(lead)
         if matched_client is None:
             missing_client_fields = get_missing_client_required_field_labels_for_lead(lead)
-        request_ready_for_appointment = (
-            matched_client is not None or not missing_client_fields
-        )
+        request_ready_for_appointment = matched_client is not None or not missing_client_fields
         request_appointment = (
             Appointment.objects.filter(
                 business=current_business,
@@ -1108,7 +1335,11 @@ def client_detail_view(request: HttpRequest) -> HttpResponse:
     Display a detailed view of active clients for the current business only.
     """
     current_business = request.current_business
-    clients = _client_queryset_for_business(current_business).filter(is_active=True).order_by("-created_at")
+    clients = (
+        _client_queryset_for_business(current_business)
+        .filter(is_active=True)
+        .order_by("-created_at")
+    )
 
     context: dict[str, Any] = {
         "clients": clients,
@@ -1405,6 +1636,10 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
         "business": current_business,
         "form": form,
         "import_errors": import_errors,
+        "import_columns": _service_import_columns(),
+        "sample_rows": _service_import_example_rows(current_business),
+        "sample_csv_text": _service_import_example_csv_text(current_business),
+        "price_input_example": localized_price_input_example(current_business),
     }
     return render(request, "crm/settings/business_service_import.html", context)
 
@@ -1418,57 +1653,8 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET"])
 def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(
-        [
-            "name",
-            "unit_price",
-            "description",
-            "tax_rate",
-            "category",
-            "is_active",
-            "external_code",
-            "is_bookable_online",
-            "default_duration_minutes",
-            "booking_buffer_minutes",
-            "public_description",
-            "requires_manual_confirmation",
-        ]
+    response = HttpResponse(
+        _service_import_example_csv_text(current_business), content_type="text/csv"
     )
-    writer.writerow(
-        [
-            "Emergency Callout",
-            "125.00",
-            "After-hours emergency service call",
-            f"{current_business.tax_rate:.2f}",
-            "Urgent Response",
-            "true",
-            "EMERGENCY-001",
-            "true",
-            "60",
-            "15",
-            "Request an after-hours emergency service call.",
-            "true",
-        ]
-    )
-    writer.writerow(
-        [
-            "Standard Consultation",
-            "75.00",
-            "Initial consultation visit",
-            "",
-            "",
-            "true",
-            "",
-            "false",
-            "",
-            "",
-            "",
-            "true",
-        ]
-    )
-
-    response = HttpResponse(output.getvalue(), content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="motionmate_services_sample.csv"'
     return response
