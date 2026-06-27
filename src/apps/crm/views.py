@@ -24,6 +24,7 @@ from apps.billings.models import Invoice
 from apps.businesses.localization import (
     localized_price_input_example,
     parse_localized_decimal,
+    uses_sint_maarten_districts,
 )
 from apps.businesses.models import Business, BusinessBookingSettings, WeeklyAvailability
 from apps.businesses.utils import (
@@ -161,30 +162,10 @@ def _display_name_for_public_staff(user) -> str:
 
 
 def _build_public_booking_location(lead: Lead, client: Client) -> str:
-    request_location_parts = [
-        part
-        for part in [
-            (lead.street_address or "").strip(),
-            lead.get_district_display() if lead.district else "",
-            (lead.country or "").strip(),
-            (lead.postal_code or "").strip(),
-        ]
-        if part
-    ]
-    if request_location_parts:
-        return ", ".join(request_location_parts)[:255]
+    if lead.formatted_address:
+        return lead.formatted_address[:255]
 
-    client_location_parts = [
-        part
-        for part in [
-            (client.street_address or "").strip(),
-            client.get_district_display() if client.district else "",
-            (client.country or "").strip(),
-            (client.postal_code or "").strip(),
-        ]
-        if part
-    ]
-    return ", ".join(client_location_parts)[:255]
+    return client.formatted_address[:255]
 
 
 def _build_public_booking_title(
@@ -1250,6 +1231,22 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
             | Q(company_name__icontains=query)
         )
 
+    if uses_sint_maarten_districts(current_business):
+        district_choices = Client.DistrictChoices.choices
+        district_filter_label = "District"
+        district_filter_empty_label = "All districts"
+    else:
+        district_choices = [
+            (value, value)
+            for value in qs.model.objects.filter(business=current_business)
+            .exclude(district="")
+            .order_by("district")
+            .values_list("district", flat=True)
+            .distinct()
+        ]
+        district_filter_label = "Locality"
+        district_filter_empty_label = "All localities"
+
     context: dict[str, Any] = {
         "clients": qs,
         "filters": {
@@ -1257,8 +1254,9 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
             "district": district,
             "q": query,
         },
-        # handy for your template dropdown
-        "district_choices": Client.DistrictChoices.choices,
+        "district_filter_choices": district_choices,
+        "district_filter_label": district_filter_label,
+        "district_filter_empty_label": district_filter_empty_label,
     }
     return render(request, "crm/main/client_list.html", context)
 

@@ -190,7 +190,7 @@
                             <div class="mb-3">
                               <div class="d-flex align-items-center mb-1">
                                 <span class="fa-solid fs-8 fa-map-pin" style="width: 16px;"></span>
-                                <h6 class="my-2 ms-2 mb-0">District</h6>
+                                <h6 class="my-2 ms-2 mb-0">Locality</h6>
                               </div>
                               <div class="ps-4">
                                 <p class="mb-0 text-body-secondary">{{ client.get_district_display|default:"—" }}</p>
@@ -206,35 +206,23 @@
                             <div class="mb-3">
                               <div class="d-flex align-items-center mb-1">
                                 <span class="fa-solid fs-8 fa-road" style="width: 16px;"></span>
-                                <h6 class="my-2 ms-2 mb-0">Street Address</h6>
+                                <h6 class="my-2 ms-2 mb-0">Address</h6>
                               </div>
                               <div class="ps-4">
-                                <p class="mb-0 text-body-secondary">{{ client.street_address|default:"—" }}</p>
-                              </div>
-                            </div>
-
-                            <div class="mb-3">
-                              <div class="d-flex align-items-center mb-1">
-                                <span class="fa-solid fs-8 fa-globe" style="width: 16px;"></span>
-                                <h6 class="my-2 ms-2 mb-0">Country</h6>
-                              </div>
-                              <div class="ps-4">
-                                <p class="mb-0 text-body-secondary">{{ client.country|default:"—" }}</p>
+                                {% if client.formatted_address_lines %}
+                                  <p class="mb-0 text-body-secondary">
+                                    {% for line in client.formatted_address_lines %}
+                                      {{ line }}{% if not forloop.last %}<br>{% endif %}
+                                    {% endfor %}
+                                  </p>
+                                {% else %}
+                                  <p class="mb-0 text-body-secondary">—</p>
+                                {% endif %}
                               </div>
                             </div>
                           </div>
 
                           <div class="col-sm-6">
-                            <div class="mb-3">
-                              <div class="d-flex align-items-center mb-1">
-                                <span class="fa-solid fs-8 fa-hashtag" style="width: 16px;"></span>
-                                <h6 class="my-2 ms-2 mb-0">Postal Code</h6>
-                              </div>
-                              <div class="ps-4">
-                                <p class="mb-0 text-body-secondary">{{ client.postal_code|default:"—" }}</p>
-                              </div>
-                            </div>
-
                             <div class="mb-3">
                               <div class="d-flex align-items-center mb-1">
                                 <span class="fa-solid fs-8 fa-user-tie" style="width: 16px;"></span>

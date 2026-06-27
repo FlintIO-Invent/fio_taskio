@@ -270,32 +270,33 @@
 
             <div class="mb-3">
               <h5 class="mb-1">Business Address</h5>
-              <p class="text-body-tertiary mb-0">Use a flexible address format that works for your country or territory. Postal code is optional.</p>
+              <p class="text-body-tertiary mb-0">Address fields adapt to your country or territory. Netherlands uses postcode + city; Caribbean workspaces can leave postal code blank when unused.</p>
             </div>
 
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label" for="{{ form.address_line_1.id_for_label }}">Address line 1</label>
+                <label class="form-label" for="{{ form.address_line_1.id_for_label }}">{{ form.address_line_1.label }}</label>
                 {{ form.address_line_1 }}
                 {% if form.address_line_1.errors %}<div class="invalid-feedback d-block">{{ form.address_line_1.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-6">
-                <label class="form-label" for="{{ form.address_line_2.id_for_label }}">Address line 2</label>
+                <label class="form-label" for="{{ form.address_line_2.id_for_label }}">{{ form.address_line_2.label }}</label>
                 {{ form.address_line_2 }}
                 {% if form.address_line_2.errors %}<div class="invalid-feedback d-block">{{ form.address_line_2.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-4">
-                <label class="form-label" for="{{ form.city.id_for_label }}">City / locality</label>
+                <label class="form-label" for="{{ form.city.id_for_label }}">{{ form.city.label }}</label>
                 {{ form.city }}
                 {% if form.city.errors %}<div class="invalid-feedback d-block">{{ form.city.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-4">
-                <label class="form-label" for="{{ form.region.id_for_label }}">Region / district / province / state</label>
+                <label class="form-label" for="{{ form.region.id_for_label }}">{{ form.region.label }}</label>
                 {{ form.region }}
+                {% if form.region.help_text %}<div class="form-text">{{ form.region.help_text }}</div>{% endif %}
                 {% if form.region.errors %}<div class="invalid-feedback d-block">{{ form.region.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-4">
-                <label class="form-label" for="{{ form.postal_code.id_for_label }}">Postal code</label>
+                <label class="form-label" for="{{ form.postal_code.id_for_label }}">{{ form.postal_code.label }}</label>
                 {{ form.postal_code }}
                 {% if form.postal_code.help_text %}<div class="form-text">{{ form.postal_code.help_text }}</div>{% endif %}
                 {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}

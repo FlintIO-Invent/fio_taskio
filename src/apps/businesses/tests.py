@@ -68,7 +68,24 @@ class BusinessModelTests(TestCase):
         )
         self.assertEqual(
             structured_business.formatted_address_lines,
-            ["Herengracht 101", "Amsterdam, North Holland", "1015 BJ Netherlands"],
+            ["Herengracht 101", "1015 BJ Amsterdam", "Netherlands"],
+        )
+
+    def test_formatted_address_lines_use_caribbean_order_and_skip_unused_postal_code(self):
+        business = Business.objects.create(
+            name="Caribbean Address Workspace",
+            slug="caribbean-address-workspace",
+            address_line_1="Front Street 12",
+            address_line_2="Suite 4",
+            city="Philipsburg",
+            region="Sint Maarten",
+            postal_code="N/A",
+            country="Sint Maarten",
+        )
+
+        self.assertEqual(
+            business.formatted_address_lines,
+            ["Front Street 12", "Suite 4", "Philipsburg", "Sint Maarten"],
         )
 
     def test_money_formatting_uses_business_currency_locale_and_country(self):
@@ -341,10 +358,55 @@ class BusinessSettingsViewTests(TestCase):
         self.assertContains(response, "Business type / industry")
         self.assertContains(response, "Default locale")
         self.assertContains(response, "Tax label")
-        self.assertContains(response, "Address line 1")
+        self.assertContains(response, "Street address")
         self.assertContains(response, "Motionmate HQ")
         self.assertContains(response, 'name="tax_rate"')
         self.assertContains(response, 'step="1.00"')
+
+    def test_business_settings_form_uses_dutch_address_labels_and_normalizes_postcode(self):
+        self.business.country = "Netherlands"
+        self.business.save(update_fields=["country", "updated_at"])
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        get_response = self.client.get(reverse("business_settings"))
+
+        self.assertContains(get_response, "Street and house number")
+        self.assertContains(get_response, "Postcode")
+        self.assertContains(get_response, "Dutch format: 1234 AB.")
+
+        post_response = self.client.post(
+            reverse("business_settings"),
+            {
+                "name": self.business.name,
+                "business_type": "",
+                "email": self.business.email,
+                "phone": "",
+                "country": "Netherlands",
+                "currency": "EUR",
+                "timezone": "Europe/Amsterdam",
+                "default_locale": "nl-NL",
+                "tax_label": "BTW",
+                "tax_rate": "21.00",
+                "invoice_prefix": "INV",
+                "invoice_start_number": "1",
+                "address_line_1": "Herengracht 101",
+                "address_line_2": "",
+                "city": "Amsterdam",
+                "region": "North Holland",
+                "postal_code": "1015bj",
+                "address": "",
+            },
+            follow=True,
+        )
+
+        self.business.refresh_from_db()
+
+        self.assertRedirects(post_response, reverse("business_settings"))
+        self.assertEqual(self.business.postal_code, "1015 BJ")
+        self.assertEqual(
+            self.business.formatted_address_lines,
+            ["Herengracht 101", "1015 BJ Amsterdam", "Netherlands"],
+        )
 
     def test_admin_can_update_business_settings(self):
         self._login_with_role(BusinessUser.Role.ADMIN)

@@ -115,9 +115,9 @@
           </div>
         </div>
 
-        <select class="form-select client-list-filter-select" name="district" aria-label="District">
-          <option value="" {% if not filters.district %}selected{% endif %}>All districts</option>
-          {% for value,label in district_choices %}
+        <select class="form-select client-list-filter-select" name="district" aria-label="{{ district_filter_label }}">
+          <option value="" {% if not filters.district %}selected{% endif %}>{{ district_filter_empty_label }}</option>
+          {% for value,label in district_filter_choices %}
             <option value="{{ value }}" {% if filters.district == value %}selected{% endif %}>
               {{ label }}
             </option>
@@ -185,7 +185,7 @@
                   <div class="d-flex align-items-center px-1 py-1 bg-info-subtle rounded me-2">
                     <span class="text-info-dark" data-feather="map-pin"></span>
                   </div>
-                  <span>District</span>
+                  <span>{{ district_filter_label }}</span>
                 </div>
               </th>
 

@@ -173,6 +173,78 @@ class CRMBusinessScopingTests(TestCase):
             [self.accountant_user, self.user, self.staff_user],
         )
 
+    def test_private_client_form_uses_dutch_address_style_and_accepts_city(self):
+        self.business.country = "Netherlands"
+        self.business.save(update_fields=["country", "updated_at"])
+
+        form = PrivateClientForm(business=self.business)
+
+        self.assertEqual(form.fields["street_address"].label, "Street and house number")
+        self.assertEqual(form.fields["district"].label, "City")
+        self.assertEqual(form.fields["postal_code"].label, "Postcode")
+
+        valid_form = PrivateClientForm(
+            {
+                "client_type": Client.ClientType.BUSINESS,
+                "first_name": "Ava",
+                "last_name": "Client",
+                "company_name": "Amsterdam Client BV",
+                "email": "ava@example.nl",
+                "phone": "+31 20 123 4567",
+                "business_legal_name": "",
+                "trade_name": "",
+                "industry": "",
+                "business_description": "",
+                "website": "",
+                "registration_number": "",
+                "job_title": "",
+                "department": "",
+                "secondary_email": "",
+                "secondary_phone": "",
+                "whatsapp_number": "",
+                "preferred_language": "",
+                "preferred_contact_method": Client.PreferredContactMethod.EMAIL,
+                "lead_source": "",
+                "client_status": Client.ClientStatus.LEAD,
+                "priority": Client.Priority.MEDIUM,
+                "assigned_to": "",
+                "interested_services": "",
+                "street_address": "Herengracht 101",
+                "district": "Amsterdam",
+                "country": "Netherlands",
+                "postal_code": "1015bj",
+                "message": "",
+                "communication_notes": "",
+                "notes": "",
+                "consent_to_contact": "on",
+            },
+            business=self.business,
+        )
+
+        self.assertTrue(valid_form.is_valid(), valid_form.errors)
+        client = valid_form.save(commit=False)
+        client.business = self.business
+        client.save()
+
+        self.assertEqual(client.district, "Amsterdam")
+        self.assertEqual(client.postal_code, "1015 BJ")
+        self.assertEqual(
+            client.formatted_address_lines,
+            ["Herengracht 101", "1015 BJ Amsterdam", "Netherlands"],
+        )
+
+    def test_client_form_keeps_sint_maarten_district_choices_for_caribbean_workspace(self):
+        self.business.country = "Sint Maarten"
+        self.business.save(update_fields=["country", "updated_at"])
+
+        form = PrivateClientForm(business=self.business)
+
+        self.assertEqual(form.fields["district"].label, "District")
+        self.assertIn(
+            (Client.DistrictChoices.PHILIPSBURG, "Philipsburg"),
+            list(form.fields["district"].choices),
+        )
+
     def test_staff_client_detail_blocks_other_business_client(self):
         foreign_client = Client.objects.create(
             business=self.other_business,
@@ -2361,6 +2433,7 @@ class PublicBookingTests(TestCase):
         self.assertContains(response, "Available slots")
         self.assertContains(response, "data-slot-date-grid")
         self.assertContains(response, "public-booking-slot-data")
+        self.assertContains(response, "public-booking-address-data")
         self.assertContains(
             response, "Available times are checked against the selected staff member."
         )
@@ -2369,6 +2442,10 @@ class PublicBookingTests(TestCase):
         self.assertContains(response, "Staff User")
         self.assertNotContains(response, "Accountant User")
         self.assertNotContains(response, "Viewer User")
+        form = response.context["form"]
+        self.assertEqual(form.fields["country"].widget.__class__.__name__, "Select")
+        self.assertTrue(form.fields["country"].required)
+        self.assertIn(("Netherlands", "Netherlands"), list(form.fields["country"].choices))
         slot_picker_data = response.context["slot_picker_data"]
         self.assertIn(str(self.service.pk), slot_picker_data["services"])
         self.assertEqual(
@@ -2377,6 +2454,25 @@ class PublicBookingTests(TestCase):
         )
         self.assertIn(str(self.staff_user.pk), slot_picker_data["staff"])
         self.assertTrue(slot_picker_data["availability"]["business"])
+
+    def test_public_booking_form_uses_selected_country_for_address_style(self):
+        form = PublicBookingForm(
+            data=self._booking_payload(
+                booking_intent=PublicBookingForm.BOOK_LATER,
+                country="Netherlands",
+                district="Amsterdam",
+                postal_code="1015bj",
+            ),
+            business=self.business,
+            booking_settings=self.booking_settings,
+            appointments_enabled=True,
+        )
+
+        self.assertEqual(form.fields["street_address"].label, "Street and house number")
+        self.assertEqual(form.fields["district"].label, "City")
+        self.assertEqual(form.fields["postal_code"].label, "Postcode")
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["postal_code"], "1015 BJ")
 
     def test_public_booking_page_filters_staff_when_only_staff_specific_availability_exists(self):
         WeeklyAvailability.objects.filter(business=self.business).delete()
@@ -2594,6 +2690,31 @@ class PublicBookingTests(TestCase):
         self.assertEqual(appointment.end_time, lead.preferred_end_time)
         self.assertIn("Booking intent: book an appointment now.", lead.notes)
         self.assertIn("Preferred staff: Staff User.", lead.notes)
+
+    def test_public_booking_saves_selected_netherlands_address_standard(self):
+        lead = self._create_valid_booking(
+            email="dutch-public-booking@example.nl",
+            phone="+31 20 123 4567",
+            street_address="Herengracht 101",
+            district="Amsterdam",
+            country="Netherlands",
+            postal_code="1015bj",
+        )
+        client = Client.objects.get(
+            business=self.business,
+            email="dutch-public-booking@example.nl",
+        )
+
+        self.assertEqual(lead.country, "Netherlands")
+        self.assertEqual(lead.district, "Amsterdam")
+        self.assertEqual(lead.postal_code, "1015 BJ")
+        self.assertEqual(
+            lead.formatted_address_lines,
+            ["Herengracht 101", "1015 BJ Amsterdam", "Netherlands"],
+        )
+        self.assertEqual(client.country, "Netherlands")
+        self.assertEqual(client.district, "Amsterdam")
+        self.assertEqual(client.postal_code, "1015 BJ")
 
     def test_book_now_rejects_staff_member_from_other_business(self):
         response = self.client.post(

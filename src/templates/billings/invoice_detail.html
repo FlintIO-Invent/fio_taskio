@@ -374,22 +374,15 @@
             </div>
             <div class="invoice-detail-content">
               <div class="invoice-detail-label">Address</div>
-              <p class="invoice-detail-value">
-                {% if invoice.client.street_address %}
-                  {{ invoice.client.street_address }}
-                {% endif %}
-                {% if invoice.client.district %}
-                  {% if invoice.client.street_address %}, {% endif %}
-                  {{ invoice.client.get_district_display }}
-                {% endif %}
-                {% if invoice.client.country or invoice.client.postal_code %}
-                  <br>
-                  {{ invoice.client.country }}{% if invoice.client.country and invoice.client.postal_code %}, {% endif %}{{ invoice.client.postal_code }}
-                {% endif %}
-                {% if not invoice.client.street_address and not invoice.client.district and not invoice.client.country and not invoice.client.postal_code %}
-                  No address on file.
-                {% endif %}
-              </p>
+              {% if invoice.client.formatted_address_lines %}
+                <p class="invoice-detail-value">
+                  {% for line in invoice.client.formatted_address_lines %}
+                    {{ line }}{% if not forloop.last %}<br>{% endif %}
+                  {% endfor %}
+                </p>
+              {% else %}
+                <p class="invoice-detail-value">No address on file.</p>
+              {% endif %}
             </div>
           </div>
         </div>

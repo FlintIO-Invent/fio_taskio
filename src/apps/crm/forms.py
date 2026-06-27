@@ -9,9 +9,15 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from apps.businesses.localization import (
+    NETHERLANDS_ADDRESS_COUNTRIES,
+    PUBLIC_ADDRESS_COUNTRY_CHOICES,
+    SINT_MAARTEN_ADDRESS_COUNTRIES,
     format_money_for_business,
     localized_price_input_example,
+    normalize_postal_code_for_country,
     parse_localized_decimal,
+    uses_netherlands_address_format,
+    uses_sint_maarten_districts,
 )
 from apps.businesses.models import BusinessUser, WeeklyAvailability
 
@@ -117,9 +123,176 @@ def _format_public_booking_datetime(value) -> str:
     return value.strftime("%b %d, %Y at %I:%M %p").replace(" 0", " ")
 
 
-class PrivateClientForm(forms.ModelForm):
+def _initial_or_posted_value(form, field_name: str) -> str:
+    if form.is_bound:
+        return (form.data.get(form.add_prefix(field_name)) or "").strip()
+
+    instance_value = getattr(getattr(form, "instance", None), field_name, "") or ""
+    return str(form.initial.get(field_name, instance_value) or "").strip()
+
+
+def _district_choices_with_current(current_value: str) -> list[tuple[str, str]]:
+    choices = [("", "---------"), *Lead.DistrictChoices.choices]
+    choice_values = {value for value, _label in choices}
+    if current_value and current_value not in choice_values:
+        choices.append((current_value, current_value))
+    return choices
+
+
+def _public_country_choices_with_business(business) -> list[tuple[str, str]]:
+    choices = list(PUBLIC_ADDRESS_COUNTRY_CHOICES)
+    business_country = (getattr(business, "country", "") or "").strip()
+    choice_values = {value for value, _label in choices}
+    if business_country and business_country not in choice_values:
+        choices.append((business_country, business_country))
+    return choices
+
+
+def _public_booking_address_style_data() -> dict:
+    return {
+        "districtChoices": [
+            {"value": value, "label": label}
+            for value, label in _district_choices_with_current("")
+        ],
+        "netherlandsCountries": sorted(NETHERLANDS_ADDRESS_COUNTRIES),
+        "sintMaartenCountries": sorted(SINT_MAARTEN_ADDRESS_COUNTRIES),
+        "styles": {
+            "netherlands": {
+                "streetLabel": "Street and house number",
+                "streetPlaceholder": "Herengracht 101",
+                "districtLabel": "City",
+                "districtPlaceholder": "Amsterdam",
+                "districtType": "text",
+                "postalLabel": "Postcode",
+                "postalPlaceholder": "1015 BJ",
+                "postalHelp": "Dutch format: 1234 AB.",
+            },
+            "sintMaarten": {
+                "streetLabel": "Street address",
+                "streetPlaceholder": "Front Street 12",
+                "districtLabel": "District",
+                "districtPlaceholder": "",
+                "districtType": "select",
+                "postalLabel": "Postal code (optional)",
+                "postalPlaceholder": "Leave blank if unused",
+                "postalHelp": "Most Sint Maarten addresses do not use postal codes.",
+            },
+            "caribbean": {
+                "streetLabel": "Street address",
+                "streetPlaceholder": "Street and building",
+                "districtLabel": "City / district / island",
+                "districtPlaceholder": "Locality",
+                "districtType": "text",
+                "postalLabel": "Postal code (optional)",
+                "postalPlaceholder": "Optional",
+                "postalHelp": "",
+            },
+        },
+    }
+
+
+class CRMAddressStyleMixin:
+    business = None
+
+    def _address_country(self) -> str:
+        business_country = (getattr(self.business, "country", "") or "").strip()
+        if self.is_bound:
+            posted_country = (self.data.get(self.add_prefix("country")) or "").strip()
+            return posted_country or business_country
+
+        instance = getattr(self, "instance", None)
+        instance_country = (getattr(instance, "country", "") or "").strip()
+        if getattr(instance, "pk", None) is None and business_country:
+            return business_country
+        return instance_country or business_country
+
+    def _apply_address_style(self, *, business=None) -> None:
+        self.business = business or getattr(self, "business", None)
+        country = self._address_country()
+        current_district = _initial_or_posted_value(self, "district")
+
+        if "country" in self.fields and not self.is_bound:
+            business_country = (getattr(self.business, "country", "") or "").strip()
+            instance = getattr(self, "instance", None)
+            if business_country and getattr(instance, "pk", None) is None:
+                self.fields["country"].initial = business_country
+
+        if "postal_code" in self.fields:
+            self.fields["postal_code"].required = False
+            if not self.is_bound and _initial_or_posted_value(self, "postal_code").lower() in {"n/a", "na"}:
+                self.fields["postal_code"].initial = ""
+
+        if uses_netherlands_address_format(country):
+            self.fields["street_address"].label = "Street and house number"
+            self.fields["street_address"].widget.attrs.update(
+                {"placeholder": "Herengracht 101"}
+            )
+            self.fields["district"] = forms.CharField(
+                max_length=100,
+                required=False,
+                label="City",
+                initial=current_district,
+                widget=forms.TextInput(
+                    attrs={"class": "form-control", "placeholder": "Amsterdam"}
+                ),
+            )
+            self.fields["country"].label = "Country"
+            self.fields["country"].widget.attrs.update({"placeholder": "Netherlands"})
+            self.fields["postal_code"].label = "Postcode"
+            self.fields["postal_code"].widget.attrs.update({"placeholder": "1015 BJ"})
+            self.fields["postal_code"].help_text = "Dutch format: 1234 AB."
+        elif uses_sint_maarten_districts(country):
+            self.fields["street_address"].label = "Street address"
+            self.fields["street_address"].widget.attrs.update(
+                {"placeholder": "Front Street 12"}
+            )
+            self.fields["district"] = forms.ChoiceField(
+                choices=_district_choices_with_current(current_district),
+                required=False,
+                label="District",
+                initial=current_district,
+                widget=forms.Select(attrs={"class": "form-select"}),
+            )
+            self.fields["postal_code"].label = "Postal code (optional)"
+            self.fields["postal_code"].widget.attrs.update({"placeholder": "Leave blank if unused"})
+            self.fields["postal_code"].help_text = (
+                "Most Sint Maarten addresses do not use postal codes."
+            )
+        else:
+            self.fields["street_address"].label = "Street address"
+            self.fields["street_address"].widget.attrs.update(
+                {"placeholder": "Street and building"}
+            )
+            self.fields["district"] = forms.CharField(
+                max_length=100,
+                required=False,
+                label="City / district / island",
+                initial=current_district,
+                widget=forms.TextInput(
+                    attrs={"class": "form-control", "placeholder": "Locality"}
+                ),
+            )
+            self.fields["postal_code"].label = "Postal code (optional)"
+            self.fields["postal_code"].widget.attrs.update({"placeholder": "Optional"})
+
+    def clean_country(self):
+        country = (self.cleaned_data.get("country") or "").strip()
+        if not country and self.business is not None:
+            return (getattr(self.business, "country", "") or "").strip()
+        return country
+
+    def clean_postal_code(self):
+        country = self.cleaned_data.get("country") or self._address_country()
+        return normalize_postal_code_for_country(
+            self.cleaned_data.get("postal_code"),
+            country,
+        )
+
+
+class PrivateClientForm(CRMAddressStyleMixin, forms.ModelForm):
     def __init__(self, *args, business=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._apply_address_style(business=business)
         self.fields["assigned_to"].queryset = get_user_model().objects.none()
 
         if business is None:
@@ -310,10 +483,10 @@ class PrivateClientForm(forms.ModelForm):
         }
 
 
-class PrivateLeadForm(forms.ModelForm):
+class PrivateLeadForm(CRMAddressStyleMixin, forms.ModelForm):
     def __init__(self, *args, business=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.business = business
+        self._apply_address_style(business=business)
         self.fields["category"].queryset = _service_category_queryset(
             business=business,
             instance=self.instance,
@@ -395,10 +568,10 @@ class PrivateLeadForm(forms.ModelForm):
         }
 
 
-class PublicLeadForm(forms.ModelForm):
+class PublicLeadForm(CRMAddressStyleMixin, forms.ModelForm):
     def __init__(self, *args, business=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.business = business
+        self._apply_address_style(business=business)
         self.fields["category"].queryset = _service_category_queryset(business=business)
 
     class Meta:
@@ -477,7 +650,6 @@ class PublicLeadForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "placeholder": "Country",
-                    "value": "SXM",
                 }
             ),
             "postal_code": forms.TextInput(
@@ -511,7 +683,7 @@ class PublicLeadForm(forms.ModelForm):
         }
 
 
-class PublicBookingForm(forms.Form):
+class PublicBookingForm(CRMAddressStyleMixin, forms.Form):
     BOOK_NOW = "book_now"
     BOOK_LATER = "book_later"
     BOOKING_INTENT_CHOICES = (
@@ -582,16 +754,16 @@ class PublicBookingForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
-    country = forms.CharField(
-        max_length=100,
-        required=False,
+    country = forms.ChoiceField(
+        choices=PUBLIC_ADDRESS_COUNTRY_CHOICES,
+        required=True,
+        label="Country",
         initial="Sint Maarten",
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Country"}),
+        widget=forms.Select(attrs={"class": "form-select"}),
     )
     postal_code = forms.CharField(
         max_length=20,
         required=False,
-        initial="N/A",
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Postal code"}),
     )
     message = forms.CharField(
@@ -620,7 +792,9 @@ class PublicBookingForm(forms.Form):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.business = business
+        self.fields["country"].choices = _public_country_choices_with_business(business)
+        self.address_style_data = _public_booking_address_style_data()
+        self._apply_address_style(business=business)
         self.booking_settings = booking_settings
         self.appointments_enabled = appointments_enabled
         self.fields["booking_intent"].initial = (
@@ -826,7 +1000,21 @@ class PublicBookingForm(forms.Form):
         return cleaned_data
 
 
-class LeadClientConversionForm(forms.ModelForm):
+class LeadClientConversionForm(CRMAddressStyleMixin, forms.ModelForm):
+    def __init__(self, *args, business=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._apply_address_style(business=business or getattr(self.instance, "business", None))
+
+        for field_name in CLIENT_REQUIRED_FIELDS_FOR_REQUEST_CONVERSION:
+            self.fields[field_name].required = True
+
+        if not self.instance.country:
+            self.fields["country"].initial = (
+                getattr(getattr(self.instance, "business", None), "country", "") or "Sint Maarten"
+            )
+        if not self.instance.postal_code or self.instance.postal_code == "N/A":
+            self.fields["postal_code"].initial = ""
+
     class Meta:
         model = Lead
         fields = [
@@ -881,18 +1069,6 @@ class LeadClientConversionForm(forms.ModelForm):
             "postal_code": "Postal code",
             "consent_to_contact": "Client contact consent confirmed",
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        for field_name in CLIENT_REQUIRED_FIELDS_FOR_REQUEST_CONVERSION:
-            self.fields[field_name].required = True
-
-        if not self.instance.country:
-            self.fields["country"].initial = "Sint Maarten"
-        if not self.instance.postal_code or self.instance.postal_code == "N/A":
-            self.fields["postal_code"].initial = self.instance.postal_code or "N/A"
-
 
 class ServiceCategoryForm(forms.ModelForm):
     class Meta:

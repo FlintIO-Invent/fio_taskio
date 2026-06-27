@@ -125,30 +125,10 @@ def _build_appointment_title_from_request(lead: Lead, client) -> str:
 
 
 def _build_location_from_request(lead: Lead, client) -> str:
-    request_location_parts = [
-        part
-        for part in [
-            (lead.street_address or "").strip(),
-            lead.get_district_display() if lead.district else "",
-            (lead.country or "").strip(),
-            (lead.postal_code or "").strip(),
-        ]
-        if part
-    ]
-    if request_location_parts:
-        return ", ".join(request_location_parts)[:255]
+    if lead.formatted_address:
+        return lead.formatted_address[:255]
 
-    client_location_parts = [
-        part
-        for part in [
-            (client.street_address or "").strip(),
-            client.get_district_display() if client.district else "",
-            (client.country or "").strip(),
-            (client.postal_code or "").strip(),
-        ]
-        if part
-    ]
-    return ", ".join(client_location_parts)[:255]
+    return client.formatted_address[:255]
 
 
 def _build_notes_from_request(lead: Lead) -> str:
@@ -184,17 +164,7 @@ def _display_name_for_client(client: Client) -> str:
 
 
 def _build_location_from_client(client: Client) -> str:
-    client_location_parts = [
-        part
-        for part in [
-            (client.street_address or "").strip(),
-            client.get_district_display() if client.district else "",
-            (client.country or "").strip(),
-            (client.postal_code or "").strip(),
-        ]
-        if part
-    ]
-    return ", ".join(client_location_parts)[:255]
+    return client.formatted_address[:255]
 
 
 def _build_initial_appointment_data_from_client(client: Client) -> dict[str, str | int]:

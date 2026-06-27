@@ -10,6 +10,8 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
+from .localization import format_business_address_lines
+
 
 def default_business_invitation_expiry():
     return timezone.now() + timedelta(days=7)
@@ -71,25 +73,15 @@ class Business(TimeStampedModel):
 
     @property
     def formatted_address_lines(self) -> list[str]:
-        lines: list[str] = []
-
-        if self.address_line_1:
-            lines.append(self.address_line_1)
-        if self.address_line_2:
-            lines.append(self.address_line_2)
-
-        locality_line = ", ".join(part for part in [self.city, self.region] if part)
-        if locality_line:
-            lines.append(locality_line)
-
-        postal_country_line = " ".join(part for part in [self.postal_code, self.country] if part)
-        if postal_country_line and (lines or self.postal_code):
-            lines.append(postal_country_line)
-
-        if lines:
-            return lines
-
-        return [line.strip() for line in self.address.splitlines() if line.strip()]
+        return format_business_address_lines(
+            address_line_1=self.address_line_1,
+            address_line_2=self.address_line_2,
+            city=self.city,
+            region=self.region,
+            postal_code=self.postal_code,
+            country=self.country,
+            legacy_address=self.address,
+        )
 
     @property
     def has_active_subscription(self) -> bool:

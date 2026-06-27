@@ -108,27 +108,28 @@
 
                 <!-- address -->
                 <div class="mb-3 text-start">
-                  <label class="form-label" for="{{ form.street_address.id_for_label }}">Street Address </label>
+                  <label class="form-label" for="{{ form.street_address.id_for_label }}">{{ form.street_address.label }}</label>
                   {{ form.street_address }}
                   {% if form.street_address.errors %}<div class="text-danger small">{{ form.street_address.errors }}</div>{% endif %}
                 </div>
 
                 <div class="row g-3 mb-3">
                   <div class="col-sm-5 text-start">
-                    <label class="form-label" for="{{ form.district.id_for_label }}">District</label>
+                    <label class="form-label" for="{{ form.district.id_for_label }}">{{ form.district.label }}</label>
                     {{ form.district }}
                     {% if form.district.errors %}<div class="text-danger small">{{ form.district.errors }}</div>{% endif %}
                   </div>
 
                   <div class="col-sm-3 text-start">
-                    <label class="form-label" for="{{ form.country.id_for_label }}">Country / State</label>
+                    <label class="form-label" for="{{ form.country.id_for_label }}">{{ form.country.label }}</label>
                     {{ form.country }}
                     {% if form.country.errors %}<div class="text-danger small">{{ form.country.errors }}</div>{% endif %}
                   </div>
 
                   <div class="col-sm-4 text-start">
-                    <label class="form-label" for="{{ form.postal_code.id_for_label }}">Postal Code</label>
+                    <label class="form-label" for="{{ form.postal_code.id_for_label }}">{{ form.postal_code.label }}</label>
                     {{ form.postal_code }}
+                    {% if form.postal_code.help_text %}<div class="form-text">{{ form.postal_code.help_text }}</div>{% endif %}
                     {% if form.postal_code.errors %}<div class="text-danger small">{{ form.postal_code.errors }}</div>{% endif %}
                   </div>
                 </div>

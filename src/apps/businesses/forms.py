@@ -2,6 +2,11 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
+from .localization import (
+    normalize_postal_code_for_country,
+    uses_caribbean_address_format,
+    uses_netherlands_address_format,
+)
 from .models import (
     Business,
     BusinessBookingSettings,
@@ -13,6 +18,61 @@ from .utils import can_assign_business_role, get_assignable_business_roles
 
 
 class BusinessSettingsForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._apply_address_style()
+
+    def _address_country(self) -> str:
+        if self.is_bound:
+            return (self.data.get(self.add_prefix("country")) or "").strip()
+        return (getattr(self.instance, "country", "") or "").strip()
+
+    def _apply_address_style(self) -> None:
+        country = self._address_country()
+
+        if uses_netherlands_address_format(country):
+            self.fields["address_line_1"].label = "Street and house number"
+            self.fields["address_line_1"].widget.attrs.update(
+                {"placeholder": "Herengracht 101"}
+            )
+            self.fields["address_line_2"].label = "Apartment, suite, or unit"
+            self.fields["city"].label = "City"
+            self.fields["city"].widget.attrs.update({"placeholder": "Amsterdam"})
+            self.fields["region"].label = "Province (optional)"
+            self.fields["region"].widget.attrs.update({"placeholder": "North Holland"})
+            self.fields["region"].help_text = (
+                "Dutch postal addresses usually use postcode and city; province is optional."
+            )
+            self.fields["postal_code"].label = "Postcode"
+            self.fields["postal_code"].widget.attrs.update({"placeholder": "1015 BJ"})
+            self.fields["postal_code"].help_text = "Dutch format: 1234 AB."
+        elif uses_caribbean_address_format(country):
+            self.fields["address_line_1"].label = "Street address"
+            self.fields["address_line_1"].widget.attrs.update(
+                {"placeholder": "Front Street 12"}
+            )
+            self.fields["address_line_2"].label = "Apartment, suite, or landmark"
+            self.fields["address_line_2"].widget.attrs.update(
+                {"placeholder": "Suite, floor, or landmark"}
+            )
+            self.fields["city"].label = "Town / locality"
+            self.fields["city"].widget.attrs.update({"placeholder": "Philipsburg"})
+            self.fields["region"].label = "District / parish / island"
+            self.fields["region"].widget.attrs.update({"placeholder": "District or island"})
+            self.fields["postal_code"].label = "Postal code (optional)"
+            self.fields["postal_code"].widget.attrs.update(
+                {"placeholder": "Leave blank if unused"}
+            )
+            self.fields["postal_code"].help_text = (
+                "Many Caribbean territories do not use postal codes; leave blank if not applicable."
+            )
+
+    def clean_postal_code(self):
+        return normalize_postal_code_for_country(
+            self.cleaned_data.get("postal_code"),
+            self.cleaned_data.get("country") or self._address_country(),
+        )
+
     class Meta:
         model = Business
         fields = [
