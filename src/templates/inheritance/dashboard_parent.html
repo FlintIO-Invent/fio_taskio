@@ -178,13 +178,21 @@
                                             <a class="nav-link" href="{% url 'staff_client_list' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">View All Clients</span></div>
                                             </a>
-                                            <!-- more inner pages-->
+                                            {% if role_access.can_manage_clients %}
+                                                <a class="nav-link" href="{% url 'staff_client_create' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Client</span></div>
+                                                </a>
+                                            {% endif %}
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link" href="{% url 'staff_lead_list' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
                                             </a>
-                                            <!-- more inner pages-->
+                                            {% if role_access.can_manage_leads %}
+                                                <a class="nav-link" href="{% url 'staff_lead_create' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Service Request</span></div>
+                                                </a>
+                                            {% endif %}
                                         </li>
                                     </ul>
                                 </div>
@@ -320,6 +328,11 @@
                                     {% if role_access.can_manage_business_settings %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_settings' %}">
                                           <span data-feather="settings" style="width: 16px; height: 16px;"></span>Business Settings
+                                      </a>
+                                    {% endif %}
+                                    {% if role_access.can_manage_subscription %}
+                                      <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_subscription' %}">
+                                          <span data-feather="layers" style="width: 16px; height: 16px;"></span>Subscription
                                       </a>
                                     {% endif %}
                                     {% if role_access.can_manage_booking_availability %}

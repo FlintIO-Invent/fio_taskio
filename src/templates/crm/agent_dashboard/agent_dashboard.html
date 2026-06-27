@@ -15,62 +15,12 @@
 
     <div class="row g-3 mb-4 align-items-end justify-content-between">
       <div class="col-lg-8">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-          <span class="badge badge-phoenix badge-phoenix-primary">Workspace</span>
-          {% if current_plan %}
-            <span class="badge badge-phoenix badge-phoenix-secondary">{{ current_plan.name }}</span>
-          {% endif %}
-          {% if current_subscription %}
-            <span class="badge badge-phoenix {% if subscription_is_trialing %}badge-phoenix-info{% elif subscription_has_access %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-              {{ current_subscription.get_status_display }}
-            </span>
-          {% else %}
-            <span class="badge badge-phoenix badge-phoenix-warning">Plan pending</span>
-          {% endif %}
-        </div>
-        <h2 class="mb-2 text-body-emphasis">{{ current_business.name }}</h2>
+        <h2 class="mb-2 text-body-emphasis">
+          Welcome back{% if request.user.first_name %}, {{ request.user.first_name }}{% endif %}
+        </h2>
         <p class="text-body-tertiary mb-0">
-          Operational snapshot for clients, requests, appointments, and billing follow-up.
+          Here is today's workspace snapshot for {{ current_business.name }}.
         </p>
-      </div>
-      <div class="col-lg-auto">
-        <div class="d-flex flex-wrap gap-2">
-          {% if role_access.can_manage_clients %}
-            <a class="btn btn-phoenix-primary" href="{% url 'staff_client_create' %}">
-              <span class="fa-solid fa-plus me-2"></span>New Client
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_leads %}
-            <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_create' %}">
-              <span class="fa-solid fa-plus me-2"></span>New Service Request
-            </a>
-          {% endif %}
-          {% if dashboard_invoices_enabled %}
-            <a class="btn btn-outline-primary" href="{% url 'invoice_list' %}">
-              <span class="fa-solid fa-file-invoice-dollar me-2"></span>Invoices
-            </a>
-          {% endif %}
-          {% if dashboard_appointments_enabled %}
-            <a class="btn btn-outline-primary" href="{% url 'appointment_list' %}">
-              <span class="fa-solid fa-calendar-days me-2"></span>Appointments
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_subscription %}
-            <a class="btn btn-outline-secondary" href="{% url 'business_subscription' %}">
-              <span class="fa-solid fa-layer-group me-2"></span>Upgrade Plan
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_business_settings %}
-            <a class="btn btn-outline-secondary" href="{% url 'business_settings' %}">
-              <span class="fa-solid fa-gear me-2"></span>Business Settings
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_team %}
-            <a class="btn btn-outline-secondary" href="{% url 'business_team_members' %}">
-              <span class="fa-solid fa-user-plus me-2"></span>Team Members
-            </a>
-          {% endif %}
-        </div>
       </div>
     </div>
 
