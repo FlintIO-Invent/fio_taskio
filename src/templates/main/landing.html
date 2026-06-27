@@ -19,6 +19,7 @@
     <!-- ===============================================-->
     <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/apple-touch-icon.png' %}">
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/favicon-32x32.png' %}">
+    <link rel="icon" type="image/svg+xml" href="{% static 'assets/img/icons/motionmate-logo.svg' %}">
     <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/favicon-16x16.png' %}">
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/favicon.ico' %}">
     <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}">
@@ -94,9 +95,11 @@
       <div class="bg-body-emphasis sticky-top" data-navbar-shadow-on-scroll="data-navbar-shadow-on-scroll">
         <nav class="navbar navbar-landing navbar-expand-lg container-medium">
           <a class="navbar-brand flex-1 flex-lg-grow-0 me-lg-8 me-xl-13" href="">
-            <div class="d-flex align-items-center">
-              <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Motionmate" width="27" />
-              <h5 class="logo-text ms-2">Motionmate</h5>
+            <div class="d-flex align-items-center motionmate-brand-inline">
+              <span class="motionmate-logo-mark me-2">
+                <img src="{% static 'assets/img/icons/motionmate-logo.svg' %}" alt="" width="27" height="27" />
+              </span>
+              <h5 class="logo-text motionmate-wordmark ms-1">Motionmate</h5>
             </div>
           </a>
 
