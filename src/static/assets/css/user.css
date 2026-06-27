@@ -112,4 +112,19 @@ html[data-bs-theme="dark"] .motionmate-logo-mark {
   box-shadow: none;
 }
 
+.alert-light {
+  --phoenix-alert-color: var(--phoenix-body-highlight-color);
+  --phoenix-alert-bg: var(--phoenix-body-highlight-bg);
+  --phoenix-alert-border-color: var(--phoenix-border-color-translucent);
+  --phoenix-alert-link-color: var(--phoenix-link-color);
+}
+
+html[data-bs-theme="dark"] .content .bg-light,
+html[data-bs-theme="dark"] .content .bg-white,
+html[data-bs-theme="dark"] .content .text-bg-light {
+  color: var(--phoenix-body-highlight-color) !important;
+  background-color: var(--phoenix-body-highlight-bg) !important;
+  border-color: var(--phoenix-border-color-translucent) !important;
+}
+
 /*# sourceMappingURL=user.css.map */

@@ -90,7 +90,7 @@
           </div>
           <div class="card-body">
             {% if source_appointment %}
-              <div class="alert alert-light border mb-4" role="alert">
+              <div class="alert alert-subtle-secondary border mb-4" role="alert">
                 <div class="fw-semibold mb-1">Appointment context</div>
                 <div class="small text-body-secondary">
                   <a class="text-decoration-none" href="{% url 'appointment_detail' source_appointment.id %}">
@@ -174,7 +174,7 @@
           </div>
           <div class="card-body">
             {% if not available_services %}
-              <div class="alert alert-light border mb-4" role="alert">
+              <div class="alert alert-subtle-secondary border mb-4" role="alert">
                 No services found. Add services in Settings -> Services.
               </div>
             {% endif %}
