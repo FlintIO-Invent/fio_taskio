@@ -12,6 +12,44 @@
     min-height: var(--client-search-height, 2.75rem);
     font-size: var(--client-search-font-size, 0.95rem);
   }
+
+  .client-list-filter-bar,
+  .client-list-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .client-list-filter-select {
+    width: auto;
+    min-width: 13rem;
+  }
+
+  @media (min-width: 1200px) {
+    .client-list-filter-bar {
+      flex-wrap: nowrap;
+    }
+
+    .client-list-search-box {
+      flex: 1 1 20rem;
+    }
+
+    .client-list-filter-select {
+      flex: 0 0 13rem;
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    .client-list-filter-bar > *,
+    .client-list-filter-select {
+      width: 100%;
+    }
+
+    .client-list-filter-actions .btn {
+      flex: 1 1 auto;
+    }
+  }
 </style>
 
 <div class="content">
@@ -26,7 +64,10 @@
   {% endif %}
 
   <nav class="mb-3" aria-label="breadcrumb">
-    <ol class="breadcrumb mb-0"></ol>
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Clients</li>
+    </ol>
   </nav>
 
   <h2 class="text-bold text-body-emphasis mb-5">Client List</h2>
@@ -34,7 +75,7 @@
   <div class="pb-6">
     <!-- updated valueNames to match NEW columns -->
     <div id="clientsTable" data-list='{"valueNames":["name","email","phone","company","district","active"],"page":10,"pagination":true}'>
-      <div class="row g-3 justify-content-between mb-4">
+      <div class="row g-3 justify-content-between align-items-center mb-3">
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
             <div>
@@ -49,59 +90,56 @@
             </div>
           </div>
         </div>
-
-        <div class="col-auto">
-          <!-- FILTERS: server-side GET (is_active, district, q) -->
-          <form class="d-flex" method="get" action="{% url 'staff_client_list' %}">
-            <div
-              class="search-box me-2 client-list-search-box"
-              style="
-                --client-search-width: 35rem;
-                --client-search-height: 3.5rem;
-                --client-search-font-size: 0.95rem;
-              "
-            >
-              <div class="position-relative">
-                <input
-                  class="form-control search-input"
-                  type="search"
-                  name="q"
-                  value="{{ filters.q|default:'' }}"
-                  placeholder="Search "
-                  aria-label="Search"
-                />
-                <span class="fas fa-search search-box-icon"></span>
-              </div>
-            </div>
-
-            <!-- District -->
-            <select class="form-select me-2" name="district" aria-label="District">
-              <option value="" {% if not filters.district %}selected{% endif %}>All districts</option>
-              {% for value,label in district_choices %}
-                <option value="{{ value }}" {% if filters.district == value %}selected{% endif %}>
-                  {{ label }}
-                </option>
-              {% endfor %}
-            </select>
-
-            <!-- Active -->
-            <select class="form-select me-2" name="is_active" aria-label="Active status">
-              <option value="" {% if not filters.is_active %}selected{% endif %}>All clients</option>
-              <option value="true" {% if filters.is_active == "true" or filters.is_active == "1" %}selected{% endif %}>Active</option>
-              <option value="false" {% if filters.is_active == "false" or filters.is_active == "0" %}selected{% endif %}>Inactive</option>
-            </select>
-
-            <button class="btn btn-primary px-3 me-2" type="submit">
-              <span class="fa-solid fa-filter me-2"></span>Apply
-            </button>
-
-            <!-- Reset should go back to CLIENT list, not lead list -->
-            <a class="btn btn-phoenix-secondary px-3" href="{% url 'staff_client_list' %}">
-              <span class="fas fa-arrows-rotate me-2"></span>Reset
-            </a>
-          </form>
-        </div>
       </div>
+
+      <!-- FILTERS: server-side GET (is_active, district, q) -->
+      <form class="client-list-filter-bar mb-4" method="get" action="{% url 'staff_client_list' %}">
+        <div
+          class="search-box client-list-search-box"
+          style="
+            --client-search-width: 35rem;
+            --client-search-height: 3.5rem;
+            --client-search-font-size: 0.95rem;
+          "
+        >
+          <div class="position-relative">
+            <input
+              class="form-control search-input"
+              type="search"
+              name="q"
+              value="{{ filters.q|default:'' }}"
+              placeholder="Search by name, email, phone"
+              aria-label="Search"
+            />
+            <span class="fas fa-search search-box-icon"></span>
+          </div>
+        </div>
+
+        <select class="form-select client-list-filter-select" name="district" aria-label="District">
+          <option value="" {% if not filters.district %}selected{% endif %}>All districts</option>
+          {% for value,label in district_choices %}
+            <option value="{{ value }}" {% if filters.district == value %}selected{% endif %}>
+              {{ label }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <select class="form-select client-list-filter-select" name="is_active" aria-label="Active status">
+          <option value="" {% if not filters.is_active %}selected{% endif %}>All clients</option>
+          <option value="true" {% if filters.is_active == "true" or filters.is_active == "1" %}selected{% endif %}>Active</option>
+          <option value="false" {% if filters.is_active == "false" or filters.is_active == "0" %}selected{% endif %}>Inactive</option>
+        </select>
+
+        <div class="client-list-filter-actions">
+          <button class="btn btn-primary px-3" type="submit">
+            <span class="fa-solid fa-filter me-2"></span>Apply
+          </button>
+
+          <a class="btn btn-phoenix-secondary px-3" href="{% url 'staff_client_list' %}">
+            <span class="fas fa-arrows-rotate me-2"></span>Reset
+          </a>
+        </div>
+      </form>
 
       <div class="table-responsive scrollbar mx-n1 px-1">
         <table class="table fs-9 mb-0 leads-table border-top border-translucent">
