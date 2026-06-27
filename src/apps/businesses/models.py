@@ -89,11 +89,7 @@ class Business(TimeStampedModel):
         if lines:
             return lines
 
-        return [
-            line.strip()
-            for line in self.address.splitlines()
-            if line.strip()
-        ]
+        return [line.strip() for line in self.address.splitlines() if line.strip()]
 
     @property
     def has_active_subscription(self) -> bool:
@@ -206,6 +202,13 @@ class WeeklyAvailability(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="weekly_availability",
     )
+    staff_member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="availability_blocks",
+    )
     day_of_week = models.PositiveSmallIntegerField(choices=DayOfWeek.choices)
     start_time = models.TimeField()
     end_time = models.TimeField()
@@ -215,13 +218,21 @@ class WeeklyAvailability(TimeStampedModel):
         ordering = ["day_of_week", "start_time", "pk"]
         indexes = [
             models.Index(fields=["business", "day_of_week", "is_active"]),
+            models.Index(fields=["business", "staff_member", "day_of_week", "is_active"]),
         ]
         verbose_name = "weekly availability"
         verbose_name_plural = "weekly availability"
 
     def __str__(self) -> str:
+        staff_label = "Business-wide"
+        if self.staff_member_id:
+            get_full_name = getattr(self.staff_member, "get_full_name", None)
+            full_name = (get_full_name() if callable(get_full_name) else "") or getattr(
+                self.staff_member, "full_name", ""
+            )
+            staff_label = full_name.strip() or self.staff_member.email
         return (
-            f"{self.business} - {self.get_day_of_week_display()} "
+            f"{self.business} - {staff_label} - {self.get_day_of_week_display()} "
             f"{self.start_time:%H:%M}-{self.end_time:%H:%M}"
         )
 
@@ -239,6 +250,24 @@ class WeeklyAvailability(TimeStampedModel):
 
         if self.start_time and self.end_time and self.end_time <= self.start_time:
             errors["end_time"] = "End time must be after the start time."
+
+        if self.business_id is not None and self.staff_member_id is not None:
+            has_membership = BusinessUser.objects.filter(
+                user=self.staff_member,
+                business_id=self.business_id,
+                is_active=True,
+                business__is_active=True,
+                role__in=(
+                    BusinessUser.Role.OWNER,
+                    BusinessUser.Role.ADMIN,
+                    BusinessUser.Role.STAFF,
+                ),
+            ).exists()
+            if not has_membership:
+                errors["staff_member"] = (
+                    "Selected staff member must have an active bookable membership "
+                    "in this workspace."
+                )
 
         if errors:
             raise ValidationError(errors)
@@ -350,9 +379,7 @@ class BusinessSubscription(TimeStampedModel):
     @property
     def has_access(self) -> bool:
         return (
-            self.business.is_active
-            and self.plan.is_active
-            and self.status in self.ACCESS_STATUSES
+            self.business.is_active and self.plan.is_active and self.status in self.ACCESS_STATUSES
         )
 
     @property

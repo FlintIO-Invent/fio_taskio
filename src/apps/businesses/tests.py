@@ -501,8 +501,8 @@ class BusinessBookingSettingsTests(TestCase):
         with self.assertRaises(ValidationError):
             availability.full_clean()
 
-    def test_owner_and_admin_can_access_booking_settings(self):
-        for role in [BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN]:
+    def test_owner_admin_and_staff_can_access_booking_settings(self):
+        for role in [BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN, BusinessUser.Role.STAFF]:
             with self.subTest(role=role):
                 self._login_with_role(role)
 
@@ -510,11 +510,10 @@ class BusinessBookingSettingsTests(TestCase):
 
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Booking Settings")
-                self.assertContains(response, "Request Rules")
+                self.assertContains(response, "Add Weekly Availability")
 
-    def test_staff_accountant_and_viewer_cannot_edit_booking_settings(self):
+    def test_accountant_and_viewer_cannot_edit_booking_settings(self):
         for role in [
-            BusinessUser.Role.STAFF,
             BusinessUser.Role.ACCOUNTANT,
             BusinessUser.Role.VIEWER,
         ]:
@@ -577,6 +576,55 @@ class BusinessBookingSettingsTests(TestCase):
         self.assertTrue(availability.is_active)
         self.assertFalse(WeeklyAvailability.objects.filter(business=self.other_business).exists())
 
+    def test_admin_can_create_staff_specific_availability(self):
+        self._login_with_role(BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._availability_payload(staff_member=self.user.pk),
+            follow=True,
+        )
+
+        availability = WeeklyAvailability.objects.get(business=self.business)
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertEqual(availability.staff_member, self.user)
+        self.assertContains(response, "Booking Owner")
+
+    def test_staff_can_create_own_availability(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._availability_payload(staff_member=""),
+            follow=True,
+        )
+
+        availability = WeeklyAvailability.objects.get(business=self.business)
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertEqual(availability.staff_member, self.user)
+        self.assertContains(response, "Booking Owner")
+
+    def test_staff_cannot_update_booking_rules(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+        settings = BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=False,
+            default_duration_minutes=60,
+        )
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._settings_payload(default_duration_minutes="30"),
+        )
+
+        settings.refresh_from_db()
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(settings.booking_enabled)
+        self.assertEqual(settings.default_duration_minutes, 60)
+
     def test_invalid_weekly_availability_is_rejected(self):
         self._login_with_role(BusinessUser.Role.OWNER)
 
@@ -609,6 +657,48 @@ class BusinessBookingSettingsTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertTrue(other_availability.is_active)
+
+    def test_staff_cannot_deactivate_business_wide_availability(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+        availability = WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.FRIDAY,
+            start_time=time(10, 0),
+            end_time=time(14, 0),
+        )
+
+        response = self.client.post(
+            reverse(
+                "business_weekly_availability_deactivate",
+                args=[availability.id],
+            ),
+        )
+        availability.refresh_from_db()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(availability.is_active)
+
+    def test_staff_can_deactivate_own_availability(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+        availability = WeeklyAvailability.objects.create(
+            business=self.business,
+            staff_member=self.user,
+            day_of_week=WeeklyAvailability.DayOfWeek.FRIDAY,
+            start_time=time(10, 0),
+            end_time=time(14, 0),
+        )
+
+        response = self.client.post(
+            reverse(
+                "business_weekly_availability_deactivate",
+                args=[availability.id],
+            ),
+            follow=True,
+        )
+        availability.refresh_from_db()
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertFalse(availability.is_active)
 
     def test_deactivated_availability_no_longer_appears_as_active(self):
         self._login_with_role(BusinessUser.Role.OWNER)

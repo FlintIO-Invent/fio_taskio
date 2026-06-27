@@ -101,6 +101,11 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                                 </a>
                                             {% endif %}
+                                            {% if role_access.can_manage_booking_availability and not role_access.can_manage_business_settings %}
+                                                <a class="nav-link" href="{% url 'business_booking_settings' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Availability</span></div>
+                                                </a>
+                                            {% endif %}
                                             {% if role_access.can_manage_subscription %}
                                                 <a class="nav-link" href="{% url 'business_subscription' %}">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Subscription</span></div>
@@ -316,8 +321,10 @@
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_settings' %}">
                                           <span data-feather="settings" style="width: 16px; height: 16px;"></span>Business Settings
                                       </a>
+                                    {% endif %}
+                                    {% if role_access.can_manage_booking_availability %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_booking_settings' %}">
-                                          <span data-feather="calendar" style="width: 16px; height: 16px;"></span>Booking Settings
+                                          <span data-feather="calendar" style="width: 16px; height: 16px;"></span>{% if role_access.can_manage_business_settings %}Booking Settings{% else %}Availability{% endif %}
                                       </a>
                                     {% endif %}
                                     {% if role_access.can_manage_team %}

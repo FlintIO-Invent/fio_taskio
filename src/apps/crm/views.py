@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -239,6 +239,133 @@ def _public_booking_is_available(
         business=business,
         is_active=True,
     ).exists()
+
+
+def _time_to_minutes(value: time) -> int:
+    return (value.hour * 60) + value.minute
+
+
+def _business_timezone(business: Business):
+    try:
+        return ZoneInfo(business.timezone)
+    except ZoneInfoNotFoundError:
+        return timezone.get_current_timezone()
+
+
+def _public_booking_slot_picker_data(
+    *,
+    business: Business,
+    booking_settings: BusinessBookingSettings | None,
+    form: PublicBookingForm,
+) -> dict[str, Any]:
+    if booking_settings is None:
+        return {}
+
+    business_timezone = _business_timezone(business)
+    local_now = timezone.now().astimezone(business_timezone)
+    earliest_start = local_now + timedelta(hours=booking_settings.minimum_notice_hours)
+    latest_date = local_now.date() + timedelta(days=booking_settings.maximum_days_ahead)
+    range_start = datetime.combine(
+        earliest_start.date(),
+        time.min,
+        tzinfo=business_timezone,
+    )
+    range_end = datetime.combine(
+        latest_date + timedelta(days=1),
+        time.min,
+        tzinfo=business_timezone,
+    )
+
+    services = {
+        str(service.pk): {
+            "durationMinutes": service.default_duration_minutes
+            or booking_settings.default_duration_minutes,
+        }
+        for service in form.fields["service"].queryset
+    }
+
+    staff_members = list(form.fields["staff_member"].queryset)
+    staff_ids = [staff.pk for staff in staff_members]
+    staff = {
+        str(staff_member.pk): {
+            "name": _display_name_for_public_staff(staff_member),
+        }
+        for staff_member in staff_members
+    }
+
+    availability: dict[str, Any] = {
+        "business": [],
+        "staff": {},
+    }
+    availability_blocks = WeeklyAvailability.objects.filter(
+        business=business,
+        is_active=True,
+    ).select_related("staff_member")
+    for block in availability_blocks:
+        block_data = {
+            "day": block.day_of_week,
+            "startMinutes": _time_to_minutes(block.start_time),
+            "endMinutes": _time_to_minutes(block.end_time),
+        }
+        if block.staff_member_id:
+            availability["staff"].setdefault(str(block.staff_member_id), []).append(block_data)
+        else:
+            availability["business"].append(block_data)
+
+    appointments: dict[str, list[dict[str, Any]]] = {}
+    if staff_ids:
+        scheduled_appointments = (
+            Appointment.objects.filter(
+                business=business,
+                staff_member_id__in=staff_ids,
+                status=Appointment.Status.SCHEDULED,
+                start_time__lt=range_end,
+                end_time__gt=range_start,
+            )
+            .exclude(staff_member__isnull=True)
+            .select_related("staff_member")
+        )
+        for appointment in scheduled_appointments:
+            local_start = appointment.start_time.astimezone(business_timezone)
+            local_end = appointment.end_time.astimezone(business_timezone)
+            current_date = local_start.date()
+            while current_date <= local_end.date():
+                start_minutes = (
+                    _time_to_minutes(local_start.time())
+                    if current_date == local_start.date()
+                    else 0
+                )
+                end_minutes = (
+                    _time_to_minutes(local_end.time())
+                    if current_date == local_end.date()
+                    else 24 * 60
+                )
+                if end_minutes > start_minutes:
+                    appointments.setdefault(str(appointment.staff_member_id), []).append(
+                        {
+                            "date": current_date.isoformat(),
+                            "startMinutes": start_minutes,
+                            "endMinutes": end_minutes,
+                        }
+                    )
+                current_date += timedelta(days=1)
+
+    return {
+        "dateRange": {
+            "start": earliest_start.date().isoformat(),
+            "end": latest_date.isoformat(),
+        },
+        "earliestStart": {
+            "date": earliest_start.date().isoformat(),
+            "minutes": _time_to_minutes(earliest_start.time()),
+        },
+        "slotStepMinutes": 15,
+        "defaultDurationMinutes": booking_settings.default_duration_minutes,
+        "services": services,
+        "staff": staff,
+        "availability": availability,
+        "appointments": appointments,
+    }
 
 
 def _business_local_periods(
@@ -910,6 +1037,11 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
             "public_business": business,
             "booking_settings": booking_settings,
             "appointments_enabled": appointments_enabled,
+            "slot_picker_data": _public_booking_slot_picker_data(
+                business=business,
+                booking_settings=booking_settings,
+                form=form,
+            ),
         },
     )
 

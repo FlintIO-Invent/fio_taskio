@@ -61,7 +61,7 @@ def _public_booking_staff_queryset(*, business=None):
     if business is None:
         return get_user_model().objects.none()
 
-    return (
+    queryset = (
         get_user_model()
         .objects.filter(
             business_memberships__business=business,
@@ -77,6 +77,17 @@ def _public_booking_staff_queryset(*, business=None):
         .distinct()
         .order_by("first_name", "last_name", "email")
     )
+    has_business_wide_availability = WeeklyAvailability.objects.filter(
+        business=business,
+        staff_member__isnull=True,
+        is_active=True,
+    ).exists()
+    if has_business_wide_availability:
+        return queryset
+    return queryset.filter(
+        availability_blocks__business=business,
+        availability_blocks__is_active=True,
+    ).distinct()
 
 
 def _public_staff_label(user) -> str:
@@ -96,6 +107,14 @@ def _timezone_for_business(business):
         return ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError:
         return ZoneInfo("UTC")
+
+
+def _format_public_booking_date(value) -> str:
+    return value.strftime("%b %d, %Y").replace(" 0", " ")
+
+
+def _format_public_booking_datetime(value) -> str:
+    return value.strftime("%b %d, %Y at %I:%M %p").replace(" 0", " ")
 
 
 class PrivateClientForm(forms.ModelForm):
@@ -619,6 +638,33 @@ class PublicBookingForm(forms.Form):
             business=business,
         )
         self.fields["staff_member"].label_from_instance = _public_staff_label
+        self.fields["staff_member"].help_text = (
+            "Available times are checked against the selected staff member."
+        )
+        self.fields["preferred_date"].widget.attrs["data-slot-value-field"] = "date"
+        self.fields["preferred_time"].widget.attrs["data-slot-value-field"] = "time"
+        self.fields["preferred_time"].help_text = (
+            "Choose a time that fits the selected staff member's available hours."
+        )
+
+        if business is not None and booking_settings is not None:
+            business_tz = _timezone_for_business(business)
+            local_now = timezone.now().astimezone(business_tz)
+            earliest_start_time = local_now + timedelta(
+                hours=booking_settings.minimum_notice_hours,
+            )
+            latest_date = local_now.date() + timedelta(
+                days=booking_settings.maximum_days_ahead,
+            )
+            self.fields["preferred_date"].widget.attrs[
+                "min"
+            ] = earliest_start_time.date().isoformat()
+            self.fields["preferred_date"].widget.attrs["max"] = latest_date.isoformat()
+            self.fields["preferred_date"].help_text = (
+                "Choose a date from "
+                f"{_format_public_booking_date(earliest_start_time.date())} through "
+                f"{_format_public_booking_date(latest_date)}."
+            )
 
         if selected_service_id:
             try:
@@ -695,7 +741,8 @@ class PublicBookingForm(forms.Form):
         if preferred_start_time < earliest_start_time:
             self.add_error(
                 "preferred_time",
-                "Choose a time with enough advance notice.",
+                "Choose a time on or after "
+                f"{_format_public_booking_datetime(earliest_start_time)}.",
             )
 
         latest_date = local_now.date() + timedelta(
@@ -704,7 +751,9 @@ class PublicBookingForm(forms.Form):
         if preferred_start_time.date() > latest_date:
             self.add_error(
                 "preferred_date",
-                "Choose a date within the booking window.",
+                f"Choose a date on or before {_format_public_booking_date(latest_date)}. "
+                "This business accepts booking requests up to "
+                f"{booking_settings.maximum_days_ahead} days ahead.",
             )
 
         if preferred_end_time.date() != preferred_start_time.date():
@@ -713,17 +762,46 @@ class PublicBookingForm(forms.Form):
                 "Choose a time that ends within the same business day.",
             )
         else:
-            availability_exists = WeeklyAvailability.objects.filter(
+            availability_queryset = WeeklyAvailability.objects.filter(
                 business=business,
                 day_of_week=preferred_start_time.weekday(),
                 is_active=True,
                 start_time__lte=preferred_start_time.time(),
                 end_time__gte=preferred_end_time.time(),
-            ).exists()
+            )
+            availability_label = "the business's available hours"
+            if staff_member is not None:
+                staff_specific_availability_exists = WeeklyAvailability.objects.filter(
+                    business=business,
+                    staff_member=staff_member,
+                    is_active=True,
+                ).exists()
+                business_wide_availability_exists = WeeklyAvailability.objects.filter(
+                    business=business,
+                    staff_member__isnull=True,
+                    is_active=True,
+                ).exists()
+                if staff_specific_availability_exists or not business_wide_availability_exists:
+                    availability_queryset = availability_queryset.filter(
+                        staff_member=staff_member,
+                    )
+                    availability_label = f"{_public_staff_label(staff_member)}'s available hours"
+                else:
+                    availability_queryset = availability_queryset.filter(
+                        staff_member__isnull=True,
+                    )
+            elif WeeklyAvailability.objects.filter(
+                business=business,
+                staff_member__isnull=True,
+                is_active=True,
+            ).exists():
+                availability_queryset = availability_queryset.filter(staff_member__isnull=True)
+
+            availability_exists = availability_queryset.exists()
             if not availability_exists:
                 self.add_error(
                     "preferred_time",
-                    "Choose a time within the business's available hours.",
+                    f"Choose a time within {availability_label}.",
                 )
 
         if staff_member is not None:

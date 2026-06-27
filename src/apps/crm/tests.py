@@ -2231,9 +2231,11 @@ class PublicBookingTests(TestCase):
         start_time=time(9, 0),
         end_time=time(17, 0),
         is_active=True,
+        staff_member=None,
     ):
         return WeeklyAvailability.objects.create(
             business=self.business,
+            staff_member=staff_member,
             day_of_week=local_start.weekday(),
             start_time=start_time,
             end_time=end_time,
@@ -2308,11 +2310,47 @@ class PublicBookingTests(TestCase):
         self.assertContains(response, "Public Booking Form")
         self.assertContains(response, "Book an appointment now")
         self.assertContains(response, "Contact me before booking")
+        self.assertContains(response, "Choose a date from")
+        self.assertContains(response, "Available slots")
+        self.assertContains(response, "data-slot-date-grid")
+        self.assertContains(response, "public-booking-slot-data")
+        self.assertContains(
+            response, "Available times are checked against the selected staff member."
+        )
         self.assertContains(response, self.service.name)
         self.assertContains(response, "$100.00")
         self.assertContains(response, "Staff User")
         self.assertNotContains(response, "Accountant User")
         self.assertNotContains(response, "Viewer User")
+        slot_picker_data = response.context["slot_picker_data"]
+        self.assertIn(str(self.service.pk), slot_picker_data["services"])
+        self.assertEqual(
+            slot_picker_data["services"][str(self.service.pk)]["durationMinutes"],
+            45,
+        )
+        self.assertIn(str(self.staff_user.pk), slot_picker_data["staff"])
+        self.assertTrue(slot_picker_data["availability"]["business"])
+
+    def test_public_booking_page_filters_staff_when_only_staff_specific_availability_exists(self):
+        WeeklyAvailability.objects.filter(business=self.business).delete()
+        self._create_availability_for(self.valid_start, staff_member=self.staff_user)
+        unavailable_staff = TaskIOUser.objects.create_user(
+            email="booking-unavailable-staff@example.com",
+            password="testpass123",
+            first_name="Unavailable",
+            last_name="Staff",
+        )
+        BusinessUser.objects.create(
+            user=unavailable_staff,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+
+        response = self.client.get(reverse("public_booking", args=[self.business.slug]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Staff User")
+        self.assertNotContains(response, "Unavailable Staff")
 
     def test_public_booking_page_unavailable_when_plan_blocks_public_booking(self):
         subscription = BusinessSubscription.objects.get(business=self.business)
@@ -2416,7 +2454,7 @@ class PublicBookingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Choose a time with enough advance notice.")
+        self.assertContains(response, "Choose a time on or after")
         self.assertFalse(Lead.objects.filter(email="too-soon@example.com").exists())
 
     def test_public_booking_maximum_days_ahead_validation(self):
@@ -2429,7 +2467,7 @@ class PublicBookingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Choose a date within the booking window.")
+        self.assertContains(response, "This business accepts booking requests up to 30 days ahead.")
         self.assertFalse(Lead.objects.filter(email="too-far@example.com").exists())
 
     def test_public_booking_weekly_availability_validation(self):
@@ -2446,6 +2484,36 @@ class PublicBookingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Choose a time within the business&#x27;s available hours.")
         self.assertFalse(Lead.objects.filter(email="outside-availability@example.com").exists())
+
+    def test_book_now_uses_selected_staff_specific_availability(self):
+        self._create_availability_for(
+            self.valid_start,
+            start_time=time(13, 0),
+            end_time=time(16, 0),
+            staff_member=self.staff_user,
+        )
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(
+                booking_intent=PublicBookingForm.BOOK_NOW,
+                staff_member=self.staff_user.pk,
+                email="outside-staff-hours@example.com",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Choose a time within Staff User&#x27;s available hours.")
+        self.assertFalse(Lead.objects.filter(email="outside-staff-hours@example.com").exists())
+
+        staff_start = self.valid_start.replace(hour=13)
+        lead = self._create_valid_book_now(
+            start_time=staff_start,
+            email="inside-staff-hours@example.com",
+        )
+
+        appointment = Appointment.objects.get(source_lead=lead)
+        self.assertEqual(appointment.staff_member, self.staff_user)
+        self.assertEqual(appointment.start_time, staff_start)
 
     def test_valid_public_booking_creates_request_lead_and_client_but_no_appointment(self):
         lead = self._create_valid_booking()

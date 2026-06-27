@@ -52,6 +52,11 @@ APPOINTMENT_MANAGE_ROLES = (
     BusinessUser.Role.ADMIN,
     BusinessUser.Role.STAFF,
 )
+BOOKING_AVAILABILITY_MANAGE_ROLES = (
+    BusinessUser.Role.OWNER,
+    BusinessUser.Role.ADMIN,
+    BusinessUser.Role.STAFF,
+)
 BILLING_VIEW_ROLES = (
     BusinessUser.Role.OWNER,
     BusinessUser.Role.ADMIN,

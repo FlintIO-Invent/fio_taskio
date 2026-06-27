@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
 from .models import (
@@ -226,12 +227,14 @@ class WeeklyAvailabilityForm(forms.ModelForm):
     class Meta:
         model = WeeklyAvailability
         fields = [
+            "staff_member",
             "day_of_week",
             "start_time",
             "end_time",
             "is_active",
         ]
         widgets = {
+            "staff_member": forms.Select(attrs={"class": "form-select"}),
             "day_of_week": forms.Select(attrs={"class": "form-select"}),
             "start_time": forms.TimeInput(
                 attrs={"class": "form-control", "type": "time"},
@@ -244,22 +247,80 @@ class WeeklyAvailabilityForm(forms.ModelForm):
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
         labels = {
+            "staff_member": "Staff member",
             "day_of_week": "Day",
             "start_time": "Start time",
             "end_time": "End time",
             "is_active": "Active",
         }
         help_texts = {
+            "staff_member": "Leave blank to create a business-wide booking window.",
             "is_active": "Inactive blocks are ignored by public booking availability.",
         }
 
-    def __init__(self, *args, business: Business | None = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        business: Business | None = None,
+        user=None,
+        membership: BusinessUser | None = None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.business = business
+        self.user = user
+        self.membership = membership
         if business is not None:
             self.instance.business = business
+        self.fields["staff_member"].required = False
+        self.fields["staff_member"].queryset = self._staff_member_queryset()
+        self.fields["staff_member"].label_from_instance = self._staff_label
         self.fields["start_time"].input_formats = ["%H:%M"]
         self.fields["end_time"].input_formats = ["%H:%M"]
+
+        if self._is_staff_member():
+            self.fields["staff_member"].initial = user.pk if user is not None else None
+            self.fields["staff_member"].disabled = True
+            self.fields["staff_member"].help_text = (
+                "Staff availability is added to your own schedule."
+            )
+
+    def _is_staff_member(self) -> bool:
+        return self.membership is not None and self.membership.role == BusinessUser.Role.STAFF
+
+    def _staff_member_queryset(self):
+        if self.business is None:
+            return get_user_model().objects.none()
+
+        queryset = (
+            get_user_model()
+            .objects.filter(
+                business_memberships__business=self.business,
+                business_memberships__is_active=True,
+                business_memberships__business__is_active=True,
+                business_memberships__role__in=(
+                    BusinessUser.Role.OWNER,
+                    BusinessUser.Role.ADMIN,
+                    BusinessUser.Role.STAFF,
+                ),
+                is_active=True,
+            )
+            .distinct()
+            .order_by("first_name", "last_name", "email")
+        )
+        if self._is_staff_member() and self.user is not None:
+            return queryset.filter(pk=self.user.pk)
+        return queryset
+
+    @staticmethod
+    def _staff_label(user) -> str:
+        get_full_name = getattr(user, "get_full_name", None)
+        full_name = (get_full_name() if callable(get_full_name) else "") or getattr(
+            user,
+            "full_name",
+            "",
+        )
+        return full_name.strip() or user.email
 
     def clean(self):
         cleaned_data = super().clean()
@@ -272,11 +333,15 @@ class WeeklyAvailabilityForm(forms.ModelForm):
         if start_time and end_time and end_time <= start_time:
             self.add_error("end_time", "End time must be after the start time.")
 
+        if self._is_staff_member():
+            cleaned_data["staff_member"] = self.user
+
         return cleaned_data
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.business = self.business
+        instance.staff_member = self.cleaned_data.get("staff_member")
         if commit:
             instance.save()
             self.save_m2m()
