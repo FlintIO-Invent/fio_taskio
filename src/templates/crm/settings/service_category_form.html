@@ -63,13 +63,13 @@
         <div class="card border-0 shadow-sm">
           <div class="card-body p-4">
             <h4 class="mb-3">Workspace Scope</h4>
-            <p class="text-body-tertiary mb-3">Only users working inside {{ business.name }} will see this category on lead forms.</p>
+            <p class="text-body-tertiary mb-3">Only users working inside {{ business.name }} will see this category on service request forms.</p>
             {% if category %}
               <div class="rounded-3 border p-3">
-                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Linked Leads</p>
+                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Linked Service Requests</p>
                 <h3 class="mb-0">{{ category.leads.count }}</h3>
               </div>
-              <p class="text-body-tertiary small mt-3 mb-0">Archiving keeps existing lead references intact and simply removes the category from new selections.</p>
+              <p class="text-body-tertiary small mt-3 mb-0">Archiving keeps existing service request references intact and simply removes the category from new selections.</p>
             {% else %}
               <p class="text-body-tertiary small mb-0">If you leave the code blank, Motionmate creates one automatically from the category name.</p>
             {% endif %}

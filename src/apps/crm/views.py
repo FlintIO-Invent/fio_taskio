@@ -72,6 +72,17 @@ def _lead_queryset_for_business(business: Business) -> QuerySet[Lead]:
     return Lead.objects.filter(business=business).select_related("category", "requested_service")
 
 
+def _query_string_with(request: HttpRequest, **updates: str | None) -> str:
+    params = request.GET.copy()
+    for key, value in updates.items():
+        if value is None:
+            params.pop(key, None)
+        else:
+            params[key] = value
+    encoded = params.urlencode()
+    return f"?{encoded}" if encoded else ""
+
+
 def _service_category_queryset_for_business(business: Business) -> QuerySet[ServiceCategory]:
     return ServiceCategory.for_business(
         business,
@@ -700,7 +711,7 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def staff_lead_create(request: HttpRequest) -> HttpResponse:
     """
-    Create a new lead for staff.
+    Create a new service request for staff.
     """
     current_business = request.current_business
 
@@ -710,15 +721,15 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
             lead = form.save(commit=False)
             lead.business = current_business
             lead.save()
-            messages.success(request, "Lead created successfully.")
+            messages.success(request, "Service request created successfully.")
             return redirect("staff_lead_list")
     else:
         form = PrivateLeadForm(business=current_business)
 
     context = {
         "form": form,
-        "page_title": "Create a new lead",
-        "submit_label": "Create lead",
+        "page_title": "Create a new service request",
+        "submit_label": "Create service request",
     }
 
     return render(request, "crm/forms/lead_create.html", context)
@@ -733,18 +744,29 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def staff_lead_list(request: HttpRequest) -> HttpResponse:
     """
-    List leads for staff with optional filtering by status, lead type, and search query.
+    List service requests for staff with optional filtering by status, type, and search query.
     """
     current_business = request.current_business
     qs: QuerySet[Lead] = _lead_queryset_for_business(current_business)
 
-
     status: str = (request.GET.get("status") or "").strip()
+    status_group: str = (request.GET.get("status_group") or "active").strip()
     lead_type: str = (request.GET.get("lead_type") or "").strip()
     query: str = (request.GET.get("q") or "").strip()
+    active_request_statuses = [Lead.Status.NEW, Lead.Status.CONTACTED]
+    completed_request_statuses = [Lead.Status.INVOICED, Lead.Status.CLOSED]
 
     if status:
         qs = qs.filter(status=status)
+        status_group = ""
+    elif status_group == "all":
+        pass
+    elif status_group == "completed":
+        qs = qs.filter(status__in=completed_request_statuses)
+    else:
+        status_group = "active"
+        qs = qs.filter(status__in=active_request_statuses)
+
     if lead_type:
         qs = qs.filter(lead_type=lead_type)
     if query:
@@ -758,7 +780,17 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
 
     context: dict[str, Any] = {
         "leads": qs,
-        "filters": {"status": status, "lead_type": lead_type, "q": query},
+        "filters": {
+            "status": status,
+            "status_group": status_group or (request.GET.get("status_group") or "active"),
+            "lead_type": lead_type,
+            "q": query,
+        },
+        "status_group_links": {
+            "active": _query_string_with(request, status_group="active", status=None),
+            "completed": _query_string_with(request, status_group="completed", status=None),
+            "all": _query_string_with(request, status_group="all", status=None),
+        },
     }
     return render(request, "crm/main/lead_list.html", context)
 
@@ -974,7 +1006,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
             lead = form.save(commit=False)
             lead.business = current_business
             lead.save()
-            messages.success(request, "Lead updated successfully.")
+            messages.success(request, "Service request updated successfully.")
             return redirect("staff_lead_detail", lead_id=lead.id)
         messages.error(request, "Please correct the errors below.")
     else:
@@ -983,7 +1015,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     context: dict[str, Any] = {
         "form": form,
         "lead": lead,
-        "page_title": f"Edit lead: {lead.first_name} {lead.last_name}",
+        "page_title": f"Edit service request: {lead.first_name} {lead.last_name}",
         "submit_label": "Save changes",
     }
     return render(request, "crm/forms/lead_create.html", context)

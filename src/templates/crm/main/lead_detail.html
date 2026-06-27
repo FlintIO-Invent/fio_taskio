@@ -6,24 +6,24 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Leads</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Service Requests</a></li>
       <li class="breadcrumb-item active">{{ lead.first_name }} {{ lead.last_name }}</li>
     </ol>
   </nav>
 
   <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
     <div class="col-auto">
-      <h2 class="mb-0 text-body-emphasis">Lead Details</h2>
+      <h2 class="mb-0 text-body-emphasis">Service Request Details</h2>
     </div>
     <div class="col-auto">
       <div class="d-flex gap-2">
         {% if role_access.can_manage_leads %}
           <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_update' lead.id %}">
-            <span class="fa-solid fa-pen me-2"></span>Edit Lead
+            <span class="fa-solid fa-pen me-2"></span>Edit Service Request
           </a>
         {% endif %}
         <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_list' %}">
-          <span class="fa-solid fa-arrow-left me-2"></span>Back to Leads
+          <span class="fa-solid fa-arrow-left me-2"></span>Back to Service Requests
         </a>
       </div>
     </div>

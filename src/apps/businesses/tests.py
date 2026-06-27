@@ -611,7 +611,7 @@ class BusinessBookingSettingsTests(TestCase):
         )
         self.assertContains(response, "You can still prepare these settings now")
 
-    def test_plan_message_shows_included_when_public_booking_allowed(self):
+    def test_plan_message_shows_setup_status_when_public_booking_allowed(self):
         BusinessSubscription.objects.create(
             business=self.business,
             plan=self.public_booking_plan,
@@ -622,7 +622,7 @@ class BusinessBookingSettingsTests(TestCase):
         response = self.client.get(reverse("business_booking_settings"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Public booking is included")
+        self.assertContains(response, "Public booking requires setup")
 
 
 class BusinessSubscriptionViewTests(TestCase):

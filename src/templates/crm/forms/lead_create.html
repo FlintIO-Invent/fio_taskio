@@ -6,8 +6,8 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Leads</a></li>
-      <li class="breadcrumb-item active">{{ page_title|default:"Create a new lead" }}</li>
+      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Service Requests</a></li>
+      <li class="breadcrumb-item active">{{ page_title|default:"Create a new service request" }}</li>
     </ol>
   </nav>
 
@@ -16,8 +16,8 @@
 
     <div class="row g-3 flex-between-end mb-5">
       <div class="col-auto">
-        <h2 class="mb-2">{{ page_title|default:"Create a new lead" }}</h2>
-        <h5 class="text-body-tertiary fw-semibold">This lead will be saved to {{ current_business.name }}.</h5>
+        <h2 class="mb-2">{{ page_title|default:"Create a new service request" }}</h2>
+        <h5 class="text-body-tertiary fw-semibold">This service request will be saved to {{ current_business.name }}.</h5>
       </div>
       <div class="col-auto d-flex gap-2">
         {% if lead %}
@@ -25,7 +25,7 @@
         {% else %}
         <a class="btn btn-phoenix-secondary mb-2 mb-sm-0" href="{% url 'staff_lead_list' %}">Cancel</a>
         {% endif %}
-        <button class="btn btn-primary mb-2 mb-sm-0" type="submit">{{ submit_label|default:"Save lead" }}</button>
+        <button class="btn btn-primary mb-2 mb-sm-0" type="submit">{{ submit_label|default:"Save service request" }}</button>
       </div>
     </div>
 
@@ -37,11 +37,11 @@
       <div class="col-12 col-xl-8">
         <div class="card mb-4">
           <div class="card-body">
-            <h4 class="mb-3 text-body">Lead Details</h4>
+            <h4 class="mb-3 text-body">Service Request Details</h4>
             <hr class="my-4" />
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label">Lead Type</label>
+                <label class="form-label">Request Type</label>
                 {{ form.lead_type }}
                 {% if form.lead_type.errors %}<div class="invalid-feedback d-block">{{ form.lead_type.errors|striptags }}</div>{% endif %}
               </div>

@@ -252,7 +252,7 @@ class PrivateClientForm(forms.ModelForm):
             "job_title": "Job title / role",
             "preferred_language": "Preferred language",
             "preferred_contact_method": "Preferred contact method",
-            "lead_source": "Lead source",
+            "lead_source": "Client source",
             "client_status": "Client status",
             "priority": "Priority",
             "assigned_to": "Assigned to",
@@ -326,7 +326,7 @@ class PrivateLeadForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 4,
-                    "placeholder": "Describe the service request or lead context...",
+                    "placeholder": "Describe the service request context...",
                 }
             ),
             "notes": forms.Textarea(
@@ -341,12 +341,12 @@ class PrivateLeadForm(forms.ModelForm):
         }
 
         labels = {
-            "lead_type": "Lead type",
+            "lead_type": "Request type",
             "status": "Status",
             "street_address": "Street Address",
             "postal_code": "Postal Code",
             "consent_to_contact": "Contact consent received",
-            "is_active": "Active lead",
+            "is_active": "Active service request",
         }
 
 
@@ -808,7 +808,7 @@ class BusinessServiceForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 4,
-                    "placeholder": "Describe this service for future public booking pages.",
+                    "placeholder": "Describe this service for public booking requests.",
                 }
             ),
             "requires_manual_confirmation": forms.CheckboxInput(

@@ -1816,6 +1816,50 @@ class CRMBusinessScopingTests(TestCase):
         self.assertNotContains(response, reverse("staff_lead_create"))
         self.assertNotContains(response, reverse("staff_lead_update", args=[lead.id]))
 
+    def test_service_request_list_hides_completed_requests_by_default(self):
+        active_request = self._build_request_lead(
+            first_name="Active",
+            last_name="Request",
+            email="active-request@example.com",
+            status=Lead.Status.NEW,
+        )
+        contacted_request = self._build_request_lead(
+            first_name="Contacted",
+            last_name="Request",
+            email="contacted-request@example.com",
+            status=Lead.Status.CONTACTED,
+        )
+        invoiced_request = self._build_request_lead(
+            first_name="Invoiced",
+            last_name="Request",
+            email="invoiced-request@example.com",
+            status=Lead.Status.INVOICED,
+        )
+        closed_request = self._build_request_lead(
+            first_name="Closed",
+            last_name="Request",
+            email="closed-request@example.com",
+            status=Lead.Status.CLOSED,
+        )
+        self.client.force_login(self.viewer_user)
+
+        default_response = self.client.get(reverse("staff_lead_list"))
+        completed_response = self.client.get(
+            reverse("staff_lead_list"),
+            {"status_group": "completed"},
+        )
+        all_response = self.client.get(reverse("staff_lead_list"), {"status_group": "all"})
+
+        self.assertContains(default_response, active_request.email)
+        self.assertContains(default_response, contacted_request.email)
+        self.assertNotContains(default_response, invoiced_request.email)
+        self.assertNotContains(default_response, closed_request.email)
+        self.assertContains(completed_response, invoiced_request.email)
+        self.assertContains(completed_response, closed_request.email)
+        self.assertNotContains(completed_response, active_request.email)
+        self.assertContains(all_response, active_request.email)
+        self.assertContains(all_response, closed_request.email)
+
     def test_accountant_cannot_open_service_management(self):
         self.client.force_login(self.accountant_user)
         session = self.client.session

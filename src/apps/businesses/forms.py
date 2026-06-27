@@ -166,14 +166,14 @@ class BusinessBookingSettingsForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "Optional cancellation policy text for future public booking pages.",
+                    "placeholder": "Optional cancellation policy text for public booking requests.",
                 }
             ),
             "reschedule_policy_text": forms.Textarea(
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "Optional reschedule policy text for future public booking pages.",
+                    "placeholder": "Optional reschedule policy text for public booking requests.",
                 }
             ),
         }
@@ -186,8 +186,8 @@ class BusinessBookingSettingsForm(forms.ModelForm):
             "confirmation_mode": "Confirmation mode",
         }
         help_texts = {
-            "booking_enabled": "This prepares the workspace for public booking. Public booking URLs are not active in this block.",
-            "default_duration_minutes": "Used later as the default appointment request length.",
+            "booking_enabled": "Controls whether public visitors can submit booking requests for this workspace.",
+            "default_duration_minutes": "Used as the default appointment request length.",
             "minimum_notice_hours": "How much advance notice public visitors must give before requesting a time.",
             "maximum_days_ahead": "How far into the future public visitors may request a time.",
             "buffer_minutes": "Optional spacing to reserve around requested appointment times.",

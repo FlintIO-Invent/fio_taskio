@@ -5,7 +5,7 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Leads</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Service Requests</a></li>
       <li class="breadcrumb-item"><a href="{% url 'staff_lead_detail' lead.id %}">{{ lead.first_name }} {{ lead.last_name }}</a></li>
       <li class="breadcrumb-item active">Convert to Client</li>
     </ol>
