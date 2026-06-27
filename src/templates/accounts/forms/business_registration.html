@@ -50,8 +50,9 @@
                 {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">
-                <label class="form-label" for="{{ form.email.id_for_label }}">Owner email</label>
+                <label class="form-label" for="{{ form.email.id_for_label }}">Owner login email</label>
                 {{ form.email }}
+                {% if form.email.help_text %}<div class="form-text">{{ form.email.help_text }}</div>{% endif %}
                 {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-6">
@@ -62,6 +63,7 @@
               <div class="col-md-6">
                 <label class="form-label" for="{{ form.business_email.id_for_label }}">Business email</label>
                 {{ form.business_email }}
+                {% if form.business_email.help_text %}<div class="form-text">{{ form.business_email.help_text }}</div>{% endif %}
                 {% if form.business_email.errors %}<div class="invalid-feedback d-block">{{ form.business_email.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">

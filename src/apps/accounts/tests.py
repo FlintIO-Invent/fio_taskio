@@ -1,9 +1,15 @@
 from datetime import timedelta
+from pathlib import Path
 
+from django.apps import apps
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.contrib.auth.tokens import default_token_generator
+from django.core import mail
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 
 from apps.businesses.models import (
     Business,
@@ -12,8 +18,7 @@ from apps.businesses.models import (
     BusinessUser,
     ClarivoPlan,
 )
-from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
-from apps.businesses.utils import MULTI_WORKSPACE_EMAIL_MESSAGE
+from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY, MULTI_WORKSPACE_EMAIL_MESSAGE
 
 from .models import SaaSUserProfile
 
@@ -86,6 +91,15 @@ class BusinessRegistrationViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Register your business")
+        self.assertContains(response, "Owner login email")
+        self.assertContains(
+            response,
+            "Use the email address you want to sign in with. This will become the workspace owner login for this business.",
+        )
+        self.assertContains(
+            response,
+            "Use the public contact or billing email for the business. It can be different from the owner login email.",
+        )
 
     def test_post_creates_user_business_membership_trial_subscription_and_logs_in(self):
         response = self.client.post(
@@ -237,6 +251,8 @@ class BusinessLoginViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Sign in to your workspace")
+        self.assertContains(response, "Forgot password?")
+        self.assertContains(response, reverse("password_reset"))
 
     def test_post_logs_in_business_user_and_redirects_to_dashboard(self):
         response = self.client.post(
@@ -295,6 +311,151 @@ class BusinessLoginViewTests(TestCase):
         self.assertRedirects(response, reverse("business_login"))
         self.assertNotIn("_auth_user_id", self.client.session)
         self.assertContains(response, "You have been signed out.")
+
+
+class PasswordManagementViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+            first_name="Jane",
+            last_name="Doe",
+        )
+
+    def test_password_reset_route_loads(self):
+        response = self.client.get(reverse("password_reset"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reset your password")
+        self.assertContains(response, "Motionmate")
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="no-reply@motionmate.test",
+    )
+    def test_password_reset_form_sends_motionmate_branded_email(self):
+        response = self.client.post(
+            reverse("password_reset"),
+            {"email": self.user.email},
+        )
+
+        self.assertRedirects(response, reverse("password_reset_done"))
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.subject, "Motionmate password reset")
+        self.assertIn("Motionmate workspace login", message.body)
+        self.assertIn("Motionmate", message.body)
+        self.assertIn("/accounts/password-reset/", message.body)
+
+    def test_password_reset_confirm_page_loads_for_valid_token(self):
+        uidb64 = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+
+        response = self.client.get(
+            reverse("password_reset_confirm", kwargs={"uidb64": uidb64, "token": token}),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Choose a new password")
+        self.assertContains(response, "Motionmate workspace login")
+
+    def test_password_change_route_requires_login(self):
+        response = self.client.get(reverse("password_change"))
+
+        self.assertRedirects(
+            response,
+            f"{reverse('business_login')}?next={reverse('password_change')}",
+        )
+
+    def test_logged_in_user_can_access_password_change_page(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("password_change"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Change Password")
+        self.assertContains(response, "Update the password for your Motionmate account.")
+
+    def test_logged_in_user_can_change_password(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("password_change"),
+            {
+                "old_password": "StrongPass123!",
+                "new_password1": "NewStrongPass123!",
+                "new_password2": "NewStrongPass123!",
+            },
+            follow=True,
+        )
+
+        self.user.refresh_from_db()
+        self.assertRedirects(response, reverse("password_change_done"))
+        self.assertTrue(self.user.check_password("NewStrongPass123!"))
+        self.assertContains(response, "Your password was changed successfully.")
+
+
+class OnboardingScopeGuardTests(TestCase):
+    def test_no_interactive_guided_tour_model_or_migration_was_added(self):
+        model_names = {model.__name__.lower() for model in apps.get_models()}
+        forbidden_models = {
+            "guidedtour",
+            "guidedtourprogress",
+            "producttour",
+            "producttourstep",
+            "tourcompletion",
+            "tourprogress",
+        }
+        self.assertFalse(model_names & forbidden_models)
+
+        apps_dir = Path(__file__).resolve().parents[1]
+        migration_names = {
+            path.name.lower()
+            for path in apps_dir.glob("*/migrations/*.py")
+            if path.name != "__init__.py"
+        }
+        forbidden_terms = ("guided_tour", "product_tour", "tour_progress", "tourcompletion")
+        self.assertFalse(
+            [
+                migration_name
+                for migration_name in migration_names
+                if any(term in migration_name for term in forbidden_terms)
+            ]
+        )
+
+    def test_no_memberships_stripe_saas_billing_or_customer_portal_was_added(self):
+        app_labels = {app_config.label for app_config in apps.get_app_configs()}
+        self.assertFalse(
+            app_labels & {"memberships", "payments", "stripe", "customer_portal", "saas_billing"}
+        )
+
+        model_names = {model.__name__.lower() for model in apps.get_models()}
+        forbidden_models = {
+            "customerportal",
+            "membership",
+            "payment",
+            "saasbillingaccount",
+            "stripecheckoutsession",
+            "stripecustomer",
+            "stripesubscription",
+        }
+        self.assertFalse(model_names & forbidden_models)
+
+        apps_dir = Path(__file__).resolve().parents[1]
+        migration_names = {
+            path.name.lower()
+            for path in apps_dir.glob("*/migrations/*.py")
+            if path.name != "__init__.py"
+        }
+        forbidden_terms = ("customer_portal", "membership", "payment", "saas_billing", "stripe")
+        self.assertFalse(
+            [
+                migration_name
+                for migration_name in migration_names
+                if any(term in migration_name for term in forbidden_terms)
+            ]
+        )
 
 
 class BusinessInvitationAcceptanceTests(TestCase):
@@ -399,7 +560,9 @@ class BusinessInvitationAcceptanceTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already been accepted")
-        self.assertFalse(BusinessUser.objects.filter(user=accepted_user, business=self.business).exists())
+        self.assertFalse(
+            BusinessUser.objects.filter(user=accepted_user, business=self.business).exists()
+        )
 
     def test_accept_invitation_is_blocked_for_user_with_active_other_workspace_membership(self):
         existing_user = get_user_model().objects.create_user(
@@ -438,7 +601,9 @@ class BusinessInvitationAcceptanceTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
-        self.assertFalse(BusinessUser.objects.filter(user=existing_user, business=self.business).exists())
+        self.assertFalse(
+            BusinessUser.objects.filter(user=existing_user, business=self.business).exists()
+        )
         self.assertContains(response, MULTI_WORKSPACE_EMAIL_MESSAGE)
 
 
@@ -468,7 +633,10 @@ class SaaSProfileViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Account Profile")
-        self.assertContains(response, "Business-level workspace details and invoice defaults are managed from Business Settings.")
+        self.assertContains(
+            response,
+            "Business-level workspace details and invoice defaults are managed from Business Settings.",
+        )
         self.assertTrue(SaaSUserProfile.objects.filter(user=self.user).exists())
 
     def test_post_basic_info_updates_user(self):

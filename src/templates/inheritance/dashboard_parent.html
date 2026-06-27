@@ -325,6 +325,9 @@
                                           <span data-feather="users" style="width: 16px; height: 16px;"></span>Team
                                       </a>
                                     {% endif %}
+                                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'password_change' %}">
+                                        <span data-feather="lock" style="width: 16px; height: 16px;"></span>Change Password
+                                    </a>
                                 </div>
                                 <div class="p-3">
                                     <a class="btn btn-phoenix-secondary d-flex flex-center w-100" href="{% url 'logout' %}">
