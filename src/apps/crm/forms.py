@@ -292,6 +292,18 @@ class CRMAddressStyleMixin:
 class PrivateClientForm(CRMAddressStyleMixin, forms.ModelForm):
     def __init__(self, *args, business=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.address_style_data = _public_booking_address_style_data()
+
+        if getattr(self.instance, "pk", None) is None:
+            country_field = self.fields["country"]
+            self.fields["country"] = forms.ChoiceField(
+                choices=_public_country_choices_with_business(business),
+                required=country_field.required,
+                label=country_field.label,
+                initial=_initial_or_posted_value(self, "country"),
+                widget=forms.Select(attrs={"class": "form-select"}),
+            )
+
         self._apply_address_style(business=business)
         self.fields["assigned_to"].queryset = get_user_model().objects.none()
 
