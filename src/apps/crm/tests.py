@@ -1179,6 +1179,36 @@ class CRMBusinessScopingTests(TestCase):
         self.assertNotContains(response, "BRAVO-1000")
         self.assertNotContains(response, "Bravo Request")
 
+    def test_staff_dashboard_showcases_ready_public_booking_link(self):
+        self._enable_reporting_modules_for_business()
+        BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+        )
+        BusinessService.objects.create(
+            business=self.business,
+            name="Online Consultation",
+            is_active=True,
+            is_bookable_online=True,
+        )
+        WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+        )
+        self.client.force_login(self.staff_user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["public_booking_share_ready"])
+        self.assertContains(response, "Public Booking Link")
+        self.assertContains(response, reverse("public_booking", args=[self.business.slug]))
+
     def test_dashboard_shows_appointment_card_when_plan_allows_appointments(self):
         self._enable_appointments_for_business()
         client_record = Client.objects.create(

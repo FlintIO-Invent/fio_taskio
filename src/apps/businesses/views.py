@@ -35,6 +35,7 @@ from .utils import (
     get_business_subscription,
     get_current_business,
     get_other_active_business_membership_for_email,
+    get_public_booking_share_context,
 )
 
 
@@ -71,6 +72,7 @@ def business_settings(request: HttpRequest) -> HttpResponse:
         "active_service_category_count": business.service_categories.filter(is_active=True).count(),
         "business_service_count": business.business_services.count(),
         "active_business_service_count": business.business_services.filter(is_active=True).count(),
+        **get_public_booking_share_context(request, business),
     }
     return render(request, "businesses/settings.html", context)
 
@@ -161,8 +163,12 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
         "availability_blocks": availability_blocks,
         "inactive_availability_count": inactive_availability_blocks.count(),
         "can_manage_booking_rules": can_manage_booking_rules,
-        "public_booking_allowed": public_booking_allowed,
         "unavailable_message": unavailable_message,
+        **get_public_booking_share_context(
+            request,
+            business,
+            booking_settings=booking_settings,
+        ),
     }
     return render(request, "businesses/booking_settings.html", context)
 

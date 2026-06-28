@@ -42,6 +42,7 @@ from apps.businesses.utils import (
     get_business_module_unavailable_message,
     get_current_business,
     get_current_business_membership,
+    get_public_booking_share_context,
     membership_has_any_role,
     redirect_for_unavailable_business_module,
 )
@@ -748,6 +749,7 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     appointments_enabled = can_use_module(current_business, "appointments")
     invoices_enabled = can_use_module(current_business, "invoicing")
     public_booking_enabled = can_use_module(current_business, "public_booking")
+    public_booking_settings = _public_booking_settings_for_business(current_business)
     can_view_appointment_activity = appointments_enabled and membership_has_any_role(
         current_membership,
         APPOINTMENT_VIEW_ROLES,
@@ -885,6 +887,11 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         "today_appointment_count": today_appointment_count,
         "today_upcoming_appointment_count": today_appointment_count,
         "upcoming_appointment_count": upcoming_appointment_count,
+        **get_public_booking_share_context(
+            request,
+            current_business,
+            booking_settings=public_booking_settings,
+        ),
     }
     return render(request, "crm/agent_dashboard/agent_dashboard.html", context)
 

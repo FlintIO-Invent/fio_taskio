@@ -10,6 +10,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import TaskIOUser
+from apps.crm.models import BusinessService
 from config import Settings
 
 from .localization import format_money_for_business, parse_localized_decimal
@@ -362,6 +363,40 @@ class BusinessSettingsViewTests(TestCase):
         self.assertContains(response, "Motionmate HQ")
         self.assertContains(response, 'name="tax_rate"')
         self.assertContains(response, 'step="1.00"')
+
+    def test_business_settings_showcases_ready_public_booking_link(self):
+        public_booking_plan = ClarivoPlan.objects.create(
+            name="Public Booking",
+            slug="business-settings-public-booking",
+            allow_public_booking=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=public_booking_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+        )
+        BusinessService.objects.create(
+            business=self.business,
+            name="Bookable Inspection",
+            is_bookable_online=True,
+        )
+        WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+        )
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        response = self.client.get(reverse("business_settings"))
+
+        self.assertContains(response, "Public Booking Link")
+        self.assertContains(response, "Ready to share")
+        self.assertContains(response, reverse("public_booking", args=[self.business.slug]))
 
     def test_business_settings_form_uses_dutch_address_labels_and_normalizes_postcode(self):
         self.business.country = "Netherlands"
@@ -813,6 +848,37 @@ class BusinessBookingSettingsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Public booking requires setup")
+
+    def test_staff_can_see_ready_public_booking_link_in_booking_settings(self):
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.public_booking_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+        )
+        BusinessService.objects.create(
+            business=self.business,
+            name="Online Consultation",
+            is_bookable_online=True,
+        )
+        WeeklyAvailability.objects.create(
+            business=self.business,
+            staff_member=self.user,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+        )
+        self._login_with_role(BusinessUser.Role.STAFF)
+
+        response = self.client.get(reverse("business_booking_settings"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Public Booking Link")
+        self.assertContains(response, "Ready to share")
+        self.assertContains(response, reverse("public_booking", args=[self.business.slug]))
 
 
 class BusinessSubscriptionViewTests(TestCase):

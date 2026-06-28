@@ -1,0 +1,51 @@
+<div class="card border-0 shadow-sm h-100">
+  <div class="card-body p-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+      <div>
+        <h4 class="mb-1">Public Booking Link</h4>
+        <p class="text-body-tertiary mb-0">Share this booking page when customers are ready to request appointment times.</p>
+      </div>
+      {% if public_booking_share_ready %}
+        <span class="badge badge-phoenix badge-phoenix-success">Ready to share</span>
+      {% else %}
+        <span class="badge badge-phoenix badge-phoenix-warning">Setup needed</span>
+      {% endif %}
+    </div>
+
+    {% if public_booking_share_ready %}
+      <div class="input-group mb-3">
+        <input class="form-control" type="url" value="{{ public_booking_url }}" readonly aria-label="Public booking link">
+        <button class="btn btn-phoenix-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ public_booking_url|escapejs }}')" aria-label="Copy public booking link">
+          <span class="fa-solid fa-copy me-2"></span>Copy
+        </button>
+        <a class="btn btn-primary" href="{{ public_booking_path }}" target="_blank" rel="noopener">
+          <span class="fa-solid fa-arrow-up-right-from-square me-2"></span>Open
+        </a>
+      </div>
+      <p class="text-body-tertiary fs-9 mb-0">Customers can request a service, choose a preferred time, and wait for your team to confirm manually.</p>
+    {% else %}
+      {% if public_booking_allowed %}
+        <div class="input-group mb-3">
+          <input class="form-control" type="url" value="{{ public_booking_url }}" readonly aria-label="Public booking link preview">
+          <button class="btn btn-phoenix-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ public_booking_url|escapejs }}')" aria-label="Copy public booking link">
+            <span class="fa-solid fa-copy me-2"></span>Copy
+          </button>
+          <a class="btn btn-phoenix-secondary" href="{% url 'business_booking_settings' %}">
+            <span class="fa-solid fa-calendar-check me-2"></span>Finish setup
+          </a>
+        </div>
+      {% endif %}
+
+      <div class="alert alert-warning mb-0" role="alert">
+        <div class="fw-semibold mb-2">Finish these items before sharing:</div>
+        <ul class="mb-0 ps-3">
+          {% for item in public_booking_setup_items %}
+            <li>{{ item }}</li>
+          {% empty %}
+            <li>Review public booking settings before sharing.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+</div>

@@ -11,11 +11,13 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
 from .models import (
     Business,
+    BusinessBookingSettings,
     BusinessInvitation,
     BusinessSubscription,
     BusinessUser,
@@ -297,6 +299,50 @@ def get_business_module_unavailable_message(
         )
 
     return f"{module_label} is not included in the current workspace plan."
+
+
+def get_public_booking_share_context(
+    request: HttpRequest,
+    business: Business,
+    *,
+    booking_settings: BusinessBookingSettings | None = None,
+) -> dict[str, Any]:
+    if booking_settings is None:
+        try:
+            booking_settings = business.booking_settings
+        except BusinessBookingSettings.DoesNotExist:
+            booking_settings = None
+
+    public_booking_allowed = can_use_module(business, "public_booking")
+    booking_enabled = bool(booking_settings and booking_settings.booking_enabled)
+    bookable_service_count = business.business_services.filter(
+        is_active=True,
+        is_bookable_online=True,
+    ).count()
+    active_availability_count = business.weekly_availability.filter(is_active=True).count()
+
+    setup_items = []
+    if not public_booking_allowed:
+        setup_items.append("Upgrade to a plan with Public Booking.")
+    if not booking_enabled:
+        setup_items.append("Enable public booking requests.")
+    if bookable_service_count == 0:
+        setup_items.append("Add at least one active service that is bookable online.")
+    if active_availability_count == 0:
+        setup_items.append("Add at least one active weekly availability block.")
+
+    public_booking_path = reverse("public_booking", args=[business.slug])
+
+    return {
+        "public_booking_url": request.build_absolute_uri(public_booking_path),
+        "public_booking_path": public_booking_path,
+        "public_booking_allowed": public_booking_allowed,
+        "public_booking_enabled": booking_enabled,
+        "public_booking_bookable_service_count": bookable_service_count,
+        "public_booking_active_availability_count": active_availability_count,
+        "public_booking_share_ready": not setup_items,
+        "public_booking_setup_items": setup_items,
+    }
 
 
 def redirect_for_unavailable_business_module(

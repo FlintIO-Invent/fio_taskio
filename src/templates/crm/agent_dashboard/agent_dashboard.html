@@ -108,6 +108,14 @@
       </div>
     </div>
 
+    {% if public_booking_share_ready %}
+      <div class="row g-3 mb-4">
+        <div class="col-12">
+          {% include "businesses/includes/public_booking_share_card.html" %}
+        </div>
+      </div>
+    {% endif %}
+
     {% if dashboard_invoices_enabled %}
       <div class="row g-3 mb-4">
         <div class="col-sm-6 col-xl-3">
