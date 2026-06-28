@@ -2434,6 +2434,10 @@ class PublicBookingTests(TestCase):
         self.assertContains(response, "data-slot-date-grid")
         self.assertContains(response, "public-booking-slot-data")
         self.assertContains(response, "public-booking-address-data")
+        self.assertContains(response, "data-public-booking-wizard")
+        self.assertContains(response, "data-booking-wizard-tab")
+        self.assertContains(response, "data-booking-wizard-next")
+        self.assertContains(response, "Availability")
         self.assertContains(
             response, "Available times are checked against the selected staff member."
         )

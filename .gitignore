@@ -23,3 +23,9 @@ Thumbs.db
 # Logs
 *.log
 replacements.txt
+
+
+# agents 
+AGENTS.md
+.agents
+.agents/
