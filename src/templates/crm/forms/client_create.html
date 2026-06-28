@@ -235,29 +235,30 @@
 
               <!-- Location -->
               <div class="tab-pane fade h-100" id="locationTabContent" role="tabpanel" aria-labelledby="locationTab">
-                <div class="d-flex flex-column h-100">
+                <div class="d-flex flex-column h-100" data-client-create-address>
                   <div class="row g-3">
                     <div class="col-md-6">
-                      <label class="form-label">Street Address</label>
-                      {{ form.street_address }}
-                      {% if form.street_address.errors %}<div class="invalid-feedback d-block">{{ form.street_address.errors|striptags }}</div>{% endif %}
-                    </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">District</label>
-                      {{ form.district }}
-                      {% if form.district.errors %}<div class="invalid-feedback d-block">{{ form.district.errors|striptags }}</div>{% endif %}
-                    </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">Country</label>
+                      <label class="form-label" for="{{ form.country.id_for_label }}">{{ form.country.label }}</label>
                       {{ form.country }}
                       {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
                     </div>
 
                     <div class="col-md-6">
-                      <label class="form-label">Postal Code</label>
+                      <label class="form-label" for="{{ form.street_address.id_for_label }}" data-address-label="street">{{ form.street_address.label }}</label>
+                      {{ form.street_address }}
+                      {% if form.street_address.errors %}<div class="invalid-feedback d-block">{{ form.street_address.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label" for="{{ form.district.id_for_label }}" data-address-label="district">{{ form.district.label }}</label>
+                      <div data-address-control="district">{{ form.district }}</div>
+                      {% if form.district.errors %}<div class="invalid-feedback d-block">{{ form.district.errors|striptags }}</div>{% endif %}
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label" for="{{ form.postal_code.id_for_label }}" data-address-label="postal">{{ form.postal_code.label }}</label>
                       {{ form.postal_code }}
+                      <div class="form-text{% if not form.postal_code.help_text %} d-none{% endif %}" data-address-help="postal">{{ form.postal_code.help_text }}</div>
                       {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
                     </div>
                   
@@ -457,6 +458,142 @@
 
     </div>
   </form>
+
+  {{ form.address_style_data|json_script:"client-create-address-data" }}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const addressRoot = document.querySelector('[data-client-create-address]');
+      const addressDataElement = document.getElementById('client-create-address-data');
+      if (!addressRoot || !addressDataElement) {
+        return;
+      }
+
+      const addressData = JSON.parse(addressDataElement.textContent || '{}');
+      const countryField = document.getElementById('{{ form.country.id_for_label }}');
+      const streetField = document.getElementById('{{ form.street_address.id_for_label }}');
+      const postalField = document.getElementById('{{ form.postal_code.id_for_label }}');
+      const districtControl = addressRoot.querySelector('[data-address-control="district"]');
+      const postalHelp = addressRoot.querySelector('[data-address-help="postal"]');
+      const districtName = '{{ form.district.html_name }}';
+      const districtId = '{{ form.district.id_for_label }}';
+      let districtField = document.getElementById(districtId);
+
+      function normalizeCountry(value) {
+        return String(value || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/&/g, ' and ')
+          .replace(/[^a-z0-9]+/g, ' ')
+          .trim();
+      }
+
+      function addressStyleName(country) {
+        const normalizedCountry = normalizeCountry(country);
+        if ((addressData.netherlandsCountries || []).includes(normalizedCountry)) {
+          return 'netherlands';
+        }
+        if ((addressData.sintMaartenCountries || []).includes(normalizedCountry)) {
+          return 'sintMaarten';
+        }
+        return 'caribbean';
+      }
+
+      function setAddressLabel(name, value) {
+        const label = addressRoot.querySelector(`[data-address-label="${name}"]`);
+        if (label && value) {
+          label.textContent = value;
+        }
+      }
+
+      function setPlaceholder(field, value) {
+        if (field) {
+          field.setAttribute('placeholder', value || '');
+        }
+      }
+
+      function currentDistrictDisplayValue() {
+        if (!districtField) {
+          return '';
+        }
+        if (districtField.tagName === 'SELECT') {
+          const selectedOption = districtField.options[districtField.selectedIndex];
+          if (!districtField.value) {
+            return '';
+          }
+          return selectedOption ? selectedOption.textContent.trim() : districtField.value;
+        }
+        return districtField.value || '';
+      }
+
+      function buildDistrictControl(style) {
+        const currentValue = currentDistrictDisplayValue();
+        if (style.districtType === 'select') {
+          const select = document.createElement('select');
+          select.name = districtName;
+          select.id = districtId;
+          select.className = 'form-select';
+          let hasSelectedValue = false;
+
+          (addressData.districtChoices || []).forEach(function (choice) {
+            const option = document.createElement('option');
+            option.value = choice.value;
+            option.textContent = choice.label;
+            if (currentValue && (choice.value === currentValue || choice.label === currentValue)) {
+              option.selected = true;
+              hasSelectedValue = true;
+            }
+            select.appendChild(option);
+          });
+
+          if (currentValue && !hasSelectedValue) {
+            const option = document.createElement('option');
+            option.value = currentValue;
+            option.textContent = currentValue;
+            option.selected = true;
+            select.appendChild(option);
+          }
+
+          return select;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = districtName;
+        input.id = districtId;
+        input.maxLength = 100;
+        input.className = 'form-control';
+        input.placeholder = style.districtPlaceholder || '';
+        input.value = currentValue;
+        return input;
+      }
+
+      function applyAddressStyle() {
+        const styles = addressData.styles || {};
+        const style = styles[addressStyleName(countryField ? countryField.value : '')] || styles.caribbean || {};
+        setAddressLabel('street', style.streetLabel);
+        setAddressLabel('district', style.districtLabel);
+        setAddressLabel('postal', style.postalLabel);
+        setPlaceholder(streetField, style.streetPlaceholder);
+        setPlaceholder(postalField, style.postalPlaceholder);
+
+        if (districtControl) {
+          districtField = buildDistrictControl(style);
+          districtControl.replaceChildren(districtField);
+        }
+
+        if (postalHelp) {
+          postalHelp.textContent = style.postalHelp || '';
+          postalHelp.classList.toggle('d-none', !style.postalHelp);
+        }
+      }
+
+      if (countryField) {
+        countryField.addEventListener('change', applyAddressStyle);
+        applyAddressStyle();
+      }
+    });
+  </script>
   
   <footer class="footer position-absolute">
     <div class="row g-0 justify-content-between align-items-center h-100">

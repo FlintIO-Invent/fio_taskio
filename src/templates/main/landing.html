@@ -19,6 +19,7 @@
     <!-- ===============================================-->
     <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/apple-touch-icon.png' %}">
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/favicon-32x32.png' %}">
+    <link rel="icon" type="image/svg+xml" href="{% static 'assets/img/icons/motionmate-logo.svg' %}">
     <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/favicon-16x16.png' %}">
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/favicon.ico' %}">
     <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}">
@@ -65,7 +66,7 @@
       <div class="bg-primary-subtle py-2">
         <div class="container-medium d-flex align-items-center justify-content-between">
           <a class="btn btn-link p-0 text-body" href="{% url 'business_login' %}">
-            <span class="fa-solid fa-arrow-right-to-bracket me-2" data-fa-transform="down-1"></span>Sign In
+            <!-- <span class="fa-solid fa-arrow-right-to-bracket me-2" data-fa-transform="down-1"></span>Sign In -->
           </a>
           <div class="dropdown">
             <button class="btn btn-sm p-0 d-md-none fs-8" type="button" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h"></span></button>
@@ -73,9 +74,7 @@
               <li><a class="dropdown-item" href="{% url 'register_business' %}">Start with Motionmate</a></li>
               <li><a class="dropdown-item" href="{% url 'business_login' %}">Business Login</a></li>
               <li><a class="dropdown-item" href="{% url 'agent_login' %}">Staff Login</a></li>
-              <li><a class="dropdown-item" href="#!">Blog</a></li>
-              <li><a class="dropdown-item" href="#!">Career</a></li>
-              <li><a class="dropdown-item" href="#!">Support</a></li>
+              <li><a class="dropdown-item" href="mailto:example@gmail.com">Support</a></li>
               <!-- <li><a class="dropdown-item" href="#!">+01 123 581321</a></li> -->
             </ul>
           </div>
@@ -83,8 +82,6 @@
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="{% url 'register_business' %}">Start with Motionmate</a></li>
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="{% url 'business_login' %}">Business Login</a></li>
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="{% url 'agent_login' %}">Staff Login</a></li>
-            <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="#!">Blog</a></li>
-            <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="#!">Career</a></li>
             <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="mailto:example@gmail.com"> <span class="fa-regular fa-envelope me-2" data-fa-transform="down-1"></span>Support</a></li>
             <!-- <li><a class="lh-1 text-body-tertiary fw-semibold fs-9" href="tel:+01123581321"> <span class="fa-brands fa-whatsapp me-2"></span>+01 123 581321</a></li> -->
           </ul>
@@ -93,10 +90,12 @@
 
       <div class="bg-body-emphasis sticky-top" data-navbar-shadow-on-scroll="data-navbar-shadow-on-scroll">
         <nav class="navbar navbar-landing navbar-expand-lg container-medium">
-          <a class="navbar-brand flex-1 flex-lg-grow-0 me-lg-8 me-xl-13" href="">
-            <div class="d-flex align-items-center">
-              <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Motionmate" width="27" />
-              <h5 class="logo-text ms-2">Motionmate</h5>
+          <a class="navbar-brand flex-1 flex-lg-grow-0 me-lg-8 me-xl-13" href="{% url 'home' %}">
+            <div class="d-flex align-items-center motionmate-brand-inline">
+              <span class="motionmate-logo-mark me-2">
+                <img src="{% static 'assets/img/icons/motionmate-logo.svg' %}" alt="" width="27" height="27" />
+              </span>
+              <h5 class="logo-text motionmate-wordmark ms-1">Motionmate</h5>
             </div>
           </a>
 
@@ -106,9 +105,9 @@
               <label class="mb-0 theme-control-toggle-label theme-control-toggle-light" for="themeControlToggleSm" data-bs-toggle="tooltip" data-bs-placement="left" data-bs-title="Switch theme" style="height:32px;width:32px;"><span class="icon" data-feather="moon"></span></label>
               <label class="mb-0 theme-control-toggle-label theme-control-toggle-dark" for="themeControlToggleSm" data-bs-toggle="tooltip" data-bs-placement="left" data-bs-title="Switch theme" style="height:32px;width:32px;"><span class="icon" data-feather="sun"></span></label>
             </div>
-            <a class="btn btn-link text-body-tertiary p-0" href="#!"><span data-feather="map-pin" style="width: 18px; height: 18px"></span></a>
-            <a class="btn btn-link text-body-tertiary p-0" href="#!"><span data-feather="bell" style="width: 20px; height: 20px"></span></a>
-            <a class="btn btn-link text-body-tertiary p-0 me-2 me-lg-0" href="#!"><span data-feather="user" style="width: 20px; height: 20px"></span></a>
+            <a class="btn btn-link text-body-tertiary p-0" href="#" aria-label="View Motionmate features"><span data-feather="map-pin" style="width: 18px; height: 18px"></span></a>
+            <a class="btn btn-link text-body-tertiary p-0" href="#" aria-label="Register your business"><span data-feather="bell" style="width: 20px; height: 20px"></span></a>
+            <a class="btn btn-link text-body-tertiary p-0 me-2 me-lg-0" href="#" aria-label="Business login"><span data-feather="user" style="width: 20px; height: 20px"></span></a>
           </div>
 
           <button class="navbar-toggler fs-8 ps-1 ps-sm-3 pe-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
@@ -120,7 +119,7 @@
         </nav>
       </div>
 
-      <div class="booking-hero-header d-flex align-items-center">
+      <div class="booking-hero-header d-flex align-items-center overflow-hidden" style="min-height: 840px;">
         <div class="bg-holder bg-holder overlay bg-opacity-50" style="background-image:url({% static 'assets/video/travel.png' %});">
           <video class="bg-video" autoplay="autoplay" loop="loop" muted="muted" playsinline="playsinline">
             <source src="{% static 'assets/video/travel3.mp4' %}" type="video/mp4" />
@@ -129,121 +128,218 @@
         <!--/.bg-holder-->
 
         <div class="container-medium position-relative z-5">
-          <h2 class="text-secondary-lighter fs-5 fs-md-3 fw-normal mb-3">Digitize your workflow with.</h2>
-          <h1 class="fs-4 fs-md-1 text-white fw-normal mb-6 overflow-hidden">Built for the <span class="typed-text text-primary" data-typed-text="[&quot;&lt;span class=text-primary&gt;CARIBBEAN!&lt;/span&gt;&quot;,&quot;&lt;span class=text-warning&gt;Caribe&lt;/span&gt;&quot;, &quot;&lt;span class=text-info&gt;Caraïbes&lt;/span&gt;&quot;, &quot;&lt;span class=text-success&gt;Karibe&lt;/span&gt;&quot;]"></span></h1>
+          <h2 class="text-secondary-lighter fs-5 fs-md-3 fw-normal mb-3">Digitize your workflow </h2>
+          <h1 class="fs-4 fs-md-1 text-white fw-normal mb-6 overflow-hidden">Built for 
+            <span class="typed-text text-primary" data-typed-text="[&quot;&lt;span class=text-primary&gt;The Carribean&lt;/span&gt;&quot;,&quot;&lt;span class=text-warning&gt;Europe&lt;/span&gt;&quot;, &quot;&lt;span class=text-info&gt;Small Businesses&lt;/span&gt;&quot;]">
+            </span>
+          </h1>
           <div class="input-group rounded-2 py-3 ps-3 w-lg-50 ">
           </div>
         </div>
       </div>
 
-      <div style="display:none;">
-        <section class="pt-6 pt-md-10 pb-10">
 
-          <div class="container-medium">
-            <div class="bg-holder d-none d-xl-block" style="background-image:url({% static 'assets/img/bg/bg-left-27.png' %});background-size:auto;background-position:left;">
-            </div>
-            <!--/.bg-holder-->
-
-            <div class="bg-holder d-none d-xl-block" style="background-image:url({% static 'assets/img/bg/bg-right-27.png' %});background-size:auto;background-position:right;">
-            </div>
-            <!--/.bg-holder-->
-
-            <div class="row g-3 position-relative">
-              <div class="col-lg-6">
-                <div class="row g-3">
-                  <div class="col-md-7">
-                    <h4 class="fw-semibold mb-3">A simple system for growing service teams.</h4>
-                    <h2 class="fs-4 fw-semibold mb-3 mb-md-4">Your workspace<span class="text-primary-light fw-bold">Your clarity</span></h2>
-                    <p class="mb-3 mb-md-0 text-body-tertiary">
-                      Motionmate helps businesses move beyond scattered notes, inboxes, and spreadsheets.
-                      Client details, requests, and follow-ups stay organized in one place so teams can respond faster and work with more confidence.
-                    </p>
-                  </div>
-                  <div class="col-6 col-md-5">
-                    <div class="img-zoom-hover position-relative h-100 rounded-3 overflow-hidden">
-                      <a href="#!"><img class="w-100 h-100 object-fit-cover" src="{% static 'assets/img/gallery/35.png' %}" alt="" /></a>
-                      <div class="backdrop-faded">
-                        <a class="fw-bold fs-7 text-white stretched-link" href="#!">New Zealand</a>
-                        <p class="mb-0 text-white fs-9">17 Hotels</p>
-                      </div>
+      <!-- ============================================-->
+      <!-- <features section> begin ============================-->
+      <section class="pt-15 pb-15" id="feature">
+        <div class="container-small px-lg-7 px-xxl-3">
+          <div class="position-relative z-2">
+            <div class="row">
+              <div class="col-lg-6 text-center text-lg-start pe-xxl-3">
+                <h4 class="text-primary fw-bolder mb-4">Features</h4>
+                <h2 class="mb-3 text-body-emphasis lh-base">Run requests, customers, bookings, <br class="d-md-none" />and invoices in one workspace</h2>
+                <p class="mb-5">Motionmate gives service businesses a practical operating layer for capturing customer requests, coordinating staff, tracking work, and billing from the same tenant-ready workspace.</p><a class="btn btn-lg btn-outline-primary rounded-pill me-2" href="{% url 'register_business' %}" role="button">Start your workspace<i class="fa-solid fa-angle-right ms-2"></i></a>
+              </div>
+              <div class="col-sm-6 col-lg-3 mt-7 text-center text-lg-start">
+                <div class="h-100 d-flex flex-column justify-content-between">
+                  <div class="border-start-lg border-translucent border-dashed ps-4"><img class="mb-4" src="{% static 'assets/img/icons/illustrations/bolt.png' %}" width="48" height="48" alt="" />
+                    <div>
+                      <h5 class="fw-bolder mb-2">Fast intake</h5>
+                      <p class="fw-semibold lh-sm">Turn new service requests into organized leads before details get lost.</p>
                     </div>
-                  </div>
-                  <div class="col-6 col-md-5">
-                    <div class="img-zoom-hover position-relative h-100 rounded-3 overflow-hidden">
-                      <a href="#!"> <img class="w-100 h-100 object-fit-cover" src="{% static 'assets/img/gallery/36.png' %}" alt="" /></a>
-                      <div class="backdrop-faded">
-                        <a class="fw-bold fs-7 text-white" href="#!">London</a>
-                        <p class="mb-0 text-white fs-9">17 Hotels</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-md-7">
-                    <div class="img-zoom-hover position-relative h-100 rounded-3 overflow-hidden">
-                      <a href="#!"> <img class="w-100 h-md-100 object-fit-cover" src="{% static 'assets/img/gallery/37.png' %}" alt="" height="220" /></a>
-                      <div class="backdrop-faded">
-                        <a class="fw-bold fs-7 text-white" href="#!">Maui</a>
-                        <p class="mb-0 text-white fs-9">14 Hotels</p>
-                      </div>
-                    </div>
+                    <div><a class="btn btn-link me-2 p-0 fs-9" href="{% url 'register_business' %}" role="button">Create business<span class="fa-solid fa-angle-right ms-2"></span></a></div>
                   </div>
                 </div>
               </div>
-              <div class="col-lg-6">
-                <div class="d-flex flex-column gap-3 h-100">
-                  <div class="col-md-7">
-                    <h4 class="fw-semibold mb-3">Our platform changes that.</h4>
-                    <h2 class="fs-4 fw-semibold mb-3 mb-md-4"><span class="text-primary-light fw-bold"></span></h2>
-                    <p class="mb-3 mb-md-0 text-body-tertiary">
-                      A clear workspace for clients, service requests, invoices, and team operations.
-                      <br>
-                      <br>
-                      Motionmate gives teams a shared view of customer activity, billing, and day-to-day operations without forcing them into a complicated setup.
-                      From first contact to follow-up, everyone works from the same current information.
-                      <br>
-                      <br>
-                      <br>
-                      <span class="d-none d-lg-inline-block d-xl-none"> </span>
-                      <span class="d-lg-none d-xl-inline">Built to help service businesses stay organized as they grow.</span>
-                      <br>
-                      <br>
-                    </p>
+              <div class="col-sm-6 col-lg-3 mt-7 text-center text-lg-start">
+                <div class="h-100 d-flex flex-column">
+                  <div class="border-start-lg border-translucent border-dashed ps-4"><img class="mb-4" src="{% static 'assets/img/icons/illustrations/pie.png' %}" width="48" height="48" alt="" />
+                    <div>
+                      <h5 class="fw-bolder mb-2">All-in-one workspace</h5>
+                      <p class="fw-semibold lh-sm">Keep CRM, appointments, billing, and staff access tied to the right business.</p>
+                    </div>
+                    <div><a class="btn btn-link me-2 p-0 fs-9" href="{% url 'business_login' %}" role="button">Business login<i class="fa-solid fa-angle-right ms-2"></i></a></div>
                   </div>
-                  <button class="btn btn-primary w-100 py-3 fs-8">Start your Motionmate workspace<span class="fa-solid fa-chevron-right ms-2" data-fa-transform="down-2"></span></button>
+                </div>
+              </div>
+            </div>
+            <div class="row mt-12 align-items-center justify-content-between text-center text-lg-start mb-6 mb-lg-0">
+              <div class="col-lg-5"><img class="feature-image img-fluid mb-9 mb-lg-0 d-dark-none" src="{% static 'assets/img/spot-illustrations/22_2.png' %}" alt="" /><img class="feature-image img-fluid mb-9 mb-lg-0 d-light-none" src="{% static 'assets/img/spot-illustrations/dark_22.png' %}" alt="" /></div>
+              <div class="col-lg-6">
+                <h6 class="text-primary mb-2 ls-2">REQUESTS</h6>
+                <h3 class="fw-bolder mb-3">Receive service requests instantly</h3>
+                <p class="mb-4 px-md-7 px-lg-0">Collect customer details, preferred services, and follow-up notes in a clean CRM flow your team can act on quickly.</p><a class="btn btn-link me-2 p-0 fs-9" href="{% url 'register_business' %}" role="button">Start intake<i class="fa-solid fa-angle-right ms-2"></i></a>
+              </div>
+            </div>
+            <div class="row mt-2 align-items-center justify-content-between text-center text-lg-start mb-6 mb-lg-0">
+              <div class="col-lg-5 order-0 order-lg-1"><img class="feature-image img-fluid mb-9 mb-lg-0 d-dark-none" src="{% static 'assets/img/spot-illustrations/23_2.png' %}" height="394" alt="" /><img class="feature-image img-fluid mb-9 mb-lg-0 d-light-none" src="{% static 'assets/img/spot-illustrations/dark_23.png' %}" height="394" alt="" /></div>
+              <div class="col-lg-6">
+                <h6 class="text-primary mb-2 ls-2">REVENUE</h6>
+                <h3 class="fw-bolder mb-3">Turn completed work into invoices</h3>
+                <p class="mb-4 px-md-7 px-lg-0">Move from request to appointment to invoice without copying customer and service details between disconnected tools.</p><a class="btn btn-link me-2 p-0 fs-9" href="{% url 'business_login' %}" role="button">Open billing<i class="fa-solid fa-angle-right ms-2"></i></a>
+              </div>
+            </div>
+            <div class="row mt-2 align-items-center justify-content-between text-center text-lg-start mb-6 mb-lg-0">
+              <div class="col-lg-5"><img class="feature-image img-fluid mb-9 mb-lg-0 d-dark-none" src="{% static 'assets/img/spot-illustrations/24_2.png' %}" height="394" alt="" /><img class="feature-image img-fluid mb-9 mb-lg-0 d-light-none" src="{% static 'assets/img/spot-illustrations/dark_24.png' %}" height="394" alt="" /></div>
+              <div class="col-lg-6 text-center text-lg-start">
+                <h6 class="text-primary mb-2 ls-2">INSIGHT</h6>
+                <h3 class="fw-bolder mb-3">Keep each business case visible</h3>
+                <p class="mb-4 px-md-7 px-lg-0">Track customers, requests, appointments, and invoices by workspace so owners and staff see only the business they are serving.</p><a class="btn btn-link me-2 p-0 fs-9" href="{% url 'agent_login' %}" role="button">Staff login<i class="fa-solid fa-angle-right ms-2"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- end of .container-->
+      </section>
+      <!-- <section> close ============================-->
+      <!-- ============================================-->
+
+      <!-- ============================================-->
+      <!-- <Pricing section> begin ============================-->
+      <section class="position-static pt-15 pt-md-5 pt-lg-2">
+
+        <div class="container-small px-lg-7 px-xxl-3">
+          <div class="text-center mb-3 mb-lg-7">
+            <h5 class="text-info mb-3">Motionmate Plans</h5>
+            <h2 class="mb-2">Choose the workspace for your service team</h2>
+          </div>
+          <div class="row g-3 mb-7 mb-lg-11">
+            {% for plan in pricing_plans %}
+            <div class="col-md-6 col-xl-4">
+              <div class="pricing-card">
+                <div class="card bg-transparent h-100 {% if forloop.counter == 2 %}border border-2 border-info rounded-4{% else %}border-0{% endif %}">
+                  <div class="card-body p-7">
+                    <h3 class="mb-3">{{ plan.name }}</h3>
+                    <p class="text-body-tertiary mb-5">{{ plan.description|default:"Motionmate workspace access and module availability." }}</p>
+                    <h1 class="fs-3 d-flex align-items-center gap-1 mb-1">{% if plan.price_monthly %}${{ plan.price_monthly|floatformat:2 }}{% else %}Free{% endif %}<span class="fs-8 fw-normal">/ month</span></h1>
+                    <p class="fs-9 text-body-tertiary mb-4">
+                      {% if plan.price_yearly %}${{ plan.price_yearly|floatformat:2 }} billed yearly{% else %}Yearly billing available on request{% endif %}
+                    </p>
+                    <a class="btn btn-lg w-100 mb-7 {% if forloop.counter == 2 %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'register_business' %}" role="button">Start {{ plan.name }}</a>
+                    <h5 class="mb-4">What’s included</h5>
+                    <ul class="fa-ul ps-4 m-0 pricing">
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">CRM workspace and service requests</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">{{ plan.max_users|default:"Unlimited" }} team users</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">{{ plan.max_clients|default:"Unlimited" }} clients</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">{{ plan.max_invoices_per_month|default:"Unlimited" }} invoices / month</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="{% if plan.allow_invoicing %}fas fa-check text-primary{% endif %}"></span></span>
+                        <p class="mb-0">Invoicing</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="{% if plan.allow_appointments %}fas fa-check text-primary{% endif %}"></span></span>
+                        <p class="mb-0">Appointments</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="{% if plan.allow_public_request_form %}fas fa-check text-primary{% endif %}"></span></span>
+                        <p class="mb-0">Public request form</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-0"><span class="fa-li"><span class="{% if plan.allow_public_booking %}fas fa-check text-primary{% endif %}"></span></span>
+                        <p class="mb-0">Public booking requests</p>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+              <div class="alert alert-warning mb-0" role="alert">
+                No active Motionmate subscription plans are configured yet.
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="card rounded-4 border-0 offer-card">
+            <div class="card-body d-md-flex align-items-center gap-4 py-5"><img class="mb-4 mb-md-0 d-dark-none" src="{% static 'assets/img/spot-illustrations/air-plane.png' %}" width="155" alt="" /><img class="mb-4 mb-md-0 d-light-none" src="{% static 'assets/img/spot-illustrations/air-plane-dark.png' %}" width="155" alt="" />
+              <div>
+                <p>Motionmate plans are built for service businesses that need one place for requests, customers, appointments, and invoices. Need help choosing a setup for your team? We can walk through your service flow and recommend a workspace plan.</p>
+                <a class="btn btn-link me-2 p-0 fs-9" href="mailto:support@motionmate.com" role="button">Contact Motionmate<i class="fa-solid fa-angle-right ms-2"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- end of .container-->
+
+      </section>
+      <!-- <section> close ============================-->
+      <!-- ============================================-->
+
+
+      <!-- ============================================-->
+      <!-- <Footer section> begin ============================-->
+      <section class="footer-default">
+        <div class="container-small px-lg-7 px-xxl-3">
+          <div class="row position-relative">
+            <div class="col-12 col-sm-12 col-lg-5 mb-4 order-0 order-sm-0"><a href="{% url 'home' %}"><img class="mb-3" src="{% static 'assets/img/icons/motionmate-logo.svg' %}" height="48" alt="Motionmate" /></a>
+              <h3 class="text-white">Motionmate</h3>
+              <p class="text-white opacity-50">Service SaaS for Caribbean businesses managing requests, customers, appointments, and invoices.</p>
+            </div>
+            <div class="col-lg-7">
+              <div class="row justify-content-between">
+                <div class="col-6 col-sm-4 col-lg-3 mb-3 order-2 order-sm-1">
+                  <div class="border-dashed border-start border-primary-light ps-3" style="--phoenix-border-opacity: .2;">
+                    <h5 class="fw-bolder mb-2 text-light">Workspace</h5>
+                    <ul class="list-unstyled mb-3">
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'home' %}#feature" data-bs-theme="light">Features</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'register_business' %}" data-bs-theme="light">Start workspace</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'business_login' %}" data-bs-theme="light">Business login</a></li>
+                    </ul>
+                  </div>
+                  <div class="border-dashed border-start border-primary-light ps-3" style="--phoenix-border-opacity: .2;">
+                    <h5 class="lh-lg fw-bolder mb-2 text-light">Access</h5>
+                    <ul class="list-unstyled mb-2">
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'agent_login' %}" data-bs-theme="light">Staff login</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'password_reset' %}" data-bs-theme="light">Reset password</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'public_request_entry' %}" data-bs-theme="light">Request service</a></li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-6 col-sm-4 col-lg-3 mb-3 order-3 order-sm-2">
+                  <div class="border-dashed border-start border-primary-light ps-3" style="--phoenix-border-opacity: .2;">
+                    <h5 class="lh-lg fw-bold text-light mb-2">Service Flow</h5>
+                    <ul class="list-unstyled mb-md-2">
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'register_business' %}" data-bs-theme="light">Service business case</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'home' %}#feature" data-bs-theme="light">Request tracking</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'home' %}#feature" data-bs-theme="light">Customer CRM</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'home' %}#feature" data-bs-theme="light">Bookings and invoices</a></li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-6 col-sm-4 col-lg-3 mb-3 order-3 order-sm-2">
+                  <div class="border-dashed border-start border-primary-light ps-3" style="--phoenix-border-opacity: .2;">
+                    <h5 class="lh-lg fw-bold text-light mb-2">Support</h5>
+                    <ul class="list-unstyled mb-md-2">
+                      <li class="mb-1"><a class="text-body-quaternary" href="mailto:support@motionmate.com" data-bs-theme="light">Contact support</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'business_login' %}" data-bs-theme="light">Owner access</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'agent_login' %}" data-bs-theme="light">Team access</a></li>
+                      <li class="mb-1"><a class="text-body-quaternary" href="{% url 'password_reset' %}" data-bs-theme="light">Account help</a></li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-          <!-- end of .container-->
-
-        </section>
-            
-        <section class="booking-footer pb-6 pb-md-11 pt-15">
-
-          <div class="container-medium">
-            <div class="row gy-3 justify-content-between align-items-center">
-              <div class="col-auto"><a href="#!"><img src="{% static 'assets/img/icons/logo-1.png' %}" alt="" /></a></div>
-              <div class="col-auto">
-                <ul class="mb-0 list-unstyled d-flex flex-wrap">
-                  <li class="me-3 me-sm-5"><a class="fs-8 fw-bold text-white" href="#!">Home</a></li>
-                  <li class="me-3 me-sm-5"><a class="fs-8 fw-bold text-white" href="#!">About</a></li>
-                  <li class="me-3 me-sm-5"><a class="fs-8 fw-bold text-white" href="#!">Contact</a></li>
-                  <li class="me-3 me-sm-5"><a class="fs-8 fw-bold text-white" href="#!">FAQ</a></li>
-                  <li><a class="fs-8 fw-bold text-white" href="#!">Gallery</a></li>
-                </ul>
-              </div>
-            </div>
-            <hr class="my-4" />
-            <div class="row gy-3 justify-content-between">
-              <div class="col-auto"> <a class="text-white me-4" href="#!"><span class="fa-brands fa-facebook-f"> </span></a><a class="text-white me-4" href="#!"><span class="fa-brands fa-twitter"></span></a><a class="text-white me-4" href="#!"><span class="fa-brands fa-linkedin-in"></span></a><a class="text-white" href="#!"><span class="fa-brands fa-behance"></span></a></div>
-              <div class="col-auto">
-                <p class="mb-0 text-white">Powered by Motionmate | 2025 &copy;</p>
-              </div>
-            </div>
-          </div>
-          <!-- end of .container-->
-
-        </section>
-     </div>
+        </div>
+        <!-- end of .container-->
+      </section>
+      <!-- <section> close ============================-->
+      <!-- ============================================-->
 
     </main>
     

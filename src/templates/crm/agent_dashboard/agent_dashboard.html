@@ -1,4 +1,5 @@
 {% extends "inheritance/dashboard_parent.html" %}
+{% load money %}
 
 {% block content %}
   <div class="content">
@@ -14,62 +15,12 @@
 
     <div class="row g-3 mb-4 align-items-end justify-content-between">
       <div class="col-lg-8">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-          <span class="badge badge-phoenix badge-phoenix-primary">Workspace</span>
-          {% if current_plan %}
-            <span class="badge badge-phoenix badge-phoenix-secondary">{{ current_plan.name }}</span>
-          {% endif %}
-          {% if current_subscription %}
-            <span class="badge badge-phoenix {% if subscription_is_trialing %}badge-phoenix-info{% elif subscription_has_access %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-              {{ current_subscription.get_status_display }}
-            </span>
-          {% else %}
-            <span class="badge badge-phoenix badge-phoenix-warning">Plan pending</span>
-          {% endif %}
-        </div>
-        <h2 class="mb-2 text-body-emphasis">{{ current_business.name }}</h2>
+        <h2 class="mb-2 text-body-emphasis">
+          Welcome back{% if request.user.first_name %}, {{ request.user.first_name }}{% endif %}
+        </h2>
         <p class="text-body-tertiary mb-0">
-          A clear workspace for clients, service requests, invoicing, and team coordination.
+          Here is today's workspace snapshot for {{ current_business.name }}.
         </p>
-      </div>
-      <div class="col-lg-auto">
-        <div class="d-flex flex-wrap gap-2">
-          {% if role_access.can_manage_clients %}
-            <a class="btn btn-phoenix-primary" href="{% url 'staff_client_create' %}">
-              <span class="fa-solid fa-plus me-2"></span>New Client
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_leads %}
-            <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_create' %}">
-              <span class="fa-solid fa-plus me-2"></span>New Service Request
-            </a>
-          {% endif %}
-          {% if module_access.invoicing and role_access.can_view_invoices %}
-            <a class="btn btn-outline-primary" href="{% url 'invoice_list' %}">
-              <span class="fa-solid fa-file-invoice-dollar me-2"></span>Invoices
-            </a>
-          {% endif %}
-          {% if module_access.appointments and role_access.can_view_appointments %}
-            <a class="btn btn-outline-primary" href="{% url 'appointment_list' %}">
-              <span class="fa-solid fa-calendar-days me-2"></span>Appointments
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_subscription %}
-            <a class="btn btn-outline-secondary" href="{% url 'business_subscription' %}">
-              <span class="fa-solid fa-layer-group me-2"></span>Upgrade Plan
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_business_settings %}
-            <a class="btn btn-outline-secondary" href="{% url 'business_settings' %}">
-              <span class="fa-solid fa-gear me-2"></span>Business Settings
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_team %}
-            <a class="btn btn-outline-secondary" href="{% url 'business_team_members' %}">
-              <span class="fa-solid fa-user-plus me-2"></span>Team Members
-            </a>
-          {% endif %}
-        </div>
       </div>
     </div>
 
@@ -82,11 +33,11 @@
                 <span class="fa-solid fa-users"></span>
               </div>
               <div>
-                <p class="fs-9 text-body-tertiary mb-0">Clients</p>
+                <p class="fs-9 text-body-tertiary mb-0">Total Clients</p>
                 <h3 class="mb-0">{{ client_count }}</h3>
               </div>
             </div>
-            <p class="fs-9 text-body-tertiary mb-0">Total client records in this workspace.</p>
+            <p class="fs-9 text-body-tertiary mb-0">{{ new_client_count_this_month }} added this month.</p>
           </div>
         </div>
       </div>
@@ -99,164 +50,12 @@
                 <span class="fa-solid fa-wrench"></span>
               </div>
               <div>
-                <p class="fs-9 text-body-tertiary mb-0">Service Requests</p>
+                <p class="fs-9 text-body-tertiary mb-0">Open Requests</p>
                 <h3 class="mb-0">{{ open_service_request_count }}</h3>
               </div>
             </div>
             <p class="fs-9 text-body-tertiary mb-0">
-              {{ new_service_request_count }} new and {{ service_request_count }} total requests.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {% if module_access.invoicing %}
-        <div class="col-sm-6 col-xl-3">
-          <div class="card h-100">
-            <div class="card-body">
-              <div class="d-flex align-items-center mb-3">
-                <div class="icon-wrapper-sm bg-warning-subtle text-warning-emphasis me-3">
-                  <span class="fa-solid fa-file-invoice-dollar"></span>
-                </div>
-                <div>
-                  <p class="fs-9 text-body-tertiary mb-0">Invoices</p>
-                  <h3 class="mb-0">{{ invoice_count }}</h3>
-                </div>
-              </div>
-              <p class="fs-9 text-body-tertiary mb-0">{{ unpaid_invoice_count }} unpaid invoices need follow-up.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-3">
-          <div class="card h-100">
-            <div class="card-body">
-              <div class="d-flex align-items-center mb-3">
-                <div class="icon-wrapper-sm bg-success-subtle text-success-emphasis me-3">
-                  <span class="fa-solid fa-circle-check"></span>
-                </div>
-                <div>
-                  <p class="fs-9 text-body-tertiary mb-0">Paid Invoice Total</p>
-                  <h3 class="mb-0">{{ current_business.currency }} {{ paid_invoice_total|floatformat:2 }}</h3>
-                </div>
-              </div>
-              <p class="fs-9 text-body-tertiary mb-0">{{ paid_invoice_count }} invoices marked as paid.</p>
-            </div>
-          </div>
-        </div>
-      {% else %}
-        <div class="col-sm-6 col-xl-3">
-          <div class="card h-100">
-            <div class="card-body">
-              <div class="d-flex align-items-center mb-3">
-                <div class="icon-wrapper-sm bg-warning-subtle text-warning-emphasis me-3">
-                  <span class="fa-solid fa-lock"></span>
-                </div>
-                <div>
-                  <p class="fs-9 text-body-tertiary mb-0">Billing Module</p>
-                  <h3 class="mb-0">Locked</h3>
-                </div>
-              </div>
-              <p class="fs-9 text-body-tertiary mb-0">Invoices are not included in the current workspace plan.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-3">
-          <div class="card h-100">
-            <div class="card-body">
-              <div class="d-flex align-items-center mb-3">
-                <div class="icon-wrapper-sm bg-secondary-subtle text-secondary-emphasis me-3">
-                  <span class="fa-solid fa-layer-group"></span>
-                </div>
-                <div>
-                  <p class="fs-9 text-body-tertiary mb-0">Current Plan</p>
-                  <h3 class="mb-0">{{ current_plan.name|default:"Pending" }}</h3>
-                </div>
-              </div>
-              <p class="fs-9 text-body-tertiary mb-0">
-                {% if current_subscription %}{{ current_subscription.get_status_display }} subscription.{% else %}No active subscription is attached yet.{% endif %}
-              </p>
-            </div>
-          </div>
-        </div>
-      {% endif %}
-    </div>
-
-    <div class="row g-3 mb-4">
-      <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <div>
-            <h4 class="mb-1">Workspace Modules</h4>
-            <p class="text-body-tertiary mb-0">Available modules reflect the current business subscription plan.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-sm-6 col-xl-3">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-3">
-              <div>
-                <h5 class="mb-1">Invoices</h5>
-                <p class="fs-9 text-body-tertiary mb-0">Quotes, invoices, and payment tracking.</p>
-              </div>
-              <span class="badge badge-phoenix {% if module_access.invoicing %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                {% if module_access.invoicing %}Included{% else %}Locked{% endif %}
-              </span>
-            </div>
-            {% if module_access.invoicing and role_access.can_view_invoices %}
-              <a class="btn btn-outline-primary btn-sm" href="{% url 'invoice_list' %}">
-                <span class="fa-solid fa-arrow-up-right-from-square me-2"></span>Open Invoices
-              </a>
-            {% elif module_access.invoicing %}
-              <p class="fs-9 text-body-tertiary mb-0">Invoice access is limited to billing roles in this workspace.</p>
-            {% else %}
-              <p class="fs-9 text-body-tertiary mb-0">This module is not enabled for the current workspace plan.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="col-sm-6 col-xl-3">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-3">
-              <div>
-                <h5 class="mb-1">Appointments</h5>
-                <p class="fs-9 text-body-tertiary mb-0">Scheduling and calendar tools.</p>
-              </div>
-              <span class="badge badge-phoenix {% if module_access.appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                {% if module_access.appointments %}Included{% else %}Locked{% endif %}
-              </span>
-            </div>
-            {% if module_access.appointments and role_access.can_view_appointments %}
-              <a class="btn btn-outline-primary btn-sm" href="{% url 'appointment_list' %}">
-                <span class="fa-solid fa-arrow-up-right-from-square me-2"></span>Open Appointments
-              </a>
-            {% elif module_access.appointments %}
-              <p class="fs-9 text-body-tertiary mb-0">Appointment access is limited by your workspace role.</p>
-            {% else %}
-              <p class="fs-9 text-body-tertiary mb-0">This module is not enabled for the current workspace plan.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="col-sm-6 col-xl-3">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-3">
-              <div>
-                <h5 class="mb-1">Memberships</h5>
-                <p class="fs-9 text-body-tertiary mb-0">Recurring member relationships and plans.</p>
-              </div>
-              <span class="badge badge-phoenix {% if module_access.memberships %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                {% if module_access.memberships %}Planned{% else %}Later{% endif %}
-              </span>
-            </div>
-            <p class="fs-9 text-body-tertiary mb-0">
-              {% if module_access.memberships %}This plan reserves memberships for a later rollout. They are not part of the current private-testing scope.{% else %}Memberships are not part of the current private-testing scope.{% endif %}
+              {{ new_service_request_count }} new, {{ service_request_count_this_month }} created this month.
             </p>
           </div>
         </div>
@@ -265,46 +64,156 @@
       <div class="col-sm-6 col-xl-3">
         <div class="card h-100">
           <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-3">
-              <div>
-                <h5 class="mb-1">Public Booking</h5>
-                <p class="fs-9 text-body-tertiary mb-0">Self-serve booking experiences for clients.</p>
+            <div class="d-flex align-items-center mb-3">
+              <div class="icon-wrapper-sm {% if public_booking_module_enabled %}bg-warning-subtle text-warning-emphasis{% else %}bg-secondary-subtle text-secondary-emphasis{% endif %} me-3">
+                <span class="fa-solid {% if public_booking_module_enabled %}fa-calendar-check{% else %}fa-lock{% endif %}"></span>
               </div>
-              <span class="badge badge-phoenix {% if module_access.public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                {% if module_access.public_booking %}Planned{% else %}Later{% endif %}
-              </span>
+              <div>
+                <p class="fs-9 text-body-tertiary mb-0">Public Booking Review</p>
+                <h3 class="mb-0">{{ public_booking_pending_review_count }}</h3>
+              </div>
             </div>
             <p class="fs-9 text-body-tertiary mb-0">
-              {% if module_access.public_booking %}This plan reserves public booking for a later rollout. It is not part of the current private-testing scope.{% else %}Public booking is not part of the current private-testing scope.{% endif %}
+              {% if public_booking_module_enabled %}
+                Pending manual review.
+              {% else %}
+                {{ public_booking_unavailable_message }}
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-xl-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-3">
+              <div class="icon-wrapper-sm {% if dashboard_appointments_enabled %}bg-success-subtle text-success-emphasis{% else %}bg-secondary-subtle text-secondary-emphasis{% endif %} me-3">
+                <span class="fa-solid {% if dashboard_appointments_enabled %}fa-calendar-day{% else %}fa-lock{% endif %}"></span>
+              </div>
+              <div>
+                <p class="fs-9 text-body-tertiary mb-0">Appointments Today</p>
+                <h3 class="mb-0">{% if dashboard_appointments_enabled %}{{ today_appointment_count }}{% else %}Locked{% endif %}</h3>
+              </div>
+            </div>
+            <p class="fs-9 text-body-tertiary mb-0">
+              {% if dashboard_appointments_enabled %}
+                {{ upcoming_appointment_count }} upcoming scheduled appointments.
+              {% else %}
+                {{ appointment_unavailable_message|default:"Appointment access is limited by your workspace role." }}
+              {% endif %}
             </p>
           </div>
         </div>
       </div>
     </div>
+
+    {% if public_booking_share_ready %}
+      <div class="row g-3 mb-4">
+        <div class="col-12">
+          {% include "businesses/includes/public_booking_share_card.html" %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% if dashboard_invoices_enabled %}
+      <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <p class="fs-9 text-body-tertiary mb-1">Draft Invoices</p>
+              <div class="d-flex align-items-end justify-content-between">
+                <h3 class="mb-0">{{ draft_invoice_count }}</h3>
+                <span class="fa-solid fa-file-circle-plus text-body-tertiary"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <p class="fs-9 text-body-tertiary mb-1">Open Invoices</p>
+              <div class="d-flex align-items-end justify-content-between">
+                <h3 class="mb-0">{{ open_invoice_count }}</h3>
+                <span class="fa-solid fa-file-invoice-dollar text-body-tertiary"></span>
+              </div>
+              <p class="fs-10 text-body-tertiary mb-0 mt-2">{{ sent_invoice_count }} sent.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <p class="fs-9 text-body-tertiary mb-1">Invoice Value This Month</p>
+              <div class="d-flex align-items-end justify-content-between gap-2">
+                <h3 class="mb-0">{{ invoice_value_this_month|money:current_business }}</h3>
+                <span class="fa-solid fa-chart-line text-body-tertiary"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <p class="fs-9 text-body-tertiary mb-1">Unpaid Invoice Value</p>
+              <div class="d-flex align-items-end justify-content-between gap-2">
+                <h3 class="mb-0">{{ unpaid_invoice_total|money:current_business }}</h3>
+                <span class="fa-solid fa-hand-holding-dollar text-body-tertiary"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% elif invoices_module_enabled %}
+      <div class="alert alert-subtle-secondary mb-4" role="status">
+        <span class="fa-solid fa-lock me-2"></span>Invoices Restricted. Billing totals are available only to billing roles in this workspace.
+      </div>
+    {% else %}
+      <div class="alert alert-subtle-secondary mb-4" role="status">
+        <span class="fa-solid fa-lock me-2"></span>Invoices Locked. {{ invoice_unavailable_message }}
+      </div>
+    {% endif %}
 
     <div class="row g-3">
       <div class="col-12 col-xxl-7">
         <div class="card h-100">
-          <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="card-header d-flex justify-content-between align-items-center gap-3">
             <div>
-              <h4 class="mb-1">Recent Service Requests</h4>
-              <p class="text-body-tertiary mb-0">The latest incoming work for {{ current_business.name }}.</p>
+              <h4 class="mb-1">Service Request Follow-Up</h4>
+              <p class="text-body-tertiary mb-0">
+                {{ open_service_request_count }} open requests, {{ public_booking_pending_review_count }} public booking requests pending review.
+              </p>
             </div>
-            <a href="{% url 'staff_lead_list' %}" class="btn btn-sm btn-outline-primary">View Service Requests</a>
+            <a href="{% url 'staff_lead_list' %}" class="btn btn-sm btn-outline-primary">View Requests</a>
           </div>
           <div class="card-body p-0">
-            {% if recent_service_requests %}
+            {% if service_request_followups %}
               <div class="list-group list-group-flush">
-                {% for request_item in recent_service_requests %}
+                {% for request_item in service_request_followups %}
                   <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'staff_lead_detail' request_item.id %}">
                     <div class="d-flex justify-content-between align-items-start gap-3">
-                      <div>
-                        <h6 class="mb-1">{{ request_item.first_name }} {{ request_item.last_name }}</h6>
+                      <div class="min-w-0">
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                          <h6 class="mb-0">{{ request_item.first_name }} {{ request_item.last_name }}</h6>
+                          {% if request_item.is_public_booking_request %}
+                            <span class="badge badge-phoenix badge-phoenix-warning">Public Booking</span>
+                          {% endif %}
+                        </div>
                         <p class="text-body-tertiary fs-9 mb-1">
                           {{ request_item.company_name|default:request_item.email }}
-                          {% if request_item.category %}· {{ request_item.category.name }}{% endif %}
+                          {% if request_item.requested_service %}
+                            &middot; {{ request_item.requested_service.name }}
+                          {% elif request_item.category %}
+                            &middot; {{ request_item.category.name }}
+                          {% endif %}
                         </p>
-                        <p class="text-body-tertiary fs-10 mb-0">{{ request_item.created_at|date:"M j, Y g:i A" }}</p>
+                        <p class="text-body-tertiary fs-10 mb-0">
+                          {% if request_item.preferred_start_time %}
+                            Preferred {{ request_item.preferred_start_time|date:"M j, Y g:i A" }}
+                          {% else %}
+                            Created {{ request_item.created_at|date:"M j, Y g:i A" }}
+                          {% endif %}
+                        </p>
                       </div>
                       <span class="badge badge-phoenix badge-phoenix-secondary">{{ request_item.get_status_display }}</span>
                     </div>
@@ -313,10 +222,10 @@
               </div>
             {% else %}
               <div class="p-4">
-                <p class="text-body-tertiary mb-3">No service requests have been created in this workspace yet.</p>
+                <p class="text-body-tertiary mb-3">No open service requests need follow-up.</p>
                 {% if role_access.can_manage_leads %}
                   <a class="btn btn-phoenix-primary btn-sm" href="{% url 'staff_lead_create' %}">
-                    <span class="fa-solid fa-plus me-2"></span>Create the first request
+                    <span class="fa-solid fa-plus me-2"></span>Create Request
                   </a>
                 {% endif %}
               </div>
@@ -326,14 +235,12 @@
       </div>
 
       <div class="col-12 col-xxl-5">
-        {% if module_access.appointments and role_access.can_view_appointments %}
+        {% if dashboard_appointments_enabled %}
           <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center gap-3">
               <div>
-                <h4 class="mb-1">Today's Appointments</h4>
-                <p class="text-body-tertiary mb-0">
-                  {{ today_upcoming_appointment_count }} later today and {{ upcoming_appointment_count }} upcoming in this workspace.
-                </p>
+                <h4 class="mb-1">Upcoming Activity</h4>
+                <p class="text-body-tertiary mb-0">Next {{ upcoming_appointments|length }} scheduled appointments.</p>
               </div>
               <div class="d-flex gap-2 flex-wrap">
                 <a href="{% url 'appointment_list' %}" class="btn btn-sm btn-outline-primary">View Appointments</a>
@@ -351,14 +258,17 @@
                     <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'appointment_detail' appointment.id %}">
                       <div class="d-flex justify-content-between align-items-start gap-3">
                         <div>
-                          <h6 class="mb-1">{{ appointment.title }}</h6>
+                          <h6 class="mb-1">{{ appointment.start_time|date:"M j, g:i A" }}</h6>
                           <p class="text-body-tertiary fs-9 mb-1">
                             {{ appointment.client.first_name }} {{ appointment.client.last_name }}
-                            {% if appointment.client.company_name %}· {{ appointment.client.company_name }}{% endif %}
+                            {% if appointment.client.company_name %}&middot; {{ appointment.client.company_name }}{% endif %}
                           </p>
                           <p class="text-body-tertiary fs-10 mb-0">
-                            {{ appointment.start_time|date:"M j, Y g:i A" }}
-                            {% if appointment.location %}· {{ appointment.location }}{% endif %}
+                            {% if appointment.service_name %}
+                              {{ appointment.service_name }}{% if appointment.title %} - {{ appointment.title }}{% endif %}
+                            {% else %}
+                              {{ appointment.title }}
+                            {% endif %}
                           </p>
                         </div>
                         <span class="badge badge-phoenix {{ appointment.status_badge_class }}">{{ appointment.get_status_display }}</span>
@@ -368,25 +278,93 @@
                 </div>
               {% else %}
                 <div class="p-4">
-                  <p class="text-body-tertiary mb-3">No upcoming appointments are scheduled for this workspace yet.</p>
+                  <p class="text-body-tertiary mb-3">No upcoming appointments are scheduled.</p>
                   {% if role_access.can_manage_appointments %}
                     <a class="btn btn-phoenix-primary btn-sm" href="{% url 'appointment_create' %}">
-                      <span class="fa-solid fa-calendar-plus me-2"></span>Schedule the first appointment
+                      <span class="fa-solid fa-calendar-plus me-2"></span>Schedule Appointment
                     </a>
-                  {% else %}
-                    <p class="text-body-tertiary small mb-0">You have read-only appointment access in this workspace.</p>
                   {% endif %}
                 </div>
               {% endif %}
             </div>
           </div>
+        {% elif appointments_module_enabled %}
+          <div class="card mb-3">
+            <div class="card-header">
+              <h4 class="mb-1">Appointments Restricted</h4>
+              <p class="text-body-tertiary mb-0">Appointment activity is limited by your workspace role.</p>
+            </div>
+          </div>
+        {% else %}
+          <div class="card mb-3">
+            <div class="card-header">
+              <h4 class="mb-1">Appointments Locked</h4>
+              <p class="text-body-tertiary mb-0">{{ appointment_unavailable_message }}</p>
+            </div>
+          </div>
         {% endif %}
 
-        <div class="card mb-3">
+        {% if dashboard_invoices_enabled %}
+          <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <div>
+                <h4 class="mb-1">Invoice Follow-Up</h4>
+                <p class="text-body-tertiary mb-0">Draft and sent invoices that still need action.</p>
+              </div>
+              <a href="{% url 'invoice_list' %}" class="btn btn-sm btn-outline-primary">View Invoices</a>
+            </div>
+            <div class="card-body p-0">
+              {% if recent_invoices %}
+                <div class="list-group list-group-flush">
+                  {% for invoice in recent_invoices %}
+                    <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'invoice_detail' invoice.id %}">
+                      <div class="d-flex justify-content-between align-items-start gap-3">
+                        <div>
+                          <h6 class="mb-1">{{ invoice.invoice_number }}</h6>
+                          <p class="text-body-tertiary fs-9 mb-1">{{ invoice.client }}</p>
+                          <p class="text-body-tertiary fs-10 mb-0">{{ invoice.created_at|date:"M j, Y g:i A" }}</p>
+                        </div>
+                        <div class="text-end">
+                          <div class="fw-semibold text-body-emphasis">{{ invoice.total|money:invoice.business }}</div>
+                          <span class="badge badge-phoenix badge-phoenix-secondary">{{ invoice.get_status_display }}</span>
+                        </div>
+                      </div>
+                    </a>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="p-4">
+                  <p class="text-body-tertiary mb-3">No open invoices need follow-up.</p>
+                  {% if role_access.can_manage_invoices %}
+                    <a class="btn btn-outline-primary btn-sm" href="{% url 'staff_client_list' %}">
+                      <span class="fa-solid fa-file-circle-plus me-2"></span>Create From Clients
+                    </a>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% elif invoices_module_enabled %}
+          <div class="card mb-3">
+            <div class="card-header">
+              <h4 class="mb-1">Invoices Restricted</h4>
+              <p class="text-body-tertiary mb-0">Billing records are limited to billing roles.</p>
+            </div>
+          </div>
+        {% else %}
+          <div class="card mb-3">
+            <div class="card-header">
+              <h4 class="mb-1">Invoices Locked</h4>
+              <p class="text-body-tertiary mb-0">{{ invoice_unavailable_message }}</p>
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="card">
           <div class="card-header d-flex justify-content-between align-items-center">
             <div>
-              <h4 class="mb-1">Workspace</h4>
-              <p class="text-body-tertiary mb-0">Business details and default invoice settings.</p>
+              <h4 class="mb-1">Workspace Details</h4>
+              <p class="text-body-tertiary mb-0">Business defaults used across operational records.</p>
             </div>
             {% if role_access.can_manage_business_settings %}
               <a href="{% url 'business_settings' %}" class="btn btn-sm btn-outline-secondary">Business Settings</a>
@@ -411,72 +389,6 @@
             </div>
           </div>
         </div>
-
-        {% if module_access.invoicing and role_access.can_view_invoices %}
-          <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <div>
-                <h4 class="mb-1">Recent Invoices</h4>
-                <p class="text-body-tertiary mb-0">Latest billing activity in this workspace.</p>
-              </div>
-              <a href="{% url 'invoice_list' %}" class="btn btn-sm btn-outline-primary">View Invoices</a>
-            </div>
-            <div class="card-body p-0">
-              {% if recent_invoices %}
-                <div class="list-group list-group-flush">
-                  {% for invoice in recent_invoices %}
-                    <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'invoice_detail' invoice.id %}">
-                      <div class="d-flex justify-content-between align-items-start gap-3">
-                        <div>
-                          <h6 class="mb-1">{{ invoice.invoice_number }}</h6>
-                          <p class="text-body-tertiary fs-9 mb-1">{{ invoice.client }}</p>
-                          <p class="text-body-tertiary fs-10 mb-0">{{ invoice.created_at|date:"M j, Y g:i A" }}</p>
-                        </div>
-                        <div class="text-end">
-                          <div class="fw-semibold text-body-emphasis">{{ invoice.currency_code }} {{ invoice.total|floatformat:2 }}</div>
-                          <span class="badge badge-phoenix badge-phoenix-secondary">{{ invoice.get_status_display }}</span>
-                        </div>
-                      </div>
-                    </a>
-                  {% endfor %}
-                </div>
-              {% else %}
-                <div class="p-4">
-                  <p class="text-body-tertiary mb-3">No invoices have been created for this workspace yet.</p>
-                  {% if role_access.can_manage_invoices %}
-                    <a class="btn btn-outline-primary btn-sm" href="{% url 'staff_client_list' %}">
-                      <span class="fa-solid fa-file-circle-plus me-2"></span>Create from Clients
-                    </a>
-                  {% endif %}
-                </div>
-              {% endif %}
-            </div>
-          </div>
-        {% elif module_access.invoicing %}
-          <div class="card h-100">
-            <div class="card-header">
-              <h4 class="mb-1">Invoices Restricted</h4>
-              <p class="text-body-tertiary mb-0">Billing access is limited to owners, admins, accountants, and viewers.</p>
-            </div>
-            <div class="card-body">
-              <p class="text-body-tertiary mb-0">
-                This workspace plan includes invoicing, but your current role cannot open invoice records.
-              </p>
-            </div>
-          </div>
-        {% else %}
-          <div class="card h-100">
-            <div class="card-header">
-              <h4 class="mb-1">Invoices Locked</h4>
-              <p class="text-body-tertiary mb-0">Billing tools are hidden until this workspace has invoicing access.</p>
-            </div>
-            <div class="card-body">
-              <p class="text-body-tertiary mb-0">
-                {% if current_plan %}The {{ current_plan.name }} plan does not currently unlock invoicing for this workspace.{% else %}Attach an active subscription plan to enable billing tools.{% endif %}
-              </p>
-            </div>
-          </div>
-        {% endif %}
       </div>
     </div>
   </div>

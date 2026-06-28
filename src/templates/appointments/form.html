@@ -57,15 +57,19 @@
         <div class="card border-0 shadow-sm">
           <div class="card-body p-4 p-lg-5">
             {% if source_lead %}
-              <div class="alert alert-light border mb-4" role="alert">
+              <div class="alert alert-subtle-secondary border mb-4" role="alert">
                 <div class="fw-semibold mb-1">Request context</div>
                 <div class="small text-body-secondary">
-                  {% if source_lead.category %}{{ source_lead.category.name }}{% else %}General service request{% endif %}
+                  {% if source_lead.has_valid_requested_service %}{{ source_lead.requested_service.name }}{% elif source_lead.category %}{{ source_lead.category.name }}{% else %}General service request{% endif %}
+                  {% if source_lead.preferred_start_time %}
+                    • Preferred {{ source_lead.preferred_start_time|date:"M d, Y H:i" }}
+                    {% if source_lead.preferred_end_time %}-{{ source_lead.preferred_end_time|date:"H:i" }}{% endif %}
+                  {% endif %}
                   {% if source_lead.message %} • {{ source_lead.message|truncatechars:120 }}{% endif %}
                 </div>
               </div>
             {% elif source_client %}
-              <div class="alert alert-light border mb-4" role="alert">
+              <div class="alert alert-subtle-secondary border mb-4" role="alert">
                 <div class="fw-semibold mb-1">Client context</div>
                 <div class="small text-body-secondary">
                   {{ source_client.first_name }} {{ source_client.last_name }}

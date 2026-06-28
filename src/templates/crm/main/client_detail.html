@@ -12,7 +12,7 @@
 
   <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
     <div class="col-auto">
-      <h2 class="mb-0 text-body-emphasis">Client Management</h2>
+      <h2 class="mb-0 text-body-emphasis">{% if single_client %}Client Details{% else %}Client Management{% endif %}</h2>
     </div>
     <div class="col-auto">
       <div class="d-flex gap-3">
@@ -24,84 +24,11 @@
     </div>
   </div>
 
-  {% if single_client and module_access.appointments and role_access.can_view_appointments %}
-  <div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center gap-3">
-      <div>
-        <h4 class="mb-1">Appointments</h4>
-        <p class="text-body-tertiary mb-0">Upcoming and recent scheduling activity for {{ single_client.first_name }} {{ single_client.last_name }}.</p>
-      </div>
-      <div class="d-flex gap-2 flex-wrap">
-        <a class="btn btn-sm btn-outline-primary" href="{% url 'appointment_list' %}">View Appointments</a>
-        {% if role_access.can_manage_appointments %}
-        <a class="btn btn-sm btn-primary" href="{% url 'appointment_create' %}?client_id={{ single_client.id }}">
-          <span class="fa-solid fa-calendar-plus me-2"></span>Schedule Appointment
-        </a>
-        {% endif %}
-      </div>
-    </div>
-    <div class="card-body">
-      <div class="row g-4">
-        <div class="col-12 col-xl-7">
-          <h6 class="text-body-secondary mb-3">Upcoming</h6>
-          {% if client_upcoming_appointments %}
-          <div class="list-group list-group-flush border rounded-3">
-            {% for appointment in client_upcoming_appointments %}
-            <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'appointment_detail' appointment.id %}">
-              <div class="d-flex justify-content-between align-items-start gap-3">
-                <div>
-                  <div class="fw-semibold">{{ appointment.title }}</div>
-                  <div class="text-body-secondary fs-9">
-                    {{ appointment.start_time|date:"M j, Y g:i A" }}
-                    {% if appointment.staff_member %}· {{ appointment.staff_member.get_full_name|default:appointment.staff_member.email }}{% endif %}
-                  </div>
-                  {% if appointment.location %}
-                  <div class="text-body-tertiary fs-10">{{ appointment.location }}</div>
-                  {% endif %}
-                </div>
-                <span class="badge badge-phoenix {{ appointment.status_badge_class }}">{{ appointment.get_status_display }}</span>
-              </div>
-            </a>
-            {% endfor %}
-          </div>
-          {% else %}
-          <div class="border rounded-3 p-3 bg-body-tertiary">
-            <p class="text-body-tertiary mb-0">No upcoming appointments are scheduled for this client.</p>
-          </div>
-          {% endif %}
-        </div>
-
-        <div class="col-12 col-xl-5">
-          <h6 class="text-body-secondary mb-3">Recent History</h6>
-          {% if client_recent_appointment_history %}
-          <div class="list-group list-group-flush border rounded-3">
-            {% for appointment in client_recent_appointment_history %}
-            <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'appointment_detail' appointment.id %}">
-              <div class="d-flex justify-content-between align-items-start gap-3">
-                <div>
-                  <div class="fw-semibold">{{ appointment.title }}</div>
-                  <div class="text-body-secondary fs-9">{{ appointment.start_time|date:"M j, Y g:i A" }}</div>
-                </div>
-                <span class="badge badge-phoenix {{ appointment.status_badge_class }}">{{ appointment.get_status_display }}</span>
-              </div>
-            </a>
-            {% endfor %}
-          </div>
-          {% else %}
-          <div class="border rounded-3 p-3 bg-body-tertiary">
-            <p class="text-body-tertiary mb-0">No completed or cancelled appointments are recorded for this client yet.</p>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
   <!-- Clients Table/List -->
   <div class="row pb-9 gx-4">
     <div class="col-12">
       {% if clients %}
+        {% if not single_client %}
         <div class="table-responsive">
           <table class="table table-hover">
             <thead class="text-body-secondary">
@@ -152,16 +79,17 @@
             </tbody>
           </table>
         </div>
+        {% endif %}
 
         <!-- Detailed Client Cards Section -->
-        <div class="mt-5">
-          <h4 class="mb-4">Client Details</h4>
+        <div class="{% if single_client %}mt-0{% else %}mt-5{% endif %}">
+          <h4 class="mb-4">{% if single_client %}Client Summary{% else %}Client Details{% endif %}</h4>
           {% for client in clients %}
             <div class="card mb-4">
-              <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+              <div class="card-header d-flex justify-content-between align-items-center gap-3">
                 <div>
                   <h5 class="mb-0">{{ client.first_name }} {{ client.last_name }}</h5>
-                  <p class="text-body-secondary mb-0">{{ client.company_name }} • {{ client.get_client_type_display }}</p>
+                  <p class="text-body-secondary mb-0">{{ client.company_name|default:"No company" }} • {{ client.get_client_type_display }}</p>
                 </div>
                 {% if role_access.can_manage_clients %}
                   <a href="{% url 'staff_client_update' client.id %}" class="btn btn-phoenix-primary btn-sm">
@@ -262,7 +190,7 @@
                             <div class="mb-3">
                               <div class="d-flex align-items-center mb-1">
                                 <span class="fa-solid fs-8 fa-map-pin" style="width: 16px;"></span>
-                                <h6 class="my-2 ms-2 mb-0">District</h6>
+                                <h6 class="my-2 ms-2 mb-0">Locality</h6>
                               </div>
                               <div class="ps-4">
                                 <p class="mb-0 text-body-secondary">{{ client.get_district_display|default:"—" }}</p>
@@ -278,35 +206,23 @@
                             <div class="mb-3">
                               <div class="d-flex align-items-center mb-1">
                                 <span class="fa-solid fs-8 fa-road" style="width: 16px;"></span>
-                                <h6 class="my-2 ms-2 mb-0">Street Address</h6>
+                                <h6 class="my-2 ms-2 mb-0">Address</h6>
                               </div>
                               <div class="ps-4">
-                                <p class="mb-0 text-body-secondary">{{ client.street_address|default:"—" }}</p>
-                              </div>
-                            </div>
-
-                            <div class="mb-3">
-                              <div class="d-flex align-items-center mb-1">
-                                <span class="fa-solid fs-8 fa-globe" style="width: 16px;"></span>
-                                <h6 class="my-2 ms-2 mb-0">Country</h6>
-                              </div>
-                              <div class="ps-4">
-                                <p class="mb-0 text-body-secondary">{{ client.country|default:"—" }}</p>
+                                {% if client.formatted_address_lines %}
+                                  <p class="mb-0 text-body-secondary">
+                                    {% for line in client.formatted_address_lines %}
+                                      {{ line }}{% if not forloop.last %}<br>{% endif %}
+                                    {% endfor %}
+                                  </p>
+                                {% else %}
+                                  <p class="mb-0 text-body-secondary">—</p>
+                                {% endif %}
                               </div>
                             </div>
                           </div>
 
                           <div class="col-sm-6">
-                            <div class="mb-3">
-                              <div class="d-flex align-items-center mb-1">
-                                <span class="fa-solid fs-8 fa-hashtag" style="width: 16px;"></span>
-                                <h6 class="my-2 ms-2 mb-0">Postal Code</h6>
-                              </div>
-                              <div class="ps-4">
-                                <p class="mb-0 text-body-secondary">{{ client.postal_code|default:"—" }}</p>
-                              </div>
-                            </div>
-
                             <div class="mb-3">
                               <div class="d-flex align-items-center mb-1">
                                 <span class="fa-solid fs-8 fa-user-tie" style="width: 16px;"></span>
@@ -535,7 +451,7 @@
                             <div class="mb-3">
                               <div class="d-flex align-items-center mb-1">
                                 <span class="fa-solid fs-8 fa-people-arrows" style="width: 16px;"></span>
-                                <h6 class="my-2 ms-2 mb-0">Lead Source</h6>
+                                <h6 class="my-2 ms-2 mb-0">Client Source</h6>
                               </div>
                               <div class="ps-4">
                                 <p class="mb-0 text-body-secondary">{{ client.get_lead_source_display|default:"—" }}</p>
@@ -609,28 +525,22 @@
                       <div class="col-12">
                         <div class="mb-4">
                           <h6 class="text-body mb-2">General Notes</h6>
-                          <div class="card bg-dark">
-                            <div class="card-body">
+                          <div class="border rounded-3 p-3 bg-body-tertiary">
                               <p class="mb-0 text-body-secondary">{{ client.notes|default:"No notes added yet" }}</p>
-                            </div>
                           </div>
                         </div>
 
                         <div class="mb-4">
                           <h6 class="text-body mb-2">Communication Notes</h6>
-                          <div class="card bg-dark">
-                            <div class="card-body">
+                          <div class="border rounded-3 p-3 bg-body-tertiary">
                               <p class="mb-0 text-body-secondary">{{ client.communication_notes|default:"No communication notes added yet" }}</p>
-                            </div>
                           </div>
                         </div>
 
                         <div class="mb-4">
                           <h6 class="text-body mb-2">Message / Initial Inquiry</h6>
-                          <div class="card bg-dark">
-                            <div class="card-body">
+                          <div class="border rounded-3 p-3 bg-body-tertiary">
                               <p class="mb-0 text-body-secondary">{{ client.message|default:"No message provided" }}</p>
-                            </div>
                           </div>
                         </div>
 
@@ -679,6 +589,80 @@
       {% endif %}
     </div>
   </div>
+
+  {% if single_client and module_access.appointments and role_access.can_view_appointments %}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center gap-3">
+      <div>
+        <h4 class="mb-1">Appointments</h4>
+        <p class="text-body-tertiary mb-0">Upcoming and recent scheduling activity for {{ single_client.first_name }} {{ single_client.last_name }}.</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'appointment_list' %}">View Appointments</a>
+        {% if role_access.can_manage_appointments %}
+        <a class="btn btn-sm btn-primary" href="{% url 'appointment_create' %}?client_id={{ single_client.id }}">
+          <span class="fa-solid fa-calendar-plus me-2"></span>Schedule Appointment
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-12 col-xl-7">
+          <h6 class="text-body-secondary mb-3">Upcoming</h6>
+          {% if client_upcoming_appointments %}
+          <div class="list-group list-group-flush border rounded-3">
+            {% for appointment in client_upcoming_appointments %}
+            <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'appointment_detail' appointment.id %}">
+              <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <div class="fw-semibold">{{ appointment.title }}</div>
+                  <div class="text-body-secondary fs-9">
+                    {{ appointment.start_time|date:"M j, Y g:i A" }}
+                    {% if appointment.staff_member %}· {{ appointment.staff_member.get_full_name|default:appointment.staff_member.email }}{% endif %}
+                  </div>
+                  {% if appointment.location %}
+                  <div class="text-body-tertiary fs-10">{{ appointment.location }}</div>
+                  {% endif %}
+                </div>
+                <span class="badge badge-phoenix {{ appointment.status_badge_class }}">{{ appointment.get_status_display }}</span>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="border rounded-3 p-3 bg-body-tertiary">
+            <p class="text-body-tertiary mb-0">No upcoming appointments are scheduled for this client.</p>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <h6 class="text-body-secondary mb-3">Recent History</h6>
+          {% if client_recent_appointment_history %}
+          <div class="list-group list-group-flush border rounded-3">
+            {% for appointment in client_recent_appointment_history %}
+            <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'appointment_detail' appointment.id %}">
+              <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <div class="fw-semibold">{{ appointment.title }}</div>
+                  <div class="text-body-secondary fs-9">{{ appointment.start_time|date:"M j, Y g:i A" }}</div>
+                </div>
+                <span class="badge badge-phoenix {{ appointment.status_badge_class }}">{{ appointment.get_status_display }}</span>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="border rounded-3 p-3 bg-body-tertiary">
+            <p class="text-body-tertiary mb-0">No completed or cancelled appointments are recorded for this client yet.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <footer class="footer position-absolute">
     <div class="row g-0 justify-content-between align-items-center h-100">

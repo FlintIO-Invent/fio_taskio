@@ -5,7 +5,7 @@
   <div class="row g-3 mb-4 justify-content-between align-items-center">
     <div class="col-lg-8">
       <h2 class="mb-2 text-body-emphasis">Subscription</h2>
-      <p class="text-body-tertiary mb-0">Review your current Motionmate plan and change workspace access before Stripe billing is added.</p>
+      <p class="text-body-tertiary mb-0">Review the current Motionmate plan and workspace module access.</p>
     </div>
     <div class="col-auto d-flex gap-2">
       <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>
@@ -24,7 +24,7 @@
   <div class="row g-3 mb-4">
     <div class="col-12 col-xxl-5">
       <div class="card h-100 border-0 overflow-hidden">
-        <div class="position-relative p-4 p-sm-5" style="background: linear-gradient(135deg, #0f172a, #1d4ed8);">
+        <div class="position-relative p-4 p-sm-5 motionmate-workspace-card" style="background: linear-gradient(135deg, #0f172a, #1d4ed8);">
           <span class="badge badge-phoenix badge-phoenix-light mb-3">{{ membership.get_role_display }}</span>
           <h2 class="text-white mb-2">{{ business.name }}</h2>
           {% if subscription %}
@@ -75,7 +75,7 @@
             Plan changes update the workspace subscription record immediately so Motionmate modules can react to the selected plan.
           </p>
           <div class="alert alert-info mb-0" role="alert">
-            Payment checkout is not connected yet. Plan changes here are temporary admin-style updates until Stripe checkout and webhooks replace this flow.
+            Payment checkout is not connected. Plan changes here are temporary admin-style updates for workspace access only.
           </div>
         </div>
       </div>
@@ -130,16 +130,15 @@
             </div>
 
             <div class="mb-4">
-              <div class="fs-9 fw-semibold text-body-emphasis mb-2">Current and planned modules</div>
+              <div class="fs-9 fw-semibold text-body-emphasis mb-2">Workspace modules</div>
               <div class="d-flex flex-wrap gap-2">
                 <span class="badge badge-phoenix {% if plan.allow_invoicing %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Invoicing</span>
                 <span class="badge badge-phoenix {% if plan.allow_appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Appointments</span>
-                <span class="badge badge-phoenix {% if plan.allow_memberships %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Memberships</span>
-                <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Public Booking</span>
+                <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Public Booking Requests</span>
                 <span class="badge badge-phoenix {% if plan.allow_public_request_form %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Public Request Form</span>
               </div>
               <p class="fs-10 text-body-tertiary mt-2 mb-0">
-                Appointments, memberships, and public booking remain future modules even if a plan flag is present.
+                Public booking remains request-first; submitted times still require team review before an appointment is confirmed.
               </p>
             </div>
 

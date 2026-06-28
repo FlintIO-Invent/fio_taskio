@@ -5,7 +5,7 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Leads</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Service Requests</a></li>
       <li class="breadcrumb-item"><a href="{% url 'staff_lead_detail' lead.id %}">{{ lead.first_name }} {{ lead.last_name }}</a></li>
       <li class="breadcrumb-item active">Convert to Client</li>
     </ol>
@@ -80,7 +80,7 @@
                 {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">
-                <label class="form-label">Street Address</label>
+                <label class="form-label">{{ form.street_address.label }}</label>
                 {{ form.street_address }}
                 {% if form.street_address.errors %}<div class="invalid-feedback d-block">{{ form.street_address.errors|striptags }}</div>{% endif %}
               </div>
@@ -94,18 +94,19 @@
             <hr class="my-4" />
             <div class="row g-3">
               <div class="col-md-4">
-                <label class="form-label">District</label>
+                <label class="form-label">{{ form.district.label }}</label>
                 {{ form.district }}
                 {% if form.district.errors %}<div class="invalid-feedback d-block">{{ form.district.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-4">
-                <label class="form-label">Country</label>
+                <label class="form-label">{{ form.country.label }}</label>
                 {{ form.country }}
                 {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-4">
-                <label class="form-label">Postal Code</label>
+                <label class="form-label">{{ form.postal_code.label }}</label>
                 {{ form.postal_code }}
+                {% if form.postal_code.help_text %}<div class="form-text">{{ form.postal_code.help_text }}</div>{% endif %}
                 {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">

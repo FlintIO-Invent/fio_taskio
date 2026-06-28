@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="motionmateLogoTitle">
+  <title id="motionmateLogoTitle">Motionmate logo</title>
+  <defs>
+    <linearGradient id="motionmate-m-gradient" x1="146" y1="125" x2="390" y2="397" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22a8ff"/>
+      <stop offset="0.5" stop-color="#4d66ff"/>
+      <stop offset="1" stop-color="#9c4dff"/>
+    </linearGradient>
+    <linearGradient id="motionmate-document-gradient" x1="122" y1="210" x2="292" y2="424" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#12284d"/>
+      <stop offset="1" stop-color="#07162e"/>
+    </linearGradient>
+    <filter id="motionmate-soft-shadow" x="-18%" y="-18%" width="136%" height="136%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#020817" flood-opacity="0.36"/>
+    </filter>
+  </defs>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#motionmate-soft-shadow)">
+    <path
+      d="M149 194v170c0 36 22 58 58 58h60c36 0 58-22 58-58v-51L187 179c-16-16-38-5-38 15Z"
+      stroke="url(#motionmate-document-gradient)"
+      stroke-width="54"
+    />
+    <path
+      d="M175 146 294 266c14 14 30 14 44 0l69-69c38-38 102-11 102 43v155"
+      stroke="url(#motionmate-m-gradient)"
+      stroke-width="64"
+    />
+  </g>
+  <g fill="none" stroke="#15305d" stroke-linecap="round">
+    <path d="M184 313h78" stroke-width="14"/>
+    <path d="M184 349h96" stroke-width="14"/>
+    <path d="M215 385h72" stroke-width="14"/>
+  </g>
+  <text x="241" y="423" fill="#17386c" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700" text-anchor="middle">$</text>
+</svg>

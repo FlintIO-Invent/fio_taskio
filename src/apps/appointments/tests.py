@@ -310,6 +310,7 @@ class AppointmentModelAndFormTests(TestCase):
         self.assertIn(self.service, form.fields["service"].queryset)
         self.assertNotIn(self.other_service, form.fields["service"].queryset)
         self.assertNotIn(self.inactive_service, form.fields["service"].queryset)
+        self.assertIn("$150.00", form.fields["service"].label_from_instance(self.service))
 
     def test_appointment_form_limits_staff_queryset_to_active_current_business_members(self):
         inactive_member_user = TaskIOUser.objects.create_user(
@@ -610,7 +611,9 @@ class AppointmentViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         form = response.context["form"]
         self.assertNotIn("client", form.initial)
-        self.assertNotContains(response, reverse("staff_client_detail", args=[self.other_client_record.id]))
+        self.assertNotContains(
+            response, reverse("staff_client_detail", args=[self.other_client_record.id])
+        )
 
     def test_owner_is_redirected_to_subscription_when_appointments_are_locked(self):
         subscription = BusinessSubscription.objects.get(business=self.business)
@@ -681,7 +684,9 @@ class AppointmentViewTests(TestCase):
         self.assertIn(f"Scheduled from service request #{lead.pk}.", form.initial["notes"])
         self.assertContains(response, reverse("staff_lead_detail", args=[lead.id]))
 
-    def test_schedule_from_request_creates_business_scoped_client_only_within_current_business(self):
+    def test_schedule_from_request_creates_business_scoped_client_only_within_current_business(
+        self,
+    ):
         self._login_as(self.owner, self.business)
         lead = self._build_request_lead(
             email=self.other_client_record.email,
@@ -718,7 +723,9 @@ class AppointmentViewTests(TestCase):
             response,
             reverse("staff_lead_convert_to_client", args=[lead.id]),
         )
-        self.assertContains(response, "Complete the client details before scheduling an appointment.")
+        self.assertContains(
+            response, "Complete the client details before scheduling an appointment."
+        )
 
     def test_schedule_from_request_blocks_other_business_lead(self):
         self._login_as(self.owner, self.business)
@@ -735,7 +742,9 @@ class AppointmentViewTests(TestCase):
             street_address="34 Side Street",
         )
 
-        response = self.client.get(reverse("appointment_create_from_request", args=[foreign_lead.id]))
+        response = self.client.get(
+            reverse("appointment_create_from_request", args=[foreign_lead.id])
+        )
 
         self.assertEqual(response.status_code, 404)
 
@@ -861,7 +870,9 @@ class AppointmentViewTests(TestCase):
     def test_admin_can_create_update_and_change_status(self):
         self._login_as(self.admin_user, self.business)
 
-        create_response = self.client.post(reverse("appointment_create"), data=self._appointment_payload(title="Admin visit"))
+        create_response = self.client.post(
+            reverse("appointment_create"), data=self._appointment_payload(title="Admin visit")
+        )
         appointment = Appointment.objects.get(title="Admin visit")
         self.assertRedirects(create_response, reverse("appointment_detail", args=[appointment.id]))
 
@@ -884,7 +895,9 @@ class AppointmentViewTests(TestCase):
     def test_staff_can_create_update_and_change_status(self):
         self._login_as(self.staff_user, self.business)
 
-        create_response = self.client.post(reverse("appointment_create"), data=self._appointment_payload(title="Staff visit"))
+        create_response = self.client.post(
+            reverse("appointment_create"), data=self._appointment_payload(title="Staff visit")
+        )
         appointment = Appointment.objects.get(title="Staff visit")
         self.assertRedirects(create_response, reverse("appointment_detail", args=[appointment.id]))
 
@@ -910,7 +923,9 @@ class AppointmentViewTests(TestCase):
         list_response = self.client.get(reverse("appointment_list"))
         detail_response = self.client.get(reverse("appointment_detail", args=[self.appointment.id]))
         create_response = self.client.get(reverse("appointment_create"), follow=True)
-        update_response = self.client.get(reverse("appointment_update", args=[self.appointment.id]), follow=True)
+        update_response = self.client.get(
+            reverse("appointment_update", args=[self.appointment.id]), follow=True
+        )
         status_response = self.client.post(
             reverse("appointment_change_status", args=[self.appointment.id]),
             data={"status": Appointment.Status.CANCELLED},
@@ -947,7 +962,9 @@ class AppointmentViewTests(TestCase):
         list_response = self.client.get(reverse("appointment_list"))
         detail_response = self.client.get(reverse("appointment_detail", args=[self.appointment.id]))
         create_response = self.client.get(reverse("appointment_create"), follow=True)
-        update_response = self.client.get(reverse("appointment_update", args=[self.appointment.id]), follow=True)
+        update_response = self.client.get(
+            reverse("appointment_update", args=[self.appointment.id]), follow=True
+        )
         status_response = self.client.post(
             reverse("appointment_change_status", args=[self.appointment.id]),
             data={"status": Appointment.Status.CANCELLED},
@@ -994,14 +1011,22 @@ class AppointmentViewTests(TestCase):
     def test_detail_template_shows_management_actions_only_for_manage_roles(self):
         self._login_as(self.owner, self.business)
         owner_response = self.client.get(reverse("appointment_detail", args=[self.appointment.id]))
-        self.assertContains(owner_response, reverse("appointment_update", args=[self.appointment.id]))
-        self.assertContains(owner_response, reverse("appointment_change_status", args=[self.appointment.id]))
+        self.assertContains(
+            owner_response, reverse("appointment_update", args=[self.appointment.id])
+        )
+        self.assertContains(
+            owner_response, reverse("appointment_change_status", args=[self.appointment.id])
+        )
 
         self.client.logout()
         self._login_as(self.viewer_user, self.business)
         viewer_response = self.client.get(reverse("appointment_detail", args=[self.appointment.id]))
-        self.assertNotContains(viewer_response, reverse("appointment_update", args=[self.appointment.id]))
-        self.assertNotContains(viewer_response, reverse("appointment_change_status", args=[self.appointment.id]))
+        self.assertNotContains(
+            viewer_response, reverse("appointment_update", args=[self.appointment.id])
+        )
+        self.assertNotContains(
+            viewer_response, reverse("appointment_change_status", args=[self.appointment.id])
+        )
 
     def test_appointment_detail_shows_create_invoice_only_for_billing_manage_roles(self):
         self._enable_invoicing_for_appointment_workflow()
@@ -1009,12 +1034,10 @@ class AppointmentViewTests(TestCase):
         manage_roles = (
             self.owner,
             self.admin_user,
+            self.staff_user,
             self.accountant_user,
         )
-        read_only_roles = (
-            self.staff_user,
-            self.viewer_user,
-        )
+        read_only_roles = (self.viewer_user,)
 
         for user in manage_roles:
             self.client.logout()
@@ -1083,7 +1106,9 @@ class AppointmentViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("staff_client_detail", args=[self.client_record.id]))
         self.assertContains(response, reverse("staff_lead_detail", args=[lead.id]))
-        self.assertNotContains(response, reverse("staff_client_detail", args=[self.other_client_record.id]))
+        self.assertNotContains(
+            response, reverse("staff_client_detail", args=[self.other_client_record.id])
+        )
 
     def test_appointment_detail_uses_snapshot_after_service_name_changes(self):
         self._login_as(self.owner, self.business)

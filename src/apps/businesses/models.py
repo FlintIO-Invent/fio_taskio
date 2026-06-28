@@ -5,9 +5,12 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
+
+from .localization import format_business_address_lines
 
 
 def default_business_invitation_expiry():
@@ -70,29 +73,15 @@ class Business(TimeStampedModel):
 
     @property
     def formatted_address_lines(self) -> list[str]:
-        lines: list[str] = []
-
-        if self.address_line_1:
-            lines.append(self.address_line_1)
-        if self.address_line_2:
-            lines.append(self.address_line_2)
-
-        locality_line = ", ".join(part for part in [self.city, self.region] if part)
-        if locality_line:
-            lines.append(locality_line)
-
-        postal_country_line = " ".join(part for part in [self.postal_code, self.country] if part)
-        if postal_country_line and (lines or self.postal_code):
-            lines.append(postal_country_line)
-
-        if lines:
-            return lines
-
-        return [
-            line.strip()
-            for line in self.address.splitlines()
-            if line.strip()
-        ]
+        return format_business_address_lines(
+            address_line_1=self.address_line_1,
+            address_line_2=self.address_line_2,
+            city=self.city,
+            region=self.region,
+            postal_code=self.postal_code,
+            country=self.country,
+            legacy_address=self.address,
+        )
 
     @property
     def has_active_subscription(self) -> bool:
@@ -116,6 +105,168 @@ class Business(TimeStampedModel):
         except BusinessSubscription.DoesNotExist:
             return False
         return subscription.can_use_module(module_name)
+
+
+class BusinessBookingSettings(TimeStampedModel):
+    class ConfirmationMode(models.TextChoices):
+        REQUEST_ONLY = "request_only", "Request first / manual confirmation"
+        AUTO_CONFIRM_LATER = "auto_confirm_later", "Auto-confirm later"
+
+    business = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="booking_settings",
+    )
+    booking_enabled = models.BooleanField(default=False)
+    default_duration_minutes = models.PositiveIntegerField(
+        default=60,
+        validators=[MinValueValidator(1)],
+    )
+    minimum_notice_hours = models.PositiveIntegerField(
+        default=24,
+        validators=[MinValueValidator(0)],
+    )
+    maximum_days_ahead = models.PositiveIntegerField(
+        default=30,
+        validators=[MinValueValidator(1)],
+    )
+    buffer_minutes = models.PositiveIntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+    )
+    confirmation_mode = models.CharField(
+        max_length=30,
+        choices=ConfirmationMode.choices,
+        default=ConfirmationMode.REQUEST_ONLY,
+    )
+    public_booking_instructions = models.TextField(blank=True)
+    cancellation_policy_text = models.TextField(blank=True)
+    reschedule_policy_text = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["business__name"]
+        verbose_name = "business booking settings"
+        verbose_name_plural = "business booking settings"
+
+    def __str__(self) -> str:
+        return f"Booking settings for {self.business}"
+
+    def clean(self):
+        super().clean()
+
+        errors: dict[str, str] = {}
+
+        if self.business_id is None:
+            errors["business"] = "Booking settings must belong to a workspace."
+
+        if self.default_duration_minutes is not None and self.default_duration_minutes <= 0:
+            errors["default_duration_minutes"] = "Default duration must be greater than zero."
+
+        if self.minimum_notice_hours is not None and self.minimum_notice_hours < 0:
+            errors["minimum_notice_hours"] = "Minimum notice cannot be negative."
+
+        if self.maximum_days_ahead is not None and self.maximum_days_ahead <= 0:
+            errors["maximum_days_ahead"] = "Maximum days ahead must be greater than zero."
+
+        if self.buffer_minutes is not None and self.buffer_minutes < 0:
+            errors["buffer_minutes"] = "Buffer time cannot be negative."
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class WeeklyAvailability(TimeStampedModel):
+    class DayOfWeek(models.IntegerChoices):
+        MONDAY = 0, "Monday"
+        TUESDAY = 1, "Tuesday"
+        WEDNESDAY = 2, "Wednesday"
+        THURSDAY = 3, "Thursday"
+        FRIDAY = 4, "Friday"
+        SATURDAY = 5, "Saturday"
+        SUNDAY = 6, "Sunday"
+
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="weekly_availability",
+    )
+    staff_member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="availability_blocks",
+    )
+    day_of_week = models.PositiveSmallIntegerField(choices=DayOfWeek.choices)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["day_of_week", "start_time", "pk"]
+        indexes = [
+            models.Index(fields=["business", "day_of_week", "is_active"]),
+            models.Index(fields=["business", "staff_member", "day_of_week", "is_active"]),
+        ]
+        verbose_name = "weekly availability"
+        verbose_name_plural = "weekly availability"
+
+    def __str__(self) -> str:
+        staff_label = "Business-wide"
+        if self.staff_member_id:
+            get_full_name = getattr(self.staff_member, "get_full_name", None)
+            full_name = (get_full_name() if callable(get_full_name) else "") or getattr(
+                self.staff_member, "full_name", ""
+            )
+            staff_label = full_name.strip() or self.staff_member.email
+        return (
+            f"{self.business} - {staff_label} - {self.get_day_of_week_display()} "
+            f"{self.start_time:%H:%M}-{self.end_time:%H:%M}"
+        )
+
+    def clean(self):
+        super().clean()
+
+        errors: dict[str, str] = {}
+
+        if self.business_id is None:
+            errors["business"] = "Availability must belong to a workspace."
+
+        valid_days = {choice.value for choice in self.DayOfWeek}
+        if self.day_of_week is not None and self.day_of_week not in valid_days:
+            errors["day_of_week"] = "Select a valid day of the week."
+
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            errors["end_time"] = "End time must be after the start time."
+
+        if self.business_id is not None and self.staff_member_id is not None:
+            has_membership = BusinessUser.objects.filter(
+                user=self.staff_member,
+                business_id=self.business_id,
+                is_active=True,
+                business__is_active=True,
+                role__in=(
+                    BusinessUser.Role.OWNER,
+                    BusinessUser.Role.ADMIN,
+                    BusinessUser.Role.STAFF,
+                ),
+            ).exists()
+            if not has_membership:
+                errors["staff_member"] = (
+                    "Selected staff member must have an active bookable membership "
+                    "in this workspace."
+                )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class ClarivoPlan(TimeStampedModel):
@@ -220,9 +371,7 @@ class BusinessSubscription(TimeStampedModel):
     @property
     def has_access(self) -> bool:
         return (
-            self.business.is_active
-            and self.plan.is_active
-            and self.status in self.ACCESS_STATUSES
+            self.business.is_active and self.plan.is_active and self.status in self.ACCESS_STATUSES
         )
 
     @property

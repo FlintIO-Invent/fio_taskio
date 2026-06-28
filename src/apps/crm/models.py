@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from decimal import Decimal
 
 from django.conf import settings
@@ -6,6 +7,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
+
+from apps.businesses.localization import format_crm_address, format_crm_address_lines
 
 
 class TimeStampedModel(models.Model):
@@ -46,7 +49,7 @@ class ServiceCategory(TimeStampedModel):
         business,
         *,
         include_inactive: bool = False,
-    ) -> models.QuerySet["ServiceCategory"]:
+    ) -> models.QuerySet[ServiceCategory]:
         if business is None:
             return cls.objects.none()
 
@@ -128,12 +131,26 @@ class BusinessService(TimeStampedModel):
         ],
     )
     is_active = models.BooleanField(default=True)
+    is_bookable_online = models.BooleanField(default=False)
+    default_duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1)],
+    )
+    booking_buffer_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+    public_description = models.TextField(blank=True)
+    requires_manual_confirmation = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["name", "pk"]
         indexes = [
             models.Index(fields=["business", "is_active", "name"]),
             models.Index(fields=["business", "category", "is_active"]),
+            models.Index(fields=["business", "is_bookable_online", "is_active"]),
         ]
 
     @classmethod
@@ -142,7 +159,7 @@ class BusinessService(TimeStampedModel):
         business,
         *,
         include_inactive: bool = False,
-    ) -> models.QuerySet["BusinessService"]:
+    ) -> models.QuerySet[BusinessService]:
         if business is None:
             return cls.objects.none()
 
@@ -154,15 +171,24 @@ class BusinessService(TimeStampedModel):
     def clean(self):
         super().clean()
 
-        if self.category_id is None:
-            return
+        errors: dict[str, str] = {}
 
-        if self.category.business_id != self.business_id:
-            raise ValidationError(
-                {
-                    "category": "Selected service category must belong to the current workspace.",
-                }
-            )
+        if self.category_id is None:
+            category_is_valid = True
+        else:
+            category_is_valid = self.category.business_id == self.business_id
+
+        if not category_is_valid:
+            errors["category"] = "Selected service category must belong to the current workspace."
+
+        if self.default_duration_minutes is not None and self.default_duration_minutes <= 0:
+            errors["default_duration_minutes"] = "Default booking duration must be greater than zero."
+
+        if self.booking_buffer_minutes is not None and self.booking_buffer_minutes < 0:
+            errors["booking_buffer_minutes"] = "Booking buffer cannot be negative."
+
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -182,6 +208,12 @@ class Lead(TimeStampedModel):
         CONTACTED = "CONTACTED", "Contacted"
         INVOICED = "INVOICED", "Invoiced"
         CLOSED = "CLOSED", "Closed"
+
+    class RequestSource(models.TextChoices):
+        PUBLIC_REQUEST = "public_request", "Public request form"
+        PUBLIC_BOOKING = "public_booking", "Public booking form"
+        STAFF = "staff", "Staff-entered"
+        OTHER = "other", "Other"
 
     class DistrictChoices(models.TextChoices):
         MIDDLE_REGION = "MIDDLEREGION", "Middle Region"
@@ -218,6 +250,10 @@ class Lead(TimeStampedModel):
     lead_type           = models.CharField(max_length=20, choices=LeadType.choices, db_index=True)
     status              = models.CharField(max_length=20,choices=Status.choices,default=Status.NEW, db_index=True)
     category            = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="leads",)
+    requested_service   = models.ForeignKey(BusinessService, on_delete=models.SET_NULL, null=True, blank=True, related_name="requested_leads")
+    preferred_start_time = models.DateTimeField(null=True, blank=True)
+    preferred_end_time  = models.DateTimeField(null=True, blank=True)
+    request_source      = models.CharField(max_length=40, choices=RequestSource.choices, blank=True, default="")
     first_name          = models.CharField(max_length=80)
     last_name           = models.CharField(max_length=80)
     email               = models.EmailField()
@@ -225,7 +261,7 @@ class Lead(TimeStampedModel):
     company_name        = models.CharField(max_length=120)
     message             = models.TextField(blank=True)
     street_address      = models.CharField(max_length=255, blank=True)
-    district            = models.CharField( max_length=100, choices=DistrictChoices.choices,  blank=True)
+    district            = models.CharField(max_length=100, blank=True)
     country             = models.CharField(max_length=100, blank=True, default="Sint Maarten")
     postal_code         = models.CharField(max_length=20, blank=True, default="N/A")
     notes               = models.TextField(blank=True)
@@ -241,6 +277,53 @@ class Lead(TimeStampedModel):
     def __str__(self) -> str:
         name = f"{self.first_name} {self.last_name}".strip()
         return name or self.email
+
+    @property
+    def is_public_booking_request(self) -> bool:
+        return self.request_source == self.RequestSource.PUBLIC_BOOKING
+
+    @property
+    def has_valid_requested_service(self) -> bool:
+        return (
+            self.requested_service_id is not None
+            and self.requested_service is not None
+            and self.business_id is not None
+            and self.requested_service.business_id == self.business_id
+            and self.requested_service.is_active
+        )
+
+    @property
+    def requested_duration_minutes(self) -> int | None:
+        if not self.preferred_start_time or not self.preferred_end_time:
+            return None
+
+        duration_seconds = (
+            self.preferred_end_time - self.preferred_start_time
+        ).total_seconds()
+        if duration_seconds <= 0:
+            return None
+        return int(duration_seconds // 60)
+
+    def get_district_display(self) -> str:
+        return dict(self.DistrictChoices.choices).get(self.district, self.district)
+
+    @property
+    def formatted_address_lines(self) -> list[str]:
+        return format_crm_address_lines(
+            street_address=self.street_address,
+            locality=self.get_district_display(),
+            country=self.country,
+            postal_code=self.postal_code,
+        )
+
+    @property
+    def formatted_address(self) -> str:
+        return format_crm_address(
+            street_address=self.street_address,
+            locality=self.get_district_display(),
+            country=self.country,
+            postal_code=self.postal_code,
+        )
 
 
 class Client(TimeStampedModel):
@@ -369,11 +452,7 @@ class Client(TimeStampedModel):
 
     # Address / location
     street_address = models.CharField(max_length=255)
-    district = models.CharField(
-        max_length=100,
-        choices=DistrictChoices.choices,
-        blank=True,
-    )
+    district = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True, default="Sint Maarten")
     postal_code = models.CharField(max_length=20, blank=True, default="N/A")
 
@@ -393,6 +472,27 @@ class Client(TimeStampedModel):
         if self.company_name:
             return f"{name} - {self.company_name}"
         return name
+
+    def get_district_display(self) -> str:
+        return dict(self.DistrictChoices.choices).get(self.district, self.district)
+
+    @property
+    def formatted_address_lines(self) -> list[str]:
+        return format_crm_address_lines(
+            street_address=self.street_address,
+            locality=self.get_district_display(),
+            country=self.country,
+            postal_code=self.postal_code,
+        )
+
+    @property
+    def formatted_address(self) -> str:
+        return format_crm_address(
+            street_address=self.street_address,
+            locality=self.get_district_display(),
+            country=self.country,
+            postal_code=self.postal_code,
+        )
 
 
 class ActivityLog(TimeStampedModel):

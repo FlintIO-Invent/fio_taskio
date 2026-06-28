@@ -1,8 +1,12 @@
+import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import transaction
+from django.db.models import F
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -18,9 +22,13 @@ from apps.businesses.utils import (
 )
 from apps.crm.models import ActivityLog, BusinessService, Client
 from apps.crm.services import log_activity
+from apps.notifications.emails import send_invoice_email
 
 from .models import Invoice, InvoiceLine
+from .pdf import invoice_pdf_filename, render_invoice_pdf
 from .services import calculate_tax_amount, create_invoice_for_client, generate_invoice_number
+
+logger = logging.getLogger(__name__)
 
 STATUS_TRANSITIONS: dict[str, set[str]] = {
     Invoice.Status.DRAFT: {Invoice.Status.SENT, Invoice.Status.CANCELLED},
@@ -458,6 +466,96 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
 
     context: dict[str, Any] = {"invoice": invoice}
     return render(request, "billings/invoice_detail.html", context)
+
+
+@business_role_required(
+    *BILLING_VIEW_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view invoices.",
+    raise_exception=False,
+)
+@business_module_required("invoicing")
+@require_http_methods(["GET"])
+def invoice_pdf_download(request: HttpRequest, invoice_id: int) -> HttpResponse:
+    current_business = request.current_business
+    invoice = get_object_or_404(
+        _invoice_queryset_for_business(current_business).prefetch_related("lines"),
+        pk=invoice_id,
+    )
+
+    try:
+        pdf_bytes = render_invoice_pdf(invoice, current_business=current_business)
+    except Exception:
+        logger.exception("Failed to generate invoice PDF for invoice_id=%s", invoice.id)
+        messages.error(request, "Invoice PDF could not be generated. Please try again.")
+        return redirect("invoice_detail", invoice_id=invoice.id)
+
+    filename = invoice_pdf_filename(invoice)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@business_role_required(
+    *BILLING_MANAGE_ROLES,
+    redirect_url_name="invoice_list",
+    permission_message="You do not have permission to manage invoices.",
+    raise_exception=False,
+)
+@business_module_required("invoicing")
+@require_http_methods(["POST"])
+def invoice_email_send(request: HttpRequest, invoice_id: int) -> HttpResponse:
+    current_business = request.current_business
+    invoice = get_object_or_404(
+        _invoice_queryset_for_business(current_business).prefetch_related("lines"),
+        pk=invoice_id,
+    )
+    recipient = (invoice.client.email or "").strip()
+
+    try:
+        validate_email(recipient)
+    except ValidationError:
+        messages.error(
+            request,
+            "This client does not have a valid email address. Add one before sending the invoice.",
+        )
+        return redirect("invoice_detail", invoice_id=invoice.id)
+
+    try:
+        pdf_bytes = render_invoice_pdf(invoice, current_business=current_business)
+    except Exception:
+        logger.exception("Failed to generate invoice email PDF for invoice_id=%s", invoice.id)
+        messages.error(request, "Invoice PDF could not be generated, so no email was sent.")
+        return redirect("invoice_detail", invoice_id=invoice.id)
+
+    filename = invoice_pdf_filename(invoice)
+    if not send_invoice_email(invoice, pdf_bytes=pdf_bytes, filename=filename):
+        messages.error(
+            request,
+            "Invoice email could not be sent. Check email settings and try again.",
+        )
+        return redirect("invoice_detail", invoice_id=invoice.id)
+
+    now = timezone.now()
+    Invoice.objects.filter(pk=invoice.pk).update(
+        emailed_at=now,
+        emailed_to=recipient,
+        email_send_count=F("email_send_count") + 1,
+    )
+    log_activity(
+        actor=request.user,
+        action_type=ActivityLog.ActionType.EMAIL_SENT,
+        business=invoice.business,
+        client=invoice.client,
+        summary=f"Invoice {invoice.invoice_number} emailed to {recipient}",
+        payload={
+            "invoice_id": invoice.id,
+            "invoice_number": invoice.invoice_number,
+            "emailed_to": recipient,
+        },
+    )
+    messages.success(request, f"Invoice emailed to {recipient}.")
+    return redirect("invoice_detail", invoice_id=invoice.id)
 
 
 @business_role_required(

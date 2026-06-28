@@ -1,0 +1,10 @@
+Motionmate
+
+{{ business.name }} sent invoice {{ invoice.invoice_number }}.
+
+Amount due: {{ amount_due }}
+Status: {{ invoice.get_status_display }}
+
+The invoice PDF is attached for your records.
+
+{% if business.email %}Questions? Reply to {{ business.email }}.{% else %}Please contact {{ business.name }} with any questions.{% endif %}

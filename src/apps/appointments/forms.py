@@ -4,6 +4,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
+from apps.businesses.localization import format_money_for_business
 from apps.businesses.models import BusinessUser
 from apps.crm.models import BusinessService, Client
 
@@ -27,9 +28,7 @@ class AppointmentForm(forms.ModelForm):
             "client": forms.Select(attrs={"class": "form-select"}),
             "service": forms.Select(attrs={"class": "form-select"}),
             "staff_member": forms.Select(attrs={"class": "form-select"}),
-            "title": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Site visit"}
-            ),
+            "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Site visit"}),
             "start_time": forms.DateTimeInput(
                 attrs={"class": "form-control", "type": "datetime-local"},
                 format="%Y-%m-%dT%H:%M",
@@ -63,6 +62,9 @@ class AppointmentForm(forms.ModelForm):
         self.fields["end_time"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["client"].queryset = self._client_queryset()
         self.fields["service"].queryset = self._service_queryset()
+        self.fields["service"].label_from_instance = (
+            lambda service: f"{service.name} - {format_money_for_business(service.unit_price, current_business)}"
+        )
         self.fields["staff_member"].queryset = self._staff_member_queryset()
 
     def _client_queryset(self):
@@ -122,7 +124,9 @@ class AppointmentForm(forms.ModelForm):
 
         if client is not None:
             if client.business_id is None:
-                self.add_error("client", "Appointments require a client from the current workspace.")
+                self.add_error(
+                    "client", "Appointments require a client from the current workspace."
+                )
             elif client.business_id != self.current_business.id:
                 self.add_error("client", "Selected client must belong to the current workspace.")
 
@@ -154,4 +158,3 @@ class AppointmentForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
         return instance
-

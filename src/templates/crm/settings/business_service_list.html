@@ -1,4 +1,5 @@
 {% extends "inheritance/dashboard_parent.html" %}
+{% load money %}
 
 {% block content %}
 <div class="content">
@@ -31,6 +32,16 @@
     {% endfor %}
   {% endif %}
 
+  {% if public_booking_allowed %}
+    <div class="alert alert-info border mb-4" role="alert">
+      Public booking requests are included in the current workspace plan. Bookable services can appear on the public booking request form when booking is enabled.
+    </div>
+  {% else %}
+    <div class="alert alert-warning border mb-4" role="alert">
+      {{ public_booking_unavailable_message }} You can still prepare service booking settings now.
+    </div>
+  {% endif %}
+
   <div class="row g-3 mb-4">
     <div class="col-sm-6 col-xl-3">
       <div class="card h-100">
@@ -48,6 +59,14 @@
         </div>
       </div>
     </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <p class="text-body-tertiary text-uppercase fs-10 mb-1">Bookable Online</p>
+          <h3 class="mb-0">{{ bookable_service_count }}</h3>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="card border-0 shadow-sm">
@@ -61,6 +80,7 @@
                 <th>Category</th>
                 <th>Unit Price</th>
                 <th>Tax Rate</th>
+                <th>Booking</th>
                 <th>Status</th>
                 <th>Updated</th>
                 <th class="text-end pe-4">Actions</th>
@@ -82,8 +102,18 @@
                       <span class="text-body-tertiary">Uncategorized</span>
                     {% endif %}
                   </td>
-                  <td>{{ business.currency }} {{ service.unit_price|floatformat:2 }}</td>
+                  <td>{{ service.unit_price|money:business }}</td>
                   <td>{{ service.tax_rate|floatformat:2 }}%</td>
+                  <td>
+                    {% if service.is_bookable_online %}
+                      <span class="badge badge-phoenix badge-phoenix-info">Bookable</span>
+                      {% if service.default_duration_minutes %}
+                        <div class="text-body-tertiary small">{{ service.default_duration_minutes }} min</div>
+                      {% endif %}
+                    {% else %}
+                      <span class="badge badge-phoenix badge-phoenix-secondary">Internal only</span>
+                    {% endif %}
+                  </td>
                   <td>
                     {% if service.is_active %}
                       <span class="badge badge-phoenix badge-phoenix-success">Active</span>

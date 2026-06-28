@@ -1,0 +1,14 @@
+Motionmate
+
+New booking request received for {{ business.name }}.
+
+Requester: {{ requester_name }}
+Email: {{ lead.email }}
+Phone: {{ lead.phone|default:"Not provided" }}
+Requested service: {{ service_name }}
+Preferred time: {{ preferred_window }}
+
+Request details:
+{{ lead.message|default:"No extra details provided." }}
+
+{% if request_url %}View request: {{ request_url }}{% endif %}
