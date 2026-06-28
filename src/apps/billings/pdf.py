@@ -45,19 +45,7 @@ def _client_address_lines(invoice: Invoice) -> list[str]:
     lines = []
     if client.company_name:
         lines.append(client.company_name)
-    if client.street_address:
-        lines.append(client.street_address)
-    locality = ", ".join(
-        part
-        for part in [
-            client.get_district_display() if client.district else "",
-            client.country,
-            client.postal_code,
-        ]
-        if part
-    )
-    if locality:
-        lines.append(locality)
+    lines.extend(client.formatted_address_lines)
     if client.email:
         lines.append(client.email)
     if client.phone:

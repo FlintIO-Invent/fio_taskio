@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -23,6 +24,7 @@ from .models import (
     WeeklyAvailability,
 )
 from .utils import (
+    BOOKING_AVAILABILITY_MANAGE_ROLES,
     MULTI_WORKSPACE_EMAIL_MESSAGE,
     SAME_WORKSPACE_EMAIL_MESSAGE,
     assign_business_subscription_plan,
@@ -33,6 +35,7 @@ from .utils import (
     get_business_subscription,
     get_current_business,
     get_other_active_business_membership_for_email,
+    get_public_booking_share_context,
 )
 
 
@@ -69,19 +72,31 @@ def business_settings(request: HttpRequest) -> HttpResponse:
         "active_service_category_count": business.service_categories.filter(is_active=True).count(),
         "business_service_count": business.business_services.count(),
         "active_business_service_count": business.business_services.filter(is_active=True).count(),
+        **get_public_booking_share_context(request, business),
     }
     return render(request, "businesses/settings.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
 @require_http_methods(["GET", "POST"])
 def business_booking_settings(request: HttpRequest) -> HttpResponse:
     business = request.current_business
     membership = request.current_business_membership
+    can_manage_booking_rules = membership.role in (
+        BusinessUser.Role.OWNER,
+        BusinessUser.Role.ADMIN,
+    )
     booking_settings, _created = BusinessBookingSettings.objects.get_or_create(
         business=business,
     )
     availability_blocks = business.weekly_availability.filter(is_active=True)
+    if membership.role == BusinessUser.Role.STAFF:
+        availability_blocks = availability_blocks.filter(staff_member=request.user)
+    inactive_availability_blocks = business.weekly_availability.filter(is_active=False)
+    if membership.role == BusinessUser.Role.STAFF:
+        inactive_availability_blocks = inactive_availability_blocks.filter(
+            staff_member=request.user,
+        )
     public_booking_allowed = can_use_module(business, "public_booking")
     unavailable_message = ""
     if not public_booking_allowed:
@@ -101,6 +116,8 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
             availability_form = WeeklyAvailabilityForm(
                 request.POST,
                 business=business,
+                user=request.user,
+                membership=membership,
             )
             if availability_form.is_valid():
                 availability_form.save()
@@ -108,12 +125,18 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
                 return redirect("business_booking_settings")
             messages.error(request, "Please correct the availability errors below.")
         else:
+            if not can_manage_booking_rules:
+                raise PermissionDenied("Only workspace owners and admins can update booking rules.")
             settings_form = BusinessBookingSettingsForm(
                 request.POST,
                 instance=booking_settings,
                 business=business,
             )
-            availability_form = WeeklyAvailabilityForm(business=business)
+            availability_form = WeeklyAvailabilityForm(
+                business=business,
+                user=request.user,
+                membership=membership,
+            )
             if settings_form.is_valid():
                 settings_form.save()
                 messages.success(request, "Booking settings updated.")
@@ -126,6 +149,8 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
         )
         availability_form = WeeklyAvailabilityForm(
             business=business,
+            user=request.user,
+            membership=membership,
             initial={"is_active": True},
         )
 
@@ -136,26 +161,33 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
         "settings_form": settings_form,
         "availability_form": availability_form,
         "availability_blocks": availability_blocks,
-        "inactive_availability_count": business.weekly_availability.filter(
-            is_active=False,
-        ).count(),
-        "public_booking_allowed": public_booking_allowed,
+        "inactive_availability_count": inactive_availability_blocks.count(),
+        "can_manage_booking_rules": can_manage_booking_rules,
         "unavailable_message": unavailable_message,
+        **get_public_booking_share_context(
+            request,
+            business,
+            booking_settings=booking_settings,
+        ),
     }
     return render(request, "businesses/booking_settings.html", context)
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
 @require_http_methods(["POST"])
 def business_weekly_availability_deactivate(
     request: HttpRequest,
     availability_id: int,
 ) -> HttpResponse:
+    availability_queryset = WeeklyAvailability.objects.filter(
+        business=request.current_business,
+        is_active=True,
+    )
+    if request.current_business_membership.role == BusinessUser.Role.STAFF:
+        availability_queryset = availability_queryset.filter(staff_member=request.user)
+
     availability_block = get_object_or_404(
-        WeeklyAvailability.objects.filter(
-            business=request.current_business,
-            is_active=True,
-        ),
+        availability_queryset,
         pk=availability_id,
     )
     availability_block.is_active = False
@@ -178,7 +210,9 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
             selected_plan = form.cleaned_data["plan"]
 
             if subscription is not None and subscription.plan_id == selected_plan.id:
-                messages.info(request, f"{selected_plan.name} is already the active plan for this workspace.")
+                messages.info(
+                    request, f"{selected_plan.name} is already the active plan for this workspace."
+                )
             else:
                 updated_subscription = assign_business_subscription_plan(business, selected_plan)
                 if updated_subscription.status == updated_subscription.Status.TRIALING:
@@ -231,10 +265,13 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
                 messages.info(request, SAME_WORKSPACE_EMAIL_MESSAGE)
                 return redirect("business_team_members")
 
-            if get_other_active_business_membership_for_email(
-                email=invite_form.cleaned_data["email"],
-                business=business,
-            ) is not None:
+            if (
+                get_other_active_business_membership_for_email(
+                    email=invite_form.cleaned_data["email"],
+                    business=business,
+                )
+                is not None
+            ):
                 messages.error(request, MULTI_WORKSPACE_EMAIL_MESSAGE)
                 return redirect("business_team_members")
 

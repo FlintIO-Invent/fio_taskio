@@ -1,5 +1,6 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% load static %}
+{% load money %}
 {% block content %}
 
 <style>
@@ -195,25 +196,25 @@
                 <tr>
                   <td>{{ line.description }}</td>
                   <td class="text-end">{{ line.quantity }}</td>
-                  <td class="text-end">{{ invoice.currency_code }} {{ line.unit_price }}</td>
-                  <td class="text-end">{{ invoice.currency_code }} {{ line.line_total }}</td>
+                  <td class="text-end">{{ line.unit_price|money:invoice.business }}</td>
+                  <td class="text-end">{{ line.line_total|money:invoice.business }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
               <tfoot>
                 <tr>
                   <td colspan="3" class="text-end fw-bold">Subtotal:</td>
-                  <td class="text-end fw-bold">{{ invoice.currency_code }} {{ invoice.subtotal }}</td>
+                  <td class="text-end fw-bold">{{ invoice.subtotal|money:invoice.business }}</td>
                 </tr>
                 {% if invoice.tax %}
                 <tr>
                   <td colspan="3" class="text-end">Tax ({{ invoice.tax_rate_percentage }}%):</td>
-                  <td class="text-end">{{ invoice.currency_code }} {{ invoice.tax }}</td>
+                  <td class="text-end">{{ invoice.tax|money:invoice.business }}</td>
                 </tr>
                 {% endif %}
                 <tr>
                   <td colspan="3" class="text-end fw-bold">Total:</td>
-                  <td class="text-end fw-bold">{{ invoice.currency_code }} {{ invoice.total }}</td>
+                  <td class="text-end fw-bold">{{ invoice.total|money:invoice.business }}</td>
                 </tr>
               </tfoot>
             </table>
@@ -317,7 +318,7 @@
               {% endif %}
             </div>
           {% else %}
-            <div class="alert alert-light border mb-0" role="alert">
+            <div class="alert alert-subtle-secondary border mb-0" role="alert">
               You have read-only invoice access in this workspace.
             </div>
           {% endif %}
@@ -373,22 +374,15 @@
             </div>
             <div class="invoice-detail-content">
               <div class="invoice-detail-label">Address</div>
-              <p class="invoice-detail-value">
-                {% if invoice.client.street_address %}
-                  {{ invoice.client.street_address }}
-                {% endif %}
-                {% if invoice.client.district %}
-                  {% if invoice.client.street_address %}, {% endif %}
-                  {{ invoice.client.get_district_display }}
-                {% endif %}
-                {% if invoice.client.country or invoice.client.postal_code %}
-                  <br>
-                  {{ invoice.client.country }}{% if invoice.client.country and invoice.client.postal_code %}, {% endif %}{{ invoice.client.postal_code }}
-                {% endif %}
-                {% if not invoice.client.street_address and not invoice.client.district and not invoice.client.country and not invoice.client.postal_code %}
-                  No address on file.
-                {% endif %}
-              </p>
+              {% if invoice.client.formatted_address_lines %}
+                <p class="invoice-detail-value">
+                  {% for line in invoice.client.formatted_address_lines %}
+                    {{ line }}{% if not forloop.last %}<br>{% endif %}
+                  {% endfor %}
+                </p>
+              {% else %}
+                <p class="invoice-detail-value">No address on file.</p>
+              {% endif %}
             </div>
           </div>
         </div>

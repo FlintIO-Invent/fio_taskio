@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q, QuerySet, Sum
+from django.db.models import Case, IntegerField, Q, QuerySet, Sum, Value, When
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -21,6 +21,11 @@ from loguru import logger
 
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice
+from apps.businesses.localization import (
+    localized_price_input_example,
+    parse_localized_decimal,
+    uses_sint_maarten_districts,
+)
 from apps.businesses.models import Business, BusinessBookingSettings, WeeklyAvailability
 from apps.businesses.utils import (
     ALL_WORKSPACE_ROLES,
@@ -37,10 +42,12 @@ from apps.businesses.utils import (
     get_business_module_unavailable_message,
     get_current_business,
     get_current_business_membership,
+    get_public_booking_share_context,
     membership_has_any_role,
     redirect_for_unavailable_business_module,
 )
 from apps.notifications.emails import (
+    send_appointment_confirmation_email,
     send_internal_booking_notification_email,
     send_public_booking_request_received_email,
 )
@@ -63,6 +70,33 @@ from .services import (
     sync_client_from_lead,
 )
 
+SERVICE_REQUEST_ACTIVE_STATUSES = (Lead.Status.NEW, Lead.Status.CONTACTED)
+SERVICE_REQUEST_COMPLETED_STATUSES = (Lead.Status.INVOICED, Lead.Status.CLOSED)
+
+
+def _order_service_requests_for_followup(qs: QuerySet[Lead]) -> QuerySet[Lead]:
+    return qs.annotate(
+        _request_status_priority=Case(
+            When(status=Lead.Status.NEW, then=Value(0)),
+            When(status=Lead.Status.CONTACTED, then=Value(1)),
+            When(status=Lead.Status.INVOICED, then=Value(2)),
+            When(status=Lead.Status.CLOSED, then=Value(3)),
+            default=Value(9),
+            output_field=IntegerField(),
+        ),
+        _request_time_priority=Case(
+            When(preferred_start_time__isnull=False, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        ),
+    ).order_by(
+        "_request_status_priority",
+        "_request_time_priority",
+        "preferred_start_time",
+        "created_at",
+        "pk",
+    )
+
 
 def _client_queryset_for_business(business: Business) -> QuerySet[Client]:
     return Client.objects.filter(business=business).select_related("assigned_to")
@@ -70,6 +104,17 @@ def _client_queryset_for_business(business: Business) -> QuerySet[Client]:
 
 def _lead_queryset_for_business(business: Business) -> QuerySet[Lead]:
     return Lead.objects.filter(business=business).select_related("category", "requested_service")
+
+
+def _query_string_with(request: HttpRequest, **updates: str | None) -> str:
+    params = request.GET.copy()
+    for key, value in updates.items():
+        if value is None:
+            params.pop(key, None)
+        else:
+            params[key] = value
+    encoded = params.urlencode()
+    return f"?{encoded}" if encoded else ""
 
 
 def _service_category_queryset_for_business(business: Business) -> QuerySet[ServiceCategory]:
@@ -94,6 +139,67 @@ def _appointment_queryset_for_business(business: Business) -> QuerySet[Appointme
         "source_lead",
         "staff_member",
     )
+
+
+def _display_name_for_public_booking_client(lead: Lead, client: Client) -> str:
+    if client.company_name:
+        return client.company_name
+
+    full_name = " ".join(part for part in [client.first_name, client.last_name] if part).strip()
+    return full_name or lead.company_name or lead.email
+
+
+def _display_name_for_public_staff(user) -> str:
+    if user is None:
+        return ""
+    get_full_name = getattr(user, "get_full_name", None)
+    full_name = (get_full_name() if callable(get_full_name) else "") or getattr(
+        user,
+        "full_name",
+        "",
+    )
+    full_name = full_name.strip()
+    return full_name or user.email
+
+
+def _build_public_booking_location(lead: Lead, client: Client) -> str:
+    if lead.formatted_address:
+        return lead.formatted_address[:255]
+
+    return client.formatted_address[:255]
+
+
+def _build_public_booking_title(
+    *,
+    lead: Lead,
+    client: Client,
+    service: BusinessService,
+) -> str:
+    client_label = _display_name_for_public_booking_client(lead, client)
+    return f"{service.name} - {client_label}"[:160]
+
+
+def _build_public_booking_lead_notes(*, booking_intent: str, staff_member) -> str:
+    notes = [
+        (
+            "Booking intent: book an appointment now."
+            if booking_intent == PublicBookingForm.BOOK_NOW
+            else "Booking intent: contact before booking."
+        )
+    ]
+    staff_label = _display_name_for_public_staff(staff_member)
+    if staff_label:
+        notes.append(f"Preferred staff: {staff_label}.")
+    return "\n".join(notes)
+
+
+def _build_public_booking_appointment_notes(lead: Lead) -> str:
+    notes = [f"Scheduled from public booking request #{lead.pk}."]
+    if lead.message.strip():
+        notes.append(f"Customer message: {lead.message.strip()}")
+    if lead.notes.strip():
+        notes.append(lead.notes.strip())
+    return "\n\n".join(notes)
 
 
 def _public_booking_unavailable_response(
@@ -144,6 +250,133 @@ def _public_booking_is_available(
     ).exists()
 
 
+def _time_to_minutes(value: time) -> int:
+    return (value.hour * 60) + value.minute
+
+
+def _business_timezone(business: Business):
+    try:
+        return ZoneInfo(business.timezone)
+    except ZoneInfoNotFoundError:
+        return timezone.get_current_timezone()
+
+
+def _public_booking_slot_picker_data(
+    *,
+    business: Business,
+    booking_settings: BusinessBookingSettings | None,
+    form: PublicBookingForm,
+) -> dict[str, Any]:
+    if booking_settings is None:
+        return {}
+
+    business_timezone = _business_timezone(business)
+    local_now = timezone.now().astimezone(business_timezone)
+    earliest_start = local_now + timedelta(hours=booking_settings.minimum_notice_hours)
+    latest_date = local_now.date() + timedelta(days=booking_settings.maximum_days_ahead)
+    range_start = datetime.combine(
+        earliest_start.date(),
+        time.min,
+        tzinfo=business_timezone,
+    )
+    range_end = datetime.combine(
+        latest_date + timedelta(days=1),
+        time.min,
+        tzinfo=business_timezone,
+    )
+
+    services = {
+        str(service.pk): {
+            "durationMinutes": service.default_duration_minutes
+            or booking_settings.default_duration_minutes,
+        }
+        for service in form.fields["service"].queryset
+    }
+
+    staff_members = list(form.fields["staff_member"].queryset)
+    staff_ids = [staff.pk for staff in staff_members]
+    staff = {
+        str(staff_member.pk): {
+            "name": _display_name_for_public_staff(staff_member),
+        }
+        for staff_member in staff_members
+    }
+
+    availability: dict[str, Any] = {
+        "business": [],
+        "staff": {},
+    }
+    availability_blocks = WeeklyAvailability.objects.filter(
+        business=business,
+        is_active=True,
+    ).select_related("staff_member")
+    for block in availability_blocks:
+        block_data = {
+            "day": block.day_of_week,
+            "startMinutes": _time_to_minutes(block.start_time),
+            "endMinutes": _time_to_minutes(block.end_time),
+        }
+        if block.staff_member_id:
+            availability["staff"].setdefault(str(block.staff_member_id), []).append(block_data)
+        else:
+            availability["business"].append(block_data)
+
+    appointments: dict[str, list[dict[str, Any]]] = {}
+    if staff_ids:
+        scheduled_appointments = (
+            Appointment.objects.filter(
+                business=business,
+                staff_member_id__in=staff_ids,
+                status=Appointment.Status.SCHEDULED,
+                start_time__lt=range_end,
+                end_time__gt=range_start,
+            )
+            .exclude(staff_member__isnull=True)
+            .select_related("staff_member")
+        )
+        for appointment in scheduled_appointments:
+            local_start = appointment.start_time.astimezone(business_timezone)
+            local_end = appointment.end_time.astimezone(business_timezone)
+            current_date = local_start.date()
+            while current_date <= local_end.date():
+                start_minutes = (
+                    _time_to_minutes(local_start.time())
+                    if current_date == local_start.date()
+                    else 0
+                )
+                end_minutes = (
+                    _time_to_minutes(local_end.time())
+                    if current_date == local_end.date()
+                    else 24 * 60
+                )
+                if end_minutes > start_minutes:
+                    appointments.setdefault(str(appointment.staff_member_id), []).append(
+                        {
+                            "date": current_date.isoformat(),
+                            "startMinutes": start_minutes,
+                            "endMinutes": end_minutes,
+                        }
+                    )
+                current_date += timedelta(days=1)
+
+    return {
+        "dateRange": {
+            "start": earliest_start.date().isoformat(),
+            "end": latest_date.isoformat(),
+        },
+        "earliestStart": {
+            "date": earliest_start.date().isoformat(),
+            "minutes": _time_to_minutes(earliest_start.time()),
+        },
+        "slotStepMinutes": 15,
+        "defaultDurationMinutes": booking_settings.default_duration_minutes,
+        "services": services,
+        "staff": staff,
+        "availability": availability,
+        "appointments": appointments,
+    }
+
+
 def _business_local_periods(
     business: Business,
     instant,
@@ -164,17 +397,124 @@ def _normalize_csv_fieldname(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
-def _parse_csv_decimal(value: str, *, row_number: int, field_name: str) -> Decimal:
-    normalized_value = value.strip().replace(",", "")
+def _parse_csv_decimal(
+    value: str,
+    *,
+    row_number: int,
+    field_name: str,
+    business: Business,
+) -> Decimal:
+    normalized_value = value.strip()
     if not normalized_value:
         raise ValidationError(f"Row {row_number}: {field_name} is required.")
 
     try:
-        return Decimal(normalized_value)
+        return parse_localized_decimal(normalized_value, business)
     except InvalidOperation as exc:
         raise ValidationError(
             f"Row {row_number}: {field_name} must be a valid decimal number."
         ) from exc
+
+
+def _service_import_example_rows(business: Business) -> list[dict[str, str]]:
+    return [
+        {
+            "name": "Emergency Callout",
+            "unit_price": "125.00",
+            "description": "After-hours emergency service call",
+            "tax_rate": f"{business.tax_rate:.2f}",
+            "category": "Urgent Response",
+            "is_active": "true",
+            "external_code": "EMERGENCY-001",
+            "is_bookable_online": "true",
+            "default_duration_minutes": "60",
+            "booking_buffer_minutes": "15",
+            "public_description": "Request an after-hours emergency service call.",
+            "requires_manual_confirmation": "true",
+        },
+        {
+            "name": "Standard Consultation",
+            "unit_price": "75.00",
+            "description": "Initial consultation visit",
+            "tax_rate": "",
+            "category": "",
+            "is_active": "true",
+            "external_code": "",
+            "is_bookable_online": "false",
+            "default_duration_minutes": "",
+            "booking_buffer_minutes": "",
+            "public_description": "",
+            "requires_manual_confirmation": "true",
+        },
+    ]
+
+
+def _service_import_columns() -> list[dict[str, str]]:
+    return [
+        {"name": "name", "required": "Required", "description": "Service name."},
+        {"name": "unit_price", "required": "Required", "description": "Decimal service price."},
+        {
+            "name": "description",
+            "required": "Optional",
+            "description": "Internal service description.",
+        },
+        {
+            "name": "tax_rate",
+            "required": "Optional",
+            "description": "Service tax percentage. Blank uses the workspace default.",
+        },
+        {
+            "name": "category",
+            "required": "Optional",
+            "description": "Existing or new category name for this workspace.",
+        },
+        {
+            "name": "is_active",
+            "required": "Optional",
+            "description": "true/false, yes/no, or 1/0. Blank defaults to true.",
+        },
+        {
+            "name": "external_code",
+            "required": "Optional",
+            "description": "Stable code used to update matching services later.",
+        },
+        {
+            "name": "is_bookable_online",
+            "required": "Optional",
+            "description": "true only when the service should appear on public booking.",
+        },
+        {
+            "name": "default_duration_minutes",
+            "required": "Optional",
+            "description": "Whole-number booking duration in minutes.",
+        },
+        {
+            "name": "booking_buffer_minutes",
+            "required": "Optional",
+            "description": "Whole-number buffer in minutes.",
+        },
+        {
+            "name": "public_description",
+            "required": "Optional",
+            "description": "Public booking description.",
+        },
+        {
+            "name": "requires_manual_confirmation",
+            "required": "Optional",
+            "description": "true/false. Current Motionmate booking flow is manual confirmation.",
+        },
+    ]
+
+
+def _service_import_example_csv_text(business: Business) -> str:
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[column["name"] for column in _service_import_columns()],
+    )
+    writer.writeheader()
+    writer.writerows(_service_import_example_rows(business))
+    return output.getvalue().strip()
 
 
 def _parse_csv_boolean(
@@ -212,9 +552,7 @@ def _parse_optional_csv_integer(
     try:
         parsed_value = int(normalized_value)
     except ValueError as exc:
-        raise ValidationError(
-            f"Row {row_number}: {field_name} must be a whole number."
-        ) from exc
+        raise ValidationError(f"Row {row_number}: {field_name} must be a whole number.") from exc
 
     if parsed_value < minimum:
         if minimum == 1:
@@ -294,6 +632,7 @@ def _import_business_services_from_csv(
                 row.get("unit_price", ""),
                 row_number=row_number,
                 field_name="unit_price",
+                business=business,
             )
             tax_rate_value = row.get("tax_rate", "")
             tax_rate = (
@@ -301,6 +640,7 @@ def _import_business_services_from_csv(
                     tax_rate_value,
                     row_number=row_number,
                     field_name="tax_rate",
+                    business=business,
                 )
                 if tax_rate_value
                 else business.tax_rate
@@ -409,6 +749,7 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     appointments_enabled = can_use_module(current_business, "appointments")
     invoices_enabled = can_use_module(current_business, "invoicing")
     public_booking_enabled = can_use_module(current_business, "public_booking")
+    public_booking_settings = _public_booking_settings_for_business(current_business)
     can_view_appointment_activity = appointments_enabled and membership_has_any_role(
         current_membership,
         APPOINTMENT_VIEW_ROLES,
@@ -422,16 +763,17 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     service_requests = _lead_queryset_for_business(current_business).filter(
         lead_type=Lead.LeadType.REQUEST
     )
-    open_request_statuses = [Lead.Status.NEW, Lead.Status.CONTACTED]
-    open_service_requests = service_requests.filter(status__in=open_request_statuses)
+    open_service_requests = service_requests.filter(status__in=SERVICE_REQUEST_ACTIVE_STATUSES)
     booking_requests_needing_review = service_requests.filter(
         request_source=Lead.RequestSource.PUBLIC_BOOKING,
         status=Lead.Status.NEW,
     )
-    service_request_followups = open_service_requests.select_related(
-        "category",
-        "requested_service",
-    ).order_by("-created_at", "-pk")[:5]
+    service_request_followups = _order_service_requests_for_followup(
+        open_service_requests.select_related(
+            "category",
+            "requested_service",
+        )
+    )[:5]
     booking_request_followups = booking_requests_needing_review.select_related(
         "category",
         "requested_service",
@@ -442,21 +784,25 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     today_appointment_count = 0
 
     if can_view_appointment_activity:
-        upcoming_appointment_queryset = _appointment_queryset_for_business(
-            current_business
-        ).filter(
-            status=Appointment.Status.SCHEDULED,
-            start_time__gte=now,
-        ).order_by("start_time", "pk")
+        upcoming_appointment_queryset = (
+            _appointment_queryset_for_business(current_business)
+            .filter(
+                status=Appointment.Status.SCHEDULED,
+                start_time__gte=now,
+            )
+            .order_by("start_time", "pk")
+        )
         upcoming_appointments = upcoming_appointment_queryset[:5]
         upcoming_appointment_count = upcoming_appointment_queryset.count()
-        today_appointment_count = _appointment_queryset_for_business(
-            current_business
-        ).filter(
-            status=Appointment.Status.SCHEDULED,
-            start_time__gte=start_of_today,
-            start_time__lt=start_of_tomorrow,
-        ).count()
+        today_appointment_count = (
+            _appointment_queryset_for_business(current_business)
+            .filter(
+                status=Appointment.Status.SCHEDULED,
+                start_time__gte=start_of_today,
+                start_time__lt=start_of_tomorrow,
+            )
+            .count()
+        )
 
     invoices = Invoice.objects.none()
     recent_invoices = Invoice.objects.none()
@@ -485,19 +831,13 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         sent_invoice_count = invoices.filter(status=Invoice.Status.SENT).count()
         open_invoice_count = invoices.filter(status__in=unpaid_statuses).count()
         paid_invoice_count = paid_invoices.count()
-        paid_invoice_total = paid_invoices.aggregate(total=Sum("total"))["total"] or Decimal(
-            "0.00"
-        )
-        invoice_value_this_month = (
-            invoices.filter(created_at__gte=start_of_month)
-            .exclude(status=Invoice.Status.CANCELLED)
-            .aggregate(total=Sum("total"))["total"]
-            or Decimal("0.00")
-        )
-        unpaid_invoice_total = (
-            invoices.filter(status__in=unpaid_statuses).aggregate(total=Sum("total"))["total"]
-            or Decimal("0.00")
-        )
+        paid_invoice_total = paid_invoices.aggregate(total=Sum("total"))["total"] or Decimal("0.00")
+        invoice_value_this_month = invoices.filter(created_at__gte=start_of_month).exclude(
+            status=Invoice.Status.CANCELLED
+        ).aggregate(total=Sum("total"))["total"] or Decimal("0.00")
+        unpaid_invoice_total = invoices.filter(status__in=unpaid_statuses).aggregate(
+            total=Sum("total")
+        )["total"] or Decimal("0.00")
 
     context: dict[str, Any] = {
         "current_business": current_business,
@@ -547,6 +887,11 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         "today_appointment_count": today_appointment_count,
         "today_upcoming_appointment_count": today_appointment_count,
         "upcoming_appointment_count": upcoming_appointment_count,
+        **get_public_booking_share_context(
+            request,
+            current_business,
+            booking_settings=public_booking_settings,
+        ),
     }
     return render(request, "crm/agent_dashboard/agent_dashboard.html", context)
 
@@ -556,20 +901,26 @@ def public_request_entry(request: HttpRequest) -> HttpResponse:
     current_business = get_current_business(request)
     if current_business is None:
         raise Http404("A business-specific request link is required.")
-    if not can_use_module(current_business, "public_request_form"):
+    if not (
+        can_use_module(current_business, "public_booking")
+        or can_use_module(current_business, "public_request_form")
+    ):
         return redirect_for_unavailable_business_module(request, "public_request_form")
-    return redirect("public_request", business_slug=current_business.slug)
+    return redirect("public_booking", business_slug=current_business.slug)
 
 
 @require_http_methods(["GET", "POST"])
 def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
     """
-    Create a public lead request.
+    Compatibility endpoint for old public request links.
 
-    - Always creates a Lead.
-    - If lead_type == REQUEST: auto-create/update Client.
-    - If lead_type == INTEREST: keep as Lead only.
+    Public visitors now use the single public booking form. Existing POST
+    submissions are still accepted so old embedded forms do not drop requests.
     """
+    if request.method == "GET":
+        business = get_object_or_404(Business, slug=business_slug, is_active=True)
+        return redirect("public_booking", business_slug=business.slug)
+
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
     if not can_use_module(business, "public_request_form"):
         return render(
@@ -613,6 +964,7 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
 def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
     booking_settings = _public_booking_settings_for_business(business)
+    appointments_enabled = can_use_module(business, "appointments")
 
     if not _public_booking_is_available(business, booking_settings):
         return _public_booking_unavailable_response(
@@ -626,9 +978,14 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
             request.POST,
             business=business,
             booking_settings=booking_settings,
+            appointments_enabled=appointments_enabled,
         )
         if form.is_valid():
             service = form.cleaned_data["service"]
+            staff_member = form.cleaned_data.get("staff_member")
+            booking_intent = form.cleaned_data["booking_intent"]
+            wants_appointment = booking_intent == PublicBookingForm.BOOK_NOW
+            appointment = None
             with transaction.atomic():
                 lead = Lead.objects.create(
                     business=business,
@@ -649,11 +1006,35 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
                     country=form.cleaned_data.get("country") or "Sint Maarten",
                     postal_code=form.cleaned_data.get("postal_code") or "N/A",
                     message=form.cleaned_data.get("message") or "",
+                    notes=_build_public_booking_lead_notes(
+                        booking_intent=booking_intent,
+                        staff_member=staff_member,
+                    ),
                     consent_to_contact=form.cleaned_data["consent_to_contact"],
                 )
-                sync_client_from_lead(lead)
+                client, _created = sync_client_from_lead(lead)
+                if wants_appointment:
+                    appointment = Appointment.objects.create(
+                        business=business,
+                        client=client,
+                        service=service,
+                        source_lead=lead,
+                        staff_member=staff_member,
+                        title=_build_public_booking_title(
+                            lead=lead,
+                            client=client,
+                            service=service,
+                        ),
+                        start_time=lead.preferred_start_time,
+                        end_time=lead.preferred_end_time,
+                        location=_build_public_booking_location(lead, client),
+                        notes=_build_public_booking_appointment_notes(lead),
+                    )
             request_url = request.build_absolute_uri(reverse("staff_lead_detail", args=[lead.id]))
-            send_public_booking_request_received_email(lead)
+            if appointment is not None:
+                send_appointment_confirmation_email(appointment)
+            else:
+                send_public_booking_request_received_email(lead)
             send_internal_booking_notification_email(lead, request_url=request_url)
             return redirect("public_booking_thank_you", business_slug=business.slug)
     else:
@@ -661,6 +1042,7 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
             business=business,
             booking_settings=booking_settings,
             selected_service_id=selected_service_id,
+            appointments_enabled=appointments_enabled,
         )
 
     return render(
@@ -670,6 +1052,12 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
             "form": form,
             "public_business": business,
             "booking_settings": booking_settings,
+            "appointments_enabled": appointments_enabled,
+            "slot_picker_data": _public_booking_slot_picker_data(
+                business=business,
+                booking_settings=booking_settings,
+                form=form,
+            ),
         },
     )
 
@@ -690,7 +1078,7 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/success_fail/success.html")
 
 
-# Functions below relate to client/leads management for staff users. 
+# Functions below relate to client/leads management for staff users.
 @business_role_required(
     *LEAD_MANAGE_ROLES,
     redirect_url_name="staff_lead_list",
@@ -700,7 +1088,7 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def staff_lead_create(request: HttpRequest) -> HttpResponse:
     """
-    Create a new lead for staff.
+    Create a new service request for staff.
     """
     current_business = request.current_business
 
@@ -710,15 +1098,15 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
             lead = form.save(commit=False)
             lead.business = current_business
             lead.save()
-            messages.success(request, "Lead created successfully.")
+            messages.success(request, "Service request created successfully.")
             return redirect("staff_lead_list")
     else:
         form = PrivateLeadForm(business=current_business)
 
     context = {
         "form": form,
-        "page_title": "Create a new lead",
-        "submit_label": "Create lead",
+        "page_title": "Create a new service request",
+        "submit_label": "Create service request",
     }
 
     return render(request, "crm/forms/lead_create.html", context)
@@ -733,18 +1121,26 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def staff_lead_list(request: HttpRequest) -> HttpResponse:
     """
-    List leads for staff with optional filtering by status, lead type, and search query.
+    List service requests for staff with optional filtering by status, type, and search query.
     """
     current_business = request.current_business
     qs: QuerySet[Lead] = _lead_queryset_for_business(current_business)
 
-
     status: str = (request.GET.get("status") or "").strip()
+    status_group: str = (request.GET.get("status_group") or "active").strip()
     lead_type: str = (request.GET.get("lead_type") or "").strip()
     query: str = (request.GET.get("q") or "").strip()
-
     if status:
         qs = qs.filter(status=status)
+        status_group = ""
+    elif status_group == "all":
+        pass
+    elif status_group == "completed":
+        qs = qs.filter(status__in=SERVICE_REQUEST_COMPLETED_STATUSES)
+    else:
+        status_group = "active"
+        qs = qs.filter(status__in=SERVICE_REQUEST_ACTIVE_STATUSES)
+
     if lead_type:
         qs = qs.filter(lead_type=lead_type)
     if query:
@@ -757,8 +1153,18 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
         )
 
     context: dict[str, Any] = {
-        "leads": qs,
-        "filters": {"status": status, "lead_type": lead_type, "q": query},
+        "leads": _order_service_requests_for_followup(qs),
+        "filters": {
+            "status": status,
+            "status_group": status_group or (request.GET.get("status_group") or "active"),
+            "lead_type": lead_type,
+            "q": query,
+        },
+        "status_group_links": {
+            "active": _query_string_with(request, status_group="active", status=None),
+            "completed": _query_string_with(request, status_group="completed", status=None),
+            "all": _query_string_with(request, status_group="all", status=None),
+        },
     }
     return render(request, "crm/main/lead_list.html", context)
 
@@ -788,7 +1194,7 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
     else:
         form = PrivateClientForm(business=current_business)
 
-    context={"form": form}
+    context = {"form": form}
     return render(request, "crm/forms/client_create.html", context)
 
 
@@ -832,6 +1238,22 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
             | Q(company_name__icontains=query)
         )
 
+    if uses_sint_maarten_districts(current_business):
+        district_choices = Client.DistrictChoices.choices
+        district_filter_label = "District"
+        district_filter_empty_label = "All districts"
+    else:
+        district_choices = [
+            (value, value)
+            for value in qs.model.objects.filter(business=current_business)
+            .exclude(district="")
+            .order_by("district")
+            .values_list("district", flat=True)
+            .distinct()
+        ]
+        district_filter_label = "Locality"
+        district_filter_empty_label = "All localities"
+
     context: dict[str, Any] = {
         "clients": qs,
         "filters": {
@@ -839,8 +1261,9 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
             "district": district,
             "q": query,
         },
-        # handy for your template dropdown
-        "district_choices": Client.DistrictChoices.choices,
+        "district_filter_choices": district_choices,
+        "district_filter_label": district_filter_label,
+        "district_filter_empty_label": district_filter_empty_label,
     }
     return render(request, "crm/main/client_list.html", context)
 
@@ -935,9 +1358,7 @@ def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
         matched_client = find_matching_client_for_lead(lead)
         if matched_client is None:
             missing_client_fields = get_missing_client_required_field_labels_for_lead(lead)
-        request_ready_for_appointment = (
-            matched_client is not None or not missing_client_fields
-        )
+        request_ready_for_appointment = matched_client is not None or not missing_client_fields
         request_appointment = (
             Appointment.objects.filter(
                 business=current_business,
@@ -974,7 +1395,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
             lead = form.save(commit=False)
             lead.business = current_business
             lead.save()
-            messages.success(request, "Lead updated successfully.")
+            messages.success(request, "Service request updated successfully.")
             return redirect("staff_lead_detail", lead_id=lead.id)
         messages.error(request, "Please correct the errors below.")
     else:
@@ -983,7 +1404,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     context: dict[str, Any] = {
         "form": form,
         "lead": lead,
-        "page_title": f"Edit lead: {lead.first_name} {lead.last_name}",
+        "page_title": f"Edit service request: {lead.first_name} {lead.last_name}",
         "submit_label": "Save changes",
     }
     return render(request, "crm/forms/lead_create.html", context)
@@ -1076,7 +1497,11 @@ def client_detail_view(request: HttpRequest) -> HttpResponse:
     Display a detailed view of active clients for the current business only.
     """
     current_business = request.current_business
-    clients = _client_queryset_for_business(current_business).filter(is_active=True).order_by("-created_at")
+    clients = (
+        _client_queryset_for_business(current_business)
+        .filter(is_active=True)
+        .order_by("-created_at")
+    )
 
     context: dict[str, Any] = {
         "clients": clients,
@@ -1373,6 +1798,10 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
         "business": current_business,
         "form": form,
         "import_errors": import_errors,
+        "import_columns": _service_import_columns(),
+        "sample_rows": _service_import_example_rows(current_business),
+        "sample_csv_text": _service_import_example_csv_text(current_business),
+        "price_input_example": localized_price_input_example(current_business),
     }
     return render(request, "crm/settings/business_service_import.html", context)
 
@@ -1386,57 +1815,8 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET"])
 def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(
-        [
-            "name",
-            "unit_price",
-            "description",
-            "tax_rate",
-            "category",
-            "is_active",
-            "external_code",
-            "is_bookable_online",
-            "default_duration_minutes",
-            "booking_buffer_minutes",
-            "public_description",
-            "requires_manual_confirmation",
-        ]
+    response = HttpResponse(
+        _service_import_example_csv_text(current_business), content_type="text/csv"
     )
-    writer.writerow(
-        [
-            "Emergency Callout",
-            "125.00",
-            "After-hours emergency service call",
-            f"{current_business.tax_rate:.2f}",
-            "Urgent Response",
-            "true",
-            "EMERGENCY-001",
-            "true",
-            "60",
-            "15",
-            "Request an after-hours emergency service call.",
-            "true",
-        ]
-    )
-    writer.writerow(
-        [
-            "Standard Consultation",
-            "75.00",
-            "Initial consultation visit",
-            "",
-            "",
-            "true",
-            "",
-            "false",
-            "",
-            "",
-            "",
-            "true",
-        ]
-    )
-
-    response = HttpResponse(output.getvalue(), content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="motionmate_services_sample.csv"'
     return response

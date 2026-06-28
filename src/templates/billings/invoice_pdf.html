@@ -1,4 +1,5 @@
 <!doctype html>
+{% load money %}
 <html>
 <head>
   <meta charset="utf-8">
@@ -62,8 +63,8 @@
         <tr>
           <td>{{ line.description }}</td>
           <td class="text-end">{{ line.quantity }}</td>
-          <td class="text-end">{{ invoice.currency_code }} {{ line.unit_price }}</td>
-          <td class="text-end">{{ invoice.currency_code }} {{ line.line_total }}</td>
+          <td class="text-end">{{ line.unit_price|money:business }}</td>
+          <td class="text-end">{{ line.line_total|money:business }}</td>
         </tr>
       {% empty %}
         <tr>
@@ -76,17 +77,17 @@
   <table class="totals">
     <tr>
       <td>Subtotal</td>
-      <td class="text-end">{{ invoice.currency_code }} {{ invoice.subtotal }}</td>
+      <td class="text-end">{{ invoice.subtotal|money:business }}</td>
     </tr>
     {% if invoice.tax %}
       <tr>
         <td>Tax ({{ invoice.tax_rate_percentage }}%)</td>
-        <td class="text-end">{{ invoice.currency_code }} {{ invoice.tax }}</td>
+        <td class="text-end">{{ invoice.tax|money:business }}</td>
       </tr>
     {% endif %}
     <tr>
       <td><strong>Total</strong></td>
-      <td class="text-end"><strong>{{ invoice.currency_code }} {{ invoice.total }}</strong></td>
+      <td class="text-end"><strong>{{ invoice.total|money:business }}</strong></td>
     </tr>
   </table>
 

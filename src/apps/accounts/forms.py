@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth import password_validation
+from django.contrib.auth.forms import PasswordChangeForm, PasswordResetForm, SetPasswordForm
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
@@ -59,12 +60,8 @@ class CustomerRegistrationForm(forms.ModelForm):
             "email": forms.EmailInput(
                 attrs={"class": "form-control", "placeholder": "name@example.com"}
             ),
-            "first_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Jane"}
-            ),
-            "last_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Doe"}
-            ),
+            "first_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Jane"}),
+            "last_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Doe"}),
             "company_name": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Acme Freight"}
             ),
@@ -78,9 +75,7 @@ class CustomerRegistrationForm(forms.ModelForm):
                     "rows": 3,
                 }
             ),
-            "date_of_birth": forms.DateInput(
-                attrs={"class": "form-control", "type": "date"}
-            ),
+            "date_of_birth": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
         }
         labels = {
             "company_name": "Company name",
@@ -138,37 +133,32 @@ class CustomerRegistrationForm(forms.ModelForm):
 class BusinessRegistrationForm(forms.Form):
     first_name = forms.CharField(
         label="Owner first name",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Jane"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Jane"}),
     )
     last_name = forms.CharField(
         label="Owner last name",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Doe"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Doe"}),
     )
     email = forms.EmailField(
+        label="Owner login email",
+        help_text="Use the email address you want to sign in with. This will become the workspace owner login for this business.",
         widget=forms.EmailInput(
             attrs={"class": "form-control", "placeholder": "owner@example.com"}
         ),
     )
     business_name = forms.CharField(
         label="Business name",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Acme Freight"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Acme Freight"}),
     )
     business_email = forms.EmailField(
         label="Business email",
+        help_text="Use the public contact or billing email for the business. It can be different from the owner login email.",
         widget=forms.EmailInput(
             attrs={"class": "form-control", "placeholder": "hello@acmefreight.com"}
         ),
     )
     country = forms.CharField(
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Sint Maarten"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Sint Maarten"}),
     )
     password1 = forms.CharField(
         label="Password",
@@ -268,6 +258,63 @@ class BusinessLoginForm(forms.Form):
         return (self.cleaned_data.get("email") or "").strip().lower()
 
 
+class MotionmatePasswordResetForm(PasswordResetForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["email"].widget.attrs.update(
+            {
+                "class": "form-control form-icon-input",
+                "placeholder": "owner@example.com",
+                "autocomplete": "email",
+            }
+        )
+
+
+class MotionmateSetPasswordForm(SetPasswordForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["new_password1"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "Create a new password",
+                "autocomplete": "new-password",
+            }
+        )
+        self.fields["new_password2"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "Repeat your new password",
+                "autocomplete": "new-password",
+            }
+        )
+
+
+class MotionmatePasswordChangeForm(PasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["old_password"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "Current password",
+                "autocomplete": "current-password",
+            }
+        )
+        self.fields["new_password1"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "Create a new password",
+                "autocomplete": "new-password",
+            }
+        )
+        self.fields["new_password2"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "Repeat your new password",
+                "autocomplete": "new-password",
+            }
+        )
+
+
 class InvitationExistingUserLoginForm(forms.Form):
     password = forms.CharField(
         label="Password",
@@ -281,15 +328,11 @@ class InvitationExistingUserLoginForm(forms.Form):
 class InvitationAcceptanceSignupForm(forms.Form):
     first_name = forms.CharField(
         label="First name",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Jane"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Jane"}),
     )
     last_name = forms.CharField(
         label="Last name",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Doe"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Doe"}),
     )
     password1 = forms.CharField(
         label="Password",
@@ -356,7 +399,9 @@ class SaaSBasicInfoForm(forms.ModelForm):
         widgets = {
             "first_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Jane"}),
             "last_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Doe"}),
-            "email": forms.EmailInput(attrs={"class": "form-control", "placeholder": "name@example.com"}),
+            "email": forms.EmailInput(
+                attrs={"class": "form-control", "placeholder": "name@example.com"}
+            ),
             "company_name": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Acme Freight"}
             ),
@@ -364,9 +409,7 @@ class SaaSBasicInfoForm(forms.ModelForm):
                 attrs={"class": "form-control", "placeholder": "+1 721 555 0100"}
             ),
             "assigned_location": forms.Select(attrs={"class": "form-select"}),
-            "date_of_birth": forms.DateInput(
-                attrs={"class": "form-control", "type": "date"}
-            ),
+            "date_of_birth": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
             "address": forms.Textarea(
                 attrs={
                     "class": "form-control",

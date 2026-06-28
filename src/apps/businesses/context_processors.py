@@ -3,6 +3,7 @@ from .utils import (
     APPOINTMENT_VIEW_ROLES,
     BILLING_MANAGE_ROLES,
     BILLING_VIEW_ROLES,
+    BOOKING_AVAILABILITY_MANAGE_ROLES,
     CLIENT_MANAGE_ROLES,
     LEAD_MANAGE_ROLES,
     OWNER_ADMIN_ROLES,
@@ -37,6 +38,10 @@ def current_business(request):
         "can_manage_leads": membership_has_any_role(membership, LEAD_MANAGE_ROLES),
         "can_view_appointments": membership_has_any_role(membership, APPOINTMENT_VIEW_ROLES),
         "can_manage_appointments": membership_has_any_role(membership, APPOINTMENT_MANAGE_ROLES),
+        "can_manage_booking_availability": membership_has_any_role(
+            membership,
+            BOOKING_AVAILABILITY_MANAGE_ROLES,
+        ),
         "can_view_invoices": membership_has_any_role(membership, BILLING_VIEW_ROLES),
         "can_manage_invoices": membership_has_any_role(membership, BILLING_MANAGE_ROLES),
         "can_manage_services": membership_has_any_role(membership, OWNER_ADMIN_ROLES),

@@ -1,4 +1,5 @@
 {% extends "inheritance/dashboard_parent.html" %}
+{% load money %}
 
 {% block content %}
   <div class="content">
@@ -14,62 +15,12 @@
 
     <div class="row g-3 mb-4 align-items-end justify-content-between">
       <div class="col-lg-8">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-          <span class="badge badge-phoenix badge-phoenix-primary">Workspace</span>
-          {% if current_plan %}
-            <span class="badge badge-phoenix badge-phoenix-secondary">{{ current_plan.name }}</span>
-          {% endif %}
-          {% if current_subscription %}
-            <span class="badge badge-phoenix {% if subscription_is_trialing %}badge-phoenix-info{% elif subscription_has_access %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-              {{ current_subscription.get_status_display }}
-            </span>
-          {% else %}
-            <span class="badge badge-phoenix badge-phoenix-warning">Plan pending</span>
-          {% endif %}
-        </div>
-        <h2 class="mb-2 text-body-emphasis">{{ current_business.name }}</h2>
+        <h2 class="mb-2 text-body-emphasis">
+          Welcome back{% if request.user.first_name %}, {{ request.user.first_name }}{% endif %}
+        </h2>
         <p class="text-body-tertiary mb-0">
-          Operational snapshot for clients, requests, appointments, and billing follow-up.
+          Here is today's workspace snapshot for {{ current_business.name }}.
         </p>
-      </div>
-      <div class="col-lg-auto">
-        <div class="d-flex flex-wrap gap-2">
-          {% if role_access.can_manage_clients %}
-            <a class="btn btn-phoenix-primary" href="{% url 'staff_client_create' %}">
-              <span class="fa-solid fa-plus me-2"></span>New Client
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_leads %}
-            <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_create' %}">
-              <span class="fa-solid fa-plus me-2"></span>New Service Request
-            </a>
-          {% endif %}
-          {% if dashboard_invoices_enabled %}
-            <a class="btn btn-outline-primary" href="{% url 'invoice_list' %}">
-              <span class="fa-solid fa-file-invoice-dollar me-2"></span>Invoices
-            </a>
-          {% endif %}
-          {% if dashboard_appointments_enabled %}
-            <a class="btn btn-outline-primary" href="{% url 'appointment_list' %}">
-              <span class="fa-solid fa-calendar-days me-2"></span>Appointments
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_subscription %}
-            <a class="btn btn-outline-secondary" href="{% url 'business_subscription' %}">
-              <span class="fa-solid fa-layer-group me-2"></span>Upgrade Plan
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_business_settings %}
-            <a class="btn btn-outline-secondary" href="{% url 'business_settings' %}">
-              <span class="fa-solid fa-gear me-2"></span>Business Settings
-            </a>
-          {% endif %}
-          {% if role_access.can_manage_team %}
-            <a class="btn btn-outline-secondary" href="{% url 'business_team_members' %}">
-              <span class="fa-solid fa-user-plus me-2"></span>Team Members
-            </a>
-          {% endif %}
-        </div>
       </div>
     </div>
 
@@ -157,6 +108,14 @@
       </div>
     </div>
 
+    {% if public_booking_share_ready %}
+      <div class="row g-3 mb-4">
+        <div class="col-12">
+          {% include "businesses/includes/public_booking_share_card.html" %}
+        </div>
+      </div>
+    {% endif %}
+
     {% if dashboard_invoices_enabled %}
       <div class="row g-3 mb-4">
         <div class="col-sm-6 col-xl-3">
@@ -187,7 +146,7 @@
             <div class="card-body">
               <p class="fs-9 text-body-tertiary mb-1">Invoice Value This Month</p>
               <div class="d-flex align-items-end justify-content-between gap-2">
-                <h3 class="mb-0">{{ current_business.currency }} {{ invoice_value_this_month|floatformat:2 }}</h3>
+                <h3 class="mb-0">{{ invoice_value_this_month|money:current_business }}</h3>
                 <span class="fa-solid fa-chart-line text-body-tertiary"></span>
               </div>
             </div>
@@ -198,7 +157,7 @@
             <div class="card-body">
               <p class="fs-9 text-body-tertiary mb-1">Unpaid Invoice Value</p>
               <div class="d-flex align-items-end justify-content-between gap-2">
-                <h3 class="mb-0">{{ current_business.currency }} {{ unpaid_invoice_total|floatformat:2 }}</h3>
+                <h3 class="mb-0">{{ unpaid_invoice_total|money:current_business }}</h3>
                 <span class="fa-solid fa-hand-holding-dollar text-body-tertiary"></span>
               </div>
             </div>
@@ -366,7 +325,7 @@
                           <p class="text-body-tertiary fs-10 mb-0">{{ invoice.created_at|date:"M j, Y g:i A" }}</p>
                         </div>
                         <div class="text-end">
-                          <div class="fw-semibold text-body-emphasis">{{ invoice.currency_code }} {{ invoice.total|floatformat:2 }}</div>
+                          <div class="fw-semibold text-body-emphasis">{{ invoice.total|money:invoice.business }}</div>
                           <span class="badge badge-phoenix badge-phoenix-secondary">{{ invoice.get_status_display }}</span>
                         </div>
                       </div>

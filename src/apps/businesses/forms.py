@@ -1,6 +1,12 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
+from .localization import (
+    normalize_postal_code_for_country,
+    uses_caribbean_address_format,
+    uses_netherlands_address_format,
+)
 from .models import (
     Business,
     BusinessBookingSettings,
@@ -12,6 +18,61 @@ from .utils import can_assign_business_role, get_assignable_business_roles
 
 
 class BusinessSettingsForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._apply_address_style()
+
+    def _address_country(self) -> str:
+        if self.is_bound:
+            return (self.data.get(self.add_prefix("country")) or "").strip()
+        return (getattr(self.instance, "country", "") or "").strip()
+
+    def _apply_address_style(self) -> None:
+        country = self._address_country()
+
+        if uses_netherlands_address_format(country):
+            self.fields["address_line_1"].label = "Street and house number"
+            self.fields["address_line_1"].widget.attrs.update(
+                {"placeholder": "Herengracht 101"}
+            )
+            self.fields["address_line_2"].label = "Apartment, suite, or unit"
+            self.fields["city"].label = "City"
+            self.fields["city"].widget.attrs.update({"placeholder": "Amsterdam"})
+            self.fields["region"].label = "Province (optional)"
+            self.fields["region"].widget.attrs.update({"placeholder": "North Holland"})
+            self.fields["region"].help_text = (
+                "Dutch postal addresses usually use postcode and city; province is optional."
+            )
+            self.fields["postal_code"].label = "Postcode"
+            self.fields["postal_code"].widget.attrs.update({"placeholder": "1015 BJ"})
+            self.fields["postal_code"].help_text = "Dutch format: 1234 AB."
+        elif uses_caribbean_address_format(country):
+            self.fields["address_line_1"].label = "Street address"
+            self.fields["address_line_1"].widget.attrs.update(
+                {"placeholder": "Front Street 12"}
+            )
+            self.fields["address_line_2"].label = "Apartment, suite, or landmark"
+            self.fields["address_line_2"].widget.attrs.update(
+                {"placeholder": "Suite, floor, or landmark"}
+            )
+            self.fields["city"].label = "Town / locality"
+            self.fields["city"].widget.attrs.update({"placeholder": "Philipsburg"})
+            self.fields["region"].label = "District / parish / island"
+            self.fields["region"].widget.attrs.update({"placeholder": "District or island"})
+            self.fields["postal_code"].label = "Postal code (optional)"
+            self.fields["postal_code"].widget.attrs.update(
+                {"placeholder": "Leave blank if unused"}
+            )
+            self.fields["postal_code"].help_text = (
+                "Many Caribbean territories do not use postal codes; leave blank if not applicable."
+            )
+
+    def clean_postal_code(self):
+        return normalize_postal_code_for_country(
+            self.cleaned_data.get("postal_code"),
+            self.cleaned_data.get("country") or self._address_country(),
+        )
+
     class Meta:
         model = Business
         fields = [
@@ -35,11 +96,12 @@ class BusinessSettingsForm(forms.ModelForm):
             "address",
         ]
         widgets = {
-            "name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Acme Freight"}
-            ),
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Acme Freight"}),
             "business_type": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Electrician, Cleaning Service, Consultant..."}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Electrician, Cleaning Service, Consultant...",
+                }
             ),
             "email": forms.EmailInput(
                 attrs={"class": "form-control", "placeholder": "hello@example.com"}
@@ -61,25 +123,29 @@ class BusinessSettingsForm(forms.ModelForm):
                 attrs={"class": "form-control", "placeholder": "VAT, BTW, GST, Tax"}
             ),
             "tax_rate": forms.NumberInput(
-                attrs={"class": "form-control", "min": 0, "max": 100, "step": "0.01"}
+                attrs={"class": "form-control", "min": 0, "max": 100, "step": "1.00"}
             ),
             "invoice_prefix": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "INV"}
             ),
-            "invoice_start_number": forms.NumberInput(
-                attrs={"class": "form-control", "min": 1}
-            ),
+            "invoice_start_number": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
             "address_line_1": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Street and building number"}
             ),
             "address_line_2": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Suite, floor, or additional details"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Suite, floor, or additional details",
+                }
             ),
             "city": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Amsterdam or Philipsburg"}
             ),
             "region": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "North Holland, district, province, or state"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "North Holland, district, province, or state",
+                }
             ),
             "postal_code": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Optional postal or ZIP code"}
@@ -166,14 +232,14 @@ class BusinessBookingSettingsForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "Optional cancellation policy text for future public booking pages.",
+                    "placeholder": "Optional cancellation policy text for public booking requests.",
                 }
             ),
             "reschedule_policy_text": forms.Textarea(
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "Optional reschedule policy text for future public booking pages.",
+                    "placeholder": "Optional reschedule policy text for public booking requests.",
                 }
             ),
         }
@@ -186,8 +252,8 @@ class BusinessBookingSettingsForm(forms.ModelForm):
             "confirmation_mode": "Confirmation mode",
         }
         help_texts = {
-            "booking_enabled": "This prepares the workspace for public booking. Public booking URLs are not active in this block.",
-            "default_duration_minutes": "Used later as the default appointment request length.",
+            "booking_enabled": "Controls whether public visitors can submit booking requests for this workspace.",
+            "default_duration_minutes": "Used as the default appointment request length.",
             "minimum_notice_hours": "How much advance notice public visitors must give before requesting a time.",
             "maximum_days_ahead": "How far into the future public visitors may request a time.",
             "buffer_minutes": "Optional spacing to reserve around requested appointment times.",
@@ -221,12 +287,14 @@ class WeeklyAvailabilityForm(forms.ModelForm):
     class Meta:
         model = WeeklyAvailability
         fields = [
+            "staff_member",
             "day_of_week",
             "start_time",
             "end_time",
             "is_active",
         ]
         widgets = {
+            "staff_member": forms.Select(attrs={"class": "form-select"}),
             "day_of_week": forms.Select(attrs={"class": "form-select"}),
             "start_time": forms.TimeInput(
                 attrs={"class": "form-control", "type": "time"},
@@ -239,22 +307,80 @@ class WeeklyAvailabilityForm(forms.ModelForm):
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
         labels = {
+            "staff_member": "Staff member",
             "day_of_week": "Day",
             "start_time": "Start time",
             "end_time": "End time",
             "is_active": "Active",
         }
         help_texts = {
+            "staff_member": "Leave blank to create a business-wide booking window.",
             "is_active": "Inactive blocks are ignored by public booking availability.",
         }
 
-    def __init__(self, *args, business: Business | None = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        business: Business | None = None,
+        user=None,
+        membership: BusinessUser | None = None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.business = business
+        self.user = user
+        self.membership = membership
         if business is not None:
             self.instance.business = business
+        self.fields["staff_member"].required = False
+        self.fields["staff_member"].queryset = self._staff_member_queryset()
+        self.fields["staff_member"].label_from_instance = self._staff_label
         self.fields["start_time"].input_formats = ["%H:%M"]
         self.fields["end_time"].input_formats = ["%H:%M"]
+
+        if self._is_staff_member():
+            self.fields["staff_member"].initial = user.pk if user is not None else None
+            self.fields["staff_member"].disabled = True
+            self.fields["staff_member"].help_text = (
+                "Staff availability is added to your own schedule."
+            )
+
+    def _is_staff_member(self) -> bool:
+        return self.membership is not None and self.membership.role == BusinessUser.Role.STAFF
+
+    def _staff_member_queryset(self):
+        if self.business is None:
+            return get_user_model().objects.none()
+
+        queryset = (
+            get_user_model()
+            .objects.filter(
+                business_memberships__business=self.business,
+                business_memberships__is_active=True,
+                business_memberships__business__is_active=True,
+                business_memberships__role__in=(
+                    BusinessUser.Role.OWNER,
+                    BusinessUser.Role.ADMIN,
+                    BusinessUser.Role.STAFF,
+                ),
+                is_active=True,
+            )
+            .distinct()
+            .order_by("first_name", "last_name", "email")
+        )
+        if self._is_staff_member() and self.user is not None:
+            return queryset.filter(pk=self.user.pk)
+        return queryset
+
+    @staticmethod
+    def _staff_label(user) -> str:
+        get_full_name = getattr(user, "get_full_name", None)
+        full_name = (get_full_name() if callable(get_full_name) else "") or getattr(
+            user,
+            "full_name",
+            "",
+        )
+        return full_name.strip() or user.email
 
     def clean(self):
         cleaned_data = super().clean()
@@ -267,11 +393,15 @@ class WeeklyAvailabilityForm(forms.ModelForm):
         if start_time and end_time and end_time <= start_time:
             self.add_error("end_time", "End time must be after the start time.")
 
+        if self._is_staff_member():
+            cleaned_data["staff_member"] = self.user
+
         return cleaned_data
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.business = self.business
+        instance.staff_member = self.cleaned_data.get("staff_member")
         if commit:
             instance.save()
             self.save_m2m()

@@ -90,17 +90,8 @@ def _request_context_block(lead: Lead) -> str:
     if _normalized_text(lead.message):
         lines.append(f"Message: {lead.message.strip()}")
 
-    address_parts = []
-    if _normalized_text(lead.street_address):
-        address_parts.append(lead.street_address.strip())
-    if _normalized_text(lead.district):
-        address_parts.append(lead.get_district_display())
-    if _normalized_text(lead.country):
-        address_parts.append(lead.country.strip())
-    if _normalized_text(lead.postal_code):
-        address_parts.append(lead.postal_code.strip())
-    if address_parts:
-        lines.append(f"Request location: {', '.join(address_parts)}")
+    if lead.formatted_address:
+        lines.append(f"Request location: {lead.formatted_address}")
 
     return "\n".join(lines)
 

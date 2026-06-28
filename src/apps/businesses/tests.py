@@ -10,8 +10,10 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import TaskIOUser
+from apps.crm.models import BusinessService
 from config import Settings
 
+from .localization import format_money_for_business, parse_localized_decimal
 from .models import (
     Business,
     BusinessBookingSettings,
@@ -43,7 +45,9 @@ class BusinessModelTests(TestCase):
             with transaction.atomic():
                 Business.objects.create(name="Motionmate HQ 2", slug="motionmate-hq")
 
-    def test_formatted_address_lines_prefers_structured_fields_and_falls_back_to_legacy_address(self):
+    def test_formatted_address_lines_prefers_structured_fields_and_falls_back_to_legacy_address(
+        self,
+    ):
         legacy_business = Business.objects.create(
             name="Legacy Address Workspace",
             slug="legacy-address-workspace",
@@ -65,7 +69,49 @@ class BusinessModelTests(TestCase):
         )
         self.assertEqual(
             structured_business.formatted_address_lines,
-            ["Herengracht 101", "Amsterdam, North Holland", "1015 BJ Netherlands"],
+            ["Herengracht 101", "1015 BJ Amsterdam", "Netherlands"],
+        )
+
+    def test_formatted_address_lines_use_caribbean_order_and_skip_unused_postal_code(self):
+        business = Business.objects.create(
+            name="Caribbean Address Workspace",
+            slug="caribbean-address-workspace",
+            address_line_1="Front Street 12",
+            address_line_2="Suite 4",
+            city="Philipsburg",
+            region="Sint Maarten",
+            postal_code="N/A",
+            country="Sint Maarten",
+        )
+
+        self.assertEqual(
+            business.formatted_address_lines,
+            ["Front Street 12", "Suite 4", "Philipsburg", "Sint Maarten"],
+        )
+
+    def test_money_formatting_uses_business_currency_locale_and_country(self):
+        dutch_business = Business.objects.create(
+            name="Amsterdam Workspace",
+            slug="amsterdam-workspace",
+            country="Netherlands",
+            currency=Business.Currency.EUR,
+            default_locale="nl-NL",
+        )
+        caribbean_business = Business.objects.create(
+            name="Caribbean Workspace",
+            slug="caribbean-workspace",
+            country="Sint Maarten",
+            currency=Business.Currency.USD,
+            default_locale="en-SX",
+        )
+
+        self.assertEqual(format_money_for_business(Decimal("1234.56"), dutch_business), "€1.234,56")
+        self.assertEqual(
+            format_money_for_business(Decimal("1234.56"), caribbean_business), "$1,234.56"
+        )
+        self.assertEqual(parse_localized_decimal("1.234,56", dutch_business), Decimal("1234.56"))
+        self.assertEqual(
+            parse_localized_decimal("1,234.56", caribbean_business), Decimal("1234.56")
         )
 
 
@@ -106,7 +152,9 @@ class BusinessUserModelTests(TestCase):
 
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.ADMIN)
+                BusinessUser.objects.create(
+                    user=user, business=business, role=BusinessUser.Role.ADMIN
+                )
 
 
 class SubscriptionAccessTests(TestCase):
@@ -175,8 +223,12 @@ class CurrentBusinessTests(TestCase):
     def test_get_current_business_prefers_valid_session_business(self):
         first_business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
         second_business = Business.objects.create(name="Beta Workspace", slug="beta-workspace")
-        BusinessUser.objects.create(user=self.user, business=first_business, role=BusinessUser.Role.STAFF)
-        BusinessUser.objects.create(user=self.user, business=second_business, role=BusinessUser.Role.OWNER)
+        BusinessUser.objects.create(
+            user=self.user, business=first_business, role=BusinessUser.Role.STAFF
+        )
+        BusinessUser.objects.create(
+            user=self.user, business=second_business, role=BusinessUser.Role.OWNER
+        )
 
         request = self._build_request({CURRENT_BUSINESS_SESSION_KEY: second_business.id})
 
@@ -188,8 +240,12 @@ class CurrentBusinessTests(TestCase):
     def test_get_current_business_falls_back_to_first_active_membership(self):
         first_business = Business.objects.create(name="Alpha Workspace", slug="alpha-workspace")
         second_business = Business.objects.create(name="Beta Workspace", slug="beta-workspace")
-        BusinessUser.objects.create(user=self.user, business=first_business, role=BusinessUser.Role.STAFF)
-        BusinessUser.objects.create(user=self.user, business=second_business, role=BusinessUser.Role.OWNER)
+        BusinessUser.objects.create(
+            user=self.user, business=first_business, role=BusinessUser.Role.STAFF
+        )
+        BusinessUser.objects.create(
+            user=self.user, business=second_business, role=BusinessUser.Role.OWNER
+        )
 
         request = self._build_request({CURRENT_BUSINESS_SESSION_KEY: 999999})
 
@@ -303,8 +359,89 @@ class BusinessSettingsViewTests(TestCase):
         self.assertContains(response, "Business type / industry")
         self.assertContains(response, "Default locale")
         self.assertContains(response, "Tax label")
-        self.assertContains(response, "Address line 1")
+        self.assertContains(response, "Street address")
         self.assertContains(response, "Motionmate HQ")
+        self.assertContains(response, 'name="tax_rate"')
+        self.assertContains(response, 'step="1.00"')
+
+    def test_business_settings_showcases_ready_public_booking_link(self):
+        public_booking_plan = ClarivoPlan.objects.create(
+            name="Public Booking",
+            slug="business-settings-public-booking",
+            allow_public_booking=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=public_booking_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+        )
+        BusinessService.objects.create(
+            business=self.business,
+            name="Bookable Inspection",
+            is_bookable_online=True,
+        )
+        WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+        )
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        response = self.client.get(reverse("business_settings"))
+
+        self.assertContains(response, "Public Booking Link")
+        self.assertContains(response, "Ready to share")
+        self.assertContains(response, reverse("public_booking", args=[self.business.slug]))
+
+    def test_business_settings_form_uses_dutch_address_labels_and_normalizes_postcode(self):
+        self.business.country = "Netherlands"
+        self.business.save(update_fields=["country", "updated_at"])
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        get_response = self.client.get(reverse("business_settings"))
+
+        self.assertContains(get_response, "Street and house number")
+        self.assertContains(get_response, "Postcode")
+        self.assertContains(get_response, "Dutch format: 1234 AB.")
+
+        post_response = self.client.post(
+            reverse("business_settings"),
+            {
+                "name": self.business.name,
+                "business_type": "",
+                "email": self.business.email,
+                "phone": "",
+                "country": "Netherlands",
+                "currency": "EUR",
+                "timezone": "Europe/Amsterdam",
+                "default_locale": "nl-NL",
+                "tax_label": "BTW",
+                "tax_rate": "21.00",
+                "invoice_prefix": "INV",
+                "invoice_start_number": "1",
+                "address_line_1": "Herengracht 101",
+                "address_line_2": "",
+                "city": "Amsterdam",
+                "region": "North Holland",
+                "postal_code": "1015bj",
+                "address": "",
+            },
+            follow=True,
+        )
+
+        self.business.refresh_from_db()
+
+        self.assertRedirects(post_response, reverse("business_settings"))
+        self.assertEqual(self.business.postal_code, "1015 BJ")
+        self.assertEqual(
+            self.business.formatted_address_lines,
+            ["Herengracht 101", "1015 BJ Amsterdam", "Netherlands"],
+        )
 
     def test_admin_can_update_business_settings(self):
         self._login_with_role(BusinessUser.Role.ADMIN)
@@ -461,8 +598,8 @@ class BusinessBookingSettingsTests(TestCase):
         with self.assertRaises(ValidationError):
             availability.full_clean()
 
-    def test_owner_and_admin_can_access_booking_settings(self):
-        for role in [BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN]:
+    def test_owner_admin_and_staff_can_access_booking_settings(self):
+        for role in [BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN, BusinessUser.Role.STAFF]:
             with self.subTest(role=role):
                 self._login_with_role(role)
 
@@ -470,11 +607,10 @@ class BusinessBookingSettingsTests(TestCase):
 
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Booking Settings")
-                self.assertContains(response, "Request Rules")
+                self.assertContains(response, "Add Weekly Availability")
 
-    def test_staff_accountant_and_viewer_cannot_edit_booking_settings(self):
+    def test_accountant_and_viewer_cannot_edit_booking_settings(self):
         for role in [
-            BusinessUser.Role.STAFF,
             BusinessUser.Role.ACCOUNTANT,
             BusinessUser.Role.VIEWER,
         ]:
@@ -491,9 +627,7 @@ class BusinessBookingSettingsTests(TestCase):
         response = self.client.get(reverse("business_booking_settings"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(
-            BusinessBookingSettings.objects.filter(business=self.business).exists()
-        )
+        self.assertTrue(BusinessBookingSettings.objects.filter(business=self.business).exists())
         self.assertFalse(
             BusinessBookingSettings.objects.filter(business=self.other_business).exists()
         )
@@ -539,6 +673,55 @@ class BusinessBookingSettingsTests(TestCase):
         self.assertTrue(availability.is_active)
         self.assertFalse(WeeklyAvailability.objects.filter(business=self.other_business).exists())
 
+    def test_admin_can_create_staff_specific_availability(self):
+        self._login_with_role(BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._availability_payload(staff_member=self.user.pk),
+            follow=True,
+        )
+
+        availability = WeeklyAvailability.objects.get(business=self.business)
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertEqual(availability.staff_member, self.user)
+        self.assertContains(response, "Booking Owner")
+
+    def test_staff_can_create_own_availability(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._availability_payload(staff_member=""),
+            follow=True,
+        )
+
+        availability = WeeklyAvailability.objects.get(business=self.business)
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertEqual(availability.staff_member, self.user)
+        self.assertContains(response, "Booking Owner")
+
+    def test_staff_cannot_update_booking_rules(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+        settings = BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=False,
+            default_duration_minutes=60,
+        )
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._settings_payload(default_duration_minutes="30"),
+        )
+
+        settings.refresh_from_db()
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(settings.booking_enabled)
+        self.assertEqual(settings.default_duration_minutes, 60)
+
     def test_invalid_weekly_availability_is_rejected(self):
         self._login_with_role(BusinessUser.Role.OWNER)
 
@@ -571,6 +754,48 @@ class BusinessBookingSettingsTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertTrue(other_availability.is_active)
+
+    def test_staff_cannot_deactivate_business_wide_availability(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+        availability = WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.FRIDAY,
+            start_time=time(10, 0),
+            end_time=time(14, 0),
+        )
+
+        response = self.client.post(
+            reverse(
+                "business_weekly_availability_deactivate",
+                args=[availability.id],
+            ),
+        )
+        availability.refresh_from_db()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(availability.is_active)
+
+    def test_staff_can_deactivate_own_availability(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+        availability = WeeklyAvailability.objects.create(
+            business=self.business,
+            staff_member=self.user,
+            day_of_week=WeeklyAvailability.DayOfWeek.FRIDAY,
+            start_time=time(10, 0),
+            end_time=time(14, 0),
+        )
+
+        response = self.client.post(
+            reverse(
+                "business_weekly_availability_deactivate",
+                args=[availability.id],
+            ),
+            follow=True,
+        )
+        availability.refresh_from_db()
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertFalse(availability.is_active)
 
     def test_deactivated_availability_no_longer_appears_as_active(self):
         self._login_with_role(BusinessUser.Role.OWNER)
@@ -611,7 +836,7 @@ class BusinessBookingSettingsTests(TestCase):
         )
         self.assertContains(response, "You can still prepare these settings now")
 
-    def test_plan_message_shows_included_when_public_booking_allowed(self):
+    def test_plan_message_shows_setup_status_when_public_booking_allowed(self):
         BusinessSubscription.objects.create(
             business=self.business,
             plan=self.public_booking_plan,
@@ -622,7 +847,38 @@ class BusinessBookingSettingsTests(TestCase):
         response = self.client.get(reverse("business_booking_settings"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Public booking is included")
+        self.assertContains(response, "Public booking requires setup")
+
+    def test_staff_can_see_ready_public_booking_link_in_booking_settings(self):
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.public_booking_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+        )
+        BusinessService.objects.create(
+            business=self.business,
+            name="Online Consultation",
+            is_bookable_online=True,
+        )
+        WeeklyAvailability.objects.create(
+            business=self.business,
+            staff_member=self.user,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+        )
+        self._login_with_role(BusinessUser.Role.STAFF)
+
+        response = self.client.get(reverse("business_booking_settings"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Public Booking Link")
+        self.assertContains(response, "Ready to share")
+        self.assertContains(response, reverse("public_booking", args=[self.business.slug]))
 
 
 class BusinessSubscriptionViewTests(TestCase):
@@ -780,13 +1036,17 @@ class BusinessInvitationViewTests(TestCase):
         self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
         self.assertEqual(invitation.invited_by, self.owner)
         self.assertContains(response, "Invitation created and emailed successfully.")
-        self.assertContains(response, reverse("accept_business_invitation", args=[invitation.token]))
+        self.assertContains(
+            response, reverse("accept_business_invitation", args=[invitation.token])
+        )
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["employee@example.com"])
         self.assertIn("Motionmate", mail.outbox[0].body)
         self.assertIn(self.business.name, mail.outbox[0].body)
         self.assertIn("Staff", mail.outbox[0].body)
-        self.assertIn(reverse("accept_business_invitation", args=[invitation.token]), mail.outbox[0].body)
+        self.assertIn(
+            reverse("accept_business_invitation", args=[invitation.token]), mail.outbox[0].body
+        )
 
     def test_invite_still_exists_if_email_send_fails(self):
         self._login(self.owner, BusinessUser.Role.OWNER)
@@ -810,7 +1070,9 @@ class BusinessInvitationViewTests(TestCase):
         self.assertEqual(invitation.business, self.business)
         self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
         self.assertContains(response, "email could not be sent")
-        self.assertContains(response, reverse("accept_business_invitation", args=[invitation.token]))
+        self.assertContains(
+            response, reverse("accept_business_invitation", args=[invitation.token])
+        )
 
     def test_admin_cannot_invite_owner_role(self):
         self._login(self.admin, BusinessUser.Role.ADMIN)

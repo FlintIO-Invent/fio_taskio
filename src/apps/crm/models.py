@@ -8,6 +8,8 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 
+from apps.businesses.localization import format_crm_address, format_crm_address_lines
+
 
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -259,7 +261,7 @@ class Lead(TimeStampedModel):
     company_name        = models.CharField(max_length=120)
     message             = models.TextField(blank=True)
     street_address      = models.CharField(max_length=255, blank=True)
-    district            = models.CharField( max_length=100, choices=DistrictChoices.choices,  blank=True)
+    district            = models.CharField(max_length=100, blank=True)
     country             = models.CharField(max_length=100, blank=True, default="Sint Maarten")
     postal_code         = models.CharField(max_length=20, blank=True, default="N/A")
     notes               = models.TextField(blank=True)
@@ -301,6 +303,27 @@ class Lead(TimeStampedModel):
         if duration_seconds <= 0:
             return None
         return int(duration_seconds // 60)
+
+    def get_district_display(self) -> str:
+        return dict(self.DistrictChoices.choices).get(self.district, self.district)
+
+    @property
+    def formatted_address_lines(self) -> list[str]:
+        return format_crm_address_lines(
+            street_address=self.street_address,
+            locality=self.get_district_display(),
+            country=self.country,
+            postal_code=self.postal_code,
+        )
+
+    @property
+    def formatted_address(self) -> str:
+        return format_crm_address(
+            street_address=self.street_address,
+            locality=self.get_district_display(),
+            country=self.country,
+            postal_code=self.postal_code,
+        )
 
 
 class Client(TimeStampedModel):
@@ -429,11 +452,7 @@ class Client(TimeStampedModel):
 
     # Address / location
     street_address = models.CharField(max_length=255)
-    district = models.CharField(
-        max_length=100,
-        choices=DistrictChoices.choices,
-        blank=True,
-    )
+    district = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True, default="Sint Maarten")
     postal_code = models.CharField(max_length=20, blank=True, default="N/A")
 
@@ -453,6 +472,27 @@ class Client(TimeStampedModel):
         if self.company_name:
             return f"{name} - {self.company_name}"
         return name
+
+    def get_district_display(self) -> str:
+        return dict(self.DistrictChoices.choices).get(self.district, self.district)
+
+    @property
+    def formatted_address_lines(self) -> list[str]:
+        return format_crm_address_lines(
+            street_address=self.street_address,
+            locality=self.get_district_display(),
+            country=self.country,
+            postal_code=self.postal_code,
+        )
+
+    @property
+    def formatted_address(self) -> str:
+        return format_crm_address(
+            street_address=self.street_address,
+            locality=self.get_district_display(),
+            country=self.country,
+            postal_code=self.postal_code,
+        )
 
 
 class ActivityLog(TimeStampedModel):

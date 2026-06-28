@@ -31,7 +31,7 @@
 
     {% if public_booking_allowed %}
       <div class="alert alert-info border mb-4" role="alert">
-        Public booking is included in the current workspace plan. These fields prepare this service for the future public booking form.
+        Public booking requests are included in the current workspace plan. These fields control how this service appears on the public booking request form.
       </div>
     {% else %}
       <div class="alert alert-warning border mb-4" role="alert">
@@ -63,11 +63,13 @@
               <div class="col-md-3">
                 <label class="form-label" for="{{ form.unit_price.id_for_label }}">Unit price</label>
                 {{ form.unit_price }}
+                {% if form.unit_price.help_text %}<div class="form-text">{{ form.unit_price.help_text }}</div>{% endif %}
                 {% if form.unit_price.errors %}<div class="invalid-feedback d-block">{{ form.unit_price.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-3">
                 <label class="form-label" for="{{ form.tax_rate.id_for_label }}">Tax rate</label>
                 {{ form.tax_rate }}
+                {% if form.tax_rate.help_text %}<div class="form-text">{{ form.tax_rate.help_text }}</div>{% endif %}
                 {% if form.tax_rate.errors %}<div class="invalid-feedback d-block">{{ form.tax_rate.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">
@@ -78,8 +80,8 @@
 
               <div class="col-12">
                 <hr class="my-2">
-                <h5 class="mb-1">Online Booking Preparation</h5>
-                <p class="text-body-tertiary mb-3">Only services marked bookable online will appear later on the public booking form. Public visitors will request a time and your team will confirm internally.</p>
+                <h5 class="mb-1">Online Booking Requests</h5>
+                <p class="text-body-tertiary mb-3">Only services marked bookable online can appear on the public booking request form. Public visitors request a time and your team confirms internally.</p>
               </div>
 
               <div class="col-12">
@@ -151,8 +153,9 @@
             <div class="rounded-3 border p-3">
               <p class="text-body-tertiary text-uppercase fs-10 mb-1">Default Tax Rate</p>
               <h3 class="mb-0">{{ business.tax_rate|floatformat:2 }}%</h3>
+              <p class="text-body-tertiary small mt-2 mb-0">{{ business.tax_label|default:"Tax" }} from Business Settings is prefilled for new services when tax rate is left blank.</p>
             </div>
-            <p class="text-body-tertiary small mt-3 mb-0">You can leave the category blank if the service should stay uncategorized for now.</p>
+            <p class="text-body-tertiary small mt-3 mb-0">Changing business tax defaults affects new services only. Existing services keep their current tax rate unless edited manually.</p>
           </div>
         </div>
       </div>

@@ -8,8 +8,12 @@
       <p class="text-body-tertiary mb-0">Prepare request-first public booking rules and weekly availability for {{ business.name }}.</p>
     </div>
     <div class="col-auto d-flex gap-2">
-      <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Workspace Settings</a>
-      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Services</a>
+      {% if can_manage_booking_rules %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Workspace Settings</a>
+      {% endif %}
+      {% if role_access.can_manage_services %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Services</a>
+      {% endif %}
       <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
     </div>
   </div>
@@ -23,14 +27,22 @@
   {% endif %}
 
   {% if public_booking_allowed %}
-    <div class="alert alert-info border mb-4" role="alert">
-      Public booking is included in the current workspace plan. This page only prepares settings; public booking pages are not active yet.
+    <div class="alert {% if booking_settings.booking_enabled %}alert-success{% else %}alert-info{% endif %} border mb-4" role="alert">
+      {% if booking_settings.booking_enabled %}
+        Public booking requests enabled. Customers can submit requests for your team to review and confirm manually.
+      {% else %}
+        Public booking requires setup. Enable public booking requests after adding the rules and availability your team wants to offer.
+      {% endif %}
     </div>
   {% else %}
     <div class="alert alert-warning border mb-4" role="alert">
       {{ unavailable_message }} You can still prepare these settings now, but public booking will remain unavailable until the workspace plan includes Public Booking.
     </div>
   {% endif %}
+
+  <div class="mb-4">
+    {% include "businesses/includes/public_booking_share_card.html" %}
+  </div>
 
   <div class="row g-4">
     <div class="col-12 col-xl-7">
@@ -48,82 +60,95 @@
             <div class="alert alert-danger">{{ settings_form.non_field_errors|striptags }}</div>
           {% endif %}
 
-          <form method="post" novalidate>
-            {% csrf_token %}
-            <input type="hidden" name="form_kind" value="settings">
+          {% if can_manage_booking_rules %}
+            <form method="post" novalidate>
+              {% csrf_token %}
+              <input type="hidden" name="form_kind" value="settings">
 
-            <div class="form-check form-switch mb-4">
-              {{ settings_form.booking_enabled }}
-              <label class="form-check-label" for="{{ settings_form.booking_enabled.id_for_label }}">Enable public booking requests</label>
-              {% if settings_form.booking_enabled.help_text %}<div class="form-text">{{ settings_form.booking_enabled.help_text }}</div>{% endif %}
-              {% if settings_form.booking_enabled.errors %}<div class="invalid-feedback d-block">{{ settings_form.booking_enabled.errors|striptags }}</div>{% endif %}
-            </div>
+              <div class="form-check form-switch mb-4">
+                {{ settings_form.booking_enabled }}
+                <label class="form-check-label" for="{{ settings_form.booking_enabled.id_for_label }}">Enable public booking requests</label>
+                {% if settings_form.booking_enabled.help_text %}<div class="form-text">{{ settings_form.booking_enabled.help_text }}</div>{% endif %}
+                {% if settings_form.booking_enabled.errors %}<div class="invalid-feedback d-block">{{ settings_form.booking_enabled.errors|striptags }}</div>{% endif %}
+              </div>
 
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label" for="{{ settings_form.default_duration_minutes.id_for_label }}">Default duration</label>
-                <div class="input-group">
-                  {{ settings_form.default_duration_minutes }}
-                  <span class="input-group-text">minutes</span>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ settings_form.default_duration_minutes.id_for_label }}">Default duration</label>
+                  <div class="input-group">
+                    {{ settings_form.default_duration_minutes }}
+                    <span class="input-group-text">minutes</span>
+                  </div>
+                  {% if settings_form.default_duration_minutes.help_text %}<div class="form-text">{{ settings_form.default_duration_minutes.help_text }}</div>{% endif %}
+                  {% if settings_form.default_duration_minutes.errors %}<div class="invalid-feedback d-block">{{ settings_form.default_duration_minutes.errors|striptags }}</div>{% endif %}
                 </div>
-                {% if settings_form.default_duration_minutes.help_text %}<div class="form-text">{{ settings_form.default_duration_minutes.help_text }}</div>{% endif %}
-                {% if settings_form.default_duration_minutes.errors %}<div class="invalid-feedback d-block">{{ settings_form.default_duration_minutes.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ settings_form.minimum_notice_hours.id_for_label }}">Minimum notice</label>
-                <div class="input-group">
-                  {{ settings_form.minimum_notice_hours }}
-                  <span class="input-group-text">hours</span>
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ settings_form.minimum_notice_hours.id_for_label }}">Minimum notice</label>
+                  <div class="input-group">
+                    {{ settings_form.minimum_notice_hours }}
+                    <span class="input-group-text">hours</span>
+                  </div>
+                  {% if settings_form.minimum_notice_hours.help_text %}<div class="form-text">{{ settings_form.minimum_notice_hours.help_text }}</div>{% endif %}
+                  {% if settings_form.minimum_notice_hours.errors %}<div class="invalid-feedback d-block">{{ settings_form.minimum_notice_hours.errors|striptags }}</div>{% endif %}
                 </div>
-                {% if settings_form.minimum_notice_hours.help_text %}<div class="form-text">{{ settings_form.minimum_notice_hours.help_text }}</div>{% endif %}
-                {% if settings_form.minimum_notice_hours.errors %}<div class="invalid-feedback d-block">{{ settings_form.minimum_notice_hours.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ settings_form.maximum_days_ahead.id_for_label }}">Maximum days ahead</label>
-                <div class="input-group">
-                  {{ settings_form.maximum_days_ahead }}
-                  <span class="input-group-text">days</span>
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ settings_form.maximum_days_ahead.id_for_label }}">Maximum days ahead</label>
+                  <div class="input-group">
+                    {{ settings_form.maximum_days_ahead }}
+                    <span class="input-group-text">days</span>
+                  </div>
+                  {% if settings_form.maximum_days_ahead.help_text %}<div class="form-text">{{ settings_form.maximum_days_ahead.help_text }}</div>{% endif %}
+                  {% if settings_form.maximum_days_ahead.errors %}<div class="invalid-feedback d-block">{{ settings_form.maximum_days_ahead.errors|striptags }}</div>{% endif %}
                 </div>
-                {% if settings_form.maximum_days_ahead.help_text %}<div class="form-text">{{ settings_form.maximum_days_ahead.help_text }}</div>{% endif %}
-                {% if settings_form.maximum_days_ahead.errors %}<div class="invalid-feedback d-block">{{ settings_form.maximum_days_ahead.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ settings_form.buffer_minutes.id_for_label }}">Buffer time</label>
-                <div class="input-group">
-                  {{ settings_form.buffer_minutes }}
-                  <span class="input-group-text">minutes</span>
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ settings_form.buffer_minutes.id_for_label }}">Buffer time</label>
+                  <div class="input-group">
+                    {{ settings_form.buffer_minutes }}
+                    <span class="input-group-text">minutes</span>
+                  </div>
+                  {% if settings_form.buffer_minutes.help_text %}<div class="form-text">{{ settings_form.buffer_minutes.help_text }}</div>{% endif %}
+                  {% if settings_form.buffer_minutes.errors %}<div class="invalid-feedback d-block">{{ settings_form.buffer_minutes.errors|striptags }}</div>{% endif %}
                 </div>
-                {% if settings_form.buffer_minutes.help_text %}<div class="form-text">{{ settings_form.buffer_minutes.help_text }}</div>{% endif %}
-                {% if settings_form.buffer_minutes.errors %}<div class="invalid-feedback d-block">{{ settings_form.buffer_minutes.errors|striptags }}</div>{% endif %}
+                <div class="col-12">
+                  <label class="form-label" for="{{ settings_form.confirmation_mode.id_for_label }}">Confirmation mode</label>
+                  {{ settings_form.confirmation_mode }}
+                  {% if settings_form.confirmation_mode.help_text %}<div class="form-text">{{ settings_form.confirmation_mode.help_text }}</div>{% endif %}
+                  {% if settings_form.confirmation_mode.errors %}<div class="invalid-feedback d-block">{{ settings_form.confirmation_mode.errors|striptags }}</div>{% endif %}
+                </div>
               </div>
-              <div class="col-12">
-                <label class="form-label" for="{{ settings_form.confirmation_mode.id_for_label }}">Confirmation mode</label>
-                {{ settings_form.confirmation_mode }}
-                {% if settings_form.confirmation_mode.help_text %}<div class="form-text">{{ settings_form.confirmation_mode.help_text }}</div>{% endif %}
-                {% if settings_form.confirmation_mode.errors %}<div class="invalid-feedback d-block">{{ settings_form.confirmation_mode.errors|striptags }}</div>{% endif %}
+
+              <hr class="my-4">
+
+              <div class="mb-3">
+                <label class="form-label" for="{{ settings_form.public_booking_instructions.id_for_label }}">Public booking instructions</label>
+                {{ settings_form.public_booking_instructions }}
+                {% if settings_form.public_booking_instructions.errors %}<div class="invalid-feedback d-block">{{ settings_form.public_booking_instructions.errors|striptags }}</div>{% endif %}
               </div>
-            </div>
+              <div class="mb-3">
+                <label class="form-label" for="{{ settings_form.cancellation_policy_text.id_for_label }}">Cancellation policy</label>
+                {{ settings_form.cancellation_policy_text }}
+                {% if settings_form.cancellation_policy_text.errors %}<div class="invalid-feedback d-block">{{ settings_form.cancellation_policy_text.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="mb-4">
+                <label class="form-label" for="{{ settings_form.reschedule_policy_text.id_for_label }}">Reschedule policy</label>
+                {{ settings_form.reschedule_policy_text }}
+                {% if settings_form.reschedule_policy_text.errors %}<div class="invalid-feedback d-block">{{ settings_form.reschedule_policy_text.errors|striptags }}</div>{% endif %}
+              </div>
 
-            <hr class="my-4">
-
-            <div class="mb-3">
-              <label class="form-label" for="{{ settings_form.public_booking_instructions.id_for_label }}">Public booking instructions</label>
-              {{ settings_form.public_booking_instructions }}
-              {% if settings_form.public_booking_instructions.errors %}<div class="invalid-feedback d-block">{{ settings_form.public_booking_instructions.errors|striptags }}</div>{% endif %}
-            </div>
-            <div class="mb-3">
-              <label class="form-label" for="{{ settings_form.cancellation_policy_text.id_for_label }}">Cancellation policy</label>
-              {{ settings_form.cancellation_policy_text }}
-              {% if settings_form.cancellation_policy_text.errors %}<div class="invalid-feedback d-block">{{ settings_form.cancellation_policy_text.errors|striptags }}</div>{% endif %}
-            </div>
-            <div class="mb-4">
-              <label class="form-label" for="{{ settings_form.reschedule_policy_text.id_for_label }}">Reschedule policy</label>
-              {{ settings_form.reschedule_policy_text }}
-              {% if settings_form.reschedule_policy_text.errors %}<div class="invalid-feedback d-block">{{ settings_form.reschedule_policy_text.errors|striptags }}</div>{% endif %}
-            </div>
-
-            <button class="btn btn-primary" type="submit">Save booking settings</button>
-          </form>
+              <button class="btn btn-primary" type="submit">Save booking settings</button>
+            </form>
+          {% else %}
+            <dl class="row mb-0">
+              <dt class="col-sm-5 text-body-tertiary">Public booking</dt>
+              <dd class="col-sm-7">{% if booking_settings.booking_enabled %}Enabled{% else %}Disabled{% endif %}</dd>
+              <dt class="col-sm-5 text-body-tertiary">Default duration</dt>
+              <dd class="col-sm-7">{{ booking_settings.default_duration_minutes }} minutes</dd>
+              <dt class="col-sm-5 text-body-tertiary">Minimum notice</dt>
+              <dd class="col-sm-7">{{ booking_settings.minimum_notice_hours }} hours</dd>
+              <dt class="col-sm-5 text-body-tertiary">Booking window</dt>
+              <dd class="col-sm-7">{{ booking_settings.maximum_days_ahead }} days ahead</dd>
+            </dl>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -132,7 +157,7 @@
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-body p-4">
           <h4 class="mb-1">Add Weekly Availability</h4>
-          <p class="text-body-tertiary mb-4">Add business-level windows when customers may request appointment times.</p>
+          <p class="text-body-tertiary mb-4">Add windows when customers may request appointment times.</p>
 
           {% if availability_form.non_field_errors %}
             <div class="alert alert-danger">{{ availability_form.non_field_errors|striptags }}</div>
@@ -141,6 +166,13 @@
           <form method="post" novalidate>
             {% csrf_token %}
             <input type="hidden" name="form_kind" value="availability">
+
+            <div class="mb-3">
+              <label class="form-label" for="{{ availability_form.staff_member.id_for_label }}">Staff member</label>
+              {{ availability_form.staff_member }}
+              {% if availability_form.staff_member.help_text %}<div class="form-text">{{ availability_form.staff_member.help_text }}</div>{% endif %}
+              {% if availability_form.staff_member.errors %}<div class="invalid-feedback d-block">{{ availability_form.staff_member.errors|striptags }}</div>{% endif %}
+            </div>
 
             <div class="mb-3">
               <label class="form-label" for="{{ availability_form.day_of_week.id_for_label }}">Day</label>
@@ -178,7 +210,7 @@
           <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
             <div>
               <h4 class="mb-1">Weekly Availability</h4>
-              <p class="text-body-tertiary mb-0">Active business-level availability blocks.</p>
+              <p class="text-body-tertiary mb-0">Active availability blocks.</p>
             </div>
             {% if inactive_availability_count %}
               <span class="badge badge-phoenix badge-phoenix-secondary">{{ inactive_availability_count }} inactive</span>
@@ -190,6 +222,7 @@
               <table class="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
+                    <th>Staff</th>
                     <th>Day</th>
                     <th>Time</th>
                     <th class="text-end">Action</th>
@@ -198,6 +231,13 @@
                 <tbody>
                   {% for block in availability_blocks %}
                     <tr>
+                      <td>
+                        {% if block.staff_member %}
+                          {{ block.staff_member.get_full_name|default:block.staff_member.email }}
+                        {% else %}
+                          Business-wide
+                        {% endif %}
+                      </td>
                       <td class="fw-semibold">{{ block.get_day_of_week_display }}</td>
                       <td>{{ block.start_time|time:"H:i" }} - {{ block.end_time|time:"H:i" }}</td>
                       <td class="text-end">
@@ -212,7 +252,7 @@
               </table>
             </div>
           {% else %}
-            <div class="alert alert-light border mb-0" role="alert">
+            <div class="alert alert-subtle-secondary border mb-0" role="alert">
               No active weekly availability has been added yet.
             </div>
           {% endif %}

@@ -251,11 +251,17 @@ class BillingBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_owner_admin_accountant_and_viewer_can_download_invoice_pdf(self):
+    def test_owner_admin_staff_accountant_and_viewer_can_download_invoice_pdf(self):
         self._add_invoice_line()
         admin_user = self._create_admin_user()
 
-        for user in [self.user, admin_user, self.accountant_user, self.viewer_user]:
+        for user in [
+            self.user,
+            admin_user,
+            self.staff_user,
+            self.accountant_user,
+            self.viewer_user,
+        ]:
             with self.subTest(user=user.email):
                 self.client.force_login(user)
                 response = self.client.get(reverse("invoice_pdf_download", args=[self.invoice.id]))
@@ -263,21 +269,12 @@ class BillingBusinessScopingTests(TestCase):
 
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response["Content-Type"], "application/pdf")
-                self.assertIn('filename="invoice-INV-ALPHA-001.pdf"', response["Content-Disposition"])
+                self.assertIn(
+                    'filename="invoice-INV-ALPHA-001.pdf"', response["Content-Disposition"]
+                )
                 self.assertTrue(response.content.startswith(b"%PDF"))
                 self.assertIn(b"INV-ALPHA-001", response.content)
                 self.assertIn(b"XCD 133.13", response.content)
-
-    def test_staff_cannot_download_invoice_pdf(self):
-        self.client.force_login(self.staff_user)
-
-        response = self.client.get(reverse("invoice_pdf_download", args=[self.invoice.id]))
-
-        self.assertRedirects(
-            response,
-            reverse("agent_dashboard"),
-            fetch_redirect_response=False,
-        )
 
     def test_invoice_pdf_download_blocks_other_business_invoice(self):
         self.client.force_login(self.user)
@@ -325,6 +322,21 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(activity_log.business, self.business)
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_staff_can_email_invoice(self):
+        mail.outbox.clear()
+        self._add_invoice_line()
+        self.client.force_login(self.staff_user)
+
+        response = self.client.post(
+            reverse("invoice_email_send", args=[self.invoice.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
+        self.assertContains(response, "Invoice emailed to alicia@example.com.")
+        self.assertEqual(len(mail.outbox), 1)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_invoice_email_fails_gracefully_when_client_email_missing(self):
         mail.outbox.clear()
         self.client_record.email = ""
@@ -356,20 +368,17 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-    def test_staff_and_viewer_cannot_email_invoice(self):
+    def test_viewer_cannot_email_invoice(self):
         mail.outbox.clear()
+        self.client.force_login(self.viewer_user)
 
-        for user in [self.staff_user, self.viewer_user]:
-            with self.subTest(user=user.email):
-                self.client.force_login(user)
-                response = self.client.post(reverse("invoice_email_send", args=[self.invoice.id]))
-                self.client.logout()
+        response = self.client.post(reverse("invoice_email_send", args=[self.invoice.id]))
 
-                self.assertRedirects(
-                    response,
-                    reverse("invoice_list"),
-                    fetch_redirect_response=False,
-                )
+        self.assertRedirects(
+            response,
+            reverse("invoice_list"),
+            fetch_redirect_response=False,
+        )
         self.assertEqual(len(mail.outbox), 0)
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -404,7 +413,9 @@ class BillingBusinessScopingTests(TestCase):
     def test_invoice_create_from_client_sets_invoice_business(self):
         self.client.force_login(self.user)
 
-        response = self.client.post(reverse("invoice_create_from_client", args=[self.client_record.id]))
+        response = self.client.post(
+            reverse("invoice_create_from_client", args=[self.client_record.id])
+        )
 
         created_invoice = Invoice.objects.get(
             business=self.business,
@@ -428,11 +439,32 @@ class BillingBusinessScopingTests(TestCase):
     def test_invoice_create_page_only_lists_current_business_services(self):
         self.client.force_login(self.user)
 
-        response = self.client.get(reverse("invoice_create_from_client", args=[self.client_record.id]))
+        response = self.client.get(
+            reverse("invoice_create_from_client", args=[self.client_record.id])
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.business_service.name)
+        self.assertContains(response, "$125.00")
         self.assertNotContains(response, self.other_business_service.name)
+
+    def test_invoice_create_page_line_item_numbers_step_in_whole_units(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("invoice_create_from_client", args=[self.client_record.id])
+        )
+        html = response.content.decode()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            'name="quantity" value="" step="1.00" min="1.00" inputmode="numeric"',
+            html,
+        )
+        self.assertIn('name="unit_price" value="" step="1.00" min="0"', html)
+        self.assertNotIn('step="0.01"', html)
+        self.assertIn("function isWholeUnitQuantity(value)", html)
+        self.assertIn("quantityInput.value = '1.00';", html)
 
     def test_invoice_create_from_client_uses_service_snapshot_values(self):
         self.client.force_login(self.user)
@@ -661,7 +693,9 @@ class BillingBusinessScopingTests(TestCase):
         )
 
         self.invoice.refresh_from_db()
-        activity_log = ActivityLog.objects.get(client=self.client_record, action_type=ActivityLog.ActionType.STATUS_CHANGED)
+        activity_log = ActivityLog.objects.get(
+            client=self.client_record, action_type=ActivityLog.ActionType.STATUS_CHANGED
+        )
 
         self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
         self.assertEqual(self.invoice.status, Invoice.Status.SENT)
@@ -705,46 +739,43 @@ class BillingBusinessScopingTests(TestCase):
         self.assertRedirects(response, reverse("business_subscription"))
         self.assertContains(response, "Invoicing is not included in the current workspace plan")
 
-    def test_staff_cannot_view_invoices(self):
+    def test_staff_can_view_invoices(self):
         self.client.force_login(self.staff_user)
 
-        response = self.client.get(reverse("invoice_list"), follow=True)
+        response = self.client.get(reverse("invoice_list"))
 
-        self.assertRedirects(response, reverse("agent_dashboard"))
-        self.assertContains(response, "You do not have permission to view invoices.")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.invoice.invoice_number)
 
-    def test_staff_cannot_open_invoice_create_page(self):
+    def test_staff_can_open_invoice_create_page(self):
         self.client.force_login(self.staff_user)
 
         response = self.client.get(
             reverse("invoice_create_from_client", args=[self.client_record.id]),
-            follow=True,
         )
 
-        self.assertRedirects(response, reverse("agent_dashboard"))
-        self.assertContains(response, "You do not have permission to manage invoices.")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Create Invoice from Client")
 
-    def test_staff_cannot_open_invoice_create_from_appointment_page(self):
+    def test_staff_can_open_invoice_create_from_appointment_page(self):
         self.client.force_login(self.staff_user)
 
         response = self.client.get(
             reverse("invoice_create_from_appointment", args=[self.appointment.id]),
-            follow=True,
         )
 
-        self.assertRedirects(response, reverse("agent_dashboard"))
-        self.assertContains(response, "You do not have permission to manage invoices.")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Create Invoice from Appointment")
 
-    def test_staff_cannot_open_invoice_edit_page(self):
-        self.client.force_login(self.staff_user)
+    def test_staff_and_accountant_can_open_invoice_edit_page(self):
+        for user in [self.staff_user, self.accountant_user]:
+            with self.subTest(user=user.email):
+                self.client.force_login(user)
 
-        response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]))
+                response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]))
 
-        self.assertRedirects(
-            response,
-            reverse("invoice_list"),
-            fetch_redirect_response=False,
-        )
+                self.assertEqual(response.status_code, 200)
+                self.client.logout()
 
     def test_viewer_cannot_edit_invoice(self):
         self.client.force_login(self.viewer_user)
@@ -765,33 +796,57 @@ class BillingBusinessScopingTests(TestCase):
         self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertContains(response, "You do not have permission to manage invoices.")
 
-    def test_accountant_can_open_invoice_edit_page(self):
-        self.client.force_login(self.accountant_user)
+    def test_staff_and_accountant_can_create_invoice_from_client(self):
+        for user in [self.staff_user, self.accountant_user]:
+            with self.subTest(user=user.email):
+                self.client.force_login(user)
+
+                response = self.client.post(
+                    reverse("invoice_create_from_client", args=[self.client_record.id]),
+                    data={
+                        "service_id": [str(self.business_service.id)],
+                        "description": [""],
+                        "quantity": ["1"],
+                        "unit_price": [""],
+                    },
+                )
+
+                created_invoice = Invoice.objects.get(
+                    business=self.business,
+                    invoice_number="CLR-0250",
+                )
+
+                self.assertRedirects(
+                    response,
+                    reverse("invoice_detail", args=[created_invoice.id]),
+                )
+                self.assertEqual(created_invoice.client, self.client_record)
+                created_invoice.delete()
+                self.client.logout()
+
+    def test_invoice_edit_page_line_item_numbers_step_in_whole_units(self):
+        self._add_invoice_line()
+        self.client.force_login(self.user)
 
         response = self.client.get(reverse("invoice_edit", args=[self.invoice.id]))
+        html = response.content.decode()
 
         self.assertEqual(response.status_code, 200)
-
-    def test_accountant_can_create_invoice_from_client(self):
-        self.client.force_login(self.accountant_user)
-
-        response = self.client.post(
-            reverse("invoice_create_from_client", args=[self.client_record.id]),
-            data={
-                "service_id": [str(self.business_service.id)],
-                "description": [""],
-                "quantity": ["1"],
-                "unit_price": [""],
-            },
+        self.assertIn(
+            'name="quantity" value="1.00" step="1.00" min="1.00" inputmode="numeric"',
+            html,
         )
-
-        created_invoice = Invoice.objects.get(
-            business=self.business,
-            invoice_number="CLR-0250",
+        self.assertIn(
+            'name="new_quantity" step="1.00" min="1.00" inputmode="numeric" disabled',
+            html,
         )
-
-        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
-        self.assertEqual(created_invoice.client, self.client_record)
+        self.assertIn('name="unit_price" value="125.00" step="1.00" min="0"', html)
+        self.assertNotIn('step="0.01"', html)
+        self.assertIn("function isWholeUnitQuantity(value)", html)
+        self.assertIn(
+            "setInputValue(lineItem, 'quantity', 'new_quantity', '1.00');",
+            html,
+        )
 
     def test_admin_can_create_invoice_from_appointment(self):
         admin_user = self._create_admin_user()
@@ -862,14 +917,14 @@ class BillingBusinessScopingTests(TestCase):
         self.assertContains(response, reverse("appointment_detail", args=[self.appointment.id]))
         self.assertContains(response, self.appointment.title)
 
-    def test_staff_invoice_list_is_not_shown_in_dashboard_navigation(self):
+    def test_staff_invoice_list_is_shown_in_dashboard_navigation(self):
         self.client.force_login(self.staff_user)
 
         response = self.client.get(reverse("agent_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, reverse("invoice_list"))
-        self.assertContains(response, "Restricted")
+        self.assertContains(response, reverse("invoice_list"))
+        self.assertNotContains(response, "Invoices Restricted")
 
     def test_invoice_numbers_are_unique_per_business(self):
         Invoice.objects.create(
@@ -1094,15 +1149,20 @@ class BillingBusinessScopingTests(TestCase):
         self.assertContains(response, "You do not have permission to manage invoices.")
         self.assertEqual(self.invoice.status, Invoice.Status.DRAFT)
 
-    def test_accountant_can_change_invoice_status(self):
-        self.client.force_login(self.accountant_user)
+    def test_staff_and_accountant_can_change_invoice_status(self):
+        for user in [self.staff_user, self.accountant_user]:
+            with self.subTest(user=user.email):
+                self.invoice.status = Invoice.Status.DRAFT
+                self.invoice.save(update_fields=["status"])
+                self.client.force_login(user)
 
-        response = self.client.post(
-            reverse("invoice_change_status", args=[self.invoice.id]),
-            data={"status": Invoice.Status.SENT},
-        )
+                response = self.client.post(
+                    reverse("invoice_change_status", args=[self.invoice.id]),
+                    data={"status": Invoice.Status.SENT},
+                )
 
-        self.invoice.refresh_from_db()
+                self.invoice.refresh_from_db()
 
-        self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
-        self.assertEqual(self.invoice.status, Invoice.Status.SENT)
+                self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
+                self.assertEqual(self.invoice.status, Invoice.Status.SENT)
+                self.client.logout()

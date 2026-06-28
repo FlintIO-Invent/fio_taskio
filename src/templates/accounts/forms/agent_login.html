@@ -6,7 +6,12 @@
   <div class="row flex-center min-vh-100 py-5">
     <div class="col-sm-10 col-md-8 col-lg-5 col-xl-5 col-xxl-3">
       <a class="d-flex flex-center text-decoration-none mb-4" href="{% url 'home' %}">
-        <img src="{% static 'assets/img/icons/taskiologo.png' %}" alt="Motionmate" width="58">
+        <span class="motionmate-logo-lockup">
+          <span class="motionmate-logo-mark">
+            <img src="{% static 'assets/img/icons/motionmate-logo.svg' %}" alt="" width="48" height="48">
+          </span>
+          <span class="motionmate-wordmark fs-5">Motionmate</span>
+        </span>
       </a>
 
       <form method="POST">
@@ -56,4 +61,3 @@
   </div>
 </div>
 {% endblock %}
-

@@ -19,13 +19,14 @@ from django.shortcuts import render
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+from apps.businesses.models import ClarivoPlan
 from apps.crm.views import public_booking, public_booking_thank_you
 
 
 def landing(request):
-    
-    context = {}
-    return render(request, 'main/landing.html', context) 
+    pricing_plans = ClarivoPlan.objects.filter(is_active=True).order_by("created_at", "pk")
+    context = {"pricing_plans": pricing_plans}
+    return render(request, "main/landing.html", context)
 
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="home", permanent=False)),

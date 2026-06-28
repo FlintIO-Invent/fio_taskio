@@ -12,6 +12,50 @@
     min-height: var(--lead-search-height, 2.75rem);
     font-size: var(--lead-search-font-size, 0.95rem);
   }
+
+  .lead-list-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .lead-list-status-tabs,
+  .lead-list-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .lead-list-filter-select {
+    width: auto;
+    min-width: 13rem;
+  }
+
+  @media (min-width: 1200px) {
+    .lead-list-filter-bar {
+      flex-wrap: nowrap;
+    }
+
+    .lead-list-search-box {
+      flex: 1 1 20rem;
+    }
+
+    .lead-list-filter-select {
+      flex: 0 0 13rem;
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    .lead-list-filter-bar > *,
+    .lead-list-filter-select {
+      width: 100%;
+    }
+
+    .lead-list-filter-actions .btn {
+      flex: 1 1 auto;
+    }
+  }
 </style>
 
 <div class="content">
@@ -26,20 +70,23 @@
   {% endif %}
 
   <nav class="mb-3" aria-label="breadcrumb">
-    <ol class="breadcrumb mb-0"></ol>
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Service Requests</li>
+    </ol>
   </nav>
 
-  <h2 class="text-bold text-body-emphasis mb-5">Service Request</h2>
+  <h2 class="text-bold text-body-emphasis mb-5">Service Requests</h2>
 
   <div class="pb-6">
-    <div id="lealsTable" data-list='{"valueNames":["name","email","phone","leadtype","booking","status","date"],"page":10,"pagination":true}'>
-      <div class="row g-3 justify-content-between mb-4">
+    <div id="serviceRequestsTable" data-list='{"valueNames":["name","email","phone","leadtype","booking","status","date"],"page":10,"pagination":true}'>
+      <div class="row g-3 justify-content-between align-items-center mb-3">
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
             <div>
               {% if role_access.can_manage_leads %}
                 <a class="btn btn-primary me-4" href="{% url 'staff_lead_create' %}">
-                  <span class="fas fa-plus me-2"></span>Create Lead
+                  <span class="fas fa-plus me-2"></span>Create Service Request
                 </a>
               {% endif %}
               <button class="btn btn-link text-body px-0" type="button">
@@ -48,55 +95,69 @@
             </div>
           </div>
         </div>
-
-        <div class="col-auto">
-          <!-- FILTERS: server-side GET (status, lead_type, q) -->
-          <form class="d-flex" method="get" action="{% url 'staff_lead_list' %}">
-            <div
-              class="search-box me-2 lead-list-search-box"
-              style="
-                --lead-search-width: 35rem;
-                --lead-search-height: 3.5rem;
-                --lead-search-font-size: 0.95rem;
-              "
-            >
-              <div class="position-relative">
-                <input
-                  class="form-control search-input"
-                  type="search"
-                  name="q"
-                  value="{{ filters.q|default:'' }}"
-                  placeholder="Search by name, email, phone"
-                  aria-label="Search"
-                />
-                <span class="fas fa-search search-box-icon"></span>
-              </div>
-            </div>
-
-            <select class="form-select me-2" name="lead_type" aria-label="Lead type">
-              <option value="" {% if not filters.lead_type %}selected{% endif %}>All types</option>
-              <option value="REQUEST" {% if filters.lead_type == "REQUEST" %}selected{% endif %}>Request</option>
-              <option value="INTEREST" {% if filters.lead_type == "INTEREST" %}selected{% endif %}>Interest</option>
-            </select>
-
-            <select class="form-select me-2" name="status" aria-label="Status">
-              <option value="" {% if not filters.status %}selected{% endif %}>All statuses</option>
-              <option value="NEW" {% if filters.status == "NEW" %}selected{% endif %}>New</option>
-              <option value="CONTACTED" {% if filters.status == "CONTACTED" %}selected{% endif %}>Contacted</option>
-              <option value="INVOICED" {% if filters.status == "INVOICED" %}selected{% endif %}>Invoiced</option>
-              <option value="CLOSED" {% if filters.status == "CLOSED" %}selected{% endif %}>Closed</option>
-            </select>
-
-            <button class="btn btn-primary px-3 me-2" type="submit">
-              <span class="fa-solid fa-filter me-2"></span>Apply
-            </button>
-
-            <a class="btn btn-phoenix-secondary px-3" href="{% url 'staff_lead_list' %}">
-              <span class="fas fa-arrows-rotate me-2"></span>Reset
-            </a>
-          </form>
-        </div>
       </div>
+
+      <!-- FILTERS: server-side GET (status_group, status, lead_type, q) -->
+      <form class="lead-list-filter-bar mb-4" method="get" action="{% url 'staff_lead_list' %}">
+        <input type="hidden" name="status_group" value="{{ filters.status_group|default:'active' }}" />
+
+        <div class="lead-list-status-tabs" aria-label="Service request queue view">
+          <a class="btn btn-sm {% if filters.status_group == 'active' and not filters.status %}btn-primary{% else %}btn-phoenix-secondary{% endif %}" href="{% url 'staff_lead_list' %}{{ status_group_links.active }}">
+            Active
+          </a>
+          <a class="btn btn-sm {% if filters.status_group == 'completed' and not filters.status %}btn-primary{% else %}btn-phoenix-secondary{% endif %}" href="{% url 'staff_lead_list' %}{{ status_group_links.completed }}">
+            Completed
+          </a>
+          <a class="btn btn-sm {% if filters.status_group == 'all' and not filters.status %}btn-primary{% else %}btn-phoenix-secondary{% endif %}" href="{% url 'staff_lead_list' %}{{ status_group_links.all }}">
+            All
+          </a>
+        </div>
+
+        <div
+          class="search-box lead-list-search-box"
+          style="
+            --lead-search-width: 35rem;
+            --lead-search-height: 3.5rem;
+            --lead-search-font-size: 0.95rem;
+          "
+        >
+          <div class="position-relative">
+            <input
+              class="form-control search-input"
+              type="search"
+              name="q"
+              value="{{ filters.q|default:'' }}"
+              placeholder="Search by name, email, phone"
+              aria-label="Search"
+            />
+            <span class="fas fa-search search-box-icon"></span>
+          </div>
+        </div>
+
+        <select class="form-select lead-list-filter-select" name="lead_type" aria-label="Request type">
+          <option value="" {% if not filters.lead_type %}selected{% endif %}>All types</option>
+          <option value="REQUEST" {% if filters.lead_type == "REQUEST" %}selected{% endif %}>Service request</option>
+          <option value="INTEREST" {% if filters.lead_type == "INTEREST" %}selected{% endif %}>Interested (no request yet)</option>
+        </select>
+
+        <select class="form-select lead-list-filter-select" name="status" aria-label="Status">
+          <option value="" {% if not filters.status %}selected{% endif %}>All statuses in this view</option>
+          <option value="NEW" {% if filters.status == "NEW" %}selected{% endif %}>New</option>
+          <option value="CONTACTED" {% if filters.status == "CONTACTED" %}selected{% endif %}>Contacted</option>
+          <option value="INVOICED" {% if filters.status == "INVOICED" %}selected{% endif %}>Invoiced</option>
+          <option value="CLOSED" {% if filters.status == "CLOSED" %}selected{% endif %}>Closed</option>
+        </select>
+
+        <div class="lead-list-filter-actions">
+          <button class="btn btn-primary px-3" type="submit">
+            <span class="fa-solid fa-filter me-2"></span>Apply
+          </button>
+
+          <a class="btn btn-phoenix-secondary px-3" href="{% url 'staff_lead_list' %}">
+            <span class="fas fa-arrows-rotate me-2"></span>Reset
+          </a>
+        </div>
+      </form>
 
       <div class="table-responsive scrollbar mx-n1 px-1">
         <table class="table fs-9 mb-0 leads-table border-top border-translucent">
@@ -104,7 +165,7 @@
             <tr>
               <th class="white-space-nowrap fs-9 align-middle ps-0" style="max-width:20px; width:18px;">
                 <div class="form-check mb-0 fs-8">
-                  <input class="form-check-input" type="checkbox" data-bulk-select='{"body":"leal-tables-body"}' />
+                  <input class="form-check-input" type="checkbox" data-bulk-select='{"body":"service-request-tables-body"}' />
                 </div>
               </th>
 
@@ -162,7 +223,7 @@
             </tr>
           </thead>
 
-          <tbody class="list" id="leal-tables-body">
+          <tbody class="list" id="service-request-tables-body">
             {% for lead in leads %}
             <tr class="hover-actions-trigger btn-reveal-trigger position-static">
               <td class="fs-9 align-middle">
@@ -188,6 +249,9 @@
                       <span class="badge badge-phoenix badge-phoenix-info leadtype">
                         {{ lead.get_lead_type_display }}
                       </span>
+                      {% if forloop.first and filters.status_group == 'active' and not filters.status %}
+                        <span class="badge badge-phoenix badge-phoenix-warning">Next up</span>
+                      {% endif %}
                       {% if lead.is_public_booking_request %}
                         <span class="badge badge-phoenix badge-phoenix-primary">Booking Request</span>
                       {% endif %}
@@ -273,7 +337,13 @@
             {% empty %}
             <tr>
               <td colspan="9" class="text-center py-6 text-body-tertiary">
-                No leads found for the selected filters.
+                {% if filters.status_group == 'active' and not filters.status %}
+                  No active service requests need follow-up.
+                {% elif filters.status_group == 'completed' and not filters.status %}
+                  No completed service requests found.
+                {% else %}
+                  No service requests found for the selected filters.
+                {% endif %}
               </td>
             </tr>
             {% endfor %}

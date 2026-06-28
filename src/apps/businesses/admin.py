@@ -120,6 +120,7 @@ class BusinessBookingSettingsAdmin(admin.ModelAdmin):
 class WeeklyAvailabilityAdmin(admin.ModelAdmin):
     list_display = (
         "business",
+        "staff_member",
         "day_of_week",
         "start_time",
         "end_time",
@@ -127,9 +128,9 @@ class WeeklyAvailabilityAdmin(admin.ModelAdmin):
         "updated_at",
     )
     list_filter = ("is_active", "day_of_week", "business")
-    search_fields = ("business__name", "business__slug")
-    autocomplete_fields = ("business",)
-    list_select_related = ("business",)
+    search_fields = ("business__name", "business__slug", "staff_member__email")
+    autocomplete_fields = ("business", "staff_member")
+    list_select_related = ("business", "staff_member")
 
 
 @admin.register(BusinessUser)

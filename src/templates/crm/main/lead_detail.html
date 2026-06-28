@@ -6,24 +6,24 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Leads</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Service Requests</a></li>
       <li class="breadcrumb-item active">{{ lead.first_name }} {{ lead.last_name }}</li>
     </ol>
   </nav>
 
   <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
     <div class="col-auto">
-      <h2 class="mb-0 text-body-emphasis">Lead Details</h2>
+      <h2 class="mb-0 text-body-emphasis">Service Request Details</h2>
     </div>
     <div class="col-auto">
       <div class="d-flex gap-2">
         {% if role_access.can_manage_leads %}
           <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_update' lead.id %}">
-            <span class="fa-solid fa-pen me-2"></span>Edit Lead
+            <span class="fa-solid fa-pen me-2"></span>Edit Service Request
           </a>
         {% endif %}
         <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_list' %}">
-          <span class="fa-solid fa-arrow-left me-2"></span>Back to Leads
+          <span class="fa-solid fa-arrow-left me-2"></span>Back to Service Requests
         </a>
       </div>
     </div>
@@ -225,22 +225,15 @@
 
         <div class="col-md-6">
           <h6 class="text-body-secondary mb-3">Location</h6>
-          <div class="mb-3">
-            <label class="form-label">Street Address</label>
-            <p class="mb-0">{{ lead.street_address|default:"—" }}</p>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">District</label>
-            <p class="mb-0">{{ lead.get_district_display|default:"—" }}</p>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Country</label>
-            <p class="mb-0">{{ lead.country|default:"—" }}</p>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Postal Code</label>
-            <p class="mb-0">{{ lead.postal_code|default:"—" }}</p>
-          </div>
+          {% if lead.formatted_address_lines %}
+            <p class="mb-0">
+              {% for line in lead.formatted_address_lines %}
+                {{ line }}{% if not forloop.last %}<br>{% endif %}
+              {% endfor %}
+            </p>
+          {% else %}
+            <p class="mb-0">—</p>
+          {% endif %}
         </div>
 
         <div class="col-12">
