@@ -64,6 +64,7 @@ class ClarivoPlanAdmin(admin.ModelAdmin):
         "slug",
         "price_monthly",
         "price_yearly",
+        "is_recommended",
         "is_active",
         "allow_invoicing",
         "allow_appointments",
@@ -71,6 +72,7 @@ class ClarivoPlanAdmin(admin.ModelAdmin):
     )
     list_filter = (
         "is_active",
+        "is_recommended",
         "allow_invoicing",
         "allow_appointments",
         "allow_memberships",

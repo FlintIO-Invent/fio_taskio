@@ -85,7 +85,7 @@
   <div class="row g-4">
     {% for plan in available_plans %}
       <div class="col-12 col-lg-4">
-        <div class="card h-100 {% if subscription and subscription.plan_id == plan.id %}border-primary shadow-sm{% endif %}">
+        <div class="card h-100 {% if subscription and subscription.plan_id == plan.id %}border-primary shadow-sm{% elif plan.is_recommended %}border-info shadow-sm{% endif %}">
           <div class="card-body p-4">
             <div class="d-flex justify-content-between align-items-start mb-3">
               <div>
@@ -94,17 +94,19 @@
               </div>
               {% if subscription and subscription.plan_id == plan.id %}
                 <span class="badge badge-phoenix badge-phoenix-primary">Current Plan</span>
+              {% elif plan.is_recommended %}
+                <span class="badge badge-phoenix badge-phoenix-info">Recommended</span>
               {% endif %}
             </div>
 
             <div class="d-flex align-items-end gap-3 mb-4">
               <div>
-                <div class="fs-10 text-uppercase text-body-tertiary">Monthly</div>
-                <div class="fs-5 fw-semibold">${{ plan.price_monthly|floatformat:2 }}</div>
+                <div class="fs-10 text-uppercase text-body-tertiary">Monthly{% if plan.display_pricing.tax_note %} {{ plan.display_pricing.tax_note }}{% endif %}</div>
+                <div class="fs-5 fw-semibold">{{ plan.display_pricing.monthly_display }}</div>
               </div>
               <div>
-                <div class="fs-10 text-uppercase text-body-tertiary">Yearly</div>
-                <div class="fs-7 fw-semibold text-body-secondary">${{ plan.price_yearly|floatformat:2 }}</div>
+                <div class="fs-10 text-uppercase text-body-tertiary">Yearly{% if plan.display_pricing.tax_note %} {{ plan.display_pricing.tax_note }}{% endif %}</div>
+                <div class="fs-7 fw-semibold text-body-secondary">{{ plan.display_pricing.yearly_display }}</div>
               </div>
             </div>
 

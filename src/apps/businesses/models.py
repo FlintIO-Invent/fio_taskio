@@ -10,7 +10,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from .localization import format_business_address_lines
+from .localization import format_business_address_lines, uses_netherlands_address_format
 
 
 def default_business_invitation_expiry():
@@ -270,11 +270,19 @@ class WeeklyAvailability(TimeStampedModel):
 
 
 class ClarivoPlan(TimeStampedModel):
+    MOTIONMATE_PLAN_SLUGS = ("starter", "pro", "business")
+    DEFAULT_PRICING_REGION = "caribbean_international"
+    NETHERLANDS_PRICING_REGION = "netherlands"
+    PRICING_REGION_LABELS = {
+        DEFAULT_PRICING_REGION: "Caribbean / International",
+        NETHERLANDS_PRICING_REGION: "Netherlands",
+    }
     MODULE_FLAG_MAP = {
         "invoicing": "allow_invoicing",
         "appointments": "allow_appointments",
         "memberships": "allow_memberships",
         "public_booking": "allow_public_booking",
+        "public_booking_requests": "allow_public_booking",
         "public_request_form": "allow_public_request_form",
         "public_request": "allow_public_request_form",
     }
@@ -300,6 +308,8 @@ class ClarivoPlan(TimeStampedModel):
         default=Decimal("0.00"),
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    regional_prices = models.JSONField(default=dict, blank=True)
+    is_recommended = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     max_users = models.PositiveIntegerField(null=True, blank=True)
     max_clients = models.PositiveIntegerField(null=True, blank=True)
@@ -315,6 +325,106 @@ class ClarivoPlan(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.name
+
+    @classmethod
+    def motionmate_plan_ordering(cls):
+        return models.Case(
+            *[
+                models.When(slug=slug, then=models.Value(position))
+                for position, slug in enumerate(cls.MOTIONMATE_PLAN_SLUGS)
+            ],
+            default=models.Value(len(cls.MOTIONMATE_PLAN_SLUGS)),
+            output_field=models.IntegerField(),
+        )
+
+    @classmethod
+    def motionmate_plans(cls):
+        return cls.objects.filter(
+            is_active=True,
+            slug__in=cls.MOTIONMATE_PLAN_SLUGS,
+        ).order_by(cls.motionmate_plan_ordering(), "pk")
+
+    @classmethod
+    def attach_display_pricing(
+        cls,
+        plans,
+        *,
+        business: Business | None = None,
+        region: str | None = None,
+    ):
+        for plan in plans:
+            plan.display_pricing = plan.get_display_pricing(business=business, region=region)
+        return plans
+
+    @classmethod
+    def pricing_region_for_business(cls, business: Business | None = None) -> str:
+        if business is not None and uses_netherlands_address_format(business.country):
+            return cls.NETHERLANDS_PRICING_REGION
+        return cls.DEFAULT_PRICING_REGION
+
+    @staticmethod
+    def _decimal_from_price(value, fallback: Decimal) -> Decimal:
+        if value in (None, ""):
+            return fallback
+        return Decimal(str(value))
+
+    @staticmethod
+    def _format_plan_price(value: Decimal, currency: str = "EUR") -> str:
+        amount = Decimal(value or "0.00")
+        decimal_places = 0 if amount == amount.to_integral_value() else 2
+        formatted_amount = f"{amount:,.{decimal_places}f}"
+        currency_symbol = {
+            "EUR": "€",
+            "USD": "$",
+            "XCD": "$",
+            "ANG": "ƒ",
+        }.get(currency.upper(), f"{currency.upper()} ")
+        return f"{currency_symbol}{formatted_amount}"
+
+    def get_pricing_data(
+        self,
+        *,
+        business: Business | None = None,
+        region: str | None = None,
+    ) -> dict:
+        pricing_region = region or self.pricing_region_for_business(business)
+        regional_prices = self.regional_prices or {}
+        region_data = regional_prices.get(pricing_region) or regional_prices.get(
+            self.DEFAULT_PRICING_REGION,
+            {},
+        )
+
+        return {
+            "region": pricing_region,
+            "region_label": self.PRICING_REGION_LABELS.get(pricing_region, "Default"),
+            "currency": region_data.get("currency", "EUR"),
+            "monthly": self._decimal_from_price(
+                region_data.get("monthly"),
+                self.price_monthly,
+            ),
+            "yearly": self._decimal_from_price(
+                region_data.get("yearly"),
+                self.price_yearly,
+            ),
+            "tax_note": region_data.get("tax_note", ""),
+        }
+
+    def get_display_pricing(
+        self,
+        *,
+        business: Business | None = None,
+        region: str | None = None,
+    ) -> dict:
+        pricing_data = self.get_pricing_data(business=business, region=region)
+        monthly = pricing_data["monthly"]
+        yearly = pricing_data["yearly"]
+        currency = pricing_data["currency"]
+
+        return {
+            **pricing_data,
+            "monthly_display": self._format_plan_price(monthly, currency),
+            "yearly_display": self._format_plan_price(yearly, currency),
+        }
 
     def allows_module(self, module_name: str) -> bool:
         normalized_name = module_name.strip().lower().replace("-", "_")

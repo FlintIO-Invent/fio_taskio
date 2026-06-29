@@ -17,13 +17,14 @@
     <!-- ===============================================-->
     <!--    Favicons-->
     <!-- ===============================================-->
-    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/apple-touch-icon.png' %}">
-    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/favicon-32x32.png' %}">
-    <link rel="icon" type="image/svg+xml" href="{% static 'assets/img/icons/motionmate-logo.svg' %}">
-    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/favicon-16x16.png' %}">
-    <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/favicon.ico' %}">
-    <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}">
-    <meta name="msapplication-TileImage" content="{% static 'assets/img/favicons/mstile-150x150.png' %}"  >
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/apple-touch-icon.png' %}?v=motionmate-20260629">
+    <link rel="icon" type="image/svg+xml" href="{% static 'assets/img/favicons/motionmate-logo.svg' %}?v=motionmate-20260629">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/favicon-32x32.png' %}?v=motionmate-20260629">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/favicon-16x16.png' %}?v=motionmate-20260629">
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/favicon.ico' %}?v=motionmate-20260629">
+    <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}?v=motionmate-20260629">
+    <meta name="msapplication-config" content="{% static 'assets/img/favicons/browserconfig.xml' %}?v=motionmate-20260629">
+    <meta name="msapplication-TileImage" content="{% static 'assets/img/favicons/mstile-150x150.png' %}?v=motionmate-20260629"  >
     <meta name="theme-color" content="#ffffff">
     <script src="{% static 'vendors/simplebar/simplebar.min.js' %}"></script>
     <script src="{% static 'assets/js/config.js' %}"></script>
@@ -217,15 +218,20 @@
             {% for plan in pricing_plans %}
             <div class="col-md-6 col-xl-4">
               <div class="pricing-card">
-                <div class="card bg-transparent h-100 {% if forloop.counter == 2 %}border border-2 border-info rounded-4{% else %}border-0{% endif %}">
+                <div class="card bg-transparent h-100 {% if plan.is_recommended %}border border-2 border-info rounded-4{% else %}border-0{% endif %}">
                   <div class="card-body p-7">
-                    <h3 class="mb-3">{{ plan.name }}</h3>
+                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                      <h3 class="mb-0">{{ plan.name }}</h3>
+                      {% if plan.is_recommended %}
+                        <span class="badge badge-phoenix badge-phoenix-info">Recommended</span>
+                      {% endif %}
+                    </div>
                     <p class="text-body-tertiary mb-5">{{ plan.description|default:"Motionmate workspace access and module availability." }}</p>
-                    <h1 class="fs-3 d-flex align-items-center gap-1 mb-1">{% if plan.price_monthly %}${{ plan.price_monthly|floatformat:2 }}{% else %}Free{% endif %}<span class="fs-8 fw-normal">/ month</span></h1>
+                    <h1 class="fs-3 d-flex align-items-center gap-1 mb-1">{{ plan.display_pricing.monthly_display }}<span class="fs-8 fw-normal">/ month</span></h1>
                     <p class="fs-9 text-body-tertiary mb-4">
-                      {% if plan.price_yearly %}${{ plan.price_yearly|floatformat:2 }} billed yearly{% else %}Yearly billing available on request{% endif %}
+                      {{ plan.display_pricing.yearly_display }} billed yearly{% if plan.display_pricing.tax_note %} {{ plan.display_pricing.tax_note }}{% endif %}
                     </p>
-                    <a class="btn btn-lg w-100 mb-7 {% if forloop.counter == 2 %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'register_business' %}" role="button">Start {{ plan.name }}</a>
+                    <a class="btn btn-lg w-100 mb-7 {% if plan.is_recommended %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'register_business' %}" role="button">Start {{ plan.name }}</a>
                     <h5 class="mb-4">What’s included</h5>
                     <ul class="fa-ul ps-4 m-0 pricing">
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>

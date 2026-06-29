@@ -35,10 +35,12 @@ from apps.businesses.utils import (
     CLIENT_MANAGE_ROLES,
     LEAD_MANAGE_ROLES,
     SERVICE_MANAGEMENT_ROLES,
+    business_limit_reached,
     business_module_required,
     business_required,
     business_role_required,
     can_use_module,
+    get_business_limit_reached_message,
     get_business_module_unavailable_message,
     get_current_business,
     get_current_business_membership,
@@ -1181,6 +1183,9 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
     Create a new client for staff.
     """
     current_business = request.current_business
+    if business_limit_reached(current_business, "clients"):
+        messages.error(request, get_business_limit_reached_message(current_business, "clients"))
+        return redirect("staff_client_list")
 
     if request.method == "POST":
         form = PrivateClientForm(request.POST, business=current_business)

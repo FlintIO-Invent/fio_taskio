@@ -29,6 +29,7 @@ from .utils import (
     SAME_WORKSPACE_EMAIL_MESSAGE,
     business_has_active_subscription,
     business_is_trialing,
+    business_limit_reached,
     business_required,
     business_role_required,
     can_use_module,
@@ -204,6 +205,122 @@ class SubscriptionAccessTests(TestCase):
         self.assertFalse(self.business.has_active_subscription)
         self.assertFalse(business_has_active_subscription(self.business))
         self.assertFalse(can_use_module(self.business, "invoicing"))
+
+
+class MotionmatePlanCatalogTests(TestCase):
+    def test_default_motionmate_plans_have_agreed_prices_limits_and_modules(self):
+        expected = {
+            "starter": {
+                "monthly": Decimal("19.00"),
+                "yearly": Decimal("190.00"),
+                "users": 2,
+                "clients": 100,
+                "invoices": 50,
+            },
+            "pro": {
+                "monthly": Decimal("69.00"),
+                "yearly": Decimal("690.00"),
+                "users": 5,
+                "clients": 500,
+                "invoices": 250,
+            },
+            "business": {
+                "monthly": Decimal("119.00"),
+                "yearly": Decimal("1190.00"),
+                "users": 15,
+                "clients": 2000,
+                "invoices": 1000,
+            },
+        }
+        required_modules = (
+            "invoicing",
+            "appointments",
+            "public_booking_requests",
+            "public_request_form",
+        )
+
+        plans = list(ClarivoPlan.motionmate_plans())
+
+        self.assertEqual([plan.slug for plan in plans], ["starter", "pro", "business"])
+        for plan in plans:
+            with self.subTest(plan=plan.slug):
+                expected_plan = expected[plan.slug]
+                self.assertEqual(plan.price_monthly, expected_plan["monthly"])
+                self.assertEqual(plan.price_yearly, expected_plan["yearly"])
+                self.assertEqual(plan.max_users, expected_plan["users"])
+                self.assertEqual(plan.max_clients, expected_plan["clients"])
+                self.assertEqual(plan.max_invoices_per_month, expected_plan["invoices"])
+                self.assertEqual(
+                    plan.regional_prices["netherlands"]["tax_note"],
+                    "ex. VAT",
+                )
+                for module in required_modules:
+                    self.assertTrue(plan.allows_module(module))
+
+        self.assertTrue(ClarivoPlan.objects.get(slug="pro").is_recommended)
+        self.assertFalse(ClarivoPlan.objects.get(slug="starter").is_recommended)
+        self.assertFalse(ClarivoPlan.objects.get(slug="business").is_recommended)
+
+    def test_display_pricing_defaults_publicly_and_uses_netherlands_business_context(self):
+        plan = ClarivoPlan.objects.get(slug="business")
+        dutch_business = Business.objects.create(
+            name="Amsterdam Ops",
+            slug="amsterdam-ops",
+            country="Netherlands",
+        )
+
+        public_pricing = plan.get_display_pricing()
+        dutch_pricing = plan.get_display_pricing(business=dutch_business)
+
+        self.assertEqual(public_pricing["monthly_display"], "€119")
+        self.assertEqual(public_pricing["yearly_display"], "€1,190")
+        self.assertEqual(public_pricing["tax_note"], "")
+        self.assertEqual(dutch_pricing["monthly_display"], "€169")
+        self.assertEqual(dutch_pricing["yearly_display"], "€1,690")
+        self.assertEqual(dutch_pricing["tax_note"], "ex. VAT")
+
+    def test_business_limit_helper_uses_subscription_plan_limits(self):
+        business = Business.objects.create(name="Starter Limit HQ", slug="starter-limit-hq")
+        plan = ClarivoPlan.objects.get(slug="starter")
+        owner = TaskIOUser.objects.create_user(
+            email="starter-owner@example.com",
+            password="StrongPass123!",
+        )
+        staff = TaskIOUser.objects.create_user(
+            email="starter-staff@example.com",
+            password="StrongPass123!",
+        )
+        BusinessSubscription.objects.create(
+            business=business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessUser.objects.create(user=owner, business=business, role=BusinessUser.Role.OWNER)
+        BusinessUser.objects.create(user=staff, business=business, role=BusinessUser.Role.STAFF)
+
+        self.assertTrue(business_limit_reached(business, "users"))
+        self.assertFalse(business_limit_reached(business, "clients"))
+
+    def test_public_pricing_page_uses_euro_prices_and_no_growth_plan(self):
+        ClarivoPlan.objects.create(
+            name="Growth",
+            slug="growth",
+            price_monthly=Decimal("49.00"),
+            price_yearly=Decimal("490.00"),
+            is_active=True,
+        )
+
+        response = self.client.get(reverse("home"), HTTP_HOST="localhost", secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "€19")
+        self.assertContains(response, "€69")
+        self.assertContains(response, "€119")
+        self.assertContains(response, "€1,190 billed yearly")
+        self.assertContains(response, "Recommended")
+        self.assertNotContains(response, "$0.00")
+        self.assertNotContains(response, "Free")
+        self.assertNotContains(response, "Growth")
 
 
 class CurrentBusinessTests(TestCase):
@@ -895,18 +1012,8 @@ class BusinessSubscriptionViewTests(TestCase):
             email="hello@motionmate.test",
             country="Sint Maarten",
         )
-        self.starter_plan = ClarivoPlan.objects.create(
-            name="Starter",
-            slug="starter-subscription-test",
-            allow_invoicing=True,
-        )
-        self.pro_plan = ClarivoPlan.objects.create(
-            name="Pro",
-            slug="pro-subscription-test",
-            allow_invoicing=True,
-            allow_appointments=True,
-            allow_public_booking=True,
-        )
+        self.starter_plan = ClarivoPlan.objects.get(slug="starter")
+        self.pro_plan = ClarivoPlan.objects.get(slug="pro")
 
     def _login_with_role(self, role: str):
         BusinessUser.objects.create(
@@ -934,6 +1041,27 @@ class BusinessSubscriptionViewTests(TestCase):
         self.assertContains(response, "Motionmate HQ")
         self.assertContains(response, "Current Plan")
         self.assertContains(response, "Pro")
+        self.assertNotContains(response, "Recommended")
+
+    def test_subscription_page_shows_netherlands_prices_as_ex_vat(self):
+        self.business.country = "Netherlands"
+        self.business.save(update_fields=["country", "updated_at"])
+        self._login_with_role(BusinessUser.Role.OWNER)
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.starter_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        response = self.client.get(reverse("business_subscription"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "€29")
+        self.assertContains(response, "€99")
+        self.assertContains(response, "€169")
+        self.assertContains(response, "ex. VAT")
+        self.assertContains(response, "Current Plan")
+        self.assertContains(response, "Recommended")
 
     def test_owner_can_change_subscription_plan_and_keep_trialing_status(self):
         self._login_with_role(BusinessUser.Role.OWNER)

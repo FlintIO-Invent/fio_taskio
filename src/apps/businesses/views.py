@@ -28,9 +28,11 @@ from .utils import (
     MULTI_WORKSPACE_EMAIL_MESSAGE,
     SAME_WORKSPACE_EMAIL_MESSAGE,
     assign_business_subscription_plan,
+    business_limit_reached,
     business_role_required,
     can_use_module,
     create_or_refresh_business_invitation,
+    get_business_limit_reached_message,
     get_business_module_unavailable_message,
     get_business_subscription,
     get_current_business,
@@ -202,10 +204,12 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
     business = request.current_business
     membership = request.current_business_membership
     subscription = get_business_subscription(business)
-    available_plans = ClarivoPlan.objects.filter(is_active=True).order_by("created_at", "pk")
+    available_plan_queryset = ClarivoPlan.motionmate_plans()
+    available_plans = list(available_plan_queryset)
+    ClarivoPlan.attach_display_pricing(available_plans, business=business)
 
     if request.method == "POST":
-        form = BusinessSubscriptionPlanForm(request.POST, plans=available_plans)
+        form = BusinessSubscriptionPlanForm(request.POST, plans=available_plan_queryset)
         if form.is_valid():
             selected_plan = form.cleaned_data["plan"]
 
@@ -227,7 +231,7 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
                     )
             return redirect("business_subscription")
     else:
-        form = BusinessSubscriptionPlanForm(plans=available_plans)
+        form = BusinessSubscriptionPlanForm(plans=available_plan_queryset)
 
     context = {
         "business": business,
@@ -258,16 +262,17 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
             membership=membership,
         )
         if invite_form.is_valid():
+            invite_email = invite_form.cleaned_data["email"]
             if BusinessUser.objects.filter(
                 business=business,
-                user__email__iexact=invite_form.cleaned_data["email"],
+                user__email__iexact=invite_email,
             ).exists():
                 messages.info(request, SAME_WORKSPACE_EMAIL_MESSAGE)
                 return redirect("business_team_members")
 
             if (
                 get_other_active_business_membership_for_email(
-                    email=invite_form.cleaned_data["email"],
+                    email=invite_email,
                     business=business,
                 )
                 is not None
@@ -275,9 +280,22 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
                 messages.error(request, MULTI_WORKSPACE_EMAIL_MESSAGE)
                 return redirect("business_team_members")
 
+            existing_pending_invitation = BusinessInvitation.objects.filter(
+                business=business,
+                email__iexact=invite_email,
+                status=BusinessInvitation.Status.PENDING,
+            ).exists()
+            if not existing_pending_invitation and business_limit_reached(
+                business,
+                "users",
+                include_pending_invitations=True,
+            ):
+                messages.error(request, get_business_limit_reached_message(business, "users"))
+                return redirect("business_team_members")
+
             invitation, created = create_or_refresh_business_invitation(
                 business=business,
-                email=invite_form.cleaned_data["email"],
+                email=invite_email,
                 role=invite_form.cleaned_data["role"],
                 invited_by=request.user,
             )
