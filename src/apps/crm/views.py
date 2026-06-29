@@ -35,10 +35,12 @@ from apps.businesses.utils import (
     CLIENT_MANAGE_ROLES,
     LEAD_MANAGE_ROLES,
     SERVICE_MANAGEMENT_ROLES,
+    business_limit_reached,
     business_module_required,
     business_required,
     business_role_required,
     can_use_module,
+    get_business_limit_reached_message,
     get_business_module_unavailable_message,
     get_current_business,
     get_current_business_membership,
@@ -206,6 +208,7 @@ def _public_booking_unavailable_response(
     request: HttpRequest,
     *,
     business: Business,
+    availability_message: str | None = None,
     status: int = 403,
 ) -> HttpResponse:
     return render(
@@ -213,9 +216,8 @@ def _public_booking_unavailable_response(
         "crm/success_fail/public_booking_unavailable.html",
         {
             "public_business": business,
-            "availability_message": (
-                "Online booking requests are not available for this business right now."
-            ),
+            "availability_message": availability_message
+            or "Public bookings are not available for this business right now.",
         },
         status=status,
     )
@@ -901,11 +903,8 @@ def public_request_entry(request: HttpRequest) -> HttpResponse:
     current_business = get_current_business(request)
     if current_business is None:
         raise Http404("A business-specific request link is required.")
-    if not (
-        can_use_module(current_business, "public_booking")
-        or can_use_module(current_business, "public_request_form")
-    ):
-        return redirect_for_unavailable_business_module(request, "public_request_form")
+    if not can_use_module(current_business, "public_booking"):
+        return redirect_for_unavailable_business_module(request, "public_booking")
     return redirect("public_booking", business_slug=current_business.slug)
 
 
@@ -922,7 +921,7 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
         return redirect("public_booking", business_slug=business.slug)
 
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
-    if not can_use_module(business, "public_request_form"):
+    if not can_use_module(business, "public_booking"):
         return render(
             request,
             "crm/success_fail/public_request_unavailable.html",
@@ -930,7 +929,21 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
                 "public_business": business,
                 "availability_message": get_business_module_unavailable_message(
                     business,
-                    "public_request_form",
+                    "public_booking",
+                ),
+            },
+            status=403,
+        )
+
+    if business_limit_reached(business, "public_bookings_per_month"):
+        return render(
+            request,
+            "crm/success_fail/public_request_unavailable.html",
+            {
+                "public_business": business,
+                "availability_message": get_business_limit_reached_message(
+                    business,
+                    "public_bookings_per_month",
                 ),
             },
             status=403,
@@ -964,12 +977,25 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
 def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
     booking_settings = _public_booking_settings_for_business(business)
-    appointments_enabled = can_use_module(business, "appointments")
+    appointments_enabled = can_use_module(business, "appointments") and not business_limit_reached(
+        business,
+        "appointments_per_month",
+    )
 
     if not _public_booking_is_available(business, booking_settings):
         return _public_booking_unavailable_response(
             request,
             business=business,
+        )
+
+    if business_limit_reached(business, "public_bookings_per_month"):
+        return _public_booking_unavailable_response(
+            request,
+            business=business,
+            availability_message=get_business_limit_reached_message(
+                business,
+                "public_bookings_per_month",
+            ),
         )
 
     selected_service_id = request.GET.get("service")
@@ -1181,6 +1207,9 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
     Create a new client for staff.
     """
     current_business = request.current_business
+    if business_limit_reached(current_business, "clients"):
+        messages.error(request, get_business_limit_reached_message(current_business, "clients"))
+        return redirect("staff_client_list")
 
     if request.method == "POST":
         form = PrivateClientForm(request.POST, business=current_business)

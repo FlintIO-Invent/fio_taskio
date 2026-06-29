@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Callable
 from datetime import timedelta
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -23,7 +24,6 @@ from .models import (
     BusinessUser,
     ClarivoPlan,
 )
-
 
 CURRENT_BUSINESS_SESSION_KEY = "current_business_id"
 _CURRENT_BUSINESS_RESOLVED_ATTR = "_current_business_resolved"
@@ -261,15 +261,140 @@ def can_use_module(business: Business | None, module_name: str) -> bool:
     return bool(subscription and subscription.can_use_module(module_name))
 
 
+PLAN_LIMIT_FIELDS = {
+    "users": "max_users",
+    "clients": "max_clients",
+    "invoices_per_month": "max_invoices_per_month",
+    "appointments_per_month": "max_appointments_per_month",
+    "public_bookings_per_month": "max_public_bookings_per_month",
+}
+PLAN_LIMIT_LABELS = {
+    "users": "team users",
+    "clients": "clients",
+    "invoices_per_month": "invoices this month",
+    "appointments_per_month": "appointments this month",
+    "public_bookings_per_month": "public bookings this month",
+}
+
+
+def _normalize_plan_limit_name(limit_name: str) -> str:
+    return limit_name.strip().lower().replace("-", "_")
+
+
+def get_business_plan_limit(business: Business | None, limit_name: str) -> int | None:
+    normalized_name = _normalize_plan_limit_name(limit_name)
+    field_name = PLAN_LIMIT_FIELDS.get(normalized_name)
+    if field_name is None:
+        return None
+
+    subscription = get_business_subscription(business)
+    if subscription is None or not subscription.has_access:
+        return None
+
+    return getattr(subscription.plan, field_name, None)
+
+
+def _current_month_bounds():
+    now = timezone.now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if month_start.month == 12:
+        next_month_start = month_start.replace(year=month_start.year + 1, month=1)
+    else:
+        next_month_start = month_start.replace(month=month_start.month + 1)
+    return month_start, next_month_start
+
+
+def get_business_usage_count(
+    business: Business | None,
+    limit_name: str,
+    *,
+    include_pending_invitations: bool = False,
+) -> int:
+    if business is None:
+        return 0
+
+    normalized_name = _normalize_plan_limit_name(limit_name)
+    if normalized_name == "users":
+        user_count = business.memberships.filter(is_active=True).count()
+        if include_pending_invitations:
+            user_count += business.invitations.filter(
+                status=BusinessInvitation.Status.PENDING,
+                expires_at__gt=timezone.now(),
+            ).count()
+        return user_count
+
+    if normalized_name == "clients":
+        return business.clients.count()
+
+    if normalized_name == "invoices_per_month":
+        month_start, next_month_start = _current_month_bounds()
+        return business.invoices.filter(
+            created_at__gte=month_start,
+            created_at__lt=next_month_start,
+        ).count()
+
+    if normalized_name == "appointments_per_month":
+        month_start, next_month_start = _current_month_bounds()
+        return business.appointments.filter(
+            created_at__gte=month_start,
+            created_at__lt=next_month_start,
+        ).count()
+
+    if normalized_name == "public_bookings_per_month":
+        month_start, next_month_start = _current_month_bounds()
+        return business.leads.filter(
+            request_source__in=("public_booking", "public_request"),
+            created_at__gte=month_start,
+            created_at__lt=next_month_start,
+        ).count()
+
+    return 0
+
+
+def business_limit_reached(
+    business: Business | None,
+    limit_name: str,
+    *,
+    include_pending_invitations: bool = False,
+) -> bool:
+    limit = get_business_plan_limit(business, limit_name)
+    if limit is None:
+        return False
+
+    usage_count = get_business_usage_count(
+        business,
+        limit_name,
+        include_pending_invitations=include_pending_invitations,
+    )
+    return usage_count >= limit
+
+
+def get_business_limit_reached_message(business: Business | None, limit_name: str) -> str:
+    normalized_name = _normalize_plan_limit_name(limit_name)
+    limit = get_business_plan_limit(business, normalized_name)
+    subscription = get_business_subscription(business)
+    plan_name = subscription.plan.name if subscription is not None else "current"
+    limit_label = PLAN_LIMIT_LABELS.get(normalized_name, "items")
+
+    if limit is None:
+        return f"This workspace cannot add more {limit_label} right now."
+
+    return (
+        f"This workspace has reached the {plan_name} plan limit of "
+        f"{limit} {limit_label}. Upgrade your Motionmate plan to add more."
+    )
+
+
 def get_module_display_name(module_name: str) -> str:
     normalized_name = module_name.strip().lower().replace("-", "_")
     display_names = {
+        "client_management": "Client Management",
         "invoicing": "Invoicing",
-        "public_request_form": "Public Request Form",
-        "public_request": "Public Request Form",
-        "public_booking": "Public Booking",
+        "public_request_form": "Public Bookings",
+        "public_request": "Public Bookings",
+        "public_booking": "Public Bookings",
+        "public_booking_requests": "Public Bookings",
         "appointments": "Appointments",
-        "memberships": "Memberships",
     }
     if normalized_name in display_names:
         return display_names[normalized_name]
@@ -323,9 +448,9 @@ def get_public_booking_share_context(
 
     setup_items = []
     if not public_booking_allowed:
-        setup_items.append("Upgrade to a plan with Public Booking.")
+        setup_items.append("Upgrade to a plan with Public Bookings.")
     if not booking_enabled:
-        setup_items.append("Enable public booking requests.")
+        setup_items.append("Enable public bookings.")
     if bookable_service_count == 0:
         setup_items.append("Add at least one active service that is bookable online.")
     if active_availability_count == 0:

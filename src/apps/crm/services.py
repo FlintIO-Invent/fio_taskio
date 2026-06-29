@@ -63,7 +63,10 @@ def _default_client_status(_lead: Lead) -> str:
 
 
 def _request_context_marker(lead: Lead) -> str:
-    if lead.request_source == Lead.RequestSource.PUBLIC_BOOKING:
+    if lead.request_source in {
+        Lead.RequestSource.PUBLIC_BOOKING,
+        Lead.RequestSource.PUBLIC_REQUEST,
+    }:
         return f"Public booking #{lead.pk}"
     return f"Public request #{lead.pk}"
 
