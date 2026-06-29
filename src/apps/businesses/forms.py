@@ -225,26 +225,26 @@ class BusinessBookingSettingsForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 4,
-                    "placeholder": "Optional instructions shown before customers submit a booking request.",
+                    "placeholder": "Optional instructions shown before customers submit a public booking.",
                 }
             ),
             "cancellation_policy_text": forms.Textarea(
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "Optional cancellation policy text for public booking requests.",
+                    "placeholder": "Optional cancellation policy text for public bookings.",
                 }
             ),
             "reschedule_policy_text": forms.Textarea(
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "Optional reschedule policy text for public booking requests.",
+                    "placeholder": "Optional reschedule policy text for public bookings.",
                 }
             ),
         }
         labels = {
-            "booking_enabled": "Enable public booking requests",
+            "booking_enabled": "Enable public bookings",
             "default_duration_minutes": "Default duration",
             "minimum_notice_hours": "Minimum notice",
             "maximum_days_ahead": "Maximum days ahead",
@@ -252,7 +252,7 @@ class BusinessBookingSettingsForm(forms.ModelForm):
             "confirmation_mode": "Confirmation mode",
         }
         help_texts = {
-            "booking_enabled": "Controls whether public visitors can submit booking requests for this workspace.",
+            "booking_enabled": "Controls whether public visitors can submit public bookings for this workspace.",
             "default_duration_minutes": "Used as the default appointment request length.",
             "minimum_notice_hours": "How much advance notice public visitors must give before requesting a time.",
             "maximum_days_ahead": "How far into the future public visitors may request a time.",

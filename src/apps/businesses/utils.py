@@ -265,11 +265,15 @@ PLAN_LIMIT_FIELDS = {
     "users": "max_users",
     "clients": "max_clients",
     "invoices_per_month": "max_invoices_per_month",
+    "appointments_per_month": "max_appointments_per_month",
+    "public_bookings_per_month": "max_public_bookings_per_month",
 }
 PLAN_LIMIT_LABELS = {
     "users": "team users",
     "clients": "clients",
     "invoices_per_month": "invoices this month",
+    "appointments_per_month": "appointments this month",
+    "public_bookings_per_month": "public bookings this month",
 }
 
 
@@ -329,6 +333,21 @@ def get_business_usage_count(
             created_at__lt=next_month_start,
         ).count()
 
+    if normalized_name == "appointments_per_month":
+        month_start, next_month_start = _current_month_bounds()
+        return business.appointments.filter(
+            created_at__gte=month_start,
+            created_at__lt=next_month_start,
+        ).count()
+
+    if normalized_name == "public_bookings_per_month":
+        month_start, next_month_start = _current_month_bounds()
+        return business.leads.filter(
+            request_source__in=("public_booking", "public_request"),
+            created_at__gte=month_start,
+            created_at__lt=next_month_start,
+        ).count()
+
     return 0
 
 
@@ -369,12 +388,13 @@ def get_business_limit_reached_message(business: Business | None, limit_name: st
 def get_module_display_name(module_name: str) -> str:
     normalized_name = module_name.strip().lower().replace("-", "_")
     display_names = {
+        "client_management": "Client Management",
         "invoicing": "Invoicing",
-        "public_request_form": "Public Request Form",
-        "public_request": "Public Request Form",
-        "public_booking": "Public Booking",
+        "public_request_form": "Public Bookings",
+        "public_request": "Public Bookings",
+        "public_booking": "Public Bookings",
+        "public_booking_requests": "Public Bookings",
         "appointments": "Appointments",
-        "memberships": "Memberships",
     }
     if normalized_name in display_names:
         return display_names[normalized_name]
@@ -428,9 +448,9 @@ def get_public_booking_share_context(
 
     setup_items = []
     if not public_booking_allowed:
-        setup_items.append("Upgrade to a plan with Public Booking.")
+        setup_items.append("Upgrade to a plan with Public Bookings.")
     if not booking_enabled:
-        setup_items.append("Enable public booking requests.")
+        setup_items.append("Enable public bookings.")
     if bookable_service_count == 0:
         setup_items.append("Add at least one active service that is bookable online.")
     if active_availability_count == 0:

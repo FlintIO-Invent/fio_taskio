@@ -44,7 +44,7 @@ class CRMBusinessScopingTests(TestCase):
         self.public_request_plan = ClarivoPlan.objects.create(
             name="Requests Enabled",
             slug="requests-enabled-tests",
-            allow_public_request_form=True,
+            allow_public_booking=True,
         )
         BusinessSubscription.objects.create(
             business=self.business,
@@ -118,7 +118,7 @@ class CRMBusinessScopingTests(TestCase):
         invoicing_plan = ClarivoPlan.objects.create(
             name="Requests and Billing",
             slug="requests-and-billing-tests",
-            allow_public_request_form=True,
+            allow_public_booking=True,
             allow_invoicing=True,
         )
         subscription = BusinessSubscription.objects.get(business=self.business)
@@ -129,7 +129,7 @@ class CRMBusinessScopingTests(TestCase):
         appointments_plan = ClarivoPlan.objects.create(
             name="Requests and Appointments",
             slug="requests-and-appointments-tests",
-            allow_public_request_form=True,
+            allow_public_booking=True,
             allow_appointments=True,
         )
         subscription = BusinessSubscription.objects.get(business=self.business)
@@ -140,7 +140,6 @@ class CRMBusinessScopingTests(TestCase):
         reporting_plan = ClarivoPlan.objects.create(
             name="Reporting Workspace",
             slug="reporting-workspace-tests",
-            allow_public_request_form=True,
             allow_public_booking=True,
             allow_appointments=True,
             allow_invoicing=True,
@@ -408,7 +407,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(client.priority, Client.Priority.MEDIUM)
         self.assertTrue(client.consent_to_contact)
         self.assertTrue(client.is_active)
-        self.assertIn("Public request #", client.communication_notes)
+        self.assertIn("Public booking #", client.communication_notes)
         self.assertIn("Need a service visit this week.", client.communication_notes)
         self.assertEqual(foreign_client.business, self.other_business)
         self.assertEqual(
@@ -468,7 +467,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(existing_client.message, "Need a service visit this week.")
         self.assertEqual(existing_client.lead_source, Client.LeadSource.WEBSITE)
         self.assertIn("Existing relationship note.", existing_client.communication_notes)
-        self.assertIn("Public request #", existing_client.communication_notes)
+        self.assertIn("Public booking #", existing_client.communication_notes)
         self.assertIn("Category: Tank Pumping", existing_client.communication_notes)
         self.assertIn("Need a service visit this week.", existing_client.communication_notes)
 
@@ -545,7 +544,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(existing_client.message, "Existing internal summary.")
         self.assertEqual(existing_client.notes, "VIP account notes.")
         self.assertIn("Prior call logged.", existing_client.communication_notes)
-        self.assertIn("Public request #", existing_client.communication_notes)
+        self.assertIn("Public booking #", existing_client.communication_notes)
         self.assertIn("Category: Emergency Callout", existing_client.communication_notes)
         self.assertIn("Urgent dispatch needed.", existing_client.communication_notes)
 
@@ -633,7 +632,7 @@ class CRMBusinessScopingTests(TestCase):
         locked_plan = ClarivoPlan.objects.create(
             name="No Public Requests",
             slug="no-public-requests-tests",
-            allow_public_request_form=False,
+            allow_public_booking=False,
         )
         subscription = BusinessSubscription.objects.get(business=self.business)
         subscription.plan = locked_plan
@@ -658,10 +657,10 @@ class CRMBusinessScopingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Request Form Unavailable", status_code=403)
+        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
         self.assertContains(
             response,
-            "Public Request Form is not included in the current workspace plan",
+            "Public Bookings is not included in the current workspace plan",
             status_code=403,
         )
         self.assertFalse(Lead.objects.filter(email="blocked-plan@example.com").exists())
@@ -1527,7 +1526,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertContains(list_response, "Bookable")
         self.assertContains(
             list_response,
-            "You can still prepare service booking settings now.",
+            "Public bookings are included in the current workspace plan.",
         )
         self.assertEqual(list_response.context["bookable_service_count"], 1)
         self.assertNotContains(list_response, "Foreign Service")
@@ -2489,6 +2488,79 @@ class PublicBookingTests(TestCase):
         self.assertIn(str(self.staff_user.pk), slot_picker_data["staff"])
         self.assertTrue(slot_picker_data["availability"]["business"])
 
+    def test_public_booking_page_blocks_new_requests_when_monthly_limit_reached(self):
+        self.public_booking_plan.max_public_bookings_per_month = 1
+        self.public_booking_plan.save(
+            update_fields=["max_public_bookings_per_month", "updated_at"],
+        )
+        Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            request_source=Lead.RequestSource.PUBLIC_REQUEST,
+            first_name="Existing",
+            last_name="Booking",
+            email="existing-public-booking@example.com",
+            phone="+1 721 555 9090",
+            company_name="Existing Household",
+        )
+
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(email="limit-blocked-booking@example.com"),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(
+            response,
+            "Public Booking Enabled plan limit of 1 public bookings this month",
+            status_code=403,
+        )
+        self.assertFalse(Lead.objects.filter(email="limit-blocked-booking@example.com").exists())
+
+    def test_public_book_now_is_hidden_and_rejected_when_appointment_limit_reached(self):
+        self.public_booking_plan.max_appointments_per_month = 1
+        self.public_booking_plan.save(
+            update_fields=["max_appointments_per_month", "updated_at"],
+        )
+        Appointment.objects.create(
+            business=self.business,
+            client=Client.objects.create(
+                business=self.business,
+                first_name="Existing",
+                last_name="Client",
+                email="existing-appointment-client@example.com",
+                phone="+1 721 555 1212",
+                company_name="Existing Client Co",
+                street_address="12 Existing Street",
+            ),
+            service=self.service,
+            staff_member=self.staff_user,
+            title="Existing capped appointment",
+            start_time=self.valid_start,
+            end_time=self.valid_start + timedelta(minutes=45),
+        )
+
+        get_response = self.client.get(reverse("public_booking", args=[self.business.slug]))
+        post_response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=self._booking_payload(
+                booking_intent=PublicBookingForm.BOOK_NOW,
+                staff_member=self.staff_user.pk,
+                email="appointment-limit-book-now@example.com",
+            ),
+        )
+
+        self.assertEqual(get_response.status_code, 200)
+        self.assertNotContains(get_response, "Book an appointment now")
+        self.assertContains(get_response, "Contact me before booking")
+        self.assertEqual(post_response.status_code, 200)
+        self.assertContains(post_response, "book_now is not one of the available choices.")
+        self.assertFalse(
+            Lead.objects.filter(email="appointment-limit-book-now@example.com").exists()
+        )
+
     def test_public_booking_form_uses_selected_country_for_address_style(self):
         form = PublicBookingForm(
             data=self._booking_payload(
@@ -2537,10 +2609,10 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Booking Requests Unavailable", status_code=403)
+        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
         self.assertContains(
             response,
-            "Online booking requests are not available for this business right now.",
+            "Public bookings are not available for this business right now.",
             status_code=403,
         )
         self.assertNotContains(response, "current workspace plan", status_code=403)
@@ -2552,7 +2624,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Booking Requests Unavailable", status_code=403)
+        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
 
     def test_public_booking_page_unavailable_without_bookable_services(self):
         BusinessService.objects.filter(business=self.business).update(
@@ -2562,7 +2634,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Booking Requests Unavailable", status_code=403)
+        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
 
     def test_public_booking_page_unavailable_without_active_availability(self):
         WeeklyAvailability.objects.filter(business=self.business).update(is_active=False)
@@ -2570,7 +2642,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Booking Requests Unavailable", status_code=403)
+        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
 
     def test_public_booking_only_shows_active_bookable_current_business_services(self):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
@@ -2984,7 +3056,7 @@ class PublicBookingTests(TestCase):
         )
         self.assertEqual(form.initial["start_time"], lead.preferred_start_time)
         self.assertEqual(form.initial["end_time"], lead.preferred_end_time)
-        self.assertIn("Request source: Public booking form", form.initial["notes"])
+        self.assertIn("Request source: Public booking", form.initial["notes"])
         self.assertIn("Requested duration: 45 minutes", form.initial["notes"])
         self.assertContains(response, reverse("staff_lead_detail", args=[lead.id]))
 

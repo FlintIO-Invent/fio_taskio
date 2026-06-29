@@ -68,16 +68,14 @@ class ClarivoPlanAdmin(admin.ModelAdmin):
         "is_active",
         "allow_invoicing",
         "allow_appointments",
-        "allow_memberships",
+        "allow_public_booking",
     )
     list_filter = (
         "is_active",
         "is_recommended",
         "allow_invoicing",
         "allow_appointments",
-        "allow_memberships",
         "allow_public_booking",
-        "allow_public_request_form",
     )
     search_fields = ("name", "slug", "description")
     prepopulated_fields = {"slug": ("name",)}

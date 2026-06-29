@@ -129,18 +129,30 @@
                   <div class="fw-semibold">{{ plan.max_invoices_per_month|default:"Unlimited" }}</div>
                 </div>
               </div>
+              <div class="col-6">
+                <div class="rounded-3 border p-3 h-100">
+                  <div class="fs-10 text-uppercase text-body-tertiary">Appointments / Month</div>
+                  <div class="fw-semibold">{{ plan.max_appointments_per_month|default:"Unlimited" }}</div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="rounded-3 border p-3 h-100">
+                  <div class="fs-10 text-uppercase text-body-tertiary">Public Bookings / Month</div>
+                  <div class="fw-semibold">{{ plan.max_public_bookings_per_month|default:"Unlimited" }}</div>
+                </div>
+              </div>
             </div>
 
             <div class="mb-4">
-              <div class="fs-9 fw-semibold text-body-emphasis mb-2">Workspace modules</div>
+              <div class="fs-9 fw-semibold text-body-emphasis mb-2">Main services</div>
               <div class="d-flex flex-wrap gap-2">
+                <span class="badge badge-phoenix badge-phoenix-success">Client Management</span>
                 <span class="badge badge-phoenix {% if plan.allow_invoicing %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Invoicing</span>
                 <span class="badge badge-phoenix {% if plan.allow_appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Appointments</span>
-                <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Public Booking Requests</span>
-                <span class="badge badge-phoenix {% if plan.allow_public_request_form %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Public Request Form</span>
+                <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Public Bookings</span>
               </div>
               <p class="fs-10 text-body-tertiary mt-2 mb-0">
-                Public booking remains request-first; submitted times still require team review before an appointment is confirmed.
+                Public bookings remain request-first; submitted times still require team review before an appointment is confirmed.
               </p>
             </div>
 

@@ -29,9 +29,9 @@
   {% if public_booking_allowed %}
     <div class="alert {% if booking_settings.booking_enabled %}alert-success{% else %}alert-info{% endif %} border mb-4" role="alert">
       {% if booking_settings.booking_enabled %}
-        Public booking requests enabled. Customers can submit requests for your team to review and confirm manually.
+        Public bookings enabled. Customers can submit bookings for your team to review and confirm manually.
       {% else %}
-        Public booking requires setup. Enable public booking requests after adding the rules and availability your team wants to offer.
+        Public bookings require setup. Enable public bookings after adding the rules and availability your team wants to offer.
       {% endif %}
     </div>
   {% else %}
@@ -67,7 +67,7 @@
 
               <div class="form-check form-switch mb-4">
                 {{ settings_form.booking_enabled }}
-                <label class="form-check-label" for="{{ settings_form.booking_enabled.id_for_label }}">Enable public booking requests</label>
+                <label class="form-check-label" for="{{ settings_form.booking_enabled.id_for_label }}">Enable public bookings</label>
                 {% if settings_form.booking_enabled.help_text %}<div class="form-text">{{ settings_form.booking_enabled.help_text }}</div>{% endif %}
                 {% if settings_form.booking_enabled.errors %}<div class="invalid-feedback d-block">{{ settings_form.booking_enabled.errors|striptags }}</div>{% endif %}
               </div>

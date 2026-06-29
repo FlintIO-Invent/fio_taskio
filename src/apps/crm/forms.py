@@ -1205,7 +1205,7 @@ class BusinessServiceForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 4,
-                    "placeholder": "Describe this service for public booking requests.",
+                    "placeholder": "Describe this service for public bookings.",
                 }
             ),
             "requires_manual_confirmation": forms.CheckboxInput(

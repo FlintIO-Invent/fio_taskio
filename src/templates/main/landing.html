@@ -235,8 +235,23 @@
                     <h5 class="mb-4">What’s included</h5>
                     <ul class="fa-ul ps-4 m-0 pricing">
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
-                        <p class="mb-0">CRM workspace and service requests</p>
+                        <p class="mb-0">Client Management</p>
                       </li>
+                      {% if plan.allow_invoicing %}
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Invoicing</p>
+                      </li>
+                      {% endif %}
+                      {% if plan.allow_appointments %}
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Appointments</p>
+                      </li>
+                      {% endif %}
+                      {% if plan.allow_public_booking %}
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Public Bookings</p>
+                      </li>
+                      {% endif %}
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
                         <p class="mb-0">{{ plan.max_users|default:"Unlimited" }} team users</p>
                       </li>
@@ -245,18 +260,6 @@
                       </li>
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
                         <p class="mb-0">{{ plan.max_invoices_per_month|default:"Unlimited" }} invoices / month</p>
-                      </li>
-                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="{% if plan.allow_invoicing %}fas fa-check text-primary{% endif %}"></span></span>
-                        <p class="mb-0">Invoicing</p>
-                      </li>
-                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="{% if plan.allow_appointments %}fas fa-check text-primary{% endif %}"></span></span>
-                        <p class="mb-0">Appointments</p>
-                      </li>
-                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="{% if plan.allow_public_request_form %}fas fa-check text-primary{% endif %}"></span></span>
-                        <p class="mb-0">Public request form</p>
-                      </li>
-                      <li class="d-flex align-items-center mb-0"><span class="fa-li"><span class="{% if plan.allow_public_booking %}fas fa-check text-primary{% endif %}"></span></span>
-                        <p class="mb-0">Public booking requests</p>
                       </li>
                     </ul>
                   </div>

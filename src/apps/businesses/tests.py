@@ -167,7 +167,7 @@ class SubscriptionAccessTests(TestCase):
             price_monthly=Decimal("49.00"),
             price_yearly=Decimal("490.00"),
             allow_invoicing=True,
-            allow_public_request_form=True,
+            allow_public_booking=True,
         )
 
     def test_active_subscription_exposes_access_helpers(self):
@@ -193,6 +193,7 @@ class SubscriptionAccessTests(TestCase):
 
         self.assertTrue(self.business.is_trialing)
         self.assertTrue(business_is_trialing(self.business))
+        self.assertTrue(can_use_module(self.business, "public_booking"))
         self.assertTrue(can_use_module(self.business, "public_request_form"))
 
     def test_cancelled_subscription_has_no_module_access(self):
@@ -216,6 +217,10 @@ class MotionmatePlanCatalogTests(TestCase):
                 "users": 2,
                 "clients": 100,
                 "invoices": 50,
+                "appointments": 0,
+                "public_bookings": 0,
+                "allow_appointments": False,
+                "allow_public_booking": False,
             },
             "pro": {
                 "monthly": Decimal("69.00"),
@@ -223,6 +228,10 @@ class MotionmatePlanCatalogTests(TestCase):
                 "users": 5,
                 "clients": 500,
                 "invoices": 250,
+                "appointments": 250,
+                "public_bookings": 0,
+                "allow_appointments": True,
+                "allow_public_booking": False,
             },
             "business": {
                 "monthly": Decimal("119.00"),
@@ -230,14 +239,12 @@ class MotionmatePlanCatalogTests(TestCase):
                 "users": 15,
                 "clients": 2000,
                 "invoices": 1000,
+                "appointments": 1000,
+                "public_bookings": 1000,
+                "allow_appointments": True,
+                "allow_public_booking": True,
             },
         }
-        required_modules = (
-            "invoicing",
-            "appointments",
-            "public_booking_requests",
-            "public_request_form",
-        )
 
         plans = list(ClarivoPlan.motionmate_plans())
 
@@ -251,11 +258,35 @@ class MotionmatePlanCatalogTests(TestCase):
                 self.assertEqual(plan.max_clients, expected_plan["clients"])
                 self.assertEqual(plan.max_invoices_per_month, expected_plan["invoices"])
                 self.assertEqual(
+                    plan.max_appointments_per_month,
+                    expected_plan["appointments"],
+                )
+                self.assertEqual(
+                    plan.max_public_bookings_per_month,
+                    expected_plan["public_bookings"],
+                )
+                self.assertTrue(plan.allows_module("client_management"))
+                self.assertTrue(plan.allows_module("invoicing"))
+                self.assertEqual(
+                    plan.allows_module("appointments"),
+                    expected_plan["allow_appointments"],
+                )
+                self.assertEqual(
+                    plan.allows_module("public_booking"),
+                    expected_plan["allow_public_booking"],
+                )
+                self.assertEqual(
+                    plan.allows_module("public_booking_requests"),
+                    expected_plan["allow_public_booking"],
+                )
+                self.assertEqual(
+                    plan.allows_module("public_request_form"),
+                    expected_plan["allow_public_booking"],
+                )
+                self.assertEqual(
                     plan.regional_prices["netherlands"]["tax_note"],
                     "ex. VAT",
                 )
-                for module in required_modules:
-                    self.assertTrue(plan.allows_module(module))
 
         self.assertTrue(ClarivoPlan.objects.get(slug="pro").is_recommended)
         self.assertFalse(ClarivoPlan.objects.get(slug="starter").is_recommended)
@@ -300,6 +331,8 @@ class MotionmatePlanCatalogTests(TestCase):
 
         self.assertTrue(business_limit_reached(business, "users"))
         self.assertFalse(business_limit_reached(business, "clients"))
+        self.assertTrue(business_limit_reached(business, "appointments_per_month"))
+        self.assertTrue(business_limit_reached(business, "public_bookings_per_month"))
 
     def test_public_pricing_page_uses_euro_prices_and_no_growth_plan(self):
         ClarivoPlan.objects.create(
@@ -318,9 +351,56 @@ class MotionmatePlanCatalogTests(TestCase):
         self.assertContains(response, "€119")
         self.assertContains(response, "€1,190 billed yearly")
         self.assertContains(response, "Recommended")
+        self.assertContains(response, "Client Management")
+        self.assertContains(response, "Public Bookings")
         self.assertNotContains(response, "$0.00")
         self.assertNotContains(response, "Free")
         self.assertNotContains(response, "Growth")
+        self.assertNotContains(response, "Public Request Form")
+        self.assertNotContains(response, "Public booking requests")
+
+    def test_starter_direct_urls_block_locked_services_cleanly(self):
+        business = Business.objects.create(
+            name="Starter Direct URL",
+            slug="starter-direct-url",
+        )
+        user = TaskIOUser.objects.create_user(
+            email="starter-direct-owner@example.com",
+            password="StrongPass123!",
+        )
+        BusinessSubscription.objects.create(
+            business=business,
+            plan=ClarivoPlan.objects.get(slug="starter"),
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessUser.objects.create(
+            user=user,
+            business=business,
+            role=BusinessUser.Role.OWNER,
+        )
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = business.id
+        session.save()
+        self.client.force_login(user)
+
+        client_response = self.client.get(reverse("staff_client_list"))
+        invoice_response = self.client.get(reverse("invoice_list"))
+        appointment_response = self.client.get(reverse("appointment_list"), follow=True)
+        public_booking_response = self.client.get(reverse("public_booking", args=[business.slug]))
+
+        self.assertEqual(client_response.status_code, 200)
+        self.assertEqual(invoice_response.status_code, 200)
+        self.assertRedirects(appointment_response, reverse("business_subscription"))
+        self.assertContains(
+            appointment_response,
+            "Appointments is not included in the current workspace plan.",
+        )
+        self.assertEqual(public_booking_response.status_code, 403)
+        self.assertContains(
+            public_booking_response,
+            "Public Bookings Unavailable",
+            status_code=403,
+        )
 
 
 class CurrentBusinessTests(TestCase):
@@ -949,7 +1029,7 @@ class BusinessBookingSettingsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            "Public Booking is not included in the current workspace plan.",
+            "Public Bookings is not included in the current workspace plan.",
         )
         self.assertContains(response, "You can still prepare these settings now")
 
@@ -964,7 +1044,7 @@ class BusinessBookingSettingsTests(TestCase):
         response = self.client.get(reverse("business_booking_settings"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Public booking requires setup")
+        self.assertContains(response, "Public bookings require setup")
 
     def test_staff_can_see_ready_public_booking_link_in_booking_settings(self):
         BusinessSubscription.objects.create(
@@ -981,6 +1061,11 @@ class BusinessBookingSettingsTests(TestCase):
             name="Online Consultation",
             is_bookable_online=True,
         )
+        BusinessUser.objects.create(
+            user=self.user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
         WeeklyAvailability.objects.create(
             business=self.business,
             staff_member=self.user,
@@ -988,7 +1073,10 @@ class BusinessBookingSettingsTests(TestCase):
             start_time=time(9, 0),
             end_time=time(17, 0),
         )
-        self._login_with_role(BusinessUser.Role.STAFF)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+        self.client.force_login(self.user)
 
         response = self.client.get(reverse("business_booking_settings"))
 

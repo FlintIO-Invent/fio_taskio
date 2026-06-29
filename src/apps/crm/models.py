@@ -210,8 +210,8 @@ class Lead(TimeStampedModel):
         CLOSED = "CLOSED", "Closed"
 
     class RequestSource(models.TextChoices):
-        PUBLIC_REQUEST = "public_request", "Public request form"
-        PUBLIC_BOOKING = "public_booking", "Public booking form"
+        PUBLIC_REQUEST = "public_request", "Public booking"
+        PUBLIC_BOOKING = "public_booking", "Public booking"
         STAFF = "staff", "Staff-entered"
         OTHER = "other", "Other"
 
@@ -280,7 +280,10 @@ class Lead(TimeStampedModel):
 
     @property
     def is_public_booking_request(self) -> bool:
-        return self.request_source == self.RequestSource.PUBLIC_BOOKING
+        return self.request_source in {
+            self.RequestSource.PUBLIC_BOOKING,
+            self.RequestSource.PUBLIC_REQUEST,
+        }
 
     @property
     def has_valid_requested_service(self) -> bool:

@@ -280,16 +280,16 @@ class ClarivoPlan(TimeStampedModel):
     MODULE_FLAG_MAP = {
         "invoicing": "allow_invoicing",
         "appointments": "allow_appointments",
-        "memberships": "allow_memberships",
         "public_booking": "allow_public_booking",
         "public_booking_requests": "allow_public_booking",
-        "public_request_form": "allow_public_request_form",
-        "public_request": "allow_public_request_form",
+        "public_request_form": "allow_public_booking",
+        "public_request": "allow_public_booking",
     }
     CORE_MODULES = {
         "workspace",
         "crm",
         "clients",
+        "client_management",
         "service_requests",
     }
 
@@ -314,6 +314,8 @@ class ClarivoPlan(TimeStampedModel):
     max_users = models.PositiveIntegerField(null=True, blank=True)
     max_clients = models.PositiveIntegerField(null=True, blank=True)
     max_invoices_per_month = models.PositiveIntegerField(null=True, blank=True)
+    max_appointments_per_month = models.PositiveIntegerField(null=True, blank=True)
+    max_public_bookings_per_month = models.PositiveIntegerField(null=True, blank=True)
     allow_invoicing = models.BooleanField(default=False)
     allow_appointments = models.BooleanField(default=False)
     allow_memberships = models.BooleanField(default=False)

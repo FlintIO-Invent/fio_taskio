@@ -12,9 +12,11 @@ from apps.billings.models import Invoice
 from apps.businesses.utils import (
     APPOINTMENT_MANAGE_ROLES,
     APPOINTMENT_VIEW_ROLES,
+    business_limit_reached,
     business_module_required,
     business_role_required,
     can_use_module,
+    get_business_limit_reached_message,
 )
 from apps.crm.models import BusinessService, Client, Lead
 from apps.crm.services import (
@@ -70,6 +72,18 @@ def _client_queryset_for_business(current_business):
         business=current_business,
         is_active=True,
     ).order_by("first_name", "last_name", "pk")
+
+
+def _redirect_when_appointment_limit_reached(request: HttpRequest) -> HttpResponse | None:
+    current_business = request.current_business
+    if not business_limit_reached(current_business, "appointments_per_month"):
+        return None
+
+    messages.error(
+        request,
+        get_business_limit_reached_message(current_business, "appointments_per_month"),
+    )
+    return redirect("appointment_list")
 
 
 def _requested_service_is_valid_for_request(lead: Lead) -> bool:
@@ -292,6 +306,10 @@ def appointment_detail(request: HttpRequest, appointment_id: int) -> HttpRespons
 @require_http_methods(["GET", "POST"])
 def appointment_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
+    limit_response = _redirect_when_appointment_limit_reached(request)
+    if limit_response is not None:
+        return limit_response
+
     source_client = _get_source_client_for_create(request, current_business)
 
     if request.method == "POST":
@@ -327,6 +345,10 @@ def appointment_create(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def appointment_create_from_request(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
+    limit_response = _redirect_when_appointment_limit_reached(request)
+    if limit_response is not None:
+        return limit_response
+
     lead = get_object_or_404(
         _request_lead_queryset_for_business(current_business),
         pk=lead_id,
