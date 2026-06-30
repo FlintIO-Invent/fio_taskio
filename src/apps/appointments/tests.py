@@ -917,6 +917,26 @@ class AppointmentViewTests(TestCase):
         self.assertRedirects(status_response, reverse("appointment_detail", args=[appointment.id]))
         self.assertEqual(appointment.status, Appointment.Status.NO_SHOW)
 
+    def test_appointment_create_redirects_when_monthly_plan_limit_reached(self):
+        self.appointments_plan.max_appointments_per_month = 1
+        self.appointments_plan.save(
+            update_fields=["max_appointments_per_month", "updated_at"],
+        )
+        self._login_as(self.owner, self.business)
+
+        response = self.client.post(
+            reverse("appointment_create"),
+            data=self._appointment_payload(title="Limit blocked visit"),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("appointment_list"))
+        self.assertContains(
+            response,
+            "Appointments Enabled plan limit of 1 appointments this month",
+        )
+        self.assertFalse(Appointment.objects.filter(title="Limit blocked visit").exists())
+
     def test_accountant_can_view_but_cannot_create_update_or_change_status(self):
         self._login_as(self.accountant_user, self.business)
 

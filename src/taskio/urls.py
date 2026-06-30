@@ -24,12 +24,55 @@ from apps.crm.views import public_booking, public_booking_thank_you
 
 
 def landing(request):
-    pricing_plans = ClarivoPlan.objects.filter(is_active=True).order_by("created_at", "pk")
+    pricing_plans = list(ClarivoPlan.motionmate_plans())
+    ClarivoPlan.attach_display_pricing(pricing_plans)
     context = {"pricing_plans": pricing_plans}
     return render(request, "main/landing.html", context)
 
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="home", permanent=False)),
+    path(
+        "favicon.ico",
+        RedirectView.as_view(
+            url="/static/assets/img/favicons/favicon.ico?v=motionmate-20260629",
+            permanent=False,
+        ),
+    ),
+    path(
+        "apple-touch-icon.png",
+        RedirectView.as_view(
+            url="/static/assets/img/favicons/apple-touch-icon.png?v=motionmate-20260629",
+            permanent=False,
+        ),
+    ),
+    path(
+        "apple-touch-icon-precomposed.png",
+        RedirectView.as_view(
+            url="/static/assets/img/favicons/apple-touch-icon.png?v=motionmate-20260629",
+            permanent=False,
+        ),
+    ),
+    path(
+        "manifest.json",
+        RedirectView.as_view(
+            url="/static/assets/img/favicons/manifest.json?v=motionmate-20260629",
+            permanent=False,
+        ),
+    ),
+    path(
+        "site.webmanifest",
+        RedirectView.as_view(
+            url="/static/assets/img/favicons/site.webmanifest?v=motionmate-20260629",
+            permanent=False,
+        ),
+    ),
+    path(
+        "browserconfig.xml",
+        RedirectView.as_view(
+            url="/static/assets/img/favicons/browserconfig.xml?v=motionmate-20260629",
+            permanent=False,
+        ),
+    ),
     path("admin/", admin.site.urls),
     path("home/", landing, name="home"),
     path("book/<slug:business_slug>/", public_booking, name="public_booking"),

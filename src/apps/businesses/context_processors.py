@@ -26,9 +26,8 @@ def current_business(request):
     module_access = {
         "invoicing": can_use_module(business, "invoicing"),
         "appointments": can_use_module(business, "appointments"),
-        "memberships": can_use_module(business, "memberships"),
         "public_booking": can_use_module(business, "public_booking"),
-        "public_request_form": can_use_module(business, "public_request_form"),
+        "public_request_form": can_use_module(business, "public_booking"),
     }
     role_access = {
         "can_manage_business_settings": membership_has_any_role(membership, OWNER_ADMIN_ROLES),

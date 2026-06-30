@@ -17,8 +17,10 @@ from apps.businesses.models import Business
 from apps.businesses.utils import (
     BILLING_MANAGE_ROLES,
     BILLING_VIEW_ROLES,
+    business_limit_reached,
     business_module_required,
     business_role_required,
+    get_business_limit_reached_message,
 )
 from apps.crm.models import ActivityLog, BusinessService, Client
 from apps.crm.services import log_activity
@@ -332,6 +334,13 @@ def _invoice_create_response(
     source_appointment: Appointment | None = None,
 ) -> HttpResponse:
     current_business = request.current_business
+    if business_limit_reached(current_business, "invoices_per_month"):
+        messages.error(
+            request,
+            get_business_limit_reached_message(current_business, "invoices_per_month"),
+        )
+        return redirect("invoice_list")
+
     available_services = list(_service_queryset_for_business(current_business))
     active_services_by_id = {str(service.pk): service for service in available_services}
     appointment_notes = (
