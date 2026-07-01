@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from apps.notifications.emails import send_business_invitation_email
+from helpers import build_public_url
 
 from .forms import (
     BusinessBookingSettingsForm,
@@ -299,8 +300,9 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
                 role=invite_form.cleaned_data["role"],
                 invited_by=request.user,
             )
-            accept_url = request.build_absolute_uri(
+            accept_url = build_public_url(
                 reverse("accept_business_invitation", args=[invitation.token]),
+                request=request,
             )
             email_sent = send_business_invitation_email(invitation, accept_url=accept_url)
             if created and email_sent:
@@ -327,6 +329,17 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
     else:
         invite_form = BusinessInvitationForm(business=business, membership=membership)
 
+    pending_invitations = list(
+        business.invitations.select_related("invited_by").filter(
+            status=BusinessInvitation.Status.PENDING,
+        )
+    )
+    for invitation in pending_invitations:
+        invitation.public_accept_url = build_public_url(
+            reverse("accept_business_invitation", args=[invitation.token]),
+            request=request,
+        )
+
     context = {
         "business": business,
         "membership": membership,
@@ -334,8 +347,6 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
         "team_memberships": business.memberships.select_related("user").order_by(
             "user__first_name", "user__last_name", "user__email"
         ),
-        "pending_invitations": business.invitations.select_related("invited_by").filter(
-            status=BusinessInvitation.Status.PENDING,
-        ),
+        "pending_invitations": pending_invitations,
     }
     return render(request, "businesses/team_members.html", context)

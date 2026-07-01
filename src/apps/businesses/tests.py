@@ -12,6 +12,7 @@ from django.urls import reverse
 from apps.accounts.models import TaskIOUser
 from apps.crm.models import BusinessService
 from config import Settings
+from helpers import build_public_url
 
 from .localization import format_money_for_business, parse_localized_decimal
 from .models import (
@@ -129,6 +130,9 @@ class EmailConfigurationTests(TestCase):
             email_host_password="",
             email_use_tls=True,
             email_use_ssl=False,
+            email_timeout=15,
+            motionmate_public_base_url="https://www.motionmate.net/",
+            motionmate_support_email="support@motionmate.net",
         )
 
         self.assertEqual(app_settings.default_from_email, "no-reply@motionmate.test")
@@ -140,6 +144,48 @@ class EmailConfigurationTests(TestCase):
         self.assertEqual(app_settings.email_host_password, "")
         self.assertTrue(app_settings.email_use_tls)
         self.assertFalse(app_settings.email_use_ssl)
+        self.assertEqual(app_settings.email_timeout, 15)
+        self.assertEqual(app_settings.motionmate_public_base_url, "https://www.motionmate.net")
+        self.assertEqual(app_settings.motionmate_support_email, "support@motionmate.net")
+
+    def test_email_timeout_defaults_to_10_seconds(self):
+        app_settings = Settings(_env_file=None)
+
+        self.assertEqual(app_settings.email_timeout, 10)
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/")
+    def test_build_public_url_uses_configured_public_base_url(self):
+        self.assertEqual(
+            build_public_url("/accounts/password-reset/confirm/example/"),
+            "https://www.motionmate.net/accounts/password-reset/confirm/example/",
+        )
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/")
+    def test_build_public_url_does_not_create_double_slashes(self):
+        self.assertEqual(
+            build_public_url("crm/public_request/motionmate/"),
+            "https://www.motionmate.net/crm/public_request/motionmate/",
+        )
+
+    @override_settings(
+        ALLOWED_HOSTS=["pilot.motionmate.test"],
+        MOTIONMATE_PUBLIC_BASE_URL="",
+    )
+    def test_build_public_url_falls_back_to_request_when_no_public_base_url(self):
+        request = RequestFactory().get(
+            "/businesses/team/",
+            secure=True,
+            HTTP_HOST="pilot.motionmate.test",
+        )
+
+        self.assertEqual(
+            build_public_url("/accounts/invitations/accept/token/", request=request),
+            "https://pilot.motionmate.test/accounts/invitations/accept/token/",
+        )
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="")
+    def test_build_public_url_returns_path_without_public_base_url_or_request(self):
+        self.assertEqual(build_public_url("/relative/path/"), "/relative/path/")
 
 
 class BusinessUserModelTests(TestCase):

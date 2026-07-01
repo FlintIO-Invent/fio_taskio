@@ -155,6 +155,9 @@ Important settings for local and production use:
 - `EMAIL_HOST_PASSWORD`
 - `EMAIL_USE_TLS`
 - `EMAIL_USE_SSL`
+- `EMAIL_TIMEOUT`
+- `MOTIONMATE_PUBLIC_BASE_URL`
+- `MOTIONMATE_SUPPORT_EMAIL`
 - `LOG_LEVEL`
 
 Production notes:
@@ -165,6 +168,48 @@ Production notes:
 - When `DEBUG=False`, secure cookie and HTTPS settings default to safe private-testing behavior unless explicitly overridden.
 - WhiteNoise serves collected static files in production.
 - The literal placeholder `replace-with-real-secret` is only a documentation example and will still trigger `security.W009`. Use a long random secret for real deploy checks.
+
+## Email Configuration
+
+Local development uses Django's console email backend by default, so transactional emails are printed to the runserver console instead of being delivered.
+
+Production and staging should use SMTP through a transactional email provider. Postmark is the recommended pilot provider unless the project owner chooses otherwise. Gmail SMTP should not be used for production app email.
+
+Before enabling production delivery:
+
+- Verify the MotionMate sending domain with the selected provider.
+- Configure SPF, DKIM, DMARC, and any provider-required return-path or bounce records.
+- Set `EMAIL_TIMEOUT=10` so slow or hanging SMTP connections do not block requests indefinitely.
+- Set `MOTIONMATE_PUBLIC_BASE_URL` to the real deployed app URL used by users.
+- Store `MOTIONMATE_PUBLIC_BASE_URL` without a trailing slash.
+
+Local email defaults:
+
+```dotenv
+EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+MOTIONMATE_PUBLIC_BASE_URL=http://localhost:8000
+EMAIL_TIMEOUT=10
+DEFAULT_FROM_EMAIL=MotionMate Local <noreply@localhost>
+SERVER_EMAIL=MotionMate Local <system@localhost>
+MOTIONMATE_SUPPORT_EMAIL=support@localhost
+```
+
+Production SMTP example:
+
+```dotenv
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_USE_SSL=False
+EMAIL_HOST_USER=
+EMAIL_HOST_PASSWORD=
+EMAIL_TIMEOUT=10
+DEFAULT_FROM_EMAIL=MotionMate <noreply@motionmate.net>
+SERVER_EMAIL=MotionMate System <system@motionmate.net>
+MOTIONMATE_SUPPORT_EMAIL=support@motionmate.net
+MOTIONMATE_PUBLIC_BASE_URL=https://www.motionmate.net
+```
 
 ## Checks and tests
 
@@ -286,6 +331,9 @@ Email and invitation notes:
 - `SERVER_EMAIL` defaults to `DEFAULT_FROM_EMAIL` when it is not set.
 - `EMAIL_BACKEND` defaults to the console backend locally.
 - For staging or production SMTP delivery, set `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend` plus `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, and either `EMAIL_USE_TLS=True` or `EMAIL_USE_SSL=True` according to the provider.
+- Set `EMAIL_TIMEOUT=10` for staging and production SMTP delivery.
+- Set `MOTIONMATE_PUBLIC_BASE_URL` to the deployed app URL with no trailing slash, for example `https://www.motionmate.net`.
+- Set `MOTIONMATE_SUPPORT_EMAIL` to the support inbox shown in security emails.
 - If live email is not configured yet, use the manual invitation link fallback from the team flow rather than assuming invite delivery is live.
 
 Static-file note:
@@ -295,7 +343,7 @@ Static-file note:
 
 Example deployment environment:
 
-```bash
+```dotenv
 SECRET_KEY='replace-this-with-a-long-random-secret'
 DEBUG=False
 ALLOWED_HOSTS=motionmate-2026-abc123.herokuapp.com,motionmate.example.com
@@ -308,8 +356,6 @@ SECURE_HSTS_SECONDS=3600
 SECURE_HSTS_INCLUDE_SUBDOMAINS=True
 SECURE_HSTS_PRELOAD=True
 USE_X_FORWARDED_PROTO=True
-DEFAULT_FROM_EMAIL=no-reply@motionmate.example.com
-SERVER_EMAIL=no-reply@motionmate.example.com
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST=smtp.example.com
 EMAIL_PORT=587
@@ -317,6 +363,11 @@ EMAIL_HOST_USER=motionmate-smtp-user
 EMAIL_HOST_PASSWORD=replace-with-smtp-password
 EMAIL_USE_TLS=True
 EMAIL_USE_SSL=False
+EMAIL_TIMEOUT=10
+DEFAULT_FROM_EMAIL=MotionMate <noreply@motionmate.net>
+SERVER_EMAIL=MotionMate System <system@motionmate.net>
+MOTIONMATE_SUPPORT_EMAIL=support@motionmate.net
+MOTIONMATE_PUBLIC_BASE_URL=https://www.motionmate.net
 LOG_LEVEL=INFO
 ```
 

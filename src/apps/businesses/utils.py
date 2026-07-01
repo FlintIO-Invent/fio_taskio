@@ -16,6 +16,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
+from helpers import build_public_url
+
 from .models import (
     Business,
     BusinessBookingSettings,
@@ -459,7 +461,7 @@ def get_public_booking_share_context(
     public_booking_path = reverse("public_booking", args=[business.slug])
 
     return {
-        "public_booking_url": request.build_absolute_uri(public_booking_path),
+        "public_booking_url": build_public_url(public_booking_path, request=request),
         "public_booking_path": public_booking_path,
         "public_booking_allowed": public_booking_allowed,
         "public_booking_enabled": booking_enabled,

@@ -150,6 +150,18 @@ class Settings(BaseSettings):
         default=False,
         description="Use SSL/TLS for SMTP email delivery.",
     )
+    email_timeout: int = Field(
+        default=10,
+        description="Timeout in seconds for SMTP email operations.",
+    )
+    motionmate_public_base_url: str = Field(
+        default="",
+        description="Canonical public application URL used when building links for emails.",
+    )
+    motionmate_support_email: str = Field(
+        default="",
+        description="Support email address shown in transactional emails.",
+    )
     log_level: str = Field(
         default="INFO",
         description="Application log level.",
@@ -186,6 +198,20 @@ class Settings(BaseSettings):
     def normalize_optional_int(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("email_timeout", mode="before")
+    @classmethod
+    def normalize_email_timeout(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return 10
+        return value
+
+    @field_validator("motionmate_public_base_url", mode="before")
+    @classmethod
+    def normalize_public_base_url(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().rstrip("/")
         return value
 
     @field_validator("log_level", mode="before")

@@ -332,8 +332,12 @@ class PasswordManagementViewTests(TestCase):
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
         DEFAULT_FROM_EMAIL="no-reply@motionmate.test",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/",
     )
     def test_password_reset_form_sends_motionmate_branded_email(self):
+        if hasattr(mail, "outbox"):
+            mail.outbox.clear()
+
         response = self.client.post(
             reverse("password_reset"),
             {"email": self.user.email},
@@ -342,10 +346,11 @@ class PasswordManagementViewTests(TestCase):
         self.assertRedirects(response, reverse("password_reset_done"))
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
-        self.assertEqual(message.subject, "Motionmate password reset")
-        self.assertIn("Motionmate workspace login", message.body)
-        self.assertIn("Motionmate", message.body)
-        self.assertIn("/accounts/password-reset/", message.body)
+        self.assertEqual(message.subject, "MotionMate password reset")
+        self.assertIn("MotionMate workspace login", message.body)
+        self.assertIn("MotionMate", message.body)
+        self.assertIn("https://www.motionmate.net/accounts/password-reset/", message.body)
+        self.assertNotIn("testserver", message.body)
 
     def test_password_reset_confirm_page_loads_for_valid_token(self):
         uidb64 = urlsafe_base64_encode(force_bytes(self.user.pk))
@@ -359,6 +364,55 @@ class PasswordManagementViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Choose a new password")
         self.assertContains(response, "Motionmate workspace login")
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="no-reply@motionmate.test",
+        MOTIONMATE_SUPPORT_EMAIL="support@motionmate.test",
+    )
+    def test_password_reset_completion_sends_security_confirmation_email(self):
+        uidb64 = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        reset_password = "ResetStrongPass123!"
+        confirm_url = reverse(
+            "password_reset_confirm",
+            kwargs={"uidb64": uidb64, "token": token},
+        )
+        response = self.client.get(confirm_url)
+        self.assertEqual(response.status_code, 302)
+        set_password_url = response["Location"]
+        if hasattr(mail, "outbox"):
+            mail.outbox.clear()
+
+        response = self.client.post(
+            set_password_url,
+            {
+                "new_password1": reset_password,
+                "new_password2": reset_password,
+            },
+            follow=True,
+        )
+
+        self.user.refresh_from_db()
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        rendered_message = message.body + "\n".join(
+            alternative[0] for alternative in message.alternatives
+        )
+        self.assertRedirects(response, reverse("password_reset_complete"))
+        self.assertTrue(self.user.check_password(reset_password))
+        self.assertEqual(message.subject, "Your MotionMate password was reset")
+        self.assertEqual(message.to, [self.user.email])
+        self.assertIn(
+            "If you did not reset your password, please contact support immediately",
+            message.body,
+        )
+        self.assertIn("support@motionmate.test", message.body)
+        self.assertTrue(
+            any(alternative[1] == "text/html" for alternative in message.alternatives)
+        )
+        self.assertNotIn(reset_password, rendered_message)
+        self.assertNotIn(token, rendered_message)
 
     def test_password_change_route_requires_login(self):
         response = self.client.get(reverse("password_change"))
@@ -377,23 +431,51 @@ class PasswordManagementViewTests(TestCase):
         self.assertContains(response, "Change Password")
         self.assertContains(response, "Update the password for your Motionmate account.")
 
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="no-reply@motionmate.test",
+        MOTIONMATE_SUPPORT_EMAIL="support@motionmate.test",
+    )
     def test_logged_in_user_can_change_password(self):
         self.client.force_login(self.user)
+        old_password = "StrongPass123!"
+        new_password = "NewStrongPass123!"
+        if hasattr(mail, "outbox"):
+            mail.outbox.clear()
 
         response = self.client.post(
             reverse("password_change"),
             {
-                "old_password": "StrongPass123!",
-                "new_password1": "NewStrongPass123!",
-                "new_password2": "NewStrongPass123!",
+                "old_password": old_password,
+                "new_password1": new_password,
+                "new_password2": new_password,
             },
             follow=True,
         )
 
         self.user.refresh_from_db()
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        rendered_message = message.body + "\n".join(
+            alternative[0] for alternative in message.alternatives
+        )
         self.assertRedirects(response, reverse("password_change_done"))
-        self.assertTrue(self.user.check_password("NewStrongPass123!"))
+        self.assertTrue(self.user.check_password(new_password))
         self.assertContains(response, "Your password was changed successfully.")
+        self.assertEqual(self.client.session.get("_auth_user_id"), str(self.user.pk))
+        self.assertEqual(message.subject, "Your MotionMate password was changed")
+        self.assertEqual(message.to, [self.user.email])
+        self.assertIn(
+            "If you did not make this change, please contact support immediately",
+            message.body,
+        )
+        self.assertIn("support@motionmate.test", message.body)
+        self.assertTrue(
+            any(alternative[1] == "text/html" for alternative in message.alternatives)
+        )
+        self.assertNotIn(old_password, rendered_message)
+        self.assertNotIn(new_password, rendered_message)
+        self.assertNotIn("token", rendered_message.lower())
 
 
 class OnboardingScopeGuardTests(TestCase):

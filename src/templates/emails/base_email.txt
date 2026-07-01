@@ -1,0 +1,7 @@
+MotionMate
+
+{% block body %}{% endblock %}
+
+{% if action_url and action_label %}{{ action_label }}: {{ action_url }}
+{% endif %}{% if support_email %}Support: {{ support_email }}
+{% endif %}

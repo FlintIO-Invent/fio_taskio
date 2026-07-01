@@ -53,7 +53,7 @@ from apps.notifications.emails import (
     send_internal_booking_notification_email,
     send_public_booking_request_received_email,
 )
-from helpers import upsert_client_from_lead
+from helpers import build_public_url, upsert_client_from_lead
 
 from .forms import (
     BusinessServiceCSVImportForm,
@@ -1056,7 +1056,10 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
                         location=_build_public_booking_location(lead, client),
                         notes=_build_public_booking_appointment_notes(lead),
                     )
-            request_url = request.build_absolute_uri(reverse("staff_lead_detail", args=[lead.id]))
+            request_url = build_public_url(
+                reverse("staff_lead_detail", args=[lead.id]),
+                request=request,
+            )
             if appointment is not None:
                 send_appointment_confirmation_email(appointment)
             else:

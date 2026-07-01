@@ -164,6 +164,42 @@ def _business_contact_text(business: Business) -> str:
     return "\n".join(contact_lines) or "Contact the business directly for details."
 
 
+def _security_email_context(user, *, email_title: str) -> dict:
+    return {
+        "user": user,
+        "email_title": email_title,
+        "support_email": getattr(settings, "MOTIONMATE_SUPPORT_EMAIL", ""),
+    }
+
+
+def send_password_reset_complete_email(user) -> bool:
+    return send_templated_email(
+        subject_template="emails/password_reset_complete_subject.txt",
+        body_template="emails/password_reset_complete_body.txt",
+        html_template="emails/password_reset_complete_body.html",
+        context=_security_email_context(
+            user,
+            email_title="Your MotionMate password was reset",
+        ),
+        recipient_list=[user.email],
+        log_label="password reset confirmation",
+    )
+
+
+def send_password_change_confirmation_email(user) -> bool:
+    return send_templated_email(
+        subject_template="emails/password_change_subject.txt",
+        body_template="emails/password_change_body.txt",
+        html_template="emails/password_change_body.html",
+        context=_security_email_context(
+            user,
+            email_title="Your MotionMate password was changed",
+        ),
+        recipient_list=[user.email],
+        log_label="password change confirmation",
+    )
+
+
 def send_business_invitation_email(
     invitation: BusinessInvitation,
     *,
