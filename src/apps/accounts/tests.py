@@ -1,5 +1,6 @@
 from datetime import timedelta
 from pathlib import Path
+from unittest import mock
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
@@ -476,6 +477,36 @@ class PasswordManagementViewTests(TestCase):
         self.assertNotIn(old_password, rendered_message)
         self.assertNotIn(new_password, rendered_message)
         self.assertNotIn("token", rendered_message.lower())
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_password_change_still_succeeds_if_confirmation_email_fails_safely(self):
+        self.client.force_login(self.user)
+        new_password = "NewStrongPass123!"
+
+        with self.assertLogs("apps.notifications.emails", level="ERROR") as captured:
+            with mock.patch(
+                "apps.notifications.emails.EmailMultiAlternatives.send",
+                side_effect=RuntimeError("SMTP unavailable password=secret-token"),
+            ):
+                response = self.client.post(
+                    reverse("password_change"),
+                    {
+                        "old_password": "StrongPass123!",
+                        "new_password1": new_password,
+                        "new_password2": new_password,
+                    },
+                    follow=True,
+                )
+
+        self.user.refresh_from_db()
+        self.assertRedirects(response, reverse("password_change_done"))
+        self.assertTrue(self.user.check_password(new_password))
+        self.assertContains(response, "Your password was changed successfully.")
+        self.assertEqual(self.client.session.get("_auth_user_id"), str(self.user.pk))
+        log_output = "\n".join(captured.output)
+        self.assertIn("Failed to send password change confirmation email notification.", log_output)
+        self.assertNotIn("SMTP unavailable", log_output)
+        self.assertNotIn("secret-token", log_output)
 
 
 class OnboardingScopeGuardTests(TestCase):

@@ -1,0 +1,21 @@
+{% extends "emails/base_email.html" %}
+
+{% block body %}
+  <p>Hi {{ client_name|default:client.email }},</p>
+  <p>{{ business.name }} sent invoice {{ invoice.invoice_number }}. The invoice PDF is attached for your records.</p>
+  <p>
+    <strong>Invoice number:</strong> {{ invoice.invoice_number }}<br>
+    <strong>Issue date:</strong> {{ issue_date }}<br>
+    <strong>Amount due:</strong> {{ amount_due }}<br>
+    <strong>Attachment:</strong> {{ attachment_filename }}
+  </p>
+  <p>
+    <strong>Business contact:</strong><br>
+    {{ business_contact|linebreaksbr }}
+  </p>
+  {% if reply_to_email %}
+    <p>Questions? Reply to this email or contact {{ reply_to_email }}.</p>
+  {% else %}
+    <p>Please contact {{ business.name }} with any questions.</p>
+  {% endif %}
+{% endblock %}

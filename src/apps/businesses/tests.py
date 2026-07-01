@@ -1276,7 +1276,10 @@ class BusinessInvitationViewTests(TestCase):
         session.save()
         self.client.force_login(user)
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/",
+    )
     def test_owner_can_create_workspace_invitation(self):
         mail.outbox.clear()
         self._login(self.owner, BusinessUser.Role.OWNER)
@@ -1291,6 +1294,7 @@ class BusinessInvitationViewTests(TestCase):
         )
 
         invitation = BusinessInvitation.objects.get(email="employee@example.com")
+        accept_url = f"https://www.motionmate.net{reverse('accept_business_invitation', args=[invitation.token])}"
 
         self.assertRedirects(response, reverse("business_team_members"))
         self.assertEqual(invitation.business, self.business)
@@ -1298,17 +1302,15 @@ class BusinessInvitationViewTests(TestCase):
         self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
         self.assertEqual(invitation.invited_by, self.owner)
         self.assertContains(response, "Invitation created and emailed successfully.")
-        self.assertContains(
-            response, reverse("accept_business_invitation", args=[invitation.token])
-        )
+        self.assertContains(response, accept_url)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["employee@example.com"])
         self.assertIn("Motionmate", mail.outbox[0].body)
         self.assertIn(self.business.name, mail.outbox[0].body)
         self.assertIn("Staff", mail.outbox[0].body)
-        self.assertIn(
-            reverse("accept_business_invitation", args=[invitation.token]), mail.outbox[0].body
-        )
+        self.assertIn(accept_url, mail.outbox[0].body)
+        self.assertNotIn("testserver", mail.outbox[0].body)
+        self.assertNotIn("https://www.motionmate.net//", mail.outbox[0].body)
 
     def test_invite_still_exists_if_email_send_fails(self):
         self._login(self.owner, BusinessUser.Role.OWNER)

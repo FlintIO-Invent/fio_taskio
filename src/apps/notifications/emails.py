@@ -50,12 +50,14 @@ def send_templated_email(
     log_label: str,
     html_template: str | None = None,
     attachments: list[tuple[str, bytes, str]] | None = None,
+    reply_to: list[str] | tuple[str, ...] | None = None,
     fail_safely: bool = True,
 ) -> bool:
     recipients = _normalize_recipients(recipient_list)
     if not recipients:
         logger.info("Skipping %s email notification because no recipient is configured.", log_label)
         return False
+    reply_to_recipients = _normalize_recipients(reply_to or [])
 
     subject = _render_subject(subject_template, context)
     body = render_to_string(body_template, context).strip()
@@ -66,6 +68,7 @@ def send_templated_email(
             body=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=recipients,
+            reply_to=reply_to_recipients,
         )
         if html_template:
             html_body = render_to_string(html_template, context)
@@ -74,7 +77,7 @@ def send_templated_email(
             message.attach(*attachment)
         sent_count = message.send(fail_silently=False)
     except Exception:
-        logger.exception("Failed to send %s email notification.", log_label)
+        logger.error("Failed to send %s email notification.", log_label)
         if fail_safely:
             return False
         raise
@@ -199,6 +202,29 @@ def _client_display_name(client) -> str:
         if part and part.strip()
     )
     return full_name or getattr(client, "company_name", "") or getattr(client, "email", "")
+
+
+def _format_date(value, business: Business) -> str:
+    if value is None:
+        return "Not provided"
+
+    business_tz = _business_timezone(business)
+    local_value = timezone.localtime(value, business_tz)
+    return f"{local_value:%B} {local_value.day}, {local_value:%Y}"
+
+
+def _invoice_reply_to_email(invoice) -> str:
+    business_email = (getattr(invoice.business, "email", "") or "").strip()
+    if business_email:
+        return business_email
+    return _support_email().strip()
+
+
+def _invoice_reply_to(invoice) -> list[str]:
+    reply_to_email = _invoice_reply_to_email(invoice)
+    if reply_to_email:
+        return [reply_to_email]
+    return [settings.DEFAULT_FROM_EMAIL]
 
 
 def _security_email_context(user, *, email_title: str) -> dict:
@@ -395,17 +421,27 @@ def send_invoice_email(
     pdf_bytes: bytes,
     filename: str,
 ) -> bool:
+    invoice_title = f"Invoice {invoice.invoice_number} from {invoice.business.name}"
     context = {
         "invoice": invoice,
         "business": invoice.business,
         "client": invoice.client,
+        "client_name": _client_display_name(invoice.client),
+        "email_title": invoice_title,
+        "issue_date": _format_date(invoice.created_at, invoice.business),
         "amount_due": f"{invoice.currency_code} {invoice.total:.2f}",
+        "attachment_filename": filename,
+        "business_contact": _business_contact_text(invoice.business),
+        "reply_to_email": _invoice_reply_to_email(invoice),
+        "support_email": _support_email(),
     }
     return send_templated_email(
         subject_template="emails/invoice_subject.txt",
         body_template="emails/invoice_body.txt",
+        html_template="emails/invoice_body.html",
         context=context,
         recipient_list=[invoice.client.email],
         attachments=[(filename, pdf_bytes, "application/pdf")],
-        log_label="invoice email",
+        reply_to=_invoice_reply_to(invoice),
+        log_label="invoice",
     )

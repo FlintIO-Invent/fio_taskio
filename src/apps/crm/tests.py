@@ -2948,6 +2948,7 @@ class PublicBookingTests(TestCase):
                 for message in captured.output
             )
         )
+        self.assertFalse(any("SMTP unavailable" in message for message in captured.output))
 
     def test_internal_booking_notification_recipient_prefers_business_email_then_owner(self):
         self.business.email = "office@motionmate.test"
@@ -2964,6 +2965,18 @@ class PublicBookingTests(TestCase):
         self.assertEqual(
             get_internal_booking_notification_recipient(self.business),
             self.owner_user.email,
+        )
+
+        self.business.email = "not-an-email"
+        self.business.save(update_fields=["email", "updated_at"])
+
+        with self.assertLogs("apps.notifications.emails", level="INFO") as captured:
+            self.assertEqual(
+                get_internal_booking_notification_recipient(self.business),
+                self.owner_user.email,
+            )
+        self.assertTrue(
+            any("has an invalid notification email configured" in message for message in captured.output)
         )
 
     def test_booking_request_list_shows_booking_context(self):
@@ -3162,6 +3175,9 @@ class PublicBookingTests(TestCase):
         self.assertIn("Time:", confirmation_email.body)
         self.assertIn("45 Front Street", confirmation_email.body)
         self.assertIn("support@motionmate.test", confirmation_email.body)
+        self.assertNotIn("booking-staff@example.com", confirmation_email.body)
+        self.assertNotIn("Staff User", confirmation_email.body)
+        self.assertNotIn("Confirmed from booking request.", confirmation_email.body)
         self.assertTrue(
             any(alternative[1] == "text/html" for alternative in confirmation_email.alternatives)
         )
