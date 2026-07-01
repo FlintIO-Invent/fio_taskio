@@ -345,6 +345,7 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(mimetype, "application/pdf")
         self.assertTrue(attachment_content.startswith(b"%PDF"))
         self.assertIn(b"INV-ALPHA-001", attachment_content)
+        self.assertNotIn(internal_note.encode(), attachment_content)
         self.assertEqual(self.invoice.emailed_to, "alicia@example.com")
         self.assertIsNotNone(self.invoice.emailed_at)
         self.assertEqual(self.invoice.email_send_count, 1)

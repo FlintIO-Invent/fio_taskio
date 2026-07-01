@@ -91,7 +91,7 @@
     </tr>
   </table>
 
-  {% if invoice.notes %}
+  {% if include_notes and invoice.notes %}
     <div class="section">
       <strong>Notes</strong>
       <div>{{ invoice.notes|linebreaksbr }}</div>

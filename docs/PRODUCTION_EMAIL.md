@@ -101,6 +101,65 @@ Run this on staging before production launch.
 
 No test-management command is required for this block. The safest staging test is to exercise the real transactional flows above because they also verify templates, links, attachments, and view-level failure behavior.
 
+## MotionMate Pilot Email Runbook
+
+Use this short runbook during the pilot smoke pass.
+
+Check Heroku config vars without sharing secrets:
+
+```bash
+heroku config:get EMAIL_BACKEND --app <app-name>
+heroku config:get EMAIL_HOST --app <app-name>
+heroku config:get EMAIL_PORT --app <app-name>
+heroku config:get EMAIL_USE_TLS --app <app-name>
+heroku config:get EMAIL_USE_SSL --app <app-name>
+heroku config:get EMAIL_TIMEOUT --app <app-name>
+heroku config:get DEFAULT_FROM_EMAIL --app <app-name>
+heroku config:get SERVER_EMAIL --app <app-name>
+heroku config:get MOTIONMATE_SUPPORT_EMAIL --app <app-name>
+heroku config:get MOTIONMATE_PUBLIC_BASE_URL --app <app-name>
+```
+
+Confirm `EMAIL_HOST_USER` and `EMAIL_HOST_PASSWORD` are set in Heroku, but do not paste or share their values.
+
+Send a simple SMTP test email from Heroku:
+
+```bash
+heroku run "python src/manage.py shell -c \"from django.conf import settings; from django.core.mail import send_mail; send_mail('MotionMate test email', 'This is a one-time transactional email configuration test.', settings.DEFAULT_FROM_EMAIL, ['recipient@example.com'], fail_silently=False)\"" --app <app-name>
+```
+
+Replace `recipient@example.com` with an internal pilot-test inbox.
+
+Trigger pilot-critical transactional flows:
+
+- Password reset: open `/accounts/password-reset/`, submit a pilot user email, and verify the reset link uses the expected MotionMate app URL.
+- Team invitation: as an owner/admin, open `/businesses/team/`, invite a test teammate, and verify the invite link uses the expected MotionMate app URL.
+- Customer request confirmation: submit the public request/booking form for a pilot business and verify the customer receives the confirmation.
+- Internal request alert: after the same public request/booking submission, verify the business notification recipient receives the internal alert with the internal request link.
+- Appointment confirmation: if appointments are in pilot scope, schedule/confirm an appointment and verify the customer receives the appointment details.
+- Invoice PDF email: from an invoice detail page, manually click the invoice email action and verify the client receives exactly one email with an opening PDF attachment.
+
+Inspect Heroku logs safely:
+
+```bash
+heroku logs --tail --app <app-name>
+```
+
+Do not log, paste, screenshot, or share SMTP credentials, provider API keys, reset links, reset tokens, invitation links, passwords, or private DNS record values. When reporting an email failure, share only the flow name, timestamp, recipient domain if needed, and the safe error class/message.
+
+If emails go to spam:
+
+- Re-check SPF, DKIM, DMARC, return-path/bounce verification, and from-domain alignment in the provider dashboard.
+- Send to a different internal mailbox to compare behavior.
+- Review provider activity logs for delivery, bounce, suppression, or spam signals.
+
+If links point to the wrong domain:
+
+- Fix `MOTIONMATE_PUBLIC_BASE_URL`.
+- Use the real app URL, not a marketing page.
+- Remove any trailing slash from `MOTIONMATE_PUBLIC_BASE_URL`.
+- Re-trigger password reset and invitation emails after changing the config var.
+
 ## Production Launch Checklist
 
 Complete this before enabling production email delivery for real users.

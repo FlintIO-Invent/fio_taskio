@@ -171,6 +171,19 @@ class EmailConfigurationTests(TestCase):
             "https://www.motionmate.net/crm/public_request/motionmate/",
         )
 
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/")
+    def test_build_public_url_prefers_configured_public_base_url_over_request_host(self):
+        request = RequestFactory().get(
+            "/businesses/team/",
+            secure=True,
+            HTTP_HOST="staging.motionmate.test",
+        )
+
+        self.assertEqual(
+            build_public_url("/accounts/invitations/accept/token/", request=request),
+            "https://www.motionmate.net/accounts/invitations/accept/token/",
+        )
+
     @override_settings(
         ALLOWED_HOSTS=["pilot.motionmate.test"],
         MOTIONMATE_PUBLIC_BASE_URL="",

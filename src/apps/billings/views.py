@@ -531,7 +531,11 @@ def invoice_email_send(request: HttpRequest, invoice_id: int) -> HttpResponse:
         return redirect("invoice_detail", invoice_id=invoice.id)
 
     try:
-        pdf_bytes = render_invoice_pdf(invoice, current_business=current_business)
+        pdf_bytes = render_invoice_pdf(
+            invoice,
+            current_business=current_business,
+            include_notes=False,
+        )
     except Exception:
         logger.exception("Failed to generate invoice email PDF for invoice_id=%s", invoice.id)
         messages.error(request, "Invoice PDF could not be generated, so no email was sent.")

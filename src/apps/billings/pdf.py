@@ -53,7 +53,7 @@ def _client_address_lines(invoice: Invoice) -> list[str]:
     return lines
 
 
-def _invoice_context(invoice: Invoice) -> dict:
+def _invoice_context(invoice: Invoice, *, include_notes: bool = True) -> dict:
     business = invoice.business
     return {
         "invoice": invoice,
@@ -63,6 +63,7 @@ def _invoice_context(invoice: Invoice) -> dict:
         "client_address_lines": _client_address_lines(invoice),
         "lines": list(invoice.lines.all()),
         "issue_date": timezone.localtime(invoice.created_at),
+        "include_notes": include_notes,
         "powered_by": "Powered by Motionmate",
     }
 
@@ -72,9 +73,17 @@ def _ensure_invoice_business(invoice: Invoice, current_business=None) -> None:
         raise ValueError("Invoice does not belong to the current workspace.")
 
 
-def render_invoice_pdf_html(invoice: Invoice, *, current_business=None) -> str:
+def render_invoice_pdf_html(
+    invoice: Invoice,
+    *,
+    current_business=None,
+    include_notes: bool = True,
+) -> str:
     _ensure_invoice_business(invoice, current_business)
-    return render_to_string("billings/invoice_pdf.html", _invoice_context(invoice))
+    return render_to_string(
+        "billings/invoice_pdf.html",
+        _invoice_context(invoice, include_notes=include_notes),
+    )
 
 
 def invoice_pdf_filename(invoice: Invoice) -> str:
@@ -82,7 +91,12 @@ def invoice_pdf_filename(invoice: Invoice) -> str:
     return f"invoice-{safe_number or invoice.pk}.pdf"
 
 
-def render_invoice_pdf(invoice: Invoice, *, current_business=None) -> bytes:
+def render_invoice_pdf(
+    invoice: Invoice,
+    *,
+    current_business=None,
+    include_notes: bool = True,
+) -> bytes:
     _ensure_invoice_business(invoice, current_business)
     buffer = BytesIO()
     pdf = canvas.Canvas(
@@ -93,7 +107,7 @@ def render_invoice_pdf(invoice: Invoice, *, current_business=None) -> bytes:
     )
     pdf.setTitle(f"Invoice {invoice.invoice_number}")
 
-    context = _invoice_context(invoice)
+    context = _invoice_context(invoice, include_notes=include_notes)
     _draw_invoice(pdf, context)
 
     pdf.save()
@@ -192,7 +206,7 @@ def _draw_invoice(pdf: canvas.Canvas, context: dict) -> None:
     y -= 18
     y = _draw_totals(pdf, invoice, y)
 
-    if invoice.notes:
+    if context["include_notes"] and invoice.notes:
         y = _ensure_space(pdf, y, 80)
         y -= 20
         pdf.setFont("Helvetica-Bold", 11)
