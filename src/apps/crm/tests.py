@@ -2903,6 +2903,8 @@ class PublicBookingTests(TestCase):
         self.assertNotIn("Your appointment is confirmed", requester_email.body)
         self.assertNotIn("Booking intent:", requester_email.body)
         self.assertNotIn("Preferred staff:", requester_email.body)
+        self.assertNotIn("booking-staff@example.com", requester_email.body)
+        self.assertNotIn("Staff User", requester_email.body)
         self.assertTrue(
             any(alternative[1] == "text/html" for alternative in requester_email.alternatives)
         )
@@ -2944,6 +2946,13 @@ class PublicBookingTests(TestCase):
         self.assertTrue(
             any(
                 "Failed to send public service request confirmation email notification."
+                in message
+                for message in captured.output
+            )
+        )
+        self.assertTrue(
+            any(
+                "Failed to send internal service request alert email notification."
                 in message
                 for message in captured.output
             )
@@ -3165,6 +3174,11 @@ class PublicBookingTests(TestCase):
         self.assertRedirects(response, reverse("appointment_detail", args=[appointment.id]))
         self.assertEqual(len(mail.outbox), 1)
         confirmation_email = mail.outbox[0]
+        local_start = lead.preferred_start_time.astimezone(self.business_timezone)
+        local_end = lead.preferred_end_time.astimezone(self.business_timezone)
+        expected_date = f"{local_start:%B} {local_start.day}, {local_start:%Y}"
+        expected_start_time = local_start.strftime("%I:%M %p").lstrip("0")
+        expected_end_time = local_end.strftime("%I:%M %p").lstrip("0")
         self.assertEqual(confirmation_email.to, ["appointment-email@example.com"])
         self.assertEqual(confirmation_email.subject, "Your MotionMate appointment is scheduled")
         self.assertIn("MotionMate", confirmation_email.body)
@@ -3173,6 +3187,10 @@ class PublicBookingTests(TestCase):
         )
         self.assertIn(self.service.name, confirmation_email.body)
         self.assertIn("Time:", confirmation_email.body)
+        self.assertIn(expected_date, confirmation_email.body)
+        self.assertIn(expected_start_time, confirmation_email.body)
+        self.assertIn(expected_end_time, confirmation_email.body)
+        self.assertIn("Europe/Berlin", confirmation_email.body)
         self.assertIn("45 Front Street", confirmation_email.body)
         self.assertIn("support@motionmate.test", confirmation_email.body)
         self.assertNotIn("booking-staff@example.com", confirmation_email.body)

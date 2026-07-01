@@ -161,6 +161,10 @@ class EmailConfigurationTests(TestCase):
         )
 
     @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/")
+    def test_build_public_url_strips_configured_base_trailing_slash(self):
+        self.assertEqual(build_public_url(""), "https://www.motionmate.net")
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/")
     def test_build_public_url_does_not_create_double_slashes(self):
         self.assertEqual(
             build_public_url("crm/public_request/motionmate/"),

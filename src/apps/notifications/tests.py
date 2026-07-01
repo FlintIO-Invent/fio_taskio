@@ -97,6 +97,26 @@ class SendTemplatedEmailTests(SimpleTestCase):
         self.assertNotIn("secret-token", log_output)
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_send_templated_email_logs_zero_send_count_without_exception_text(self):
+        with self.assertLogs("apps.notifications.emails", level="ERROR") as captured:
+            with mock.patch(
+                "apps.notifications.emails.EmailMultiAlternatives.send",
+                return_value=0,
+            ):
+                sent = send_templated_email(
+                    subject_template="emails/password_change_subject.txt",
+                    body_template="emails/password_change_body.txt",
+                    context=self._context(),
+                    recipient_list=["alex@example.com"],
+                    log_label="zero delivery test",
+                )
+
+        self.assertFalse(sent)
+        log_output = "\n".join(captured.output)
+        self.assertIn("Failed to send zero delivery test email notification.", log_output)
+        self.assertNotIn("alex@example.com", log_output)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_templated_email_reraises_when_fail_safely_is_false(self):
         with self.assertLogs("apps.notifications.emails", level="ERROR"):
             with mock.patch(

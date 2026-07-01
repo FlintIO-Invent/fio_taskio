@@ -347,11 +347,15 @@ class PasswordManagementViewTests(TestCase):
         self.assertRedirects(response, reverse("password_reset_done"))
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
+        rendered_message = message.body + "\n".join(
+            alternative[0] for alternative in message.alternatives
+        )
         self.assertEqual(message.subject, "MotionMate password reset")
         self.assertIn("MotionMate workspace login", message.body)
         self.assertIn("MotionMate", message.body)
         self.assertIn("https://www.motionmate.net/accounts/password-reset/", message.body)
         self.assertNotIn("testserver", message.body)
+        self.assertNotIn("StrongPass123!", rendered_message)
 
     def test_password_reset_confirm_page_loads_for_valid_token(self):
         uidb64 = urlsafe_base64_encode(force_bytes(self.user.pk))
@@ -414,6 +418,41 @@ class PasswordManagementViewTests(TestCase):
         )
         self.assertNotIn(reset_password, rendered_message)
         self.assertNotIn(token, rendered_message)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_password_reset_completion_still_succeeds_if_confirmation_email_fails_safely(self):
+        uidb64 = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        reset_password = "ResetStrongPass123!"
+        confirm_url = reverse(
+            "password_reset_confirm",
+            kwargs={"uidb64": uidb64, "token": token},
+        )
+        response = self.client.get(confirm_url)
+        self.assertEqual(response.status_code, 302)
+        set_password_url = response["Location"]
+
+        with self.assertLogs("apps.notifications.emails", level="ERROR") as captured:
+            with mock.patch(
+                "apps.notifications.emails.EmailMultiAlternatives.send",
+                side_effect=RuntimeError("SMTP unavailable password=secret-token"),
+            ):
+                response = self.client.post(
+                    set_password_url,
+                    {
+                        "new_password1": reset_password,
+                        "new_password2": reset_password,
+                    },
+                    follow=True,
+                )
+
+        self.user.refresh_from_db()
+        self.assertRedirects(response, reverse("password_reset_complete"))
+        self.assertTrue(self.user.check_password(reset_password))
+        log_output = "\n".join(captured.output)
+        self.assertIn("Failed to send password reset confirmation email notification.", log_output)
+        self.assertNotIn("SMTP unavailable", log_output)
+        self.assertNotIn("secret-token", log_output)
 
     def test_password_change_route_requires_login(self):
         response = self.client.get(reverse("password_change"))

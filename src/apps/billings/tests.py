@@ -295,6 +295,9 @@ class BillingBusinessScopingTests(TestCase):
         self.business.email = "billing@alpha.test"
         self.business.phone = "+1 721 555 0101"
         self.business.save(update_fields=["email", "phone", "updated_at"])
+        internal_note = "Internal collections note: call before resending."
+        self.invoice.notes = internal_note
+        self.invoice.save(update_fields=["notes"])
         original_status = self.invoice.status
         self.client.force_login(self.user)
 
@@ -324,6 +327,7 @@ class BillingBusinessScopingTests(TestCase):
         self.assertIn("Attachment: invoice-INV-ALPHA-001.pdf", message.body)
         self.assertIn("billing@alpha.test", message.body)
         self.assertIn("+1 721 555 0101", message.body)
+        self.assertNotIn(internal_note, message.body)
         self.assertNotIn(reverse("invoice_detail", args=[self.invoice.id]), message.body)
         self.assertNotIn("https://www.motionmate.net//", message.body)
         self.assertTrue(any(alternative[1] == "text/html" for alternative in message.alternatives))
@@ -333,6 +337,7 @@ class BillingBusinessScopingTests(TestCase):
             if alternative[1] == "text/html"
         )
         self.assertIn("Invoice number:</strong> INV-ALPHA-001", html_body)
+        self.assertNotIn(internal_note, html_body)
         self.assertNotIn(reverse("invoice_detail", args=[self.invoice.id]), html_body)
         self.assertEqual(len(message.attachments), 1)
         attachment_name, attachment_content, mimetype = message.attachments[0]

@@ -82,7 +82,11 @@ def send_templated_email(
             return False
         raise
 
-    return sent_count > 0
+    if sent_count <= 0:
+        logger.error("Failed to send %s email notification.", log_label)
+        return False
+
+    return True
 
 
 def _user_display_name(user) -> str:
