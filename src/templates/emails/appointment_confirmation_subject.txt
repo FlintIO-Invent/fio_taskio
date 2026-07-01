@@ -1,1 +1,1 @@
-Motionmate appointment scheduled with {{ business.name }}
+Your MotionMate appointment is scheduled

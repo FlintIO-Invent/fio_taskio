@@ -1,12 +1,15 @@
-Motionmate
+{% extends "emails/base_email.txt" %}
 
-Your appointment with {{ business.name }} has been scheduled.
+{% block body %}Hi {{ customer_name|default:client.email }},
+
+Your appointment with {{ business.name }} is scheduled.
 
 Service: {{ service_name }}
 Time: {{ appointment_window }}
-Location: {{ appointment.location|default:"To be confirmed" }}
+Location: {{ appointment_location }}
 
 Business contact:
 {{ business_contact }}
 
 Reply to {{ business.name }} if any details need to change.
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "emails/base_email.html" %}
+
+{% block body %}
+  <p>New service request received for {{ business.name }}.</p>
+  <p>
+    <strong>Customer:</strong> {{ requester_name }}<br>
+    <strong>Email:</strong> {{ lead.email }}<br>
+    <strong>Phone:</strong> {{ lead.phone|default:"Not provided" }}<br>
+    <strong>Request type:</strong> {{ service_name }}<br>
+    <strong>Submitted:</strong> {{ submitted_at }}<br>
+    <strong>Preferred time:</strong> {{ preferred_window }}
+  </p>
+  <p>
+    <strong>Service address:</strong><br>
+    {{ request_location|linebreaksbr }}
+  </p>
+  <p>
+    <strong>Request details:</strong><br>
+    {{ request_description|linebreaksbr }}
+  </p>
+  {% if not request_url %}
+    <p>View request link unavailable. Sign in to MotionMate and open the request from the service request list.</p>
+  {% endif %}
+{% endblock %}

@@ -1,1 +1,1 @@
-Motionmate: new booking request for {{ business.name }}
+New service request received

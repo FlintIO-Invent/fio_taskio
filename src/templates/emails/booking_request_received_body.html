@@ -1,0 +1,17 @@
+{% extends "emails/base_email.html" %}
+
+{% block body %}
+  <p>Hi {{ requester_name }},</p>
+  <p>We received your MotionMate request for {{ business.name }}.</p>
+  <p>This is not a confirmed appointment yet. The business will review your request and follow up to confirm the details.</p>
+  <p>
+    <strong>Business:</strong> {{ business.name }}<br>
+    <strong>Request type:</strong> {{ service_name }}<br>
+    <strong>Submitted:</strong> {{ submitted_at }}<br>
+    <strong>Preferred time:</strong> {{ preferred_window }}
+  </p>
+  <p>
+    <strong>Business contact:</strong><br>
+    {{ business_contact|linebreaksbr }}
+  </p>
+{% endblock %}

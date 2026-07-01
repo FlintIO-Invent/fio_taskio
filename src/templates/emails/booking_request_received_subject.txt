@@ -1,1 +1,1 @@
-Motionmate booking request received by {{ business.name }}
+We received your MotionMate request
