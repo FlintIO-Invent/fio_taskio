@@ -174,6 +174,9 @@ EMAIL_HOST_USER = settings.email_host_user
 EMAIL_HOST_PASSWORD = settings.email_host_password
 EMAIL_USE_TLS = settings.email_use_tls
 EMAIL_USE_SSL = settings.email_use_ssl
+EMAIL_TIMEOUT = settings.email_timeout
+MOTIONMATE_PUBLIC_BASE_URL = settings.motionmate_public_base_url
+MOTIONMATE_SUPPORT_EMAIL = settings.motionmate_support_email
 
 LOGGING = {
     "version": 1,

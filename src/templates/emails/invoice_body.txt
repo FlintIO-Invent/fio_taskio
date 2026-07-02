@@ -1,10 +1,16 @@
-Motionmate
+{% extends "emails/base_email.txt" %}
 
-{{ business.name }} sent invoice {{ invoice.invoice_number }}.
+{% block body %}Hi {{ client_name|default:client.email }},
 
+{{ business.name }} sent invoice {{ invoice.invoice_number }}. The invoice PDF is attached for your records.
+
+Invoice number: {{ invoice.invoice_number }}
+Issue date: {{ issue_date }}
 Amount due: {{ amount_due }}
-Status: {{ invoice.get_status_display }}
+Attachment: {{ attachment_filename }}
 
-The invoice PDF is attached for your records.
+Business contact:
+{{ business_contact }}
 
-{% if business.email %}Questions? Reply to {{ business.email }}.{% else %}Please contact {{ business.name }} with any questions.{% endif %}
+{% if reply_to_email %}Questions? Reply to this email or contact {{ reply_to_email }}.{% else %}Please contact {{ business.name }} with any questions.{% endif %}
+{% endblock %}

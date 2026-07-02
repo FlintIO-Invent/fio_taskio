@@ -12,6 +12,7 @@ from django.urls import reverse
 from apps.accounts.models import TaskIOUser
 from apps.crm.models import BusinessService
 from config import Settings
+from helpers import build_public_url
 
 from .localization import format_money_for_business, parse_localized_decimal
 from .models import (
@@ -129,6 +130,9 @@ class EmailConfigurationTests(TestCase):
             email_host_password="",
             email_use_tls=True,
             email_use_ssl=False,
+            email_timeout=15,
+            motionmate_public_base_url="https://www.motionmate.net/",
+            motionmate_support_email="support@motionmate.net",
         )
 
         self.assertEqual(app_settings.default_from_email, "no-reply@motionmate.test")
@@ -140,6 +144,65 @@ class EmailConfigurationTests(TestCase):
         self.assertEqual(app_settings.email_host_password, "")
         self.assertTrue(app_settings.email_use_tls)
         self.assertFalse(app_settings.email_use_ssl)
+        self.assertEqual(app_settings.email_timeout, 15)
+        self.assertEqual(app_settings.motionmate_public_base_url, "https://www.motionmate.net")
+        self.assertEqual(app_settings.motionmate_support_email, "support@motionmate.net")
+
+    def test_email_timeout_defaults_to_10_seconds(self):
+        app_settings = Settings(_env_file=None)
+
+        self.assertEqual(app_settings.email_timeout, 10)
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/")
+    def test_build_public_url_uses_configured_public_base_url(self):
+        self.assertEqual(
+            build_public_url("/accounts/password-reset/confirm/example/"),
+            "https://www.motionmate.net/accounts/password-reset/confirm/example/",
+        )
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/")
+    def test_build_public_url_strips_configured_base_trailing_slash(self):
+        self.assertEqual(build_public_url(""), "https://www.motionmate.net")
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/")
+    def test_build_public_url_does_not_create_double_slashes(self):
+        self.assertEqual(
+            build_public_url("crm/public_request/motionmate/"),
+            "https://www.motionmate.net/crm/public_request/motionmate/",
+        )
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/")
+    def test_build_public_url_prefers_configured_public_base_url_over_request_host(self):
+        request = RequestFactory().get(
+            "/businesses/team/",
+            secure=True,
+            HTTP_HOST="staging.motionmate.test",
+        )
+
+        self.assertEqual(
+            build_public_url("/accounts/invitations/accept/token/", request=request),
+            "https://www.motionmate.net/accounts/invitations/accept/token/",
+        )
+
+    @override_settings(
+        ALLOWED_HOSTS=["pilot.motionmate.test"],
+        MOTIONMATE_PUBLIC_BASE_URL="",
+    )
+    def test_build_public_url_falls_back_to_request_when_no_public_base_url(self):
+        request = RequestFactory().get(
+            "/businesses/team/",
+            secure=True,
+            HTTP_HOST="pilot.motionmate.test",
+        )
+
+        self.assertEqual(
+            build_public_url("/accounts/invitations/accept/token/", request=request),
+            "https://pilot.motionmate.test/accounts/invitations/accept/token/",
+        )
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="")
+    def test_build_public_url_returns_path_without_public_base_url_or_request(self):
+        self.assertEqual(build_public_url("/relative/path/"), "/relative/path/")
 
 
 class BusinessUserModelTests(TestCase):
@@ -1230,7 +1293,10 @@ class BusinessInvitationViewTests(TestCase):
         session.save()
         self.client.force_login(user)
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/",
+    )
     def test_owner_can_create_workspace_invitation(self):
         mail.outbox.clear()
         self._login(self.owner, BusinessUser.Role.OWNER)
@@ -1245,6 +1311,7 @@ class BusinessInvitationViewTests(TestCase):
         )
 
         invitation = BusinessInvitation.objects.get(email="employee@example.com")
+        accept_url = f"https://www.motionmate.net{reverse('accept_business_invitation', args=[invitation.token])}"
 
         self.assertRedirects(response, reverse("business_team_members"))
         self.assertEqual(invitation.business, self.business)
@@ -1252,17 +1319,15 @@ class BusinessInvitationViewTests(TestCase):
         self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
         self.assertEqual(invitation.invited_by, self.owner)
         self.assertContains(response, "Invitation created and emailed successfully.")
-        self.assertContains(
-            response, reverse("accept_business_invitation", args=[invitation.token])
-        )
+        self.assertContains(response, accept_url)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["employee@example.com"])
         self.assertIn("Motionmate", mail.outbox[0].body)
         self.assertIn(self.business.name, mail.outbox[0].body)
         self.assertIn("Staff", mail.outbox[0].body)
-        self.assertIn(
-            reverse("accept_business_invitation", args=[invitation.token]), mail.outbox[0].body
-        )
+        self.assertIn(accept_url, mail.outbox[0].body)
+        self.assertNotIn("testserver", mail.outbox[0].body)
+        self.assertNotIn("https://www.motionmate.net//", mail.outbox[0].body)
 
     def test_invite_still_exists_if_email_send_fails(self):
         self._login(self.owner, BusinessUser.Role.OWNER)

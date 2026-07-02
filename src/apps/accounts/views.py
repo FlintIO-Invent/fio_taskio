@@ -1,8 +1,14 @@
 from typing import Any
 
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import (
+    PasswordChangeView,
+    PasswordResetConfirmView,
+    PasswordResetView,
+)
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -20,6 +26,10 @@ from apps.businesses.utils import (
     get_other_active_business_membership_for_user,
     set_current_business,
 )
+from apps.notifications.emails import (
+    send_password_change_confirmation_email,
+    send_password_reset_complete_email,
+)
 
 from .forms import (
     BusinessLoginForm,
@@ -30,6 +40,35 @@ from .forms import (
     SaaSInvoiceSettingsForm,
     SaaSWorkspaceSettingsForm,
 )
+
+
+class MotionmatePasswordResetView(PasswordResetView):
+    def form_valid(self, form):
+        original_context = self.extra_email_context or {}
+        public_base_url = (
+            getattr(settings, "MOTIONMATE_PUBLIC_BASE_URL", "") or ""
+        ).strip().rstrip("/")
+        self.extra_email_context = {
+            **original_context,
+            "motionmate_public_base_url": public_base_url,
+        }
+        return super().form_valid(form)
+
+
+class MotionmatePasswordResetConfirmView(PasswordResetConfirmView):
+    def form_valid(self, form):
+        user = form.user
+        response = super().form_valid(form)
+        send_password_reset_complete_email(user)
+        return response
+
+
+class MotionmatePasswordChangeView(PasswordChangeView):
+    def form_valid(self, form):
+        user = form.user
+        response = super().form_valid(form)
+        send_password_change_confirmation_email(user)
+        return response
 
 
 @require_http_methods(["GET", "POST"])

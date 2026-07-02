@@ -2872,7 +2872,11 @@ class PublicBookingTests(TestCase):
         )
         self.assertFalse(Lead.objects.filter(email="staff-conflict@example.com").exists())
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/",
+        MOTIONMATE_SUPPORT_EMAIL="support@motionmate.test",
+    )
     def test_public_booking_sends_requester_confirmation_and_internal_notification(self):
         mail.outbox.clear()
         self.business.email = "dispatch@motionmate.test"
@@ -2887,34 +2891,73 @@ class PublicBookingTests(TestCase):
         internal_email = next(
             message for message in mail.outbox if message.to == ["dispatch@motionmate.test"]
         )
-        self.assertIn("Motionmate", requester_email.body)
+        self.assertEqual(requester_email.subject, "We received your MotionMate request")
+        self.assertIn("MotionMate", requester_email.body)
+        self.assertIn("Jamie Booker", requester_email.body)
         self.assertIn(self.business.name, requester_email.body)
         self.assertIn(self.service.name, requester_email.body)
-        self.assertIn("This is not a confirmed appointment", requester_email.body)
+        self.assertIn("Submitted:", requester_email.body)
+        self.assertIn("The business will review your request and follow up", requester_email.body)
+        self.assertIn("support@motionmate.test", requester_email.body)
+        self.assertIn("This is not a confirmed appointment yet", requester_email.body)
         self.assertNotIn("Your appointment is confirmed", requester_email.body)
-        self.assertIn("Motionmate", internal_email.body)
-        self.assertIn("New booking request received", internal_email.body)
+        self.assertNotIn("Booking intent:", requester_email.body)
+        self.assertNotIn("Preferred staff:", requester_email.body)
+        self.assertNotIn("booking-staff@example.com", requester_email.body)
+        self.assertNotIn("Staff User", requester_email.body)
+        self.assertTrue(
+            any(alternative[1] == "text/html" for alternative in requester_email.alternatives)
+        )
+        self.assertEqual(internal_email.subject, "New service request received")
+        self.assertIn("New service request received", internal_email.body)
+        self.assertIn("Jamie Booker", internal_email.body)
         self.assertIn("notify-booking@example.com", internal_email.body)
-        self.assertIn(reverse("staff_lead_detail", args=[lead.id]), internal_email.body)
+        self.assertIn("+1 721 555 8080", internal_email.body)
+        self.assertIn("Please confirm if this time works.", internal_email.body)
+        self.assertIn("45 Front Street", internal_email.body)
+        self.assertIn(
+            f"https://www.motionmate.net{reverse('staff_lead_detail', args=[lead.id])}",
+            internal_email.body,
+        )
+        self.assertNotIn("https://www.motionmate.net//", internal_email.body)
+        self.assertTrue(
+            any(alternative[1] == "text/html" for alternative in internal_email.alternatives)
+        )
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_public_booking_flow_still_succeeds_if_email_backend_raises(self):
         mail.outbox.clear()
 
-        with mock.patch(
-            "apps.notifications.emails.EmailMultiAlternatives.send",
-            side_effect=RuntimeError("SMTP unavailable"),
-        ):
-            response = self.client.post(
-                reverse("public_booking", args=[self.business.slug]),
-                data=self._booking_payload(email="email-down-booking@example.com"),
-            )
+        with self.assertLogs("apps.notifications.emails", level="ERROR") as captured:
+            with mock.patch(
+                "apps.notifications.emails.EmailMultiAlternatives.send",
+                side_effect=RuntimeError("SMTP unavailable"),
+            ):
+                response = self.client.post(
+                    reverse("public_booking", args=[self.business.slug]),
+                    data=self._booking_payload(email="email-down-booking@example.com"),
+                )
 
         self.assertRedirects(
             response,
             reverse("public_booking_thank_you", args=[self.business.slug]),
         )
         self.assertTrue(Lead.objects.filter(email="email-down-booking@example.com").exists())
+        self.assertTrue(
+            any(
+                "Failed to send public service request confirmation email notification."
+                in message
+                for message in captured.output
+            )
+        )
+        self.assertTrue(
+            any(
+                "Failed to send internal service request alert email notification."
+                in message
+                for message in captured.output
+            )
+        )
+        self.assertFalse(any("SMTP unavailable" in message for message in captured.output))
 
     def test_internal_booking_notification_recipient_prefers_business_email_then_owner(self):
         self.business.email = "office@motionmate.test"
@@ -2931,6 +2974,18 @@ class PublicBookingTests(TestCase):
         self.assertEqual(
             get_internal_booking_notification_recipient(self.business),
             self.owner_user.email,
+        )
+
+        self.business.email = "not-an-email"
+        self.business.save(update_fields=["email", "updated_at"])
+
+        with self.assertLogs("apps.notifications.emails", level="INFO") as captured:
+            self.assertEqual(
+                get_internal_booking_notification_recipient(self.business),
+                self.owner_user.email,
+            )
+        self.assertTrue(
+            any("has an invalid notification email configured" in message for message in captured.output)
         )
 
     def test_booking_request_list_shows_booking_context(self):
@@ -3089,7 +3144,10 @@ class PublicBookingTests(TestCase):
         self.assertEqual(appointment.start_time, lead.preferred_start_time)
         self.assertEqual(appointment.end_time, lead.preferred_end_time)
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_SUPPORT_EMAIL="support@motionmate.test",
+    )
     def test_confirming_booking_request_sends_appointment_confirmation_email(self):
         mail.outbox.clear()
         lead = self._create_valid_booking(email="appointment-email@example.com")
@@ -3116,13 +3174,31 @@ class PublicBookingTests(TestCase):
         self.assertRedirects(response, reverse("appointment_detail", args=[appointment.id]))
         self.assertEqual(len(mail.outbox), 1)
         confirmation_email = mail.outbox[0]
+        local_start = lead.preferred_start_time.astimezone(self.business_timezone)
+        local_end = lead.preferred_end_time.astimezone(self.business_timezone)
+        expected_date = f"{local_start:%B} {local_start.day}, {local_start:%Y}"
+        expected_start_time = local_start.strftime("%I:%M %p").lstrip("0")
+        expected_end_time = local_end.strftime("%I:%M %p").lstrip("0")
         self.assertEqual(confirmation_email.to, ["appointment-email@example.com"])
-        self.assertIn("Motionmate", confirmation_email.body)
+        self.assertEqual(confirmation_email.subject, "Your MotionMate appointment is scheduled")
+        self.assertIn("MotionMate", confirmation_email.body)
         self.assertIn(
-            "Your appointment with Motionmate Booking has been scheduled", confirmation_email.body
+            "Your appointment with Motionmate Booking is scheduled", confirmation_email.body
         )
         self.assertIn(self.service.name, confirmation_email.body)
+        self.assertIn("Time:", confirmation_email.body)
+        self.assertIn(expected_date, confirmation_email.body)
+        self.assertIn(expected_start_time, confirmation_email.body)
+        self.assertIn(expected_end_time, confirmation_email.body)
+        self.assertIn("Europe/Berlin", confirmation_email.body)
         self.assertIn("45 Front Street", confirmation_email.body)
+        self.assertIn("support@motionmate.test", confirmation_email.body)
+        self.assertNotIn("booking-staff@example.com", confirmation_email.body)
+        self.assertNotIn("Staff User", confirmation_email.body)
+        self.assertNotIn("Confirmed from booking request.", confirmation_email.body)
+        self.assertTrue(
+            any(alternative[1] == "text/html" for alternative in confirmation_email.alternatives)
+        )
 
     def test_accountant_and_viewer_cannot_schedule_booking_created_lead(self):
         lead = self._create_valid_booking(email="read-only-booking@example.com")

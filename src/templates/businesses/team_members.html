@@ -99,7 +99,7 @@
                       <td>{{ invitation.get_role_display }}</td>
                       <td>{{ invitation.expires_at|date:"M j, Y, g:i a" }}</td>
                       <td>
-                        <code class="small">{{ request.scheme }}://{{ request.get_host }}{% url 'accept_business_invitation' invitation.token %}</code>
+                        <code class="small">{{ invitation.public_accept_url }}</code>
                       </td>
                     </tr>
                   {% endfor %}

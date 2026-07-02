@@ -1,13 +1,16 @@
-Motionmate
+{% extends "emails/base_email.txt" %}
 
-Hi {{ requester_name }},
+{% block body %}Hi {{ requester_name }},
 
-{{ business.name }} has received your booking request.
+We received your MotionMate request for {{ business.name }}.
 
-This is not a confirmed appointment. The business will review your request and follow up to confirm the appointment details.
+This is not a confirmed appointment yet. The business will review your request and follow up to confirm the details.
 
-Requested service: {{ service_name }}
+Business: {{ business.name }}
+Request type: {{ service_name }}
+Submitted: {{ submitted_at }}
 Preferred time: {{ preferred_window }}
 
 Business contact:
 {{ business_contact }}
+{% endblock %}

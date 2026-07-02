@@ -1,14 +1,18 @@
-Motionmate
+{% extends "emails/base_email.txt" %}
 
-New booking request received for {{ business.name }}.
+{% block body %}New service request received for {{ business.name }}.
 
-Requester: {{ requester_name }}
+Customer: {{ requester_name }}
 Email: {{ lead.email }}
 Phone: {{ lead.phone|default:"Not provided" }}
-Requested service: {{ service_name }}
+Request type: {{ service_name }}
+Submitted: {{ submitted_at }}
 Preferred time: {{ preferred_window }}
+Service address:
+{{ request_location }}
 
 Request details:
-{{ lead.message|default:"No extra details provided." }}
+{{ request_description }}
 
-{% if request_url %}View request: {{ request_url }}{% endif %}
+{% if not request_url %}View request link unavailable. Sign in to MotionMate and open the request from the service request list.{% endif %}
+{% endblock %}

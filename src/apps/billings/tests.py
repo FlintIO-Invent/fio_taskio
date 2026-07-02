@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+from unittest import mock
 
 from django.core import mail
 from django.core.exceptions import ValidationError
@@ -283,10 +284,20 @@ class BillingBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net/",
+        MOTIONMATE_SUPPORT_EMAIL="support@motionmate.test",
+    )
     def test_invoice_email_sends_pdf_attachment_and_tracks_delivery(self):
         mail.outbox.clear()
         self._add_invoice_line()
+        self.business.email = "billing@alpha.test"
+        self.business.phone = "+1 721 555 0101"
+        self.business.save(update_fields=["email", "phone", "updated_at"])
+        internal_note = "Internal collections note: call before resending."
+        self.invoice.notes = internal_note
+        self.invoice.save(update_fields=["notes"])
         original_status = self.invoice.status
         self.client.force_login(self.user)
 
@@ -306,20 +317,85 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
         self.assertEqual(message.to, ["alicia@example.com"])
+        self.assertEqual(message.reply_to, ["billing@alpha.test"])
         self.assertIn("Invoice INV-ALPHA-001 from Alpha Workspace", message.subject)
-        self.assertIn("Motionmate", message.body)
+        self.assertIn("MotionMate", message.body)
+        self.assertIn("Hi Alicia Client", message.body)
+        self.assertIn("Invoice number: INV-ALPHA-001", message.body)
+        self.assertIn("Issue date:", message.body)
         self.assertIn("Amount due: XCD 133.13", message.body)
+        self.assertIn("Attachment: invoice-INV-ALPHA-001.pdf", message.body)
+        self.assertIn("billing@alpha.test", message.body)
+        self.assertIn("+1 721 555 0101", message.body)
+        self.assertNotIn(internal_note, message.body)
+        self.assertNotIn(reverse("invoice_detail", args=[self.invoice.id]), message.body)
+        self.assertNotIn("https://www.motionmate.net//", message.body)
+        self.assertTrue(any(alternative[1] == "text/html" for alternative in message.alternatives))
+        html_body = next(
+            alternative[0]
+            for alternative in message.alternatives
+            if alternative[1] == "text/html"
+        )
+        self.assertIn("Invoice number:</strong> INV-ALPHA-001", html_body)
+        self.assertNotIn(internal_note, html_body)
+        self.assertNotIn(reverse("invoice_detail", args=[self.invoice.id]), html_body)
         self.assertEqual(len(message.attachments), 1)
         attachment_name, attachment_content, mimetype = message.attachments[0]
         self.assertEqual(attachment_name, "invoice-INV-ALPHA-001.pdf")
         self.assertEqual(mimetype, "application/pdf")
         self.assertTrue(attachment_content.startswith(b"%PDF"))
         self.assertIn(b"INV-ALPHA-001", attachment_content)
+        self.assertNotIn(internal_note.encode(), attachment_content)
         self.assertEqual(self.invoice.emailed_to, "alicia@example.com")
         self.assertIsNotNone(self.invoice.emailed_at)
         self.assertEqual(self.invoice.email_send_count, 1)
         self.assertEqual(self.invoice.status, original_status)
         self.assertEqual(activity_log.business, self.business)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_SUPPORT_EMAIL="support@motionmate.test",
+    )
+    def test_invoice_email_failure_does_not_track_delivery_or_expose_smtp_error(self):
+        mail.outbox.clear()
+        self._add_invoice_line()
+        original_status = self.invoice.status
+        self.client.force_login(self.user)
+
+        with self.assertLogs("apps.notifications.emails", level="ERROR") as captured:
+            with mock.patch(
+                "apps.notifications.emails.EmailMultiAlternatives.send",
+                side_effect=RuntimeError("SMTP unavailable password=secret"),
+            ):
+                response = self.client.post(
+                    reverse("invoice_email_send", args=[self.invoice.id]),
+                    follow=True,
+                )
+
+        self.invoice.refresh_from_db()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[self.invoice.id]))
+        self.assertContains(response, "Invoice email could not be sent.")
+        self.assertNotContains(response, "SMTP unavailable")
+        self.assertNotContains(response, "password=secret")
+        self.assertEqual(self.invoice.emailed_to, "")
+        self.assertIsNone(self.invoice.emailed_at)
+        self.assertEqual(self.invoice.email_send_count, 0)
+        self.assertEqual(self.invoice.status, original_status)
+        self.assertFalse(
+            ActivityLog.objects.filter(
+                client=self.client_record,
+                action_type=ActivityLog.ActionType.EMAIL_SENT,
+            ).exists()
+        )
+        self.assertTrue(
+            any(
+                "Failed to send invoice email notification." in message
+                for message in captured.output
+            )
+        )
+        self.assertFalse(any("SMTP unavailable" in message for message in captured.output))
+        self.assertFalse(any("password=secret" in message for message in captured.output))
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_staff_can_email_invoice(self):

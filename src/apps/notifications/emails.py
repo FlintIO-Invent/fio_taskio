@@ -50,12 +50,14 @@ def send_templated_email(
     log_label: str,
     html_template: str | None = None,
     attachments: list[tuple[str, bytes, str]] | None = None,
+    reply_to: list[str] | tuple[str, ...] | None = None,
     fail_safely: bool = True,
 ) -> bool:
     recipients = _normalize_recipients(recipient_list)
     if not recipients:
         logger.info("Skipping %s email notification because no recipient is configured.", log_label)
         return False
+    reply_to_recipients = _normalize_recipients(reply_to or [])
 
     subject = _render_subject(subject_template, context)
     body = render_to_string(body_template, context).strip()
@@ -66,6 +68,7 @@ def send_templated_email(
             body=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=recipients,
+            reply_to=reply_to_recipients,
         )
         if html_template:
             html_body = render_to_string(html_template, context)
@@ -74,12 +77,16 @@ def send_templated_email(
             message.attach(*attachment)
         sent_count = message.send(fail_silently=False)
     except Exception:
-        logger.exception("Failed to send %s email notification.", log_label)
+        logger.error("Failed to send %s email notification.", log_label)
         if fail_safely:
             return False
         raise
 
-    return sent_count > 0
+    if sent_count <= 0:
+        logger.error("Failed to send %s email notification.", log_label)
+        return False
+
+    return True
 
 
 def _user_display_name(user) -> str:
@@ -164,6 +171,102 @@ def _business_contact_text(business: Business) -> str:
     return "\n".join(contact_lines) or "Contact the business directly for details."
 
 
+def _support_email() -> str:
+    return getattr(settings, "MOTIONMATE_SUPPORT_EMAIL", "")
+
+
+def _format_datetime(value, business: Business) -> str:
+    if value is None:
+        return "Not provided"
+
+    business_tz = _business_timezone(business)
+    local_value = timezone.localtime(value, business_tz)
+    timezone_label = getattr(local_value.tzinfo, "key", str(local_value.tzinfo))
+    return (
+        f"{local_value:%B} {local_value.day}, {local_value:%Y} "
+        f"at {_clock(local_value)} ({timezone_label})"
+    )
+
+
+def _lead_location_text(lead: Lead) -> str:
+    return "\n".join(lead.formatted_address_lines) or "Not provided"
+
+
+def _lead_message_text(lead: Lead) -> str:
+    return (lead.message or "").strip() or "No extra details provided."
+
+
+def _client_display_name(client) -> str:
+    full_name = " ".join(
+        part.strip()
+        for part in [
+            getattr(client, "first_name", "") or "",
+            getattr(client, "last_name", "") or "",
+        ]
+        if part and part.strip()
+    )
+    return full_name or getattr(client, "company_name", "") or getattr(client, "email", "")
+
+
+def _format_date(value, business: Business) -> str:
+    if value is None:
+        return "Not provided"
+
+    business_tz = _business_timezone(business)
+    local_value = timezone.localtime(value, business_tz)
+    return f"{local_value:%B} {local_value.day}, {local_value:%Y}"
+
+
+def _invoice_reply_to_email(invoice) -> str:
+    business_email = (getattr(invoice.business, "email", "") or "").strip()
+    if business_email:
+        return business_email
+    return _support_email().strip()
+
+
+def _invoice_reply_to(invoice) -> list[str]:
+    reply_to_email = _invoice_reply_to_email(invoice)
+    if reply_to_email:
+        return [reply_to_email]
+    return [settings.DEFAULT_FROM_EMAIL]
+
+
+def _security_email_context(user, *, email_title: str) -> dict:
+    return {
+        "user": user,
+        "email_title": email_title,
+        "support_email": _support_email(),
+    }
+
+
+def send_password_reset_complete_email(user) -> bool:
+    return send_templated_email(
+        subject_template="emails/password_reset_complete_subject.txt",
+        body_template="emails/password_reset_complete_body.txt",
+        html_template="emails/password_reset_complete_body.html",
+        context=_security_email_context(
+            user,
+            email_title="Your MotionMate password was reset",
+        ),
+        recipient_list=[user.email],
+        log_label="password reset confirmation",
+    )
+
+
+def send_password_change_confirmation_email(user) -> bool:
+    return send_templated_email(
+        subject_template="emails/password_change_subject.txt",
+        body_template="emails/password_change_body.txt",
+        html_template="emails/password_change_body.html",
+        context=_security_email_context(
+            user,
+            email_title="Your MotionMate password was changed",
+        ),
+        recipient_list=[user.email],
+        log_label="password change confirmation",
+    )
+
+
 def send_business_invitation_email(
     invitation: BusinessInvitation,
     *,
@@ -189,6 +292,7 @@ def send_public_booking_request_received_email(lead: Lead) -> bool:
     context = {
         "lead": lead,
         "business": lead.business,
+        "email_title": "We received your MotionMate request",
         "requester_name": _lead_requester_name(lead),
         "service_name": _lead_service_name(lead),
         "preferred_window": _format_time_window(
@@ -196,20 +300,32 @@ def send_public_booking_request_received_email(lead: Lead) -> bool:
             lead.preferred_end_time,
             lead.business,
         ),
+        "submitted_at": _format_datetime(lead.created_at, lead.business),
         "business_contact": _business_contact_text(lead.business),
+        "support_email": _support_email(),
     }
     return send_templated_email(
         subject_template="emails/booking_request_received_subject.txt",
         body_template="emails/booking_request_received_body.txt",
+        html_template="emails/booking_request_received_body.html",
         context=context,
         recipient_list=[lead.email],
-        log_label="public booking request confirmation",
+        log_label="public service request confirmation",
     )
 
 
 def get_internal_booking_notification_recipient(business: Business) -> str | None:
-    if business.email.strip():
-        return business.email.strip()
+    business_email = business.email.strip()
+    if business_email:
+        try:
+            validate_email(business_email)
+        except ValidationError:
+            logger.info(
+                "Business %s has an invalid notification email configured.",
+                business.pk,
+            )
+        else:
+            return business_email
 
     owner_email = (
         BusinessUser.objects.filter(
@@ -242,6 +358,7 @@ def send_internal_booking_notification_email(
     context = {
         "lead": lead,
         "business": lead.business,
+        "email_title": "New service request received",
         "requester_name": _lead_requester_name(lead),
         "service_name": _lead_service_name(lead),
         "preferred_window": _format_time_window(
@@ -249,14 +366,21 @@ def send_internal_booking_notification_email(
             lead.preferred_end_time,
             lead.business,
         ),
+        "submitted_at": _format_datetime(lead.created_at, lead.business),
+        "request_location": _lead_location_text(lead),
+        "request_description": _lead_message_text(lead),
         "request_url": request_url,
+        "action_url": request_url,
+        "action_label": "View request",
+        "support_email": _support_email(),
     }
     return send_templated_email(
         subject_template="emails/internal_booking_notification_subject.txt",
         body_template="emails/internal_booking_notification_body.txt",
+        html_template="emails/internal_booking_notification_body.html",
         context=context,
         recipient_list=[recipient],
-        log_label="internal booking request",
+        log_label="internal service request alert",
     )
 
 
@@ -273,17 +397,22 @@ def send_appointment_confirmation_email(appointment: Appointment) -> bool:
         "appointment": appointment,
         "business": appointment.business,
         "client": appointment.client,
+        "email_title": "Your MotionMate appointment is scheduled",
+        "customer_name": _client_display_name(appointment.client),
         "service_name": _appointment_service_name(appointment),
         "appointment_window": _format_time_window(
             appointment.start_time,
             appointment.end_time,
             appointment.business,
         ),
+        "appointment_location": appointment.location or "To be confirmed",
         "business_contact": _business_contact_text(appointment.business),
+        "support_email": _support_email(),
     }
     return send_templated_email(
         subject_template="emails/appointment_confirmation_subject.txt",
         body_template="emails/appointment_confirmation_body.txt",
+        html_template="emails/appointment_confirmation_body.html",
         context=context,
         recipient_list=[appointment.client.email],
         log_label="appointment confirmation",
@@ -296,17 +425,27 @@ def send_invoice_email(
     pdf_bytes: bytes,
     filename: str,
 ) -> bool:
+    invoice_title = f"Invoice {invoice.invoice_number} from {invoice.business.name}"
     context = {
         "invoice": invoice,
         "business": invoice.business,
         "client": invoice.client,
+        "client_name": _client_display_name(invoice.client),
+        "email_title": invoice_title,
+        "issue_date": _format_date(invoice.created_at, invoice.business),
         "amount_due": f"{invoice.currency_code} {invoice.total:.2f}",
+        "attachment_filename": filename,
+        "business_contact": _business_contact_text(invoice.business),
+        "reply_to_email": _invoice_reply_to_email(invoice),
+        "support_email": _support_email(),
     }
     return send_templated_email(
         subject_template="emails/invoice_subject.txt",
         body_template="emails/invoice_body.txt",
+        html_template="emails/invoice_body.html",
         context=context,
         recipient_list=[invoice.client.email],
         attachments=[(filename, pdf_bytes, "application/pdf")],
-        log_label="invoice email",
+        reply_to=_invoice_reply_to(invoice),
+        log_label="invoice",
     )

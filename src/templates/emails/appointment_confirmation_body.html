@@ -1,0 +1,16 @@
+{% extends "emails/base_email.html" %}
+
+{% block body %}
+  <p>Hi {{ customer_name|default:client.email }},</p>
+  <p>Your appointment with {{ business.name }} is scheduled.</p>
+  <p>
+    <strong>Service:</strong> {{ service_name }}<br>
+    <strong>Time:</strong> {{ appointment_window }}<br>
+    <strong>Location:</strong> {{ appointment_location }}
+  </p>
+  <p>
+    <strong>Business contact:</strong><br>
+    {{ business_contact|linebreaksbr }}
+  </p>
+  <p>Reply to {{ business.name }} if any details need to change.</p>
+{% endblock %}

@@ -1,11 +1,8 @@
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import (
     PasswordChangeDoneView,
-    PasswordChangeView,
     PasswordResetCompleteView,
-    PasswordResetConfirmView,
     PasswordResetDoneView,
-    PasswordResetView,
 )
 from django.urls import path, reverse_lazy
 
@@ -15,6 +12,9 @@ from .forms import (
     MotionmateSetPasswordForm,
 )
 from .views import (
+    MotionmatePasswordChangeView,
+    MotionmatePasswordResetConfirmView,
+    MotionmatePasswordResetView,
     accept_business_invitation,
     account_logout,
     agent_login,
@@ -34,7 +34,7 @@ urlpatterns = [
     path("logout/", account_logout, name="logout"),
     path(
         "password-reset/",
-        PasswordResetView.as_view(
+        MotionmatePasswordResetView.as_view(
             form_class=MotionmatePasswordResetForm,
             template_name="accounts/forms/password_reset_form.html",
             email_template_name="accounts/emails/password_reset_email.txt",
@@ -53,7 +53,7 @@ urlpatterns = [
     ),
     path(
         "password-reset/<uidb64>/<token>/",
-        PasswordResetConfirmView.as_view(
+        MotionmatePasswordResetConfirmView.as_view(
             form_class=MotionmateSetPasswordForm,
             template_name="accounts/forms/password_reset_confirm.html",
             success_url=reverse_lazy("password_reset_complete"),
@@ -70,7 +70,7 @@ urlpatterns = [
     path(
         "password-change/",
         login_required(
-            PasswordChangeView.as_view(
+            MotionmatePasswordChangeView.as_view(
                 form_class=MotionmatePasswordChangeForm,
                 template_name="accounts/forms/password_change_form.html",
                 success_url=reverse_lazy("password_change_done"),
