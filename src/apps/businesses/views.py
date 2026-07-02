@@ -35,6 +35,7 @@ from .utils import (
     create_or_refresh_business_invitation,
     get_business_limit_reached_message,
     get_business_module_unavailable_message,
+    get_business_plan_change_impact,
     get_business_subscription,
     get_current_business,
     get_other_active_business_membership_for_email,
@@ -208,6 +209,7 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
     available_plan_queryset = ClarivoPlan.motionmate_plans()
     available_plans = list(available_plan_queryset)
     ClarivoPlan.attach_display_pricing(available_plans, business=business)
+    pending_plan_change = None
 
     if request.method == "POST":
         form = BusinessSubscriptionPlanForm(request.POST, plans=available_plan_queryset)
@@ -219,18 +221,49 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
                     request, f"{selected_plan.name} is already the active plan for this workspace."
                 )
             else:
-                updated_subscription = assign_business_subscription_plan(business, selected_plan)
-                if updated_subscription.status == updated_subscription.Status.TRIALING:
-                    messages.success(
+                plan_change_impact = get_business_plan_change_impact(business, selected_plan)
+                plan_change_confirmed = request.POST.get("confirm_plan_change") == "1"
+
+                if plan_change_impact["requires_confirmation"] and not plan_change_confirmed:
+                    pending_plan_change = plan_change_impact
+                    messages.warning(
                         request,
-                        f"Workspace plan updated to {selected_plan.name}. The current trial remains active.",
+                        f"Review the limits before changing to {selected_plan.name}.",
                     )
                 else:
-                    messages.success(
-                        request,
-                        f"Workspace plan updated to {selected_plan.name}.",
-                    )
-            return redirect("business_subscription")
+                    updated_subscription = assign_business_subscription_plan(business, selected_plan)
+                    if updated_subscription.status == updated_subscription.Status.TRIALING:
+                        messages.success(
+                            request,
+                            f"Workspace plan updated to {selected_plan.name}. The current trial remains active.",
+                        )
+                    else:
+                        messages.success(
+                            request,
+                            f"Workspace plan updated to {selected_plan.name}.",
+                        )
+                    if plan_change_impact["over_limit_usage"]:
+                        messages.warning(
+                            request,
+                            (
+                                "Existing records were kept, but new activity may be blocked "
+                                f"until this workspace is within the {selected_plan.name} quotas."
+                            ),
+                        )
+                    if plan_change_impact["module_losses"]:
+                        module_labels = ", ".join(
+                            module["label"] for module in plan_change_impact["module_losses"]
+                        )
+                        messages.warning(
+                            request,
+                            (
+                                f"{module_labels} will no longer be available on the "
+                                f"{selected_plan.name} plan."
+                            ),
+                        )
+                    return redirect("business_subscription")
+            if pending_plan_change is None:
+                return redirect("business_subscription")
     else:
         form = BusinessSubscriptionPlanForm(plans=available_plan_queryset)
 
@@ -240,6 +273,7 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
         "subscription": subscription,
         "available_plans": available_plans,
         "plan_form": form,
+        "pending_plan_change": pending_plan_change,
     }
     return render(request, "businesses/subscription.html", context)
 

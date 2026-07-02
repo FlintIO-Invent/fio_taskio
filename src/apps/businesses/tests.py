@@ -1165,6 +1165,7 @@ class BusinessSubscriptionViewTests(TestCase):
         )
         self.starter_plan = ClarivoPlan.objects.get(slug="starter")
         self.pro_plan = ClarivoPlan.objects.get(slug="pro")
+        self.business_plan = ClarivoPlan.objects.get(slug="business")
 
     def _login_with_role(self, role: str):
         BusinessUser.objects.create(
@@ -1176,6 +1177,17 @@ class BusinessSubscriptionViewTests(TestCase):
         session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
         session.save()
         self.client.force_login(self.user)
+
+    def _add_business_member(self, email: str, role: str = BusinessUser.Role.STAFF):
+        user = TaskIOUser.objects.create_user(
+            email=email,
+            password="StrongPass123!",
+        )
+        return BusinessUser.objects.create(
+            user=user,
+            business=self.business,
+            role=role,
+        )
 
     def test_owner_can_view_subscription_page(self):
         self._login_with_role(BusinessUser.Role.OWNER)
@@ -1235,6 +1247,80 @@ class BusinessSubscriptionViewTests(TestCase):
         self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
         self.assertTrue(subscription.can_use_module("appointments"))
         self.assertContains(response, "Workspace plan updated to Pro")
+
+    def test_over_quota_downgrade_requires_confirmation_before_plan_changes(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        self._add_business_member("staff-one@example.com")
+        self._add_business_member("staff-two@example.com")
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.business_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {"plan": self.starter_plan.id},
+        )
+
+        subscription.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(subscription.plan, self.business_plan)
+        self.assertContains(response, "Review the limits before changing to Starter.")
+        self.assertContains(response, "Confirm change to Starter")
+        self.assertContains(response, "Over Starter quota")
+        self.assertContains(response, "Team users: using 3, Starter allows 2.")
+        self.assertContains(response, "Appointments")
+        self.assertContains(response, "Public Bookings")
+        self.assertNotContains(response, "Workspace plan updated to Starter")
+
+    def test_confirmed_over_quota_downgrade_keeps_records_and_updates_plan(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        self._add_business_member("staff-one@example.com")
+        self._add_business_member("staff-two@example.com")
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.business_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {
+                "plan": self.starter_plan.id,
+                "confirm_plan_change": "1",
+            },
+            follow=True,
+        )
+
+        subscription.refresh_from_db()
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertEqual(subscription.plan, self.starter_plan)
+        self.assertEqual(self.business.memberships.filter(is_active=True).count(), 3)
+        self.assertTrue(business_limit_reached(self.business, "users"))
+        self.assertContains(response, "Workspace plan updated to Starter")
+        self.assertContains(response, "Existing records were kept")
+
+    def test_module_loss_downgrade_requires_confirmation_even_within_quota(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.business_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {"plan": self.pro_plan.id},
+        )
+
+        subscription.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(subscription.plan, self.business_plan)
+        self.assertContains(response, "Confirm change to Pro")
+        self.assertContains(response, "Current usage is within the Pro quotas.")
+        self.assertContains(response, "Modules no longer included")
+        self.assertContains(response, "Public Bookings")
 
     def test_owner_can_start_trial_from_subscription_page_if_missing(self):
         self._login_with_role(BusinessUser.Role.OWNER)
