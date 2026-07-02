@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from .localization import (
     normalize_postal_code_for_country,
@@ -15,6 +16,52 @@ from .models import (
     WeeklyAvailability,
 )
 from .utils import can_assign_business_role, get_assignable_business_roles
+
+BOOKABLE_AVAILABILITY_ROLES = (
+    BusinessUser.Role.OWNER,
+    BusinessUser.Role.ADMIN,
+    BusinessUser.Role.STAFF,
+)
+
+
+def _is_staff_availability_member(membership: BusinessUser | None) -> bool:
+    return membership is not None and membership.role == BusinessUser.Role.STAFF
+
+
+def _bookable_staff_queryset(
+    business: Business | None,
+    *,
+    user=None,
+    membership: BusinessUser | None = None,
+):
+    if business is None:
+        return get_user_model().objects.none()
+
+    queryset = (
+        get_user_model()
+        .objects.filter(
+            business_memberships__business=business,
+            business_memberships__is_active=True,
+            business_memberships__business__is_active=True,
+            business_memberships__role__in=BOOKABLE_AVAILABILITY_ROLES,
+            is_active=True,
+        )
+        .distinct()
+        .order_by("first_name", "last_name", "email")
+    )
+    if _is_staff_availability_member(membership) and user is not None:
+        return queryset.filter(pk=user.pk)
+    return queryset
+
+
+def _staff_label(user) -> str:
+    get_full_name = getattr(user, "get_full_name", None)
+    full_name = (get_full_name() if callable(get_full_name) else "") or getattr(
+        user,
+        "full_name",
+        "",
+    )
+    return full_name.strip() or user.email
 
 
 class BusinessSettingsForm(forms.ModelForm):
@@ -346,41 +393,18 @@ class WeeklyAvailabilityForm(forms.ModelForm):
             )
 
     def _is_staff_member(self) -> bool:
-        return self.membership is not None and self.membership.role == BusinessUser.Role.STAFF
+        return _is_staff_availability_member(self.membership)
 
     def _staff_member_queryset(self):
-        if self.business is None:
-            return get_user_model().objects.none()
-
-        queryset = (
-            get_user_model()
-            .objects.filter(
-                business_memberships__business=self.business,
-                business_memberships__is_active=True,
-                business_memberships__business__is_active=True,
-                business_memberships__role__in=(
-                    BusinessUser.Role.OWNER,
-                    BusinessUser.Role.ADMIN,
-                    BusinessUser.Role.STAFF,
-                ),
-                is_active=True,
-            )
-            .distinct()
-            .order_by("first_name", "last_name", "email")
+        return _bookable_staff_queryset(
+            self.business,
+            user=self.user,
+            membership=self.membership,
         )
-        if self._is_staff_member() and self.user is not None:
-            return queryset.filter(pk=self.user.pk)
-        return queryset
 
     @staticmethod
     def _staff_label(user) -> str:
-        get_full_name = getattr(user, "get_full_name", None)
-        full_name = (get_full_name() if callable(get_full_name) else "") or getattr(
-            user,
-            "full_name",
-            "",
-        )
-        return full_name.strip() or user.email
+        return _staff_label(user)
 
     def clean(self):
         cleaned_data = super().clean()
@@ -406,6 +430,100 @@ class WeeklyAvailabilityForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
         return instance
+
+
+class WeeklyAvailabilityBulkForm(forms.Form):
+    staff_member = forms.ModelChoiceField(
+        queryset=get_user_model().objects.none(),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        label="Staff member",
+        help_text="Leave blank to create business-wide booking windows.",
+    )
+    days = forms.TypedMultipleChoiceField(
+        choices=WeeklyAvailability.DayOfWeek.choices,
+        coerce=int,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+        label="Days",
+    )
+    start_time = forms.TimeField(
+        input_formats=["%H:%M"],
+        widget=forms.TimeInput(attrs={"class": "form-control", "type": "time"}, format="%H:%M"),
+        label="Start time",
+    )
+    end_time = forms.TimeField(
+        input_formats=["%H:%M"],
+        widget=forms.TimeInput(attrs={"class": "form-control", "type": "time"}, format="%H:%M"),
+        label="End time",
+    )
+    is_active = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        label="Active",
+        help_text="Inactive blocks are ignored by public booking availability.",
+    )
+
+    def __init__(
+        self,
+        *args,
+        business: Business | None = None,
+        user=None,
+        membership: BusinessUser | None = None,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.business = business
+        self.user = user
+        self.membership = membership
+        self.fields["staff_member"].queryset = _bookable_staff_queryset(
+            business,
+            user=user,
+            membership=membership,
+        )
+        self.fields["staff_member"].label_from_instance = _staff_label
+
+        if self._is_staff_member():
+            self.fields["staff_member"].initial = user.pk if user is not None else None
+            self.fields["staff_member"].disabled = True
+            self.fields["staff_member"].help_text = (
+                "Staff availability is added to your own schedule."
+            )
+
+    def _is_staff_member(self) -> bool:
+        return _is_staff_availability_member(self.membership)
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if self.business is None:
+            raise ValidationError("A current business is required to manage availability.")
+
+        start_time = cleaned_data.get("start_time")
+        end_time = cleaned_data.get("end_time")
+        if start_time and end_time and end_time <= start_time:
+            self.add_error("end_time", "End time must be after the start time.")
+
+        if self._is_staff_member():
+            cleaned_data["staff_member"] = self.user
+
+        return cleaned_data
+
+    def save(self) -> list[WeeklyAvailability]:
+        availability_blocks = []
+        with transaction.atomic():
+            for day_of_week in self.cleaned_data["days"]:
+                availability = WeeklyAvailability(
+                    business=self.business,
+                    staff_member=self.cleaned_data.get("staff_member"),
+                    day_of_week=day_of_week,
+                    start_time=self.cleaned_data["start_time"],
+                    end_time=self.cleaned_data["end_time"],
+                    is_active=self.cleaned_data.get("is_active", False),
+                )
+                availability.save()
+                availability_blocks.append(availability)
+        return availability_blocks
 
 
 class BusinessInvitationForm(forms.Form):

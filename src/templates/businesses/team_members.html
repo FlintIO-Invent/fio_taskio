@@ -133,28 +133,49 @@
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Active</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for team_membership in team_memberships %}
-                  <tr>
+	                  <th>Email</th>
+	                  <th>Role</th>
+	                  <th>Active</th>
+                    {% if role_access.can_remove_team_members %}
+	                  <th>Actions</th>
+                    {% endif %}
+	                </tr>
+	              </thead>
+	              <tbody>
+	                {% for team_membership in team_memberships %}
+	                  <tr>
                     <td>{{ team_membership.user.full_name|default:"-" }}</td>
                     <td>{{ team_membership.user.email }}</td>
                     <td>{{ team_membership.get_role_display }}</td>
                     <td>
                       <span class="badge badge-phoenix {% if team_membership.is_active %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
-                        {% if team_membership.is_active %}Active{% else %}Inactive{% endif %}
-                      </span>
-                    </td>
-                  </tr>
-                {% empty %}
-                  <tr>
-                    <td colspan="4" class="text-body-tertiary">No team members are attached to this workspace yet.</td>
-                  </tr>
-                {% endfor %}
+	                        {% if team_membership.is_active %}Active{% else %}Inactive{% endif %}
+	                      </span>
+	                    </td>
+                      {% if role_access.can_remove_team_members %}
+                        <td>
+                          {% if team_membership.is_active and team_membership.id != current_business_membership.id %}
+                            <form method="post" action="{% url 'business_team_member_deactivate' team_membership.id %}">
+                              {% csrf_token %}
+                              <button
+                                class="btn btn-sm btn-outline-danger"
+                                type="submit"
+                                onclick="return confirm('Remove {{ team_membership.user.email|escapejs }} from the active team?');"
+                              >
+                                <span class="fa-solid fa-user-minus me-1"></span>Remove
+                              </button>
+                            </form>
+                          {% else %}
+                            <span class="text-body-tertiary">—</span>
+                          {% endif %}
+                        </td>
+                      {% endif %}
+	                  </tr>
+	                {% empty %}
+	                  <tr>
+	                    <td colspan="{% if role_access.can_remove_team_members %}5{% else %}4{% endif %}" class="text-body-tertiary">No team members are attached to this workspace yet.</td>
+	                  </tr>
+	                {% endfor %}
               </tbody>
             </table>
           </div>

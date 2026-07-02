@@ -159,49 +159,115 @@
           <h4 class="mb-1">Add Weekly Availability</h4>
           <p class="text-body-tertiary mb-4">Add windows when customers may request appointment times.</p>
 
-          {% if availability_form.non_field_errors %}
-            <div class="alert alert-danger">{{ availability_form.non_field_errors|striptags }}</div>
-          {% endif %}
+          <ul class="nav nav-underline mb-4" id="availability-entry-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link {% if availability_form_kind != 'bulk' %}active{% endif %}" id="availability-single-tab" data-bs-toggle="tab" data-bs-target="#availability-single-panel" type="button" role="tab" aria-controls="availability-single-panel" aria-selected="{% if availability_form_kind != 'bulk' %}true{% else %}false{% endif %}">Single</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link {% if availability_form_kind == 'bulk' %}active{% endif %}" id="availability-bulk-tab" data-bs-toggle="tab" data-bs-target="#availability-bulk-panel" type="button" role="tab" aria-controls="availability-bulk-panel" aria-selected="{% if availability_form_kind == 'bulk' %}true{% else %}false{% endif %}">Bulk</button>
+            </li>
+          </ul>
 
-          <form method="post" novalidate>
-            {% csrf_token %}
-            <input type="hidden" name="form_kind" value="availability">
+          <div class="tab-content" id="availability-entry-tab-content">
+            <div class="tab-pane fade {% if availability_form_kind != 'bulk' %}show active{% endif %}" id="availability-single-panel" role="tabpanel" aria-labelledby="availability-single-tab" tabindex="0">
+              {% if availability_form.non_field_errors %}
+                <div class="alert alert-danger">{{ availability_form.non_field_errors|striptags }}</div>
+              {% endif %}
 
-            <div class="mb-3">
-              <label class="form-label" for="{{ availability_form.staff_member.id_for_label }}">Staff member</label>
-              {{ availability_form.staff_member }}
-              {% if availability_form.staff_member.help_text %}<div class="form-text">{{ availability_form.staff_member.help_text }}</div>{% endif %}
-              {% if availability_form.staff_member.errors %}<div class="invalid-feedback d-block">{{ availability_form.staff_member.errors|striptags }}</div>{% endif %}
+              <form method="post" novalidate>
+                {% csrf_token %}
+                <input type="hidden" name="form_kind" value="availability">
+
+                <div class="mb-3">
+                  <label class="form-label" for="{{ availability_form.staff_member.id_for_label }}">Staff member</label>
+                  {{ availability_form.staff_member }}
+                  {% if availability_form.staff_member.help_text %}<div class="form-text">{{ availability_form.staff_member.help_text }}</div>{% endif %}
+                  {% if availability_form.staff_member.errors %}<div class="invalid-feedback d-block">{{ availability_form.staff_member.errors|striptags }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label" for="{{ availability_form.day_of_week.id_for_label }}">Day</label>
+                  {{ availability_form.day_of_week }}
+                  {% if availability_form.day_of_week.errors %}<div class="invalid-feedback d-block">{{ availability_form.day_of_week.errors|striptags }}</div>{% endif %}
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-sm-6">
+                    <label class="form-label" for="{{ availability_form.start_time.id_for_label }}">Start time</label>
+                    {{ availability_form.start_time }}
+                    {% if availability_form.start_time.errors %}<div class="invalid-feedback d-block">{{ availability_form.start_time.errors|striptags }}</div>{% endif %}
+                  </div>
+                  <div class="col-sm-6">
+                    <label class="form-label" for="{{ availability_form.end_time.id_for_label }}">End time</label>
+                    {{ availability_form.end_time }}
+                    {% if availability_form.end_time.errors %}<div class="invalid-feedback d-block">{{ availability_form.end_time.errors|striptags }}</div>{% endif %}
+                  </div>
+                </div>
+
+                <div class="form-check mt-3 mb-4">
+                  {{ availability_form.is_active }}
+                  <label class="form-check-label" for="{{ availability_form.is_active.id_for_label }}">Active</label>
+                  {% if availability_form.is_active.help_text %}<div class="form-text">{{ availability_form.is_active.help_text }}</div>{% endif %}
+                  {% if availability_form.is_active.errors %}<div class="invalid-feedback d-block">{{ availability_form.is_active.errors|striptags }}</div>{% endif %}
+                </div>
+
+                <button class="btn btn-primary" type="submit">Add availability</button>
+              </form>
             </div>
 
-            <div class="mb-3">
-              <label class="form-label" for="{{ availability_form.day_of_week.id_for_label }}">Day</label>
-              {{ availability_form.day_of_week }}
-              {% if availability_form.day_of_week.errors %}<div class="invalid-feedback d-block">{{ availability_form.day_of_week.errors|striptags }}</div>{% endif %}
-            </div>
+            <div class="tab-pane fade {% if availability_form_kind == 'bulk' %}show active{% endif %}" id="availability-bulk-panel" role="tabpanel" aria-labelledby="availability-bulk-tab" tabindex="0">
+              {% if bulk_availability_form.non_field_errors %}
+                <div class="alert alert-danger">{{ bulk_availability_form.non_field_errors|striptags }}</div>
+              {% endif %}
 
-            <div class="row g-3">
-              <div class="col-sm-6">
-                <label class="form-label" for="{{ availability_form.start_time.id_for_label }}">Start time</label>
-                {{ availability_form.start_time }}
-                {% if availability_form.start_time.errors %}<div class="invalid-feedback d-block">{{ availability_form.start_time.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-sm-6">
-                <label class="form-label" for="{{ availability_form.end_time.id_for_label }}">End time</label>
-                {{ availability_form.end_time }}
-                {% if availability_form.end_time.errors %}<div class="invalid-feedback d-block">{{ availability_form.end_time.errors|striptags }}</div>{% endif %}
-              </div>
-            </div>
+              <form method="post" novalidate>
+                {% csrf_token %}
+                <input type="hidden" name="form_kind" value="bulk_availability">
 
-            <div class="form-check mt-3 mb-4">
-              {{ availability_form.is_active }}
-              <label class="form-check-label" for="{{ availability_form.is_active.id_for_label }}">Active</label>
-              {% if availability_form.is_active.help_text %}<div class="form-text">{{ availability_form.is_active.help_text }}</div>{% endif %}
-              {% if availability_form.is_active.errors %}<div class="invalid-feedback d-block">{{ availability_form.is_active.errors|striptags }}</div>{% endif %}
-            </div>
+                <div class="mb-3">
+                  <label class="form-label" for="{{ bulk_availability_form.staff_member.id_for_label }}">Staff member</label>
+                  {{ bulk_availability_form.staff_member }}
+                  {% if bulk_availability_form.staff_member.help_text %}<div class="form-text">{{ bulk_availability_form.staff_member.help_text }}</div>{% endif %}
+                  {% if bulk_availability_form.staff_member.errors %}<div class="invalid-feedback d-block">{{ bulk_availability_form.staff_member.errors|striptags }}</div>{% endif %}
+                </div>
 
-            <button class="btn btn-primary" type="submit">Add availability</button>
-          </form>
+                <div class="mb-3">
+                  <label class="form-label">Days</label>
+                  <div class="d-flex flex-wrap gap-3">
+                    {% for checkbox in bulk_availability_form.days %}
+                      <div class="form-check">
+                        {{ checkbox.tag }}
+                        <label class="form-check-label" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
+                      </div>
+                    {% endfor %}
+                  </div>
+                  {% if bulk_availability_form.days.errors %}<div class="invalid-feedback d-block">{{ bulk_availability_form.days.errors|striptags }}</div>{% endif %}
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-sm-6">
+                    <label class="form-label" for="{{ bulk_availability_form.start_time.id_for_label }}">Start time</label>
+                    {{ bulk_availability_form.start_time }}
+                    {% if bulk_availability_form.start_time.errors %}<div class="invalid-feedback d-block">{{ bulk_availability_form.start_time.errors|striptags }}</div>{% endif %}
+                  </div>
+                  <div class="col-sm-6">
+                    <label class="form-label" for="{{ bulk_availability_form.end_time.id_for_label }}">End time</label>
+                    {{ bulk_availability_form.end_time }}
+                    {% if bulk_availability_form.end_time.errors %}<div class="invalid-feedback d-block">{{ bulk_availability_form.end_time.errors|striptags }}</div>{% endif %}
+                  </div>
+                </div>
+
+                <div class="form-check mt-3 mb-4">
+                  {{ bulk_availability_form.is_active }}
+                  <label class="form-check-label" for="{{ bulk_availability_form.is_active.id_for_label }}">Active</label>
+                  {% if bulk_availability_form.is_active.help_text %}<div class="form-text">{{ bulk_availability_form.is_active.help_text }}</div>{% endif %}
+                  {% if bulk_availability_form.is_active.errors %}<div class="invalid-feedback d-block">{{ bulk_availability_form.is_active.errors|striptags }}</div>{% endif %}
+                </div>
+
+                <button class="btn btn-primary" type="submit">Add selected days</button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
 

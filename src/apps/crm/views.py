@@ -34,6 +34,7 @@ from apps.businesses.utils import (
     BILLING_VIEW_ROLES,
     CLIENT_MANAGE_ROLES,
     LEAD_MANAGE_ROLES,
+    OWNER_ADMIN_ROLES,
     SERVICE_MANAGEMENT_ROLES,
     business_limit_reached,
     business_module_required,
@@ -1331,6 +1332,29 @@ def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
         "form": form,
     }
     return render(request, "crm/forms/client_update.html", context)
+
+
+@business_role_required(
+    *OWNER_ADMIN_ROLES,
+    redirect_url_name="staff_client_list",
+    permission_message="You do not have permission to archive clients.",
+    raise_exception=False,
+)
+@require_http_methods(["POST"])
+def staff_client_archive(request: HttpRequest, client_id: int) -> HttpResponse:
+    current_business = request.current_business
+    client = get_object_or_404(_client_queryset_for_business(current_business), pk=client_id)
+
+    if not client.is_active:
+        messages.info(request, f"{client} is already archived.")
+        return redirect("staff_client_detail", client_id=client.id)
+
+    client.is_active = False
+    if client.client_status == Client.ClientStatus.ACTIVE:
+        client.client_status = Client.ClientStatus.INACTIVE
+    client.save(update_fields=["is_active", "client_status", "updated_at"])
+    messages.success(request, f"{client} was archived. Existing invoices and appointments were kept.")
+    return redirect("staff_client_list")
 
 
 @business_role_required(

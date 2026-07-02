@@ -15,6 +15,7 @@ from .forms import (
     BusinessInvitationForm,
     BusinessSettingsForm,
     BusinessSubscriptionPlanForm,
+    WeeklyAvailabilityBulkForm,
     WeeklyAvailabilityForm,
 )
 from .models import (
@@ -31,6 +32,7 @@ from .utils import (
     assign_business_subscription_plan,
     business_limit_reached,
     business_role_required,
+    can_assign_business_role,
     can_use_module,
     create_or_refresh_business_invitation,
     get_business_limit_reached_message,
@@ -109,6 +111,19 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
             "public_booking",
         )
 
+    availability_form_initial = {"is_active": True}
+    bulk_availability_form_initial = {
+        "days": [
+            WeeklyAvailability.DayOfWeek.MONDAY,
+            WeeklyAvailability.DayOfWeek.TUESDAY,
+            WeeklyAvailability.DayOfWeek.WEDNESDAY,
+            WeeklyAvailability.DayOfWeek.THURSDAY,
+            WeeklyAvailability.DayOfWeek.FRIDAY,
+        ],
+        "is_active": True,
+    }
+    availability_form_kind = "single"
+
     if request.method == "POST":
         form_kind = request.POST.get("form_kind", "settings")
 
@@ -123,11 +138,45 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
                 user=request.user,
                 membership=membership,
             )
+            bulk_availability_form = WeeklyAvailabilityBulkForm(
+                business=business,
+                user=request.user,
+                membership=membership,
+                initial=bulk_availability_form_initial,
+            )
             if availability_form.is_valid():
                 availability_form.save()
                 messages.success(request, "Weekly availability block added.")
                 return redirect("business_booking_settings")
             messages.error(request, "Please correct the availability errors below.")
+        elif form_kind == "bulk_availability":
+            availability_form_kind = "bulk"
+            settings_form = BusinessBookingSettingsForm(
+                instance=booking_settings,
+                business=business,
+            )
+            availability_form = WeeklyAvailabilityForm(
+                business=business,
+                user=request.user,
+                membership=membership,
+                initial=availability_form_initial,
+            )
+            bulk_availability_form = WeeklyAvailabilityBulkForm(
+                request.POST,
+                business=business,
+                user=request.user,
+                membership=membership,
+            )
+            if bulk_availability_form.is_valid():
+                availability_blocks_created = bulk_availability_form.save()
+                block_count = len(availability_blocks_created)
+                block_label = "block" if block_count == 1 else "blocks"
+                messages.success(
+                    request,
+                    f"{block_count} weekly availability {block_label} added.",
+                )
+                return redirect("business_booking_settings")
+            messages.error(request, "Please correct the bulk availability errors below.")
         else:
             if not can_manage_booking_rules:
                 raise PermissionDenied("Only workspace owners and admins can update booking rules.")
@@ -140,6 +189,13 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
                 business=business,
                 user=request.user,
                 membership=membership,
+                initial=availability_form_initial,
+            )
+            bulk_availability_form = WeeklyAvailabilityBulkForm(
+                business=business,
+                user=request.user,
+                membership=membership,
+                initial=bulk_availability_form_initial,
             )
             if settings_form.is_valid():
                 settings_form.save()
@@ -155,7 +211,13 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
             business=business,
             user=request.user,
             membership=membership,
-            initial={"is_active": True},
+            initial=availability_form_initial,
+        )
+        bulk_availability_form = WeeklyAvailabilityBulkForm(
+            business=business,
+            user=request.user,
+            membership=membership,
+            initial=bulk_availability_form_initial,
         )
 
     context = {
@@ -164,6 +226,8 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
         "booking_settings": booking_settings,
         "settings_form": settings_form,
         "availability_form": availability_form,
+        "bulk_availability_form": bulk_availability_form,
+        "availability_form_kind": availability_form_kind,
         "availability_blocks": availability_blocks,
         "inactive_availability_count": inactive_availability_blocks.count(),
         "can_manage_booking_rules": can_manage_booking_rules,
@@ -384,3 +448,39 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
         "pending_invitations": pending_invitations,
     }
     return render(request, "businesses/team_members.html", context)
+
+
+@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@require_http_methods(["POST"])
+def business_team_member_deactivate(request: HttpRequest, membership_id: int) -> HttpResponse:
+    business = request.current_business
+    acting_membership = request.current_business_membership
+    team_membership = get_object_or_404(
+        BusinessUser.objects.select_related("user").filter(business=business),
+        pk=membership_id,
+    )
+
+    if team_membership.pk == acting_membership.pk:
+        messages.error(request, "You cannot remove your own workspace membership.")
+        return redirect("business_team_members")
+
+    if not can_assign_business_role(acting_membership, team_membership.role):
+        messages.error(request, "You do not have permission to remove that workspace role.")
+        return redirect("business_team_members")
+
+    active_owner_count = business.memberships.filter(
+        role=BusinessUser.Role.OWNER,
+        is_active=True,
+    ).count()
+    if team_membership.role == BusinessUser.Role.OWNER and active_owner_count <= 1:
+        messages.error(request, "This workspace must keep at least one active owner.")
+        return redirect("business_team_members")
+
+    if not team_membership.is_active:
+        messages.info(request, f"{team_membership.user.email} is already inactive.")
+        return redirect("business_team_members")
+
+    team_membership.is_active = False
+    team_membership.save(update_fields=["is_active", "updated_at"])
+    messages.success(request, f"{team_membership.user.email} was removed from the active team.")
+    return redirect("business_team_members")

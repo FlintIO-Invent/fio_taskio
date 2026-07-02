@@ -1,6 +1,8 @@
 import logging
+import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from urllib.parse import quote
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -13,10 +15,12 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from apps.appointments.models import Appointment
+from apps.businesses.localization import format_money_for_business
 from apps.businesses.models import Business
 from apps.businesses.utils import (
     BILLING_MANAGE_ROLES,
     BILLING_VIEW_ROLES,
+    OWNER_ADMIN_ROLES,
     business_limit_reached,
     business_module_required,
     business_role_required,
@@ -38,6 +42,7 @@ STATUS_TRANSITIONS: dict[str, set[str]] = {
     Invoice.Status.PAID: set(),
     Invoice.Status.CANCELLED: set(),
 }
+INVOICE_LINE_DESCRIPTION_MAX_LENGTH = InvoiceLine._meta.get_field("description").max_length
 
 
 def _parse_decimal(value: str | None, *, default: Decimal = Decimal("0.00")) -> Decimal:
@@ -93,6 +98,27 @@ def _appointment_queryset_for_business(business: Business):
         "service",
         "source_lead",
     )
+
+
+def _whatsapp_digits(value: str | None) -> str:
+    return "".join(re.findall(r"\d+", value or ""))
+
+
+def _invoice_whatsapp_share_url(invoice: Invoice) -> str:
+    client = invoice.client
+    business = invoice.business
+    client_name = " ".join(
+        part for part in [client.first_name, client.last_name] if part
+    ).strip()
+    greeting = f"Hello {client_name}," if client_name else "Hello,"
+    total = format_money_for_business(invoice.total, business)
+    message = (
+        f"{greeting} invoice {invoice.invoice_number} from {business.name} is ready. "
+        f"Total: {total}. Please contact us if you have any questions."
+    )
+    whatsapp_number = _whatsapp_digits(client.whatsapp_number) or _whatsapp_digits(client.phone)
+    whatsapp_url = f"https://wa.me/{whatsapp_number}" if whatsapp_number else "https://wa.me/"
+    return f"{whatsapp_url}?text={quote(message)}"
 
 
 def _posted_value(values: list[str], index: int, default: str = "") -> str:
@@ -255,6 +281,16 @@ def _clean_line_rows(
         else:
             description_value = description or "Line item"
             unit_price_value = _parse_decimal(unit_price)
+
+        if (
+            INVOICE_LINE_DESCRIPTION_MAX_LENGTH is not None
+            and len(description_value) > INVOICE_LINE_DESCRIPTION_MAX_LENGTH
+        ):
+            errors.append(
+                f"{line_label} {index}: description must be "
+                f"{INVOICE_LINE_DESCRIPTION_MAX_LENGTH} characters or fewer."
+            )
+            continue
 
         cleaned_row = {
             "service": service,
@@ -473,7 +509,10 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
         pk=invoice_id,
     )
 
-    context: dict[str, Any] = {"invoice": invoice}
+    context: dict[str, Any] = {
+        "invoice": invoice,
+        "whatsapp_share_url": _invoice_whatsapp_share_url(invoice),
+    }
     return render(request, "billings/invoice_detail.html", context)
 
 
@@ -694,6 +733,24 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
         "draft_notes": draft_notes,
     }
     return render(request, "billings/invoice_edit.html", context)
+
+
+@business_role_required(
+    *OWNER_ADMIN_ROLES,
+    redirect_url_name="invoice_list",
+    permission_message="You do not have permission to delete invoices.",
+    raise_exception=False,
+)
+@business_module_required("invoicing")
+@require_http_methods(["POST"])
+def invoice_delete(request: HttpRequest, invoice_id: int) -> HttpResponse:
+    current_business = request.current_business
+    invoice = get_object_or_404(_invoice_queryset_for_business(current_business), pk=invoice_id)
+    invoice_number = invoice.invoice_number
+
+    invoice.delete()
+    messages.success(request, f"Invoice {invoice_number} was deleted.")
+    return redirect("invoice_list")
 
 
 @business_role_required(

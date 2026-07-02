@@ -837,6 +837,21 @@ class BusinessBookingSettingsTests(TestCase):
         payload.update(overrides)
         return payload
 
+    def _bulk_availability_payload(self, **overrides):
+        payload = {
+            "form_kind": "bulk_availability",
+            "days": [
+                WeeklyAvailability.DayOfWeek.MONDAY,
+                WeeklyAvailability.DayOfWeek.WEDNESDAY,
+                WeeklyAvailability.DayOfWeek.FRIDAY,
+            ],
+            "start_time": "09:00",
+            "end_time": "17:00",
+            "is_active": "on",
+        }
+        payload.update(overrides)
+        return payload
+
     def test_booking_settings_validation_rejects_invalid_values(self):
         settings = BusinessBookingSettings(
             business=self.business,
@@ -868,6 +883,7 @@ class BusinessBookingSettingsTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Booking Settings")
                 self.assertContains(response, "Add Weekly Availability")
+                self.assertContains(response, "Bulk")
 
     def test_accountant_and_viewer_cannot_edit_booking_settings(self):
         for role in [
@@ -932,6 +948,72 @@ class BusinessBookingSettingsTests(TestCase):
         self.assertEqual(availability.end_time, time(17, 0))
         self.assertTrue(availability.is_active)
         self.assertFalse(WeeklyAvailability.objects.filter(business=self.other_business).exists())
+
+    def test_bulk_weekly_availability_creates_selected_days(self):
+        self._login_with_role(BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._bulk_availability_payload(),
+            follow=True,
+        )
+
+        availability_blocks = list(
+            WeeklyAvailability.objects.filter(business=self.business).order_by("day_of_week")
+        )
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertContains(response, "3 weekly availability blocks added.")
+        self.assertEqual(len(availability_blocks), 3)
+        self.assertEqual(
+            [block.day_of_week for block in availability_blocks],
+            [
+                WeeklyAvailability.DayOfWeek.MONDAY,
+                WeeklyAvailability.DayOfWeek.WEDNESDAY,
+                WeeklyAvailability.DayOfWeek.FRIDAY,
+            ],
+        )
+        self.assertTrue(all(block.start_time == time(9, 0) for block in availability_blocks))
+        self.assertTrue(all(block.end_time == time(17, 0) for block in availability_blocks))
+        self.assertTrue(all(block.staff_member is None for block in availability_blocks))
+        self.assertFalse(WeeklyAvailability.objects.filter(business=self.other_business).exists())
+
+    def test_staff_bulk_availability_is_added_to_own_schedule(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._bulk_availability_payload(
+                staff_member="",
+                days=[
+                    WeeklyAvailability.DayOfWeek.TUESDAY,
+                    WeeklyAvailability.DayOfWeek.THURSDAY,
+                ],
+            ),
+            follow=True,
+        )
+
+        availability_blocks = list(
+            WeeklyAvailability.objects.filter(business=self.business).order_by("day_of_week")
+        )
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertEqual(len(availability_blocks), 2)
+        self.assertTrue(all(block.staff_member == self.user for block in availability_blocks))
+        self.assertContains(response, "Booking Owner")
+
+    def test_bulk_weekly_availability_requires_selected_days(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._bulk_availability_payload(days=[]),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Please correct the bulk availability errors below.")
+        self.assertContains(response, "This field is required.")
+        self.assertFalse(WeeklyAvailability.objects.filter(business=self.business).exists())
 
     def test_admin_can_create_staff_specific_availability(self):
         self._login_with_role(BusinessUser.Role.ADMIN)
@@ -1378,6 +1460,67 @@ class BusinessInvitationViewTests(TestCase):
         session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
         session.save()
         self.client.force_login(user)
+
+    def test_owner_can_deactivate_team_member(self):
+        self._login(self.owner, BusinessUser.Role.OWNER)
+        staff_user = TaskIOUser.objects.create_user(
+            email="staff-to-remove@example.com",
+            password="StrongPass123!",
+        )
+        staff_membership = BusinessUser.objects.create(
+            user=staff_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+
+        response = self.client.post(
+            reverse("business_team_member_deactivate", args=[staff_membership.id]),
+            follow=True,
+        )
+
+        staff_membership.refresh_from_db()
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertFalse(staff_membership.is_active)
+        self.assertContains(response, "was removed from the active team")
+
+    def test_admin_can_deactivate_staff_team_member(self):
+        self._login(self.admin, BusinessUser.Role.ADMIN)
+        staff_user = TaskIOUser.objects.create_user(
+            email="staff-admin-remove@example.com",
+            password="StrongPass123!",
+        )
+        staff_membership = BusinessUser.objects.create(
+            user=staff_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+
+        response = self.client.post(
+            reverse("business_team_member_deactivate", args=[staff_membership.id]),
+            follow=True,
+        )
+
+        staff_membership.refresh_from_db()
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertFalse(staff_membership.is_active)
+
+    def test_admin_cannot_deactivate_owner_team_member(self):
+        owner_membership = BusinessUser.objects.create(
+            user=self.owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self._login(self.admin, BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_team_member_deactivate", args=[owner_membership.id]),
+            follow=True,
+        )
+
+        owner_membership.refresh_from_db()
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertTrue(owner_membership.is_active)
+        self.assertContains(response, "You do not have permission to remove that workspace role.")
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",

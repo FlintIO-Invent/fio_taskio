@@ -260,6 +260,70 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_owner_can_archive_client(self):
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Casey",
+            last_name="Client",
+            email="casey-client@example.com",
+            phone="+1 721 555 1011",
+            company_name="Archive Client Co",
+            street_address="12 Main Street",
+            client_status=Client.ClientStatus.ACTIVE,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("staff_client_archive", args=[client_record.id]),
+            follow=True,
+        )
+
+        client_record.refresh_from_db()
+        self.assertRedirects(response, reverse("staff_client_list"))
+        self.assertFalse(client_record.is_active)
+        self.assertEqual(client_record.client_status, Client.ClientStatus.INACTIVE)
+        self.assertContains(response, "Existing invoices and appointments were kept")
+
+    def test_staff_cannot_archive_client(self):
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Taylor",
+            last_name="Client",
+            email="staff-blocked-archive@example.com",
+            phone="+1 721 555 1012",
+            company_name="Blocked Archive Co",
+            street_address="14 Main Street",
+        )
+
+        self.client.force_login(self.staff_user)
+        response = self.client.post(
+            reverse("staff_client_archive", args=[client_record.id]),
+            follow=True,
+        )
+
+        client_record.refresh_from_db()
+        self.assertRedirects(response, reverse("staff_client_list"))
+        self.assertTrue(client_record.is_active)
+        self.assertContains(response, "You do not have permission to archive clients.")
+
+    def test_client_archive_blocks_other_business_client(self):
+        foreign_client = Client.objects.create(
+            business=self.other_business,
+            first_name="Foreign",
+            last_name="Client",
+            email="foreign-archive@example.com",
+            phone="+1 721 555 1013",
+            company_name="Foreign Archive Co",
+            street_address="99 Foreign Street",
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("staff_client_archive", args=[foreign_client.id]))
+
+        foreign_client.refresh_from_db()
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(foreign_client.is_active)
+
     def test_client_detail_shows_only_that_clients_current_business_appointments(self):
         self._enable_appointments_for_business()
         target_client = Client.objects.create(

@@ -200,7 +200,7 @@
                   </select>
                   <div class="form-text">Leave the saved service blank and complete the fields below for a custom line item.</div>
                   <label class="form-label mt-2">Description</label>
-                  <input type="text" class="form-control" name="description" value="{{ line.description }}">
+                  <input type="text" class="form-control" name="description" value="{{ line.description }}" maxlength="255">
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Quantity</label>
@@ -242,7 +242,7 @@
                 </select>
                 <div class="form-text">Leave the saved service blank and complete the fields below for a custom line item.</div>
                 <label class="form-label mt-2">Description</label>
-                <input type="text" class="form-control" name="description" disabled>
+                <input type="text" class="form-control" name="description" maxlength="255" disabled>
               </div>
               <div class="col-md-2">
                 <label class="form-label">Quantity</label>
