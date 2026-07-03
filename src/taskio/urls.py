@@ -29,6 +29,10 @@ def landing(request):
     context = {"pricing_plans": pricing_plans}
     return render(request, "main/landing.html", context)
 
+
+def site_preview(request):
+    return render(request, "public_site/home.html")
+
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="home", permanent=False)),
     path(
@@ -75,6 +79,7 @@ urlpatterns = [
     ),
     path("admin/", admin.site.urls),
     path("home/", landing, name="home"),
+    path("site-preview/", site_preview, name="site_preview"),
     path("book/<slug:business_slug>/", public_booking, name="public_booking"),
     path(
         "book/<slug:business_slug>/thanks/",
