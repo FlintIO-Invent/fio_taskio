@@ -92,6 +92,7 @@
                     <span class="fa-solid fa-trash"></span>
                   </button>
                 </div>
+                {% include "billings/includes/invoice_line_manual_service_fields.html" with line=line field_prefix="" %}
               </div>
               {% endfor %}
 
@@ -134,6 +135,7 @@
                     <span class="fa-solid fa-trash"></span>
                   </button>
                 </div>
+                {% include "billings/includes/invoice_line_manual_service_fields.html" with line=line field_prefix="new_" %}
               </div>
               {% endfor %}
             </div>
@@ -175,6 +177,7 @@
                   <span class="fa-solid fa-trash"></span>
                 </button>
               </div>
+              {% include "billings/includes/invoice_line_manual_service_fields.html" with line=blank_line_row field_prefix="new_" disabled=True %}
             </div>
           </div>
         </div>
@@ -275,11 +278,13 @@ function isWholeUnitQuantity(value) {
 
 function applySelectedService(selectElement) {
   const selectedOption = selectElement.options[selectElement.selectedIndex];
+  const lineItem = selectElement.closest('.line-item');
   if (!selectedOption || !selectedOption.value) {
+    updateManualServiceOptions(lineItem);
     return;
   }
 
-  const lineItem = selectElement.closest('.line-item');
+  const saveAsServiceSelect = lineItem.querySelector('.manual-service-action');
   setInputValue(lineItem, 'description', 'new_description', selectedOption.dataset.description || selectedOption.dataset.name || '');
   setInputValue(lineItem, 'unit_price', 'new_unit_price', selectedOption.dataset.unitPrice || '');
 
@@ -287,8 +292,43 @@ function applySelectedService(selectElement) {
   if (!isWholeUnitQuantity(quantityValue)) {
     setInputValue(lineItem, 'quantity', 'new_quantity', '1.00');
   }
+  if (saveAsServiceSelect) {
+    saveAsServiceSelect.value = '';
+  }
 
+  updateManualServiceOptions(lineItem);
   updateTotals();
+}
+
+function updateManualServiceOptions(lineItem) {
+  if (!lineItem) {
+    return;
+  }
+
+  const serviceSelect = lineItem.querySelector('.service-select');
+  const actionSelect = lineItem.querySelector('.manual-service-action');
+  const categoryFields = lineItem.querySelectorAll('.manual-service-category-fields');
+  const categorySelect = lineItem.querySelector('select[name$="service_category_id"]');
+  const newCategoryInput = lineItem.querySelector('input[name$="new_service_category_name"]');
+  const hasSavedService = Boolean(serviceSelect && serviceSelect.value);
+  const shouldShow = Boolean(actionSelect && actionSelect.value === '1' && !hasSavedService);
+
+  if (hasSavedService && actionSelect) {
+    actionSelect.value = '';
+  }
+
+  categoryFields.forEach(field => {
+    field.classList.toggle('d-none', !shouldShow);
+  });
+
+  if (!shouldShow) {
+    if (categorySelect) {
+      categorySelect.value = '';
+    }
+    if (newCategoryInput) {
+      newCategoryInput.value = '';
+    }
+  }
 }
 
 function addLineItem() {
@@ -304,6 +344,7 @@ function addLineItem() {
     }
   });
   container.appendChild(newItem);
+  updateManualServiceOptions(newItem);
   updateTotals();
 }
 
@@ -345,9 +386,12 @@ document.addEventListener('input', function(e) {
 document.addEventListener('change', function(e) {
   if (e.target.matches('.service-select')) {
     applySelectedService(e.target);
+  } else if (e.target.matches('.manual-service-action')) {
+    updateManualServiceOptions(e.target.closest('.line-item'));
   }
 });
 
+document.querySelectorAll('.line-item:not(#line-item-template)').forEach(updateManualServiceOptions);
 updateTotals();
 </script>
 

@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     invoice_change_status,
+    invoice_create,
     invoice_create_from_appointment,
     invoice_create_from_client,
     invoice_delete,
@@ -14,6 +15,7 @@ from .views import (
 
 urlpatterns = [
     path("", invoice_list, name="invoice_list"),
+    path("create/", invoice_create, name="invoice_create"),
     path(
         "from-appointment/<int:appointment_id>/",
         invoice_create_from_appointment,

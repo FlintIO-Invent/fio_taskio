@@ -28,8 +28,8 @@
     <div class="col-auto">
       <div class="d-flex gap-3">
         {% if role_access.can_manage_invoices %}
-          <a class="btn btn-phoenix-primary" href="{% url 'staff_client_list' %}">
-            <span class="fa-solid fa-plus me-2"></span>Create from Client
+          <a class="btn btn-phoenix-primary" href="{% url 'invoice_create' %}">
+            <span class="fa-solid fa-plus me-2"></span>Create Invoice
           </a>
         {% endif %}
       </div>
@@ -141,7 +141,7 @@
               {% endif %}
             </p>
             {% if role_access.can_manage_invoices %}
-              <a href="{% url 'staff_client_list' %}" class="btn btn-phoenix-primary">
+              <a href="{% url 'invoice_create' %}" class="btn btn-phoenix-primary">
                 <span class="fa-solid fa-plus me-2"></span>Create Your First Invoice
               </a>
             {% endif %}

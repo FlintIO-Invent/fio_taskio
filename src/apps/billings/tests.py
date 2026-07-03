@@ -12,7 +12,7 @@ from django.utils import timezone
 from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
-from apps.crm.models import ActivityLog, BusinessService, Client
+from apps.crm.models import ActivityLog, BusinessService, Client, ServiceCategory
 
 from .models import Invoice, InvoiceLine
 
@@ -604,6 +604,69 @@ class BillingBusinessScopingTests(TestCase):
         self.assertIn("function isWholeUnitQuantity(value)", html)
         self.assertIn("quantityInput.value = '1.00';", html)
 
+    def test_invoice_list_create_button_opens_invoice_create_page(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("invoice_create"))
+        self.assertContains(response, "Create Invoice")
+        self.assertNotContains(response, "Create from Client")
+
+    def test_invoice_create_page_can_search_current_business_clients(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="client_id"')
+        self.assertContains(response, 'data-choices="data-choices"')
+        self.assertContains(response, "Search or select a client")
+        self.assertContains(response, "Alicia Client")
+        self.assertNotContains(response, "Boris Client")
+
+    def test_invoice_create_page_posts_selected_client(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create"),
+            data={
+                "client_id": str(self.client_record.id),
+                "service_id": [""],
+                "description": ["After-hours emergency callout"],
+                "quantity": ["2"],
+                "unit_price": ["75.00"],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(created_invoice.client, self.client_record)
+        self.assertEqual(created_invoice.lines.get().description, "After-hours emergency callout")
+
+    def test_invoice_create_page_rejects_other_business_client_selection(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create"),
+            data={
+                "client_id": str(self.other_client_record.id),
+                "service_id": [""],
+                "description": ["Tampered client line"],
+                "quantity": ["1"],
+                "unit_price": ["75.00"],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a client before creating the invoice.")
+        self.assertFalse(Invoice.objects.filter(invoice_number="CLR-0250").exists())
+
     def test_invoice_create_from_client_uses_service_snapshot_values(self):
         self.client.force_login(self.user)
 
@@ -661,6 +724,101 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(created_invoice.subtotal, Decimal("150.00"))
         self.assertEqual(created_invoice.tax, Decimal("9.75"))
         self.assertEqual(created_invoice.total, Decimal("159.75"))
+
+    def test_invoice_create_manual_line_can_be_saved_as_service_with_new_category(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create"),
+            data={
+                "client_id": str(self.client_record.id),
+                "service_id": [""],
+                "description": ["Emergency generator reset"],
+                "quantity": ["1"],
+                "unit_price": ["145.00"],
+                "save_as_service": ["1"],
+                "service_category_id": [""],
+                "new_service_category_name": ["Emergency Work"],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+        created_category = ServiceCategory.objects.get(
+            business=self.business,
+            name="Emergency Work",
+        )
+        created_service = BusinessService.objects.get(
+            business=self.business,
+            name="Emergency generator reset",
+        )
+        line = created_invoice.lines.get()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(created_service.category, created_category)
+        self.assertEqual(created_service.unit_price, Decimal("145.00"))
+        self.assertEqual(created_service.tax_rate, self.business.tax_rate)
+        self.assertEqual(line.service, created_service)
+        self.assertEqual(line.description, "Emergency generator reset")
+
+    def test_invoice_create_manual_line_can_be_saved_as_uncategorized_service(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_client", args=[self.client_record.id]),
+            data={
+                "service_id": [""],
+                "description": ["One-off consultation"],
+                "quantity": ["1"],
+                "unit_price": ["90.00"],
+                "save_as_service": ["1"],
+                "service_category_id": [""],
+                "new_service_category_name": [""],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+        created_service = BusinessService.objects.get(
+            business=self.business,
+            name="One-off consultation",
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertIsNone(created_service.category)
+        self.assertEqual(created_invoice.lines.get().service, created_service)
+
+    def test_invoice_create_manual_service_rejects_other_business_category(self):
+        other_category = ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Other Category",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create"),
+            data={
+                "client_id": str(self.client_record.id),
+                "service_id": [""],
+                "description": ["Cross-business category line"],
+                "quantity": ["1"],
+                "unit_price": ["75.00"],
+                "save_as_service": ["1"],
+                "service_category_id": [str(other_category.id)],
+                "new_service_category_name": [""],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Line item 1: selected service category is not available in this workspace.",
+        )
+        self.assertFalse(Invoice.objects.filter(invoice_number="CLR-0250").exists())
 
     def test_invoice_create_rejects_overlong_line_description(self):
         self.client.force_login(self.user)

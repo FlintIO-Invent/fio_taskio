@@ -26,7 +26,7 @@ from apps.businesses.utils import (
     business_role_required,
     get_business_limit_reached_message,
 )
-from apps.crm.models import ActivityLog, BusinessService, Client
+from apps.crm.models import ActivityLog, BusinessService, Client, ServiceCategory
 from apps.crm.services import log_activity
 from apps.notifications.emails import send_invoice_email
 
@@ -43,6 +43,8 @@ STATUS_TRANSITIONS: dict[str, set[str]] = {
     Invoice.Status.CANCELLED: set(),
 }
 INVOICE_LINE_DESCRIPTION_MAX_LENGTH = InvoiceLine._meta.get_field("description").max_length
+BUSINESS_SERVICE_NAME_MAX_LENGTH = BusinessService._meta.get_field("name").max_length
+SERVICE_CATEGORY_NAME_MAX_LENGTH = ServiceCategory._meta.get_field("name").max_length
 
 
 def _parse_decimal(value: str | None, *, default: Decimal = Decimal("0.00")) -> Decimal:
@@ -81,6 +83,10 @@ def _client_queryset_for_business(business: Business):
 
 def _service_queryset_for_business(business: Business):
     return BusinessService.for_business(business)
+
+
+def _service_category_queryset_for_business(business: Business):
+    return ServiceCategory.for_business(business)
 
 
 def _invoice_queryset_for_business(business: Business):
@@ -139,6 +145,9 @@ def _build_line_rows_from_post(
     descriptions = request.POST.getlist(f"{field_prefix}description")
     quantities = request.POST.getlist(f"{field_prefix}quantity")
     unit_prices = request.POST.getlist(f"{field_prefix}unit_price")
+    save_as_services = request.POST.getlist(f"{field_prefix}save_as_service")
+    service_category_ids = request.POST.getlist(f"{field_prefix}service_category_id")
+    new_service_category_names = request.POST.getlist(f"{field_prefix}new_service_category_name")
 
     row_count = max(
         len(line_ids),
@@ -146,6 +155,9 @@ def _build_line_rows_from_post(
         len(descriptions),
         len(quantities),
         len(unit_prices),
+        len(save_as_services),
+        len(service_category_ids),
+        len(new_service_category_names),
     )
     if row_count == 0 and default_blank_row:
         row_count = 1
@@ -157,6 +169,9 @@ def _build_line_rows_from_post(
             "description": _posted_value(descriptions, index),
             "quantity": _posted_value(quantities, index),
             "unit_price": _posted_value(unit_prices, index),
+            "save_as_service": _posted_value(save_as_services, index),
+            "service_category_id": _posted_value(service_category_ids, index),
+            "new_service_category_name": _posted_value(new_service_category_names, index),
         }
         if include_line_ids:
             row["line_id"] = _posted_value(line_ids, index)
@@ -172,6 +187,9 @@ def _invoice_line_rows(invoice: Invoice) -> list[dict[str, Any]]:
             "description": line.description,
             "quantity": line.quantity,
             "unit_price": line.unit_price,
+            "save_as_service": "",
+            "service_category_id": "",
+            "new_service_category_name": "",
         }
         for line in invoice.lines.all()
     ]
@@ -186,6 +204,9 @@ def _new_line_rows(default_blank_row: bool = False) -> list[dict[str, Any]]:
             "description": "",
             "quantity": "",
             "unit_price": "",
+            "save_as_service": "",
+            "service_category_id": "",
+            "new_service_category_name": "",
         }
     ]
 
@@ -226,10 +247,94 @@ def _should_refresh_existing_service_snapshot(
     )
 
 
+def _truthy_post_value(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_posted_service_category(
+    *,
+    business: Business,
+    category_id: str,
+) -> ServiceCategory | None:
+    category_id = str(category_id or "").strip()
+    if not category_id:
+        return None
+
+    try:
+        return _service_category_queryset_for_business(business).filter(pk=category_id).first()
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_or_create_manual_service_category(
+    *,
+    business: Business,
+    category: ServiceCategory | None,
+    new_category_name: str,
+) -> ServiceCategory | None:
+    if category is not None:
+        return category
+
+    new_category_name = new_category_name.strip()
+    if not new_category_name:
+        return None
+
+    existing_category = ServiceCategory.objects.filter(
+        business=business,
+        name__iexact=new_category_name,
+    ).first()
+    if existing_category is not None:
+        return existing_category
+
+    return ServiceCategory.objects.create(
+        business=business,
+        name=new_category_name,
+        is_active=True,
+    )
+
+
+def _create_manual_business_service(
+    *,
+    business: Business,
+    line_row: dict[str, Any],
+) -> BusinessService:
+    category = _get_or_create_manual_service_category(
+        business=business,
+        category=line_row["manual_service_category"],
+        new_category_name=line_row["new_service_category_name"],
+    )
+    return BusinessService.objects.create(
+        business=business,
+        category=category,
+        name=line_row["description"],
+        description=line_row["description"],
+        unit_price=line_row["unit_price"],
+        tax_rate=business.tax_rate or Decimal("0.00"),
+        is_active=True,
+    )
+
+
+def _service_for_invoice_line(
+    *,
+    business: Business,
+    line_row: dict[str, Any],
+) -> BusinessService | None:
+    if line_row["service"] is not None:
+        return line_row["service"]
+    if not line_row["save_as_service"]:
+        return None
+
+    return _create_manual_business_service(
+        business=business,
+        line_row=line_row,
+    )
+
+
 def _clean_line_rows(
     *,
     rows: list[dict[str, Any]],
     active_services_by_id: dict[str, BusinessService],
+    business: Business,
     line_label: str,
     existing_lines_by_id: dict[str, InvoiceLine] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
@@ -241,11 +346,23 @@ def _clean_line_rows(
         description = str(row.get("description", "")).strip()
         quantity = str(row.get("quantity", "")).strip()
         unit_price = str(row.get("unit_price", "")).strip()
+        save_as_service = _truthy_post_value(row.get("save_as_service"))
+        service_category_id = str(row.get("service_category_id", "")).strip()
+        new_service_category_name = str(row.get("new_service_category_name", "")).strip()
 
-        if not service_id and not description and not quantity and not unit_price:
+        if (
+            not service_id
+            and not description
+            and not quantity
+            and not unit_price
+            and not save_as_service
+            and not service_category_id
+            and not new_service_category_name
+        ):
             continue
 
         service = None
+        manual_service_category = None
         if service_id:
             service = active_services_by_id.get(service_id)
             if service is None:
@@ -279,6 +396,41 @@ def _clean_line_rows(
                     posted_unit_price=unit_price,
                 )
         else:
+            if save_as_service and not description:
+                errors.append(f"{line_label} {index}: enter a description to save as a service.")
+                continue
+
+            if save_as_service and len(description) > BUSINESS_SERVICE_NAME_MAX_LENGTH:
+                errors.append(
+                    f"{line_label} {index}: saved service name must be "
+                    f"{BUSINESS_SERVICE_NAME_MAX_LENGTH} characters or fewer."
+                )
+                continue
+
+            if save_as_service and service_category_id and new_service_category_name:
+                errors.append(
+                    f"{line_label} {index}: choose an existing category or enter a new category, not both."
+                )
+                continue
+
+            if save_as_service and len(new_service_category_name) > SERVICE_CATEGORY_NAME_MAX_LENGTH:
+                errors.append(
+                    f"{line_label} {index}: new category name must be "
+                    f"{SERVICE_CATEGORY_NAME_MAX_LENGTH} characters or fewer."
+                )
+                continue
+
+            if save_as_service and service_category_id:
+                manual_service_category = _resolve_posted_service_category(
+                    business=business,
+                    category_id=service_category_id,
+                )
+                if manual_service_category is None:
+                    errors.append(
+                        f"{line_label} {index}: selected service category is not available in this workspace."
+                    )
+                    continue
+
             description_value = description or "Line item"
             unit_price_value = _parse_decimal(unit_price)
 
@@ -297,6 +449,10 @@ def _clean_line_rows(
             "description": description_value,
             "quantity": _parse_decimal(quantity, default=Decimal("1.00")),
             "unit_price": unit_price_value,
+            "save_as_service": bool(save_as_service and service is None),
+            "manual_service_category": manual_service_category,
+            "service_category_id": str(manual_service_category.pk) if manual_service_category else "",
+            "new_service_category_name": new_service_category_name,
         }
         if "line_id" in row:
             cleaned_row["line_id"] = str(row["line_id"])
@@ -366,7 +522,7 @@ def _initial_line_rows_for_appointment(appointment: Appointment) -> list[dict[st
 def _invoice_create_response(
     request: HttpRequest,
     *,
-    client: Client,
+    client: Client | None = None,
     source_appointment: Appointment | None = None,
 ) -> HttpResponse:
     current_business = request.current_business
@@ -377,8 +533,13 @@ def _invoice_create_response(
         )
         return redirect("invoice_list")
 
+    available_clients = list(
+        _client_queryset_for_business(current_business).order_by("first_name", "last_name", "pk")
+    )
     available_services = list(_service_queryset_for_business(current_business))
+    service_categories = list(_service_category_queryset_for_business(current_business))
     active_services_by_id = {str(service.pk): service for service in available_services}
+    selected_client = client
     appointment_notes = (
         _build_invoice_notes_for_appointment(source_appointment)
         if source_appointment is not None
@@ -394,11 +555,27 @@ def _invoice_create_response(
     if request.method == "POST":
         line_rows = _build_line_rows_from_post(request, default_blank_row=True)
         draft_notes = request.POST.get("notes", "").strip() or appointment_notes
-        cleaned_line_rows, errors = _clean_line_rows(
+        client_errors: list[str] = []
+
+        if selected_client is None:
+            client_id = request.POST.get("client_id", "").strip()
+            if client_id:
+                try:
+                    selected_client = _client_queryset_for_business(current_business).filter(
+                        pk=client_id
+                    ).first()
+                except (TypeError, ValueError):
+                    selected_client = None
+            if selected_client is None:
+                client_errors.append("Select a client before creating the invoice.")
+
+        cleaned_line_rows, line_errors = _clean_line_rows(
             rows=line_rows,
             active_services_by_id=active_services_by_id,
+            business=current_business,
             line_label="Line item",
         )
+        errors = [*client_errors, *line_errors]
 
         if errors:
             for error in errors:
@@ -407,7 +584,7 @@ def _invoice_create_response(
             with transaction.atomic():
                 invoice = create_invoice_for_client(
                     actor=request.user,
-                    client=client,
+                    client=selected_client,
                     appointment=source_appointment,
                     notes=draft_notes,
                 )
@@ -415,7 +592,10 @@ def _invoice_create_response(
                 for line_row in cleaned_line_rows:
                     InvoiceLine.objects.create(
                         invoice=invoice,
-                        service=line_row["service"],
+                        service=_service_for_invoice_line(
+                            business=current_business,
+                            line_row=line_row,
+                        ),
                         description=line_row["description"],
                         quantity=line_row["quantity"],
                         unit_price=line_row["unit_price"],
@@ -427,15 +607,31 @@ def _invoice_create_response(
             return redirect("invoice_detail", invoice_id=invoice.id)
 
     context: dict[str, Any] = {
-        "client": client,
+        "client": selected_client,
+        "available_clients": available_clients,
         "current_business": current_business,
         "draft_notes": draft_notes,
         "invoice_number_preview": generate_invoice_number(business=current_business),
         "available_services": available_services,
+        "service_categories": service_categories,
         "line_rows": line_rows,
+        "blank_line_row": _new_line_rows(default_blank_row=True)[0],
         "source_appointment": source_appointment,
+        "client_is_locked": client is not None or source_appointment is not None,
     }
     return render(request, "billings/invoice_create.html", context)
+
+
+@business_role_required(
+    *BILLING_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage invoices.",
+    raise_exception=False,
+)
+@business_module_required("invoicing")
+@require_http_methods(["GET", "POST"])
+def invoice_create(request: HttpRequest) -> HttpResponse:
+    return _invoice_create_response(request)
 
 
 @business_role_required(
@@ -659,6 +855,7 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
         pk=invoice_id,
     )
     available_services = list(_service_queryset_for_business(current_business))
+    service_categories = list(_service_category_queryset_for_business(current_business))
     active_services_by_id = {str(service.pk): service for service in available_services}
     existing_line_rows = _invoice_line_rows(invoice)
     new_line_rows = _new_line_rows()
@@ -675,12 +872,14 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
         cleaned_existing_rows, existing_errors = _clean_line_rows(
             rows=existing_line_rows,
             active_services_by_id=active_services_by_id,
+            business=current_business,
             line_label="Saved line",
             existing_lines_by_id=existing_lines,
         )
         cleaned_new_rows, new_errors = _clean_line_rows(
             rows=new_line_rows,
             active_services_by_id=active_services_by_id,
+            business=current_business,
             line_label="New line",
         )
 
@@ -699,7 +898,10 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
                     if line is None:
                         continue
 
-                    line.service = line_row["service"]
+                    line.service = _service_for_invoice_line(
+                        business=current_business,
+                        line_row=line_row,
+                    )
                     line.description = line_row["description"]
                     line.quantity = line_row["quantity"]
                     line.unit_price = line_row["unit_price"]
@@ -715,7 +917,10 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
                 for line_row in cleaned_new_rows:
                     InvoiceLine.objects.create(
                         invoice=invoice,
-                        service=line_row["service"],
+                        service=_service_for_invoice_line(
+                            business=current_business,
+                            line_row=line_row,
+                        ),
                         description=line_row["description"],
                         quantity=line_row["quantity"],
                         unit_price=line_row["unit_price"],
@@ -728,8 +933,10 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
     context: dict[str, Any] = {
         "invoice": invoice,
         "available_services": available_services,
+        "service_categories": service_categories,
         "existing_line_rows": existing_line_rows,
         "new_line_rows": new_line_rows,
+        "blank_line_row": _new_line_rows(default_blank_row=True)[0],
         "draft_notes": draft_notes,
     }
     return render(request, "billings/invoice_edit.html", context)
