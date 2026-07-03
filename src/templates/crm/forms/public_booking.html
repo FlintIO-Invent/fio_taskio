@@ -117,9 +117,8 @@
 
                       <div data-book-now-section>
                         <div class="mb-3 text-start">
-                          <label class="form-label" for="{{ form.staff_member.id_for_label }}">Staff member</label>
+                          <label class="form-label" for="{{ form.staff_member.id_for_label }}">Staff member{% include "includes/help_icon.html" with text=form.staff_member.help_text %}</label>
                           {{ form.staff_member }}
-                          {% if form.staff_member.help_text %}<div class="form-text">{{ form.staff_member.help_text }}</div>{% endif %}
                           {% if form.staff_member.errors %}<div class="text-danger small">{{ form.staff_member.errors }}</div>{% endif %}
                         </div>
 
@@ -161,15 +160,13 @@
 
                         <div class="row g-3 mb-3" data-manual-date-time>
                           <div class="col-sm-6 text-start">
-                            <label class="form-label" for="{{ form.preferred_date.id_for_label }}">Available date</label>
+                            <label class="form-label" for="{{ form.preferred_date.id_for_label }}">Available date{% include "includes/help_icon.html" with text=form.preferred_date.help_text %}</label>
                             {{ form.preferred_date }}
-                            {% if form.preferred_date.help_text %}<div class="form-text">{{ form.preferred_date.help_text }}</div>{% endif %}
                             {% if form.preferred_date.errors %}<div class="text-danger small">{{ form.preferred_date.errors }}</div>{% endif %}
                           </div>
                           <div class="col-sm-6 text-start">
-                            <label class="form-label" for="{{ form.preferred_time.id_for_label }}">Available time</label>
+                            <label class="form-label" for="{{ form.preferred_time.id_for_label }}">Available time{% include "includes/help_icon.html" with text=form.preferred_time.help_text %}</label>
                             {{ form.preferred_time }}
-                            {% if form.preferred_time.help_text %}<div class="form-text">{{ form.preferred_time.help_text }}</div>{% endif %}
                             {% if form.preferred_time.errors %}<div class="text-danger small">{{ form.preferred_time.errors }}</div>{% endif %}
                           </div>
                         </div>
@@ -233,8 +230,10 @@
                           </div>
                           <div class="col-sm-6 text-start">
                             <label class="form-label" for="{{ form.postal_code.id_for_label }}" data-address-label="postal">{{ form.postal_code.label }}</label>
+                            <span class="field-help-icon{% if not form.postal_code.help_text %} d-none{% endif %}" tabindex="0" role="img" aria-label="{{ form.postal_code.help_text|striptags }}" data-bs-toggle="tooltip" data-bs-trigger="hover focus" data-bs-placement="top" data-bs-title="{{ form.postal_code.help_text|striptags }}" data-address-help="postal">
+                              <span class="fa-solid fa-circle-exclamation" aria-hidden="true"></span>
+                            </span>
                             {{ form.postal_code }}
-                            <div class="form-text{% if not form.postal_code.help_text %} d-none{% endif %}" data-address-help="postal">{{ form.postal_code.help_text }}</div>
                             {% if form.postal_code.errors %}<div class="text-danger small">{{ form.postal_code.errors }}</div>{% endif %}
                           </div>
                         </div>
@@ -447,8 +446,14 @@
       }
 
       if (postalHelp) {
-        postalHelp.textContent = style.postalHelp || '';
-        postalHelp.classList.toggle('d-none', !style.postalHelp);
+        const postalHelpText = style.postalHelp || '';
+        postalHelp.classList.toggle('d-none', !postalHelpText);
+        postalHelp.setAttribute('aria-label', postalHelpText);
+        postalHelp.setAttribute('data-bs-title', postalHelpText);
+        const postalTooltip = window.bootstrap ? window.bootstrap.Tooltip.getInstance(postalHelp) : null;
+        if (postalTooltip) {
+          postalTooltip.setContent({ '.tooltip-inner': postalHelpText });
+        }
       }
     }
 

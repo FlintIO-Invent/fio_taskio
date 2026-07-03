@@ -15,8 +15,9 @@
 
     <div class="row g-3 mb-4 align-items-end justify-content-between">
       <div class="col-lg-8">
+        <p class="text-body-secondary fs-8 mb-1">{{ dashboard_today|date:"l, F j, Y" }}</p>
         <h2 class="mb-2 text-body-emphasis">
-          Welcome back{% if request.user.first_name %}, {{ request.user.first_name }}{% endif %}
+          Welcome back{% if request.user.first_name %}, {{ request.user.first_name }} {{ request.user.last_name }}{% endif %}
         </h2>
         <p class="text-body-tertiary mb-0">
           Here is today's workspace snapshot for {{ current_business.name }}.

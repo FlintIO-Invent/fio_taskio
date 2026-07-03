@@ -67,52 +67,46 @@
 
               <div class="form-check form-switch mb-4">
                 {{ settings_form.booking_enabled }}
-                <label class="form-check-label" for="{{ settings_form.booking_enabled.id_for_label }}">Enable public bookings</label>
-                {% if settings_form.booking_enabled.help_text %}<div class="form-text">{{ settings_form.booking_enabled.help_text }}</div>{% endif %}
+                <label class="form-check-label" for="{{ settings_form.booking_enabled.id_for_label }}">Enable public bookings{% include "includes/help_icon.html" with text=settings_form.booking_enabled.help_text %}</label>
                 {% if settings_form.booking_enabled.errors %}<div class="invalid-feedback d-block">{{ settings_form.booking_enabled.errors|striptags }}</div>{% endif %}
               </div>
 
               <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label" for="{{ settings_form.default_duration_minutes.id_for_label }}">Default duration</label>
+                  <label class="form-label" for="{{ settings_form.default_duration_minutes.id_for_label }}">Default duration{% include "includes/help_icon.html" with text=settings_form.default_duration_minutes.help_text %}</label>
                   <div class="input-group">
                     {{ settings_form.default_duration_minutes }}
                     <span class="input-group-text">minutes</span>
                   </div>
-                  {% if settings_form.default_duration_minutes.help_text %}<div class="form-text">{{ settings_form.default_duration_minutes.help_text }}</div>{% endif %}
                   {% if settings_form.default_duration_minutes.errors %}<div class="invalid-feedback d-block">{{ settings_form.default_duration_minutes.errors|striptags }}</div>{% endif %}
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label" for="{{ settings_form.minimum_notice_hours.id_for_label }}">Minimum notice</label>
+                  <label class="form-label" for="{{ settings_form.minimum_notice_hours.id_for_label }}">Minimum notice{% include "includes/help_icon.html" with text=settings_form.minimum_notice_hours.help_text %}</label>
                   <div class="input-group">
                     {{ settings_form.minimum_notice_hours }}
                     <span class="input-group-text">hours</span>
                   </div>
-                  {% if settings_form.minimum_notice_hours.help_text %}<div class="form-text">{{ settings_form.minimum_notice_hours.help_text }}</div>{% endif %}
                   {% if settings_form.minimum_notice_hours.errors %}<div class="invalid-feedback d-block">{{ settings_form.minimum_notice_hours.errors|striptags }}</div>{% endif %}
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label" for="{{ settings_form.maximum_days_ahead.id_for_label }}">Maximum days ahead</label>
+                  <label class="form-label" for="{{ settings_form.maximum_days_ahead.id_for_label }}">Maximum days ahead{% include "includes/help_icon.html" with text=settings_form.maximum_days_ahead.help_text %}</label>
                   <div class="input-group">
                     {{ settings_form.maximum_days_ahead }}
                     <span class="input-group-text">days</span>
                   </div>
-                  {% if settings_form.maximum_days_ahead.help_text %}<div class="form-text">{{ settings_form.maximum_days_ahead.help_text }}</div>{% endif %}
                   {% if settings_form.maximum_days_ahead.errors %}<div class="invalid-feedback d-block">{{ settings_form.maximum_days_ahead.errors|striptags }}</div>{% endif %}
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label" for="{{ settings_form.buffer_minutes.id_for_label }}">Buffer time</label>
+                  <label class="form-label" for="{{ settings_form.buffer_minutes.id_for_label }}">Buffer time{% include "includes/help_icon.html" with text=settings_form.buffer_minutes.help_text %}</label>
                   <div class="input-group">
                     {{ settings_form.buffer_minutes }}
                     <span class="input-group-text">minutes</span>
                   </div>
-                  {% if settings_form.buffer_minutes.help_text %}<div class="form-text">{{ settings_form.buffer_minutes.help_text }}</div>{% endif %}
                   {% if settings_form.buffer_minutes.errors %}<div class="invalid-feedback d-block">{{ settings_form.buffer_minutes.errors|striptags }}</div>{% endif %}
                 </div>
                 <div class="col-12">
-                  <label class="form-label" for="{{ settings_form.confirmation_mode.id_for_label }}">Confirmation mode</label>
+                  <label class="form-label" for="{{ settings_form.confirmation_mode.id_for_label }}">Confirmation mode{% include "includes/help_icon.html" with text=settings_form.confirmation_mode.help_text %}</label>
                   {{ settings_form.confirmation_mode }}
-                  {% if settings_form.confirmation_mode.help_text %}<div class="form-text">{{ settings_form.confirmation_mode.help_text }}</div>{% endif %}
                   {% if settings_form.confirmation_mode.errors %}<div class="invalid-feedback d-block">{{ settings_form.confirmation_mode.errors|striptags }}</div>{% endif %}
                 </div>
               </div>
@@ -179,9 +173,8 @@
                 <input type="hidden" name="form_kind" value="availability">
 
                 <div class="mb-3">
-                  <label class="form-label" for="{{ availability_form.staff_member.id_for_label }}">Staff member</label>
+                  <label class="form-label" for="{{ availability_form.staff_member.id_for_label }}">Staff member{% include "includes/help_icon.html" with text=availability_form.staff_member.help_text %}</label>
                   {{ availability_form.staff_member }}
-                  {% if availability_form.staff_member.help_text %}<div class="form-text">{{ availability_form.staff_member.help_text }}</div>{% endif %}
                   {% if availability_form.staff_member.errors %}<div class="invalid-feedback d-block">{{ availability_form.staff_member.errors|striptags }}</div>{% endif %}
                 </div>
 
@@ -206,8 +199,7 @@
 
                 <div class="form-check mt-3 mb-4">
                   {{ availability_form.is_active }}
-                  <label class="form-check-label" for="{{ availability_form.is_active.id_for_label }}">Active</label>
-                  {% if availability_form.is_active.help_text %}<div class="form-text">{{ availability_form.is_active.help_text }}</div>{% endif %}
+                  <label class="form-check-label" for="{{ availability_form.is_active.id_for_label }}">Active{% include "includes/help_icon.html" with text=availability_form.is_active.help_text %}</label>
                   {% if availability_form.is_active.errors %}<div class="invalid-feedback d-block">{{ availability_form.is_active.errors|striptags }}</div>{% endif %}
                 </div>
 
@@ -225,9 +217,8 @@
                 <input type="hidden" name="form_kind" value="bulk_availability">
 
                 <div class="mb-3">
-                  <label class="form-label" for="{{ bulk_availability_form.staff_member.id_for_label }}">Staff member</label>
+                  <label class="form-label" for="{{ bulk_availability_form.staff_member.id_for_label }}">Staff member{% include "includes/help_icon.html" with text=bulk_availability_form.staff_member.help_text %}</label>
                   {{ bulk_availability_form.staff_member }}
-                  {% if bulk_availability_form.staff_member.help_text %}<div class="form-text">{{ bulk_availability_form.staff_member.help_text }}</div>{% endif %}
                   {% if bulk_availability_form.staff_member.errors %}<div class="invalid-feedback d-block">{{ bulk_availability_form.staff_member.errors|striptags }}</div>{% endif %}
                 </div>
 
@@ -259,8 +250,7 @@
 
                 <div class="form-check mt-3 mb-4">
                   {{ bulk_availability_form.is_active }}
-                  <label class="form-check-label" for="{{ bulk_availability_form.is_active.id_for_label }}">Active</label>
-                  {% if bulk_availability_form.is_active.help_text %}<div class="form-text">{{ bulk_availability_form.is_active.help_text }}</div>{% endif %}
+                  <label class="form-check-label" for="{{ bulk_availability_form.is_active.id_for_label }}">Active{% include "includes/help_icon.html" with text=bulk_availability_form.is_active.help_text %}</label>
                   {% if bulk_availability_form.is_active.errors %}<div class="invalid-feedback d-block">{{ bulk_availability_form.is_active.errors|striptags }}</div>{% endif %}
                 </div>
 

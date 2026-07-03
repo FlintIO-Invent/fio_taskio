@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django import forms
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.text import slugify
@@ -1152,6 +1153,17 @@ class ServiceCategoryForm(forms.ModelForm):
 
 
 class BusinessServiceForm(forms.ModelForm):
+    new_category_name = forms.CharField(
+        label="New category",
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Optional new category name",
+            }
+        ),
+        help_text="Leave existing category blank to create and assign a new category with this service.",
+    )
     unit_price = forms.CharField(
         label="Unit price",
         widget=forms.TextInput(attrs={"class": "form-control", "inputmode": "decimal"}),
@@ -1220,6 +1232,7 @@ class BusinessServiceForm(forms.ModelForm):
             "requires_manual_confirmation": "Requires manual confirmation",
         }
         help_texts = {
+            "category": "Use an existing category or leave this blank and create a new one below.",
             "external_code": "Optional. Useful for matching future CSV imports without guessing by name.",
             "is_bookable_online": "Only services marked bookable online will appear later on the public booking form.",
             "default_duration_minutes": "Optional service-specific duration in minutes. Leave blank to use workspace booking settings.",
@@ -1234,6 +1247,7 @@ class BusinessServiceForm(forms.ModelForm):
         if business is not None:
             self.instance.business = business
         self.fields["category"].required = False
+        self.fields["category"].empty_label = "Uncategorized / choose existing"
         self.fields["external_code"].required = False
         self.fields["tax_rate"].required = False
         self.fields["default_duration_minutes"].required = False
@@ -1257,6 +1271,9 @@ class BusinessServiceForm(forms.ModelForm):
                 f"of {business.tax_rate:.2f}% for new services. Existing services keep their "
                 "current tax rate when this field is left blank."
             )
+
+    def clean_new_category_name(self):
+        return (self.cleaned_data.get("new_category_name") or "").strip()
 
     def clean_external_code(self):
         external_code = (self.cleaned_data.get("external_code") or "").strip()
@@ -1295,6 +1312,27 @@ class BusinessServiceForm(forms.ModelForm):
         if not self.business:
             raise forms.ValidationError("A current business is required to manage services.")
 
+        category = cleaned_data.get("category")
+        new_category_name = cleaned_data.get("new_category_name")
+        if category and new_category_name:
+            self.add_error(
+                "new_category_name",
+                "Choose an existing category or enter a new category, not both.",
+            )
+
+        if new_category_name:
+            new_category_code = slugify(new_category_name).replace("-", "_")
+            if not new_category_code:
+                self.add_error("new_category_name", "Enter a valid category name.")
+            elif ServiceCategory.objects.filter(
+                business=self.business,
+                name__iexact=new_category_name,
+            ).exists():
+                self.add_error(
+                    "new_category_name",
+                    "That category already exists. Select it from the existing category list.",
+                )
+
         if cleaned_data.get("tax_rate") in (None, ""):
             if self.instance.pk:
                 cleaned_data["tax_rate"] = self.instance.tax_rate
@@ -1323,7 +1361,17 @@ class BusinessServiceForm(forms.ModelForm):
         instance.business = self.business
         instance.tax_rate = self.cleaned_data.get("tax_rate", instance.tax_rate)
         instance.external_code = self.cleaned_data.get("external_code")
-        if commit:
+        new_category_name = self.cleaned_data.get("new_category_name")
+        if not commit:
+            return instance
+
+        with transaction.atomic():
+            if new_category_name:
+                instance.category = ServiceCategory.objects.create(
+                    business=self.business,
+                    name=new_category_name,
+                    is_active=True,
+                )
             instance.save()
             self.save_m2m()
         return instance

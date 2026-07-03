@@ -3417,7 +3417,7 @@
     tooltipTriggerList.map(
       tooltipTriggerEl =>
         new bootstrap.Tooltip(tooltipTriggerEl, {
-          trigger: 'hover'
+          trigger: tooltipTriggerEl.getAttribute('data-bs-trigger') || 'hover'
         })
     );
   };

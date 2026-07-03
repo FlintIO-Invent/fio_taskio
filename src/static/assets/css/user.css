@@ -123,6 +123,35 @@ html[data-bs-theme="dark"] .motionmate-logo-mark {
   box-shadow: none;
 }
 
+.field-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-left: 0.35rem;
+  color: var(--phoenix-tertiary-color, var(--phoenix-body-color));
+  cursor: help;
+  font-size: 0.75rem;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.field-help-icon:hover,
+.field-help-icon:focus {
+  color: var(--phoenix-primary);
+}
+
+.field-help-icon:focus {
+  outline: none;
+}
+
+.field-help-icon:focus-visible {
+  border-radius: 999px;
+  outline: 2px solid var(--phoenix-primary);
+  outline-offset: 2px;
+}
+
 .alert-light {
   --phoenix-alert-color: var(--phoenix-body-highlight-color);
   --phoenix-alert-bg: var(--phoenix-body-highlight-bg);

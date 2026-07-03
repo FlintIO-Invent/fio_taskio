@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.template.defaultfilters import date as date_filter
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -1218,6 +1219,10 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("agent_dashboard"))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            date_filter(response.context["dashboard_today"], "l, F j, Y"),
+        )
         self.assertEqual(response.context["client_count"], 1)
         self.assertEqual(response.context["service_request_count"], 1)
         self.assertEqual(response.context["open_service_request_count"], 1)
@@ -1453,10 +1458,14 @@ class CRMBusinessScopingTests(TestCase):
         session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
         session.save()
 
-        list_response = self.client.get(reverse("business_service_category_list"))
+        category_list_response = self.client.get(reverse("business_service_category_list"))
+        list_response = self.client.get(reverse("business_service_list"))
 
+        self.assertRedirects(category_list_response, reverse("business_service_list"))
         self.assertEqual(list_response.status_code, 200)
+        self.assertContains(list_response, "Services & Categories")
         self.assertContains(list_response, own_category.name)
+        self.assertContains(list_response, "Service Categories")
         self.assertNotContains(list_response, "Foreign Category")
 
         create_response = self.client.post(
@@ -1471,7 +1480,10 @@ class CRMBusinessScopingTests(TestCase):
 
         created_category = ServiceCategory.objects.get(name="Emergency Callout")
 
-        self.assertRedirects(create_response, reverse("business_service_category_list"))
+        self.assertRedirects(
+            create_response,
+            f"{reverse('business_service_create')}?category={created_category.pk}",
+        )
         self.assertEqual(created_category.business, self.business)
         self.assertEqual(created_category.code, "emergency_callout")
 
@@ -1487,7 +1499,7 @@ class CRMBusinessScopingTests(TestCase):
 
         created_category.refresh_from_db()
 
-        self.assertRedirects(update_response, reverse("business_service_category_list"))
+        self.assertRedirects(update_response, reverse("business_service_list"))
         self.assertEqual(created_category.name, "Emergency Dispatch")
         self.assertEqual(created_category.code, "dispatch_priority")
 
@@ -1498,7 +1510,7 @@ class CRMBusinessScopingTests(TestCase):
 
         created_category.refresh_from_db()
 
-        self.assertRedirects(archive_response, reverse("business_service_category_list"))
+        self.assertRedirects(archive_response, reverse("business_service_list"))
         self.assertFalse(created_category.is_active)
         self.assertTrue(ServiceCategory.objects.filter(pk=created_category.pk).exists())
 
@@ -1671,6 +1683,78 @@ class CRMBusinessScopingTests(TestCase):
             reverse("business_service_update", args=[foreign_service.id]),
         )
         self.assertEqual(foreign_update_response.status_code, 404)
+
+    def test_business_service_create_can_create_category_inline(self):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.post(
+            reverse("business_service_create"),
+            {
+                "category": "",
+                "new_category_name": "Roof Repairs",
+                "name": "Leak Patch",
+                "external_code": "ROOF-001",
+                "description": "Patch active roof leaks.",
+                "unit_price": "180.00",
+                "tax_rate": "",
+                "is_active": "on",
+                "default_duration_minutes": "",
+                "booking_buffer_minutes": "",
+                "public_description": "",
+                "requires_manual_confirmation": "on",
+            },
+            follow=True,
+        )
+
+        created_category = ServiceCategory.objects.get(name="Roof Repairs")
+        created_service = BusinessService.objects.get(external_code="ROOF-001")
+
+        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertEqual(created_category.business, self.business)
+        self.assertEqual(created_category.code, "roof_repairs")
+        self.assertEqual(created_service.business, self.business)
+        self.assertEqual(created_service.category, created_category)
+        self.assertContains(response, "Roof Repairs")
+        self.assertContains(response, "Leak Patch")
+
+    def test_business_service_create_requires_existing_or_new_category_choice(self):
+        current_category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Diagnostics",
+        )
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.post(
+            reverse("business_service_create"),
+            {
+                "category": current_category.id,
+                "new_category_name": "Roof Repairs",
+                "name": "Conflicting Category Service",
+                "external_code": "CONFLICT-001",
+                "description": "Should not save with both category fields.",
+                "unit_price": "180.00",
+                "tax_rate": "",
+                "is_active": "on",
+                "default_duration_minutes": "",
+                "booking_buffer_minutes": "",
+                "public_description": "",
+                "requires_manual_confirmation": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Choose an existing category or enter a new category, not both.",
+        )
+        self.assertFalse(BusinessService.objects.filter(external_code="CONFLICT-001").exists())
+        self.assertFalse(ServiceCategory.objects.filter(name="Roof Repairs").exists())
 
     def test_business_service_price_display_and_input_follow_business_locale(self):
         self.business.country = "Netherlands"

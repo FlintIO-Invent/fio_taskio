@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Case, IntegerField, Q, QuerySet, Sum, Value, When
+from django.db.models import Case, Count, IntegerField, Q, QuerySet, Sum, Value, When
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -844,6 +844,7 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
 
     context: dict[str, Any] = {
         "current_business": current_business,
+        "dashboard_today": start_of_today.date(),
         "dashboard_appointments_enabled": can_view_appointment_activity,
         "dashboard_invoices_enabled": can_view_invoice_activity,
         "appointments_module_enabled": appointments_enabled,
@@ -1575,16 +1576,7 @@ def client_detail_view(request: HttpRequest) -> HttpResponse:
 )
 @require_http_methods(["GET"])
 def business_service_category_list(request: HttpRequest) -> HttpResponse:
-    current_business = request.current_business
-    categories = _service_category_queryset_for_business(current_business)
-
-    context: dict[str, Any] = {
-        "categories": categories,
-        "business": current_business,
-        "active_category_count": categories.filter(is_active=True).count(),
-        "archived_category_count": categories.filter(is_active=False).count(),
-    }
-    return render(request, "crm/settings/service_category_list.html", context)
+    return redirect("business_service_list")
 
 
 @business_role_required(
@@ -1597,15 +1589,19 @@ def business_service_category_list(request: HttpRequest) -> HttpResponse:
 def business_service_category_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
 
+    if request.method == "GET":
+        return redirect("business_service_create")
+
     if request.method == "POST":
         form = ServiceCategoryForm(request.POST, business=current_business)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Service category created.")
-            return redirect("business_service_category_list")
+            category = form.save()
+            messages.success(
+                request,
+                "Service category created. Create a service for it now.",
+            )
+            return redirect(f"{reverse('business_service_create')}?category={category.pk}")
         messages.error(request, "Please correct the errors below.")
-    else:
-        form = ServiceCategoryForm(business=current_business)
 
     context: dict[str, Any] = {
         "form": form,
@@ -1639,7 +1635,7 @@ def business_service_category_update(request: HttpRequest, category_id: int) -> 
         if form.is_valid():
             form.save()
             messages.success(request, "Service category updated.")
-            return redirect("business_service_category_list")
+            return redirect("business_service_list")
         messages.error(request, "Please correct the errors below.")
     else:
         form = ServiceCategoryForm(instance=category, business=current_business)
@@ -1675,7 +1671,7 @@ def business_service_category_archive(request: HttpRequest, category_id: int) ->
     else:
         messages.info(request, f"{category.name} is already archived.")
 
-    return redirect("business_service_category_list")
+    return redirect("business_service_list")
 
 
 @business_role_required(
@@ -1688,17 +1684,27 @@ def business_service_category_archive(request: HttpRequest, category_id: int) ->
 def business_service_list(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
     services = _business_service_queryset_for_business(current_business)
+    categories = _service_category_queryset_for_business(current_business).annotate(
+        service_count=Count(
+            "services",
+            filter=Q(services__business=current_business),
+            distinct=True,
+        )
+    )
     public_booking_allowed = can_use_module(current_business, "public_booking")
 
     context: dict[str, Any] = {
         "business": current_business,
         "services": services,
+        "categories": categories,
         "active_service_count": services.filter(is_active=True).count(),
         "archived_service_count": services.filter(is_active=False).count(),
         "bookable_service_count": services.filter(
             is_active=True,
             is_bookable_online=True,
         ).count(),
+        "active_category_count": categories.filter(is_active=True).count(),
+        "archived_category_count": categories.filter(is_active=False).count(),
         "public_booking_allowed": public_booking_allowed,
         "public_booking_unavailable_message": (
             ""
@@ -1727,7 +1733,17 @@ def business_service_create(request: HttpRequest) -> HttpResponse:
             return redirect("business_service_list")
         messages.error(request, "Please correct the errors below.")
     else:
-        form = BusinessServiceForm(business=current_business)
+        initial = {}
+        selected_category_id = request.GET.get("category")
+        if selected_category_id:
+            selected_category = (
+                _service_category_queryset_for_business(current_business)
+                .filter(pk=selected_category_id, is_active=True)
+                .first()
+            )
+            if selected_category is not None:
+                initial["category"] = selected_category.pk
+        form = BusinessServiceForm(business=current_business, initial=initial)
 
     context: dict[str, Any] = {
         "form": form,

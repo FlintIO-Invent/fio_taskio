@@ -127,9 +127,8 @@
                   </div>
 
                   <div class="col-sm-4 text-start">
-                    <label class="form-label" for="{{ form.postal_code.id_for_label }}">{{ form.postal_code.label }}</label>
+                    <label class="form-label" for="{{ form.postal_code.id_for_label }}">{{ form.postal_code.label }}{% include "includes/help_icon.html" with text=form.postal_code.help_text %}</label>
                     {{ form.postal_code }}
-                    {% if form.postal_code.help_text %}<div class="form-text">{{ form.postal_code.help_text }}</div>{% endif %}
                     {% if form.postal_code.errors %}<div class="text-danger small">{{ form.postal_code.errors }}</div>{% endif %}
                   </div>
                 </div>
