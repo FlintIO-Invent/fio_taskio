@@ -48,6 +48,54 @@
   border-bottom: 1px solid var(--phoenix-border-color-translucent);
 }
 
+.navbar-vertical-collapsed .navbar-vertical .nav-link.label-1 .badge,
+.navbar-vertical-collapsed .navbar-vertical .nav-link.label-1 .badge-phoenix {
+  display: none !important;
+}
+
+.navbar-vertical .nav-module-status {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+@media (min-width: 992px) {
+  .navbar-vertical-collapsed .navbar-vertical.navbar-expand-lg .nav-link.label-1 {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .navbar-vertical-collapsed .navbar-vertical.navbar-expand-lg .nav-link.label-1 > .d-flex,
+  .navbar-vertical-collapsed .navbar-vertical.navbar-expand-lg .nav-link.label-1 > span.d-flex {
+    justify-content: center;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .navbar-vertical-collapsed .navbar-vertical.navbar-expand-lg .nav-link.label-1 .nav-link-icon {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .navbar-vertical-collapsed .navbar-vertical.navbar-expand-lg + .navbar.navbar-top ~ .content {
+    margin-left: 4rem !important;
+  }
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+  .navbar-vertical-collapsed .navbar-vertical.navbar-expand-lg ~ .navbar-top {
+    padding-right: 1.5rem;
+  }
+
+  .navbar-vertical-collapsed .navbar-vertical.navbar-expand-lg + .navbar.navbar-top ~ .content {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
 .motionmate-workspace-card {
   isolation: isolate;
   overflow: hidden;
@@ -121,6 +169,35 @@ html:not([data-bs-theme="dark"]) .dropdown-profile .list-group-item {
 
 html[data-bs-theme="dark"] .motionmate-logo-mark {
   box-shadow: none;
+}
+
+.field-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-left: 0.35rem;
+  color: var(--phoenix-tertiary-color, var(--phoenix-body-color));
+  cursor: help;
+  font-size: 0.75rem;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.field-help-icon:hover,
+.field-help-icon:focus {
+  color: var(--phoenix-primary);
+}
+
+.field-help-icon:focus {
+  outline: none;
+}
+
+.field-help-icon:focus-visible {
+  border-radius: 999px;
+  outline: 2px solid var(--phoenix-primary);
+  outline-offset: 2px;
 }
 
 .alert-light {
