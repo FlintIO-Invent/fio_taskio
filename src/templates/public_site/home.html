@@ -156,14 +156,43 @@
 
       <!-- Text -->
       <div class="col-xl-5 col-md-6 pt-lg-5 text-center text-md-start mb-4 mb-md-0">
-        <h1 class="display-3 pb-2 pb-sm-3">Make Your Life Even Easier with Crypto Bank</h1>
-        <p class="fs-lg d-md-none d-xl-block pb-2 pb-md-0 mb-4 mb-md-5">Odio venenatis a, non egestas ut ultrices ultrices quis orci ipsum eu tellus tempor sed amet mauris pellentesque ut vitae.</p>
+        <style>
+          .typed-text::after {
+            content: "";
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            margin-left: .15rem;
+            vertical-align: -.1em;
+            background-color: currentColor;
+            animation: typed-caret 1s steps(1) infinite;
+          }
+
+          @keyframes typed-caret {
+            50% {
+              opacity: 0;
+            }
+          }
+        </style>
+
+        <h2 class="display-3 pb-2 pb-sm-3">Smarter business management</h2>
+        <h2 class="display-3 pb-2 pb-sm-3">built for
+          <span
+            class="typed-text"
+            data-typed-text='["small businesses", "Caribbean entrepreneurs", "European teams", "consultants & agencies"]'
+            data-typed-classes='["text-info", "text-primary", "text-warning", "text-secondary-lighter"]'>
+            small service businesses
+          </span>
+        </h2>
+
+
+        <p class="fs-lg d-md-none d-xl-block pb-2 pb-md-0 mb-4 mb-md-5">Manage clients, bookings, appointments, and invoices in one simple workspace.</p>
         <div class="d-flex justify-content-center justify-content-md-start pb-2 pt-lg-2 pt-xl-0">
           <a href="#" class="btn btn-lg btn-primary shadow-primary me-3 me-sm-4">Start trial now</a>
           <a href="#" class="btn btn-lg btn-outline-secondary">Contact us</a>
         </div>
         <div class="d-flex align-items-center justify-content-center justify-content-md-start text-start pt-4 pt-lg-5 mt-xxl-5">
-          <div class="d-flex me-3">
+          <!-- <div class="d-flex me-3">
             <div class="d-flex align-items-center justify-content-center bg-light rounded-circle" style="width: 52px; height: 52px;">
               <img src="{% static 'public_site/img/avatar/14.jpg' %}" class="rounded-circle" width="48" alt="Avatar">
             </div>
@@ -173,8 +202,8 @@
             <div class="d-flex align-items-center justify-content-center bg-light rounded-circle ms-n3" style="width: 52px; height: 52px;">
               <img src="{% static 'public_site/img/avatar/15.jpg' %}" class="rounded-circle" width="48" alt="Avatar">
             </div>
-          </div>
-          <div class="text-light"><strong>400k+</strong> users already with us</div>
+          </div> -->
+          <!-- <div class="text-light"><strong>400k+</strong> users already with us</div> -->
         </div>
       </div>
 
@@ -195,6 +224,78 @@
     </div>
   </div>
 </section>
+
+<script>
+  (function () {
+    const typedText = document.querySelector('.typed-text');
+
+    if (!typedText) {
+      return;
+    }
+
+    const parseDataList = function (attributeName, fallback) {
+      try {
+        const value = JSON.parse(typedText.getAttribute(attributeName) || '[]');
+        return Array.isArray(value) && value.length ? value : fallback;
+      } catch (error) {
+        return fallback;
+      }
+    };
+
+    const words = parseDataList('data-typed-text', [typedText.textContent.trim()]);
+    const classes = parseDataList('data-typed-classes', []);
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      typedText.textContent = words[0];
+      if (classes[0]) {
+        typedText.classList.add(classes[0]);
+      }
+      return;
+    }
+
+    let wordIndex = 0;
+    let letterIndex = 0;
+    let isDeleting = false;
+
+    const type = function () {
+      const word = words[wordIndex];
+
+      classes.forEach(function (className) {
+        typedText.classList.remove(className);
+      });
+
+      if (classes[wordIndex]) {
+        typedText.classList.add(classes[wordIndex]);
+      }
+
+      typedText.textContent = word.slice(0, letterIndex);
+
+      if (!isDeleting && letterIndex < word.length) {
+        letterIndex += 1;
+        window.setTimeout(type, 80);
+        return;
+      }
+
+      if (!isDeleting) {
+        isDeleting = true;
+        window.setTimeout(type, 1200);
+        return;
+      }
+
+      if (letterIndex > 0) {
+        letterIndex -= 1;
+        window.setTimeout(type, 40);
+        return;
+      }
+
+      isDeleting = false;
+      wordIndex = (wordIndex + 1) % words.length;
+      window.setTimeout(type, 240);
+    };
+
+    type();
+  })();
+</script>
 
 <!-- Feature section (Trading) -->
 <section class="container py-5 my-md-2 my-lg-4 my-xl-5">

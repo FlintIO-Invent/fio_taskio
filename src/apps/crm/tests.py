@@ -722,10 +722,10 @@ class CRMBusinessScopingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
         self.assertContains(
             response,
-            "Public Bookings is not included in the current workspace plan",
+            "Online Booking is not included in the current workspace plan",
             status_code=403,
         )
         self.assertFalse(Lead.objects.filter(email="blocked-plan@example.com").exists())
@@ -1242,7 +1242,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(list(response.context["service_request_followups"]), [current_request])
         self.assertContains(response, "Alpha scheduled visit")
         self.assertContains(response, "ALPHA-1001")
-        self.assertContains(response, "Public Booking Review")
+        self.assertContains(response, "Online Booking Review")
         self.assertNotContains(response, "Bravo scheduled visit")
         self.assertNotContains(response, "BRAVO-1000")
         self.assertNotContains(response, "Bravo Request")
@@ -1274,7 +1274,7 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["public_booking_share_ready"])
-        self.assertContains(response, "Public Booking Link")
+        self.assertContains(response, "Online Booking Link")
         self.assertContains(response, reverse("public_booking", args=[self.business.slug]))
 
     def test_dashboard_shows_appointment_card_when_plan_allows_appointments(self):
@@ -1602,7 +1602,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertContains(list_response, "Bookable")
         self.assertContains(
             list_response,
-            "Public bookings are included in the current workspace plan.",
+            "Online Booking is included in the current workspace plan.",
         )
         self.assertEqual(list_response.context["bookable_service_count"], 1)
         self.assertNotContains(list_response, "Foreign Service")
@@ -2603,7 +2603,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Public Booking Form")
+        self.assertContains(response, "Online Booking Form")
         self.assertContains(response, "Book an appointment now")
         self.assertContains(response, "Contact me before booking")
         self.assertContains(response, "Choose a date from")
@@ -2659,10 +2659,10 @@ class PublicBookingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
         self.assertContains(
             response,
-            "Public Booking Enabled plan limit of 1 public bookings this month",
+            "Public Booking Enabled plan limit of 1 online bookings this month",
             status_code=403,
         )
         self.assertFalse(Lead.objects.filter(email="limit-blocked-booking@example.com").exists())
@@ -2757,10 +2757,10 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
         self.assertContains(
             response,
-            "Public bookings are not available for this business right now.",
+            "Online Booking is not available for this business right now.",
             status_code=403,
         )
         self.assertNotContains(response, "current workspace plan", status_code=403)
@@ -2772,7 +2772,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
 
     def test_public_booking_page_unavailable_without_bookable_services(self):
         BusinessService.objects.filter(business=self.business).update(
@@ -2782,7 +2782,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
 
     def test_public_booking_page_unavailable_without_active_availability(self):
         WeeklyAvailability.objects.filter(business=self.business).update(is_active=False)
@@ -2790,7 +2790,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
 
     def test_public_booking_only_shows_active_bookable_current_business_services(self):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
@@ -3159,7 +3159,7 @@ class PublicBookingTests(TestCase):
 
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Booking Request")
-                self.assertContains(response, "Public Booking")
+                self.assertContains(response, "Online Booking")
                 self.assertContains(response, self.service.name)
                 self.assertContains(response, "45 minutes")
                 self.assertContains(response, "Please confirm if this time works.")

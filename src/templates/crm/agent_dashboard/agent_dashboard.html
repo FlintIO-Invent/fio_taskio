@@ -70,7 +70,7 @@
                 <span class="fa-solid {% if public_booking_module_enabled %}fa-calendar-check{% else %}fa-lock{% endif %}"></span>
               </div>
               <div>
-                <p class="fs-9 text-body-tertiary mb-0">Public Booking Review</p>
+                <p class="fs-9 text-body-tertiary mb-0">Online Booking Review</p>
                 <h3 class="mb-0">{{ public_booking_pending_review_count }}</h3>
               </div>
             </div>
@@ -182,7 +182,7 @@
             <div>
               <h4 class="mb-1">Service Request Follow-Up</h4>
               <p class="text-body-tertiary mb-0">
-                {{ open_service_request_count }} open requests, {{ public_booking_pending_review_count }} public bookings pending review.
+                {{ open_service_request_count }} open requests, {{ public_booking_pending_review_count }} online bookings pending review.
               </p>
             </div>
             <a href="{% url 'staff_lead_list' %}" class="btn btn-sm btn-outline-primary">View Requests</a>
@@ -197,7 +197,7 @@
                         <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                           <h6 class="mb-0">{{ request_item.first_name }} {{ request_item.last_name }}</h6>
                           {% if request_item.is_public_booking_request %}
-                            <span class="badge badge-phoenix badge-phoenix-warning">Public Booking</span>
+                            <span class="badge badge-phoenix badge-phoenix-warning">Online Booking</span>
                           {% endif %}
                         </div>
                         <p class="text-body-tertiary fs-9 mb-1">

@@ -5,7 +5,7 @@
   <div class="row g-3 mb-4 justify-content-between align-items-center">
     <div class="col-lg-8">
       <h2 class="mb-2 text-body-emphasis">Booking Settings</h2>
-      <p class="text-body-tertiary mb-0">Prepare request-first public booking rules and weekly availability for {{ business.name }}.</p>
+      <p class="text-body-tertiary mb-0">Prepare request-first online booking rules and weekly availability for {{ business.name }}.</p>
     </div>
     <div class="col-auto d-flex gap-2">
       {% if can_manage_booking_rules %}
@@ -29,14 +29,14 @@
   {% if public_booking_allowed %}
     <div class="alert {% if booking_settings.booking_enabled %}alert-success{% else %}alert-info{% endif %} border mb-4" role="alert">
       {% if booking_settings.booking_enabled %}
-        Public bookings enabled. Customers can submit bookings for your team to review and confirm manually.
+        Online Booking is enabled. Customers can submit bookings for your team to review and confirm manually.
       {% else %}
-        Public bookings require setup. Enable public bookings after adding the rules and availability your team wants to offer.
+        Online Booking requires setup. Enable online booking after adding the rules and availability your team wants to offer.
       {% endif %}
     </div>
   {% else %}
     <div class="alert alert-warning border mb-4" role="alert">
-      {{ unavailable_message }} You can still prepare these settings now, but public booking will remain unavailable until the workspace plan includes Public Booking.
+      {{ unavailable_message }} You can still prepare these settings now, but online booking will remain unavailable until the workspace plan includes Online Booking.
     </div>
   {% endif %}
 
@@ -67,7 +67,7 @@
 
               <div class="form-check form-switch mb-4">
                 {{ settings_form.booking_enabled }}
-                <label class="form-check-label" for="{{ settings_form.booking_enabled.id_for_label }}">Enable public bookings{% include "includes/help_icon.html" with text=settings_form.booking_enabled.help_text %}</label>
+                <label class="form-check-label" for="{{ settings_form.booking_enabled.id_for_label }}">Enable online booking{% include "includes/help_icon.html" with text=settings_form.booking_enabled.help_text %}</label>
                 {% if settings_form.booking_enabled.errors %}<div class="invalid-feedback d-block">{{ settings_form.booking_enabled.errors|striptags }}</div>{% endif %}
               </div>
 
@@ -114,7 +114,7 @@
               <hr class="my-4">
 
               <div class="mb-3">
-                <label class="form-label" for="{{ settings_form.public_booking_instructions.id_for_label }}">Public booking instructions</label>
+                <label class="form-label" for="{{ settings_form.public_booking_instructions.id_for_label }}">Online booking instructions</label>
                 {{ settings_form.public_booking_instructions }}
                 {% if settings_form.public_booking_instructions.errors %}<div class="invalid-feedback d-block">{{ settings_form.public_booking_instructions.errors|striptags }}</div>{% endif %}
               </div>
@@ -133,7 +133,7 @@
             </form>
           {% else %}
             <dl class="row mb-0">
-              <dt class="col-sm-5 text-body-tertiary">Public booking</dt>
+              <dt class="col-sm-5 text-body-tertiary">Online Booking</dt>
               <dd class="col-sm-7">{% if booking_settings.booking_enabled %}Enabled{% else %}Disabled{% endif %}</dd>
               <dt class="col-sm-5 text-body-tertiary">Default duration</dt>
               <dd class="col-sm-7">{{ booking_settings.default_duration_minutes }} minutes</dd>

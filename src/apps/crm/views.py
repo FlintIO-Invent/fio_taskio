@@ -218,7 +218,7 @@ def _public_booking_unavailable_response(
         {
             "public_business": business,
             "availability_message": availability_message
-            or "Public bookings are not available for this business right now.",
+            or "Online Booking is not available for this business right now.",
         },
         status=status,
     )
@@ -484,7 +484,7 @@ def _service_import_columns() -> list[dict[str, str]]:
         {
             "name": "is_bookable_online",
             "required": "Optional",
-            "description": "true only when the service should appear on public booking.",
+            "description": "true only when the service should appear on online booking.",
         },
         {
             "name": "default_duration_minutes",
@@ -499,7 +499,7 @@ def _service_import_columns() -> list[dict[str, str]]:
         {
             "name": "public_description",
             "required": "Optional",
-            "description": "Public booking description.",
+            "description": "Online booking description.",
         },
         {
             "name": "requires_manual_confirmation",

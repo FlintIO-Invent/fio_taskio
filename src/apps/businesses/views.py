@@ -38,7 +38,9 @@ from .utils import (
     get_business_limit_reached_message,
     get_business_module_unavailable_message,
     get_business_plan_change_impact,
+    get_business_plan_usage_summary,
     get_business_subscription,
+    get_business_usage_count,
     get_current_business,
     get_other_active_business_membership_for_email,
     get_public_booking_share_context,
@@ -331,6 +333,39 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
     else:
         form = BusinessSubscriptionPlanForm(plans=available_plan_queryset)
 
+    current_usage_summary = []
+    staff_capacity = None
+    if subscription is not None:
+        current_usage_summary = get_business_plan_usage_summary(
+            business,
+            subscription.plan,
+            include_pending_invitations=True,
+        )
+        max_staff_accounts = subscription.plan.staff_account_limit
+        active_user_count = get_business_usage_count(
+            business,
+            "users",
+            include_pending_invitations=True,
+        )
+        used_staff_accounts = max(active_user_count - 1, 0)
+        staff_capacity = {
+            "limit": max_staff_accounts,
+            "limit_display": (
+                "Unlimited" if max_staff_accounts is None else str(max_staff_accounts)
+            ),
+            "used": used_staff_accounts,
+            "available": (
+                None
+                if max_staff_accounts is None
+                else max(max_staff_accounts - used_staff_accounts, 0)
+            ),
+            "available_display": (
+                "Unlimited"
+                if max_staff_accounts is None
+                else str(max(max_staff_accounts - used_staff_accounts, 0))
+            ),
+        }
+
     context = {
         "business": business,
         "membership": membership,
@@ -338,6 +373,8 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
         "available_plans": available_plans,
         "plan_form": form,
         "pending_plan_change": pending_plan_change,
+        "current_usage_summary": current_usage_summary,
+        "staff_capacity": staff_capacity,
     }
     return render(request, "businesses/subscription.html", context)
 

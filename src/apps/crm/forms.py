@@ -1217,7 +1217,7 @@ class BusinessServiceForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 4,
-                    "placeholder": "Describe this service for public bookings.",
+                    "placeholder": "Describe this service for online bookings.",
                 }
             ),
             "requires_manual_confirmation": forms.CheckboxInput(
@@ -1234,7 +1234,7 @@ class BusinessServiceForm(forms.ModelForm):
         help_texts = {
             "category": "Use an existing category or leave this blank and create a new one below.",
             "external_code": "Optional. Useful for matching future CSV imports without guessing by name.",
-            "is_bookable_online": "Only services marked bookable online will appear later on the public booking form.",
+            "is_bookable_online": "Only services marked bookable online will appear later on the online booking form.",
             "default_duration_minutes": "Optional service-specific duration in minutes. Leave blank to use workspace booking settings.",
             "booking_buffer_minutes": "Optional service-specific buffer in minutes. Leave blank to use workspace booking settings.",
             "public_description": "Optional public-facing copy for the future booking form.",

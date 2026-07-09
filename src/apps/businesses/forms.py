@@ -11,6 +11,7 @@ from .localization import (
 from .models import (
     Business,
     BusinessBookingSettings,
+    BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
     WeeklyAvailability,
@@ -22,6 +23,26 @@ BOOKABLE_AVAILABILITY_ROLES = (
     BusinessUser.Role.ADMIN,
     BusinessUser.Role.STAFF,
 )
+PLAN_ALLOWED_INVITATION_ROLES = {
+    "starter": (
+        BusinessUser.Role.OWNER,
+        BusinessUser.Role.ADMIN,
+        BusinessUser.Role.STAFF,
+    ),
+    "pro": (
+        BusinessUser.Role.OWNER,
+        BusinessUser.Role.ADMIN,
+        BusinessUser.Role.STAFF,
+        BusinessUser.Role.ACCOUNTANT,
+    ),
+    "business": (
+        BusinessUser.Role.OWNER,
+        BusinessUser.Role.ADMIN,
+        BusinessUser.Role.STAFF,
+        BusinessUser.Role.ACCOUNTANT,
+        BusinessUser.Role.VIEWER,
+    ),
+}
 
 
 def _is_staff_availability_member(membership: BusinessUser | None) -> bool:
@@ -62,6 +83,23 @@ def _staff_label(user) -> str:
         "",
     )
     return full_name.strip() or user.email
+
+
+def _plan_allowed_invitation_roles(business: Business | None) -> set[str]:
+    if business is None:
+        return set(role for role, _label in BusinessUser.Role.choices)
+
+    try:
+        plan = business.subscription.plan
+    except BusinessSubscription.DoesNotExist:
+        return set(role for role, _label in BusinessUser.Role.choices)
+
+    return set(
+        PLAN_ALLOWED_INVITATION_ROLES.get(
+            plan.slug,
+            tuple(role for role, _label in BusinessUser.Role.choices),
+        )
+    )
 
 
 class BusinessSettingsForm(forms.ModelForm):
@@ -272,26 +310,26 @@ class BusinessBookingSettingsForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 4,
-                    "placeholder": "Optional instructions shown before customers submit a public booking.",
+                    "placeholder": "Optional instructions shown before customers submit an online booking.",
                 }
             ),
             "cancellation_policy_text": forms.Textarea(
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "Optional cancellation policy text for public bookings.",
+                    "placeholder": "Optional cancellation policy text for online bookings.",
                 }
             ),
             "reschedule_policy_text": forms.Textarea(
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "Optional reschedule policy text for public bookings.",
+                    "placeholder": "Optional reschedule policy text for online bookings.",
                 }
             ),
         }
         labels = {
-            "booking_enabled": "Enable public bookings",
+            "booking_enabled": "Enable online booking",
             "default_duration_minutes": "Default duration",
             "minimum_notice_hours": "Minimum notice",
             "maximum_days_ahead": "Maximum days ahead",
@@ -299,7 +337,7 @@ class BusinessBookingSettingsForm(forms.ModelForm):
             "confirmation_mode": "Confirmation mode",
         }
         help_texts = {
-            "booking_enabled": "Controls whether public visitors can submit public bookings for this workspace.",
+            "booking_enabled": "Controls whether public visitors can submit online bookings for this workspace.",
             "default_duration_minutes": "Used as the default appointment request length.",
             "minimum_notice_hours": "How much advance notice public visitors must give before requesting a time.",
             "maximum_days_ahead": "How far into the future public visitors may request a time.",
@@ -362,7 +400,7 @@ class WeeklyAvailabilityForm(forms.ModelForm):
         }
         help_texts = {
             "staff_member": "Leave blank to create a business-wide booking window.",
-            "is_active": "Inactive blocks are ignored by public booking availability.",
+            "is_active": "Inactive blocks are ignored by online booking availability.",
         }
 
     def __init__(
@@ -461,7 +499,7 @@ class WeeklyAvailabilityBulkForm(forms.Form):
         initial=True,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
         label="Active",
-        help_text="Inactive blocks are ignored by public booking availability.",
+        help_text="Inactive blocks are ignored by online booking availability.",
     )
 
     def __init__(
@@ -540,11 +578,13 @@ class BusinessInvitationForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.business = business
         self.membership = membership
-        assignable_roles = set(get_assignable_business_roles(membership))
+        self.assignable_roles = set(get_assignable_business_roles(membership)) & (
+            _plan_allowed_invitation_roles(business)
+        )
         self.fields["role"].choices = [
             (role_value, role_label)
             for role_value, role_label in BusinessUser.Role.choices
-            if role_value in assignable_roles
+            if role_value in self.assignable_roles
         ]
         self.fields["email"].help_text = (
             "Use the employee's company-specific email address. Motionmate MVP keeps "
@@ -560,7 +600,7 @@ class BusinessInvitationForm(forms.Form):
 
     def clean_role(self) -> str:
         role = (self.cleaned_data.get("role") or "").strip()
-        if not can_assign_business_role(self.membership, role):
+        if not can_assign_business_role(self.membership, role) or role not in self.assignable_roles:
             raise ValidationError("You do not have permission to invite that workspace role.")
         return role
 

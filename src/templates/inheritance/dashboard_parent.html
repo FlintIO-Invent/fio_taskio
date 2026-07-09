@@ -236,17 +236,9 @@
                                 </div>
                             {% endif %}
                             <div class="nav-item-wrapper">
-                                <span class="nav-link label-1 d-flex align-items-center text-body-tertiary">
-                                    <span class="d-flex align-items-center">
-                                        <span class="nav-link-icon"><span data-feather="trending-up"></span></span><span class="nav-link-text">Marketing Tools</span>
-                                    </span>
-                                    <span class="badge badge-phoenix badge-phoenix-secondary nav-module-status">Later</span>
-                                </span>
-                            </div>
-                            <div class="nav-item-wrapper">
                                 <span class="nav-link label-1 d-flex align-items-center {% if not module_access.public_booking %}text-body-tertiary{% endif %}">
                                     <span class="d-flex align-items-center">
-                                        <span class="nav-link-icon"><span data-feather="globe"></span></span><span class="nav-link-text">Public Booking</span>
+                                        <span class="nav-link-icon"><span data-feather="globe"></span></span><span class="nav-link-text">Online Booking</span>
                                     </span>
                                     <span class="badge badge-phoenix {% if module_access.public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %} nav-module-status">
                                         {% if module_access.public_booking %}Included{% else %}Locked{% endif %}

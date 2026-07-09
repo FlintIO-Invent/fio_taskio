@@ -271,11 +271,11 @@ PLAN_LIMIT_FIELDS = {
     "public_bookings_per_month": "max_public_bookings_per_month",
 }
 PLAN_LIMIT_LABELS = {
-    "users": "team users",
-    "clients": "clients",
+    "users": "total users/seats",
+    "clients": "active clients",
     "invoices_per_month": "invoices this month",
     "appointments_per_month": "appointments this month",
-    "public_bookings_per_month": "public bookings this month",
+    "public_bookings_per_month": "online bookings this month",
 }
 PLAN_CHANGE_MODULES = (
     "invoicing",
@@ -346,7 +346,18 @@ def get_business_usage_count(
         return user_count
 
     if normalized_name == "clients":
-        return business.clients.count()
+        from apps.crm.models import Client
+
+        return (
+            business.clients.filter(is_active=True)
+            .exclude(
+                client_status__in=(
+                    Client.ClientStatus.INACTIVE,
+                    Client.ClientStatus.ARCHIVED,
+                )
+            )
+            .count()
+        )
 
     if normalized_name == "invoices_per_month":
         month_start, next_month_start = _current_month_bounds()
@@ -358,8 +369,8 @@ def get_business_usage_count(
     if normalized_name == "appointments_per_month":
         month_start, next_month_start = _current_month_bounds()
         return business.appointments.filter(
-            created_at__gte=month_start,
-            created_at__lt=next_month_start,
+            start_time__gte=month_start,
+            start_time__lt=next_month_start,
         ).count()
 
     if normalized_name == "public_bookings_per_month":
@@ -477,10 +488,10 @@ def get_module_display_name(module_name: str) -> str:
     display_names = {
         "client_management": "Client Management",
         "invoicing": "Invoicing",
-        "public_request_form": "Public Bookings",
-        "public_request": "Public Bookings",
-        "public_booking": "Public Bookings",
-        "public_booking_requests": "Public Bookings",
+        "public_request_form": "Online Booking",
+        "public_request": "Online Booking",
+        "public_booking": "Online Booking",
+        "public_booking_requests": "Online Booking",
         "appointments": "Appointments",
     }
     if normalized_name in display_names:
@@ -535,9 +546,9 @@ def get_public_booking_share_context(
 
     setup_items = []
     if not public_booking_allowed:
-        setup_items.append("Upgrade to a plan with Public Bookings.")
+        setup_items.append("Upgrade to a plan with Online Booking.")
     if not booking_enabled:
-        setup_items.append("Enable public bookings.")
+        setup_items.append("Enable online booking.")
     if bookable_service_count == 0:
         setup_items.append("Add at least one active service that is bookable online.")
     if active_availability_count == 0:
