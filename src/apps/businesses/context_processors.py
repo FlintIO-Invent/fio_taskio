@@ -32,8 +32,10 @@ def current_business(request):
     role_access = {
         "can_manage_business_settings": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_manage_team": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
+        "can_remove_team_members": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_manage_subscription": membership_has_any_role(membership, ("owner",)),
         "can_manage_clients": membership_has_any_role(membership, CLIENT_MANAGE_ROLES),
+        "can_delete_clients": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_manage_leads": membership_has_any_role(membership, LEAD_MANAGE_ROLES),
         "can_view_appointments": membership_has_any_role(membership, APPOINTMENT_VIEW_ROLES),
         "can_manage_appointments": membership_has_any_role(membership, APPOINTMENT_MANAGE_ROLES),
@@ -43,6 +45,7 @@ def current_business(request):
         ),
         "can_view_invoices": membership_has_any_role(membership, BILLING_VIEW_ROLES),
         "can_manage_invoices": membership_has_any_role(membership, BILLING_MANAGE_ROLES),
+        "can_delete_invoices": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_manage_services": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
     }
 

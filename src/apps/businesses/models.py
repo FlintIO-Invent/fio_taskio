@@ -271,10 +271,15 @@ class WeeklyAvailability(TimeStampedModel):
 
 class ClarivoPlan(TimeStampedModel):
     MOTIONMATE_PLAN_SLUGS = ("starter", "pro", "business")
-    DEFAULT_PRICING_REGION = "caribbean_international"
+    USD_PRICING_REGION = "usd"
+    EUR_PRICING_REGION = "eur"
+    DEFAULT_PRICING_REGION = USD_PRICING_REGION
+    CARIBBEAN_INTERNATIONAL_PRICING_REGION = "caribbean_international"
     NETHERLANDS_PRICING_REGION = "netherlands"
     PRICING_REGION_LABELS = {
-        DEFAULT_PRICING_REGION: "Caribbean / International",
+        USD_PRICING_REGION: "USD",
+        EUR_PRICING_REGION: "EUR",
+        CARIBBEAN_INTERNATIONAL_PRICING_REGION: "Caribbean / International",
         NETHERLANDS_PRICING_REGION: "Netherlands",
     }
     MODULE_FLAG_MAP = {
@@ -356,12 +361,14 @@ class ClarivoPlan(TimeStampedModel):
     ):
         for plan in plans:
             plan.display_pricing = plan.get_display_pricing(business=business, region=region)
+            plan.usd_display_pricing = plan.get_display_pricing(region=cls.USD_PRICING_REGION)
+            plan.eur_display_pricing = plan.get_display_pricing(region=cls.EUR_PRICING_REGION)
         return plans
 
     @classmethod
     def pricing_region_for_business(cls, business: Business | None = None) -> str:
         if business is not None and uses_netherlands_address_format(business.country):
-            return cls.NETHERLANDS_PRICING_REGION
+            return cls.EUR_PRICING_REGION
         return cls.DEFAULT_PRICING_REGION
 
     @staticmethod
@@ -391,10 +398,22 @@ class ClarivoPlan(TimeStampedModel):
     ) -> dict:
         pricing_region = region or self.pricing_region_for_business(business)
         regional_prices = self.regional_prices or {}
-        region_data = regional_prices.get(pricing_region) or regional_prices.get(
-            self.DEFAULT_PRICING_REGION,
-            {},
+        fallback_regions = [pricing_region]
+        if pricing_region == self.USD_PRICING_REGION:
+            fallback_regions.append(self.CARIBBEAN_INTERNATIONAL_PRICING_REGION)
+        if pricing_region == self.EUR_PRICING_REGION:
+            fallback_regions.append(self.NETHERLANDS_PRICING_REGION)
+        fallback_regions.extend(
+            [
+                self.DEFAULT_PRICING_REGION,
+                self.CARIBBEAN_INTERNATIONAL_PRICING_REGION,
+            ]
         )
+        region_data = {}
+        for fallback_region in fallback_regions:
+            region_data = regional_prices.get(fallback_region) or {}
+            if region_data:
+                break
 
         return {
             "region": pricing_region,
@@ -427,6 +446,29 @@ class ClarivoPlan(TimeStampedModel):
             "monthly_display": self._format_plan_price(monthly, currency),
             "yearly_display": self._format_plan_price(yearly, currency),
         }
+
+    @property
+    def staff_account_limit(self) -> int | None:
+        if self.max_users is None:
+            return None
+        return max(self.max_users - 1, 0)
+
+    @property
+    def user_limit_summary(self) -> str:
+        if self.max_users is None:
+            return "Unlimited total users"
+
+        staff_limit = self.staff_account_limit or 0
+        staff_label = "staff account" if staff_limit == 1 else "staff accounts"
+        return f"{self.max_users} total users: owner + {staff_limit} {staff_label}"
+
+    @property
+    def staff_capacity_summary(self) -> str:
+        if self.staff_account_limit is None:
+            return "Unlimited staff accounts"
+
+        staff_label = "staff account" if self.staff_account_limit == 1 else "staff accounts"
+        return f"{self.staff_account_limit} {staff_label}"
 
     def allows_module(self, module_name: str) -> bool:
         normalized_name = module_name.strip().lower().replace("-", "_")

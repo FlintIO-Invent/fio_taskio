@@ -77,6 +77,18 @@
         <button class="btn btn-phoenix-primary" onclick="window.print()">
           <span class="fa-solid fa-print me-2"></span>Print
         </button>
+        {% if role_access.can_delete_invoices %}
+          <form method="post" action="{% url 'invoice_delete' invoice.pk %}">
+            {% csrf_token %}
+            <button
+              class="btn btn-outline-danger"
+              type="submit"
+              onclick="return confirm('Delete invoice {{ invoice.invoice_number|escapejs }}? This cannot be undone.');"
+            >
+              <span class="fa-solid fa-trash me-2"></span>Delete
+            </button>
+          </form>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -252,6 +264,9 @@
           <div class="d-grid gap-2 mb-3">
             <a href="{% url 'invoice_pdf_download' invoice.pk %}" class="btn btn-phoenix-secondary">
               <span class="fa-solid fa-file-pdf me-2"></span>Download PDF
+            </a>
+            <a href="{{ whatsapp_share_url }}" class="btn btn-phoenix-success" target="_blank" rel="noopener">
+              <span class="fa-brands fa-whatsapp me-2"></span>Share on WhatsApp
             </a>
             {% if role_access.can_manage_invoices %}
               {% if invoice.client.email %}

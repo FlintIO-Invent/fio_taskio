@@ -1,0 +1,24 @@
+<div class="col-12">
+  <div class="row g-3 align-items-end manual-service-options">
+    <div class="col-md-3">
+      <label class="form-label">Catalog</label>
+      <select class="form-select manual-service-action" name="{{ field_prefix }}save_as_service" {% if disabled %}disabled{% endif %}>
+        <option value="">Invoice line only</option>
+        <option value="1" {% if line.save_as_service %}selected{% endif %}>Save as service</option>
+      </select>
+    </div>
+    <div class="col-md-4 manual-service-category-fields{% if not line.save_as_service %} d-none{% endif %}">
+      <label class="form-label">Service category{% include "includes/help_icon.html" with text="Leave uncategorized or choose an existing category for the saved service." %}</label>
+      <select class="form-select" name="{{ field_prefix }}service_category_id" {% if disabled %}disabled{% endif %}>
+        <option value="">Uncategorized</option>
+        {% for category in service_categories %}
+          <option value="{{ category.id }}" {% if line.service_category_id|stringformat:"s" == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-5 manual-service-category-fields{% if not line.save_as_service %} d-none{% endif %}">
+      <label class="form-label">New category{% include "includes/help_icon.html" with text="Optional. Enter a new category name instead of selecting an existing one." %}</label>
+      <input type="text" class="form-control" name="{{ field_prefix }}new_service_category_name" value="{{ line.new_service_category_name }}" maxlength="120" placeholder="Optional new category" {% if disabled %}disabled{% endif %}>
+    </div>
+  </div>
+</div>

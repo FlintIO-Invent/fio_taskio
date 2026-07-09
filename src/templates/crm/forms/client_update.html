@@ -236,9 +236,8 @@
               </div>
 
               <div class="col-md-6">
-                <label class="form-label">{{ form.postal_code.label }}</label>
+                <label class="form-label">{{ form.postal_code.label }}{% include "includes/help_icon.html" with text=form.postal_code.help_text %}</label>
                 {{ form.postal_code }}
-                {% if form.postal_code.help_text %}<div class="form-text">{{ form.postal_code.help_text }}</div>{% endif %}
                 {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
               </div>
             </div>

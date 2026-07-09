@@ -72,15 +72,131 @@
         <div class="card-body p-4 p-lg-5">
           <h4 class="mb-3">How plan changes work right now</h4>
           <p class="text-body-tertiary mb-3">
-            Plan changes update the workspace subscription record immediately so Motionmate modules can react to the selected plan.
+            Plan selection is managed manually during the pilot. Changes here update the workspace subscription record so Motionmate modules and limits can react to the selected plan.
           </p>
           <div class="alert alert-info mb-0" role="alert">
-            Payment checkout is not connected. Plan changes here are temporary admin-style updates for workspace access only.
+            Checkout and payment collection are not connected in this task.
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  {% if subscription %}
+    <div class="card mb-4">
+      <div class="card-body p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+          <div>
+            <h4 class="mb-1">Current Usage</h4>
+            <p class="text-body-tertiary mb-0">Usage counts active workspace records against the current {{ subscription.plan.name }} limits.</p>
+          </div>
+          <span class="badge badge-phoenix badge-phoenix-secondary">{{ subscription.plan.user_limit_summary }}</span>
+        </div>
+        <div class="row g-3">
+          {% for usage in current_usage_summary %}
+            <div class="col-12 col-md-6 col-xl-4">
+              <div class="border rounded-3 p-3 h-100">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                  <div>
+                    <div class="fs-10 text-uppercase text-body-tertiary">{{ usage.label }}</div>
+                    <div class="fw-semibold text-body-emphasis">{{ usage.usage }} of {{ usage.limit_display }}</div>
+                  </div>
+                  {% if usage.exceeded %}
+                    <span class="badge badge-phoenix badge-phoenix-danger">Over</span>
+                  {% elif usage.at_limit %}
+                    <span class="badge badge-phoenix badge-phoenix-warning">Full</span>
+                  {% else %}
+                    <span class="badge badge-phoenix badge-phoenix-success">OK</span>
+                  {% endif %}
+                </div>
+                {% if usage.name == "users" and staff_capacity %}
+                  <p class="fs-10 text-body-tertiary mb-0">Staff accounts available: {{ staff_capacity.available_display }} of {{ staff_capacity.limit_display }}</p>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if pending_plan_change %}
+    <div class="alert alert-warning mb-4" role="alert">
+      <div class="d-flex flex-column flex-lg-row gap-3 justify-content-between">
+        <div>
+          <h4 class="alert-heading mb-2">Confirm change to {{ pending_plan_change.target_plan.name }}</h4>
+          <p class="mb-3">
+            Existing workspace records will be kept. If this workspace is over a lower plan limit,
+            new activity may be blocked until usage is back within that plan.
+          </p>
+        </div>
+        <form method="POST" class="d-flex flex-column flex-sm-row gap-2 align-self-lg-start">
+          {% csrf_token %}
+          <input type="hidden" name="plan" value="{{ pending_plan_change.target_plan.id }}">
+          <input type="hidden" name="confirm_plan_change" value="1">
+          <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Cancel</a>
+          <button class="btn btn-warning" type="submit">Confirm Plan Change</button>
+        </form>
+      </div>
+
+      {% if pending_plan_change.over_limit_usage %}
+        <div class="mb-3">
+          <div class="fw-semibold mb-2">Over {{ pending_plan_change.target_plan.name }} quota</div>
+          <ul class="mb-0">
+            {% for usage in pending_plan_change.over_limit_usage %}
+              <li>
+                {{ usage.label|capfirst }}: using {{ usage.usage }}, {{ pending_plan_change.target_plan.name }} allows {{ usage.limit_display }}.
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% else %}
+        <p class="fw-semibold mb-3">Current usage is within the {{ pending_plan_change.target_plan.name }} quotas.</p>
+      {% endif %}
+
+      {% if pending_plan_change.module_losses %}
+        <div class="mb-3">
+          <div class="fw-semibold mb-2">Modules no longer included</div>
+          <ul class="mb-0">
+            {% for module in pending_plan_change.module_losses %}
+              <li>{{ module.label }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead>
+            <tr>
+              <th scope="col">Quota</th>
+              <th scope="col">Current usage</th>
+              <th scope="col">{{ pending_plan_change.target_plan.name }} limit</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for usage in pending_plan_change.usage_summary %}
+              <tr>
+                <td>{{ usage.label|capfirst }}</td>
+                <td>{{ usage.usage }}</td>
+                <td>{{ usage.limit_display }}</td>
+                <td>
+                  {% if usage.exceeded %}
+                    <span class="badge badge-phoenix badge-phoenix-danger">Over limit</span>
+                  {% elif usage.at_limit %}
+                    <span class="badge badge-phoenix badge-phoenix-warning">At limit</span>
+                  {% else %}
+                    <span class="badge badge-phoenix badge-phoenix-success">Within limit</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
 
   <div class="row g-4">
     {% for plan in available_plans %}
@@ -101,44 +217,52 @@
 
             <div class="d-flex align-items-end gap-3 mb-4">
               <div>
-                <div class="fs-10 text-uppercase text-body-tertiary">Monthly{% if plan.display_pricing.tax_note %} {{ plan.display_pricing.tax_note }}{% endif %}</div>
-                <div class="fs-5 fw-semibold">{{ plan.display_pricing.monthly_display }}</div>
+                <div class="fs-10 text-uppercase text-body-tertiary">USD monthly</div>
+                <div class="fs-5 fw-semibold">{{ plan.usd_display_pricing.monthly_display }}</div>
+                <div class="fs-10 text-body-tertiary">{{ plan.usd_display_pricing.yearly_display }} yearly</div>
               </div>
               <div>
-                <div class="fs-10 text-uppercase text-body-tertiary">Yearly{% if plan.display_pricing.tax_note %} {{ plan.display_pricing.tax_note }}{% endif %}</div>
-                <div class="fs-7 fw-semibold text-body-secondary">{{ plan.display_pricing.yearly_display }}</div>
+                <div class="fs-10 text-uppercase text-body-tertiary">EUR monthly</div>
+                <div class="fs-5 fw-semibold">{{ plan.eur_display_pricing.monthly_display }}</div>
+                <div class="fs-10 text-body-tertiary">{{ plan.eur_display_pricing.yearly_display }} yearly</div>
               </div>
             </div>
 
             <div class="row g-2 mb-4">
               <div class="col-6">
                 <div class="rounded-3 border p-3 h-100">
-                  <div class="fs-10 text-uppercase text-body-tertiary">Users</div>
-                  <div class="fw-semibold">{{ plan.max_users|default:"Unlimited" }}</div>
+                  <div class="fs-10 text-uppercase text-body-tertiary">Seats</div>
+                  <div class="fw-semibold">{{ plan.user_limit_summary }}</div>
                 </div>
               </div>
               <div class="col-6">
                 <div class="rounded-3 border p-3 h-100">
-                  <div class="fs-10 text-uppercase text-body-tertiary">Clients</div>
-                  <div class="fw-semibold">{{ plan.max_clients|default:"Unlimited" }}</div>
+                  <div class="fs-10 text-uppercase text-body-tertiary">Staff capacity</div>
+                  <div class="fw-semibold">{{ plan.staff_capacity_summary }}</div>
                 </div>
               </div>
-              <div class="col-12">
+              <div class="col-6">
+                <div class="rounded-3 border p-3 h-100">
+                  <div class="fs-10 text-uppercase text-body-tertiary">Active Clients</div>
+                  <div class="fw-semibold">{{ plan.max_clients|default_if_none:"Unlimited" }}</div>
+                </div>
+              </div>
+              <div class="col-6">
                 <div class="rounded-3 border p-3 h-100">
                   <div class="fs-10 text-uppercase text-body-tertiary">Invoices / Month</div>
-                  <div class="fw-semibold">{{ plan.max_invoices_per_month|default:"Unlimited" }}</div>
+                  <div class="fw-semibold">{{ plan.max_invoices_per_month|default_if_none:"Unlimited" }}</div>
                 </div>
               </div>
               <div class="col-6">
                 <div class="rounded-3 border p-3 h-100">
                   <div class="fs-10 text-uppercase text-body-tertiary">Appointments / Month</div>
-                  <div class="fw-semibold">{{ plan.max_appointments_per_month|default:"Unlimited" }}</div>
+                  <div class="fw-semibold">{{ plan.max_appointments_per_month|default_if_none:"Unlimited" }}</div>
                 </div>
               </div>
               <div class="col-6">
                 <div class="rounded-3 border p-3 h-100">
-                  <div class="fs-10 text-uppercase text-body-tertiary">Public Bookings / Month</div>
-                  <div class="fw-semibold">{{ plan.max_public_bookings_per_month|default:"Unlimited" }}</div>
+                  <div class="fs-10 text-uppercase text-body-tertiary">Online Bookings / Month</div>
+                  <div class="fw-semibold">{{ plan.max_public_bookings_per_month|default_if_none:"Unlimited" }}</div>
                 </div>
               </div>
             </div>
@@ -149,10 +273,18 @@
                 <span class="badge badge-phoenix badge-phoenix-success">Client Management</span>
                 <span class="badge badge-phoenix {% if plan.allow_invoicing %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Invoicing</span>
                 <span class="badge badge-phoenix {% if plan.allow_appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Appointments</span>
-                <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Public Bookings</span>
+                <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Online Booking</span>
+                {% if plan.slug == "starter" %}
+                  <span class="badge badge-phoenix badge-phoenix-secondary">Owner, Admin, Staff</span>
+                {% elif plan.slug == "pro" %}
+                  <span class="badge badge-phoenix badge-phoenix-secondary">Owner, Admin, Staff, Accountant</span>
+                {% elif plan.slug == "business" %}
+                  <span class="badge badge-phoenix badge-phoenix-secondary">Advanced Team Roles</span>
+                  <span class="badge badge-phoenix badge-phoenix-info">Priority Support</span>
+                {% endif %}
               </div>
               <p class="fs-10 text-body-tertiary mt-2 mb-0">
-                Public bookings remain request-first; submitted times still require team review before an appointment is confirmed.
+                Online Booking is request-first; submitted times still require team review before an appointment is confirmed.
               </p>
             </div>
 
@@ -165,7 +297,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="plan" value="{{ plan.id }}">
                 <button class="btn btn-primary w-100" type="submit">
-                  {% if subscription %}Change to {{ plan.name }}{% else %}Start {{ plan.name }} Trial{% endif %}
+                  Select {{ plan.name }}
                 </button>
               </form>
             {% endif %}

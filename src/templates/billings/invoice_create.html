@@ -49,8 +49,10 @@
       {% if source_appointment %}
         <li class="breadcrumb-item"><a href="{% url 'appointment_list' %}">Appointments</a></li>
         <li class="breadcrumb-item"><a href="{% url 'appointment_detail' source_appointment.id %}">{{ source_appointment.title }}</a></li>
-      {% else %}
+      {% elif client %}
         <li class="breadcrumb-item"><a href="{% url 'staff_client_detail' client.id %}">Client</a></li>
+      {% else %}
+        <li class="breadcrumb-item"><a href="{% url 'invoice_list' %}">Invoices</a></li>
       {% endif %}
       <li class="breadcrumb-item active">Create Invoice</li>
     </ol>
@@ -59,15 +61,17 @@
   <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
     <div class="col-auto">
       <h2 class="mb-0 text-body-emphasis">
-        {% if source_appointment %}Create Invoice from Appointment{% else %}Create Invoice from Client{% endif %}
+        {% if source_appointment %}Create Invoice from Appointment{% elif client %}Create Invoice from Client{% else %}Create Invoice{% endif %}
       </h2>
     </div>
     <div class="col-auto">
       <div class="d-flex gap-3">
         {% if source_appointment %}
           <a class="btn btn-phoenix-secondary" href="{% url 'appointment_detail' source_appointment.id %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to Appointment</a>
-        {% else %}
+        {% elif client %}
           <a class="btn btn-phoenix-secondary" href="{% url 'staff_client_detail' client.id %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to Client</a>
+        {% else %}
+          <a class="btn btn-phoenix-secondary" href="{% url 'invoice_list' %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to Invoices</a>
         {% endif %}
       </div>
     </div>
@@ -102,7 +106,38 @@
                 </div>
               </div>
             {% endif %}
-            <div class="row g-4">
+            {% if not source_appointment %}
+              <div class="mb-4">
+                <label class="form-label" for="id_client_id">Client{% include "includes/help_icon.html" with text="Search and select any client in the current workspace." %}</label>
+                {% if client_is_locked and client %}
+                  <input type="hidden" name="client_id" value="{{ client.id }}">
+                  <select class="form-select" id="id_client_id" disabled>
+                    <option selected>{{ client.first_name }} {{ client.last_name }}{% if client.company_name %} - {{ client.company_name }}{% endif %}</option>
+                  </select>
+                {% else %}
+                  <select
+                    class="form-select"
+                    id="id_client_id"
+                    name="client_id"
+                    required
+                    data-choices="data-choices"
+                    data-options='{"searchEnabled":true,"shouldSort":false,"searchResultLimit":8}'
+                  >
+                    <option value="">Search or select a client</option>
+                    {% for available_client in available_clients %}
+                      <option
+                        value="{{ available_client.id }}"
+                        {% if client and client.id == available_client.id %}selected{% endif %}
+                      >
+                        {{ available_client.first_name }} {{ available_client.last_name }}{% if available_client.company_name %} - {{ available_client.company_name }}{% endif %}{% if available_client.email %} - {{ available_client.email }}{% endif %}
+                      </option>
+                    {% endfor %}
+                  </select>
+                {% endif %}
+              </div>
+            {% endif %}
+            {% if client %}
+              <div class="row g-4">
               <div class="col-md-6">
                 <div class="invoice-create-detail-item">
                   <div class="invoice-create-detail-icon">
@@ -158,7 +193,12 @@
                   </div>
                 </div>
               </div>
-            </div>
+              </div>
+            {% else %}
+              <div class="alert alert-subtle-secondary border mb-0" role="alert">
+                Select a client to create this invoice.
+              </div>
+            {% endif %}
           </div>
         </div>
 
@@ -182,7 +222,7 @@
               {% for line in line_rows %}
               <div class="line-item row g-3 mb-3 pb-3 border-bottom">
                 <div class="col-md-5">
-                  <label class="form-label">Saved Service</label>
+                  <label class="form-label">Saved Service{% include "includes/help_icon.html" with text="Leave the saved service blank and complete the fields below for a custom line item." %}</label>
                   <select class="form-select service-select" name="service_id">
                     <option value="">Select a saved service</option>
                     {% for service in available_services %}
@@ -198,9 +238,8 @@
                     </option>
                     {% endfor %}
                   </select>
-                  <div class="form-text">Leave the saved service blank and complete the fields below for a custom line item.</div>
                   <label class="form-label mt-2">Description</label>
-                  <input type="text" class="form-control" name="description" value="{{ line.description }}">
+                  <input type="text" class="form-control" name="description" value="{{ line.description }}" maxlength="255">
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Quantity</label>
@@ -219,13 +258,14 @@
                     <span class="fa-solid fa-trash"></span>
                   </button>
                 </div>
+                {% include "billings/includes/invoice_line_manual_service_fields.html" with line=line field_prefix="" %}
               </div>
               {% endfor %}
             </div>
 
             <div id="line-item-template" class="line-item row g-3 mb-3 pb-3 border-bottom" style="display: none;">
               <div class="col-md-5">
-                <label class="form-label">Saved Service</label>
+                <label class="form-label">Saved Service{% include "includes/help_icon.html" with text="Leave the saved service blank and complete the fields below for a custom line item." %}</label>
                 <select class="form-select service-select" name="service_id" disabled>
                   <option value="">Select a saved service</option>
                   {% for service in available_services %}
@@ -240,9 +280,8 @@
                   </option>
                   {% endfor %}
                 </select>
-                <div class="form-text">Leave the saved service blank and complete the fields below for a custom line item.</div>
                 <label class="form-label mt-2">Description</label>
-                <input type="text" class="form-control" name="description" disabled>
+                <input type="text" class="form-control" name="description" maxlength="255" disabled>
               </div>
               <div class="col-md-2">
                 <label class="form-label">Quantity</label>
@@ -261,6 +300,7 @@
                   <span class="fa-solid fa-trash"></span>
                 </button>
               </div>
+              {% include "billings/includes/invoice_line_manual_service_fields.html" with line=blank_line_row field_prefix="" disabled=True %}
             </div>
           </div>
         </div>
@@ -276,7 +316,7 @@
               <h6 class="alert-heading">Invoice will be created with:</h6>
               <ul class="mb-0">
                 <li>Status: Draft</li>
-                <li>Client: {{ client.first_name }} {{ client.last_name }}</li>
+                <li>Client: {% if client %}{{ client.first_name }} {{ client.last_name }}{% else %}Select on this page{% endif %}</li>
                 <li>Invoice number: {{ invoice_number_preview }}</li>
                 <li>Currency: {{ current_business.currency }}</li>
                 <li>Tax rate: {{ current_business.tax_rate }}%</li>
@@ -294,9 +334,8 @@
             </div>
 
             <div class="mb-4">
-              <label class="form-label" for="id_notes">Invoice Notes</label>
+              <label class="form-label" for="id_notes">Invoice Notes{% include "includes/help_icon.html" with text="Notes are saved on the draft invoice and can be adjusted later." %}</label>
               <textarea class="form-control" id="id_notes" name="notes" rows="5">{{ draft_notes }}</textarea>
-              <div class="form-text">Notes are saved on the draft invoice and can be adjusted later.</div>
             </div>
 
             <div class="border rounded-3 p-3 mb-4">
@@ -337,22 +376,59 @@ function isWholeUnitQuantity(value) {
 
 function applySelectedService(selectElement) {
   const selectedOption = selectElement.options[selectElement.selectedIndex];
+  const lineItem = selectElement.closest('.line-item');
   if (!selectedOption || !selectedOption.value) {
+    updateManualServiceOptions(lineItem);
     return;
   }
 
-  const lineItem = selectElement.closest('.line-item');
   const descriptionInput = lineItem.querySelector('input[name="description"]');
   const quantityInput = lineItem.querySelector('input[name="quantity"]');
   const unitPriceInput = lineItem.querySelector('input[name="unit_price"]');
+  const saveAsServiceSelect = lineItem.querySelector('.manual-service-action');
 
   descriptionInput.value = selectedOption.dataset.description || selectedOption.dataset.name || '';
   unitPriceInput.value = selectedOption.dataset.unitPrice || '';
   if (!isWholeUnitQuantity(quantityInput.value)) {
     quantityInput.value = '1.00';
   }
+  if (saveAsServiceSelect) {
+    saveAsServiceSelect.value = '';
+  }
 
+  updateManualServiceOptions(lineItem);
   updateTotals();
+}
+
+function updateManualServiceOptions(lineItem) {
+  if (!lineItem) {
+    return;
+  }
+
+  const serviceSelect = lineItem.querySelector('.service-select');
+  const actionSelect = lineItem.querySelector('.manual-service-action');
+  const categoryFields = lineItem.querySelectorAll('.manual-service-category-fields');
+  const categorySelect = lineItem.querySelector('select[name$="service_category_id"]');
+  const newCategoryInput = lineItem.querySelector('input[name$="new_service_category_name"]');
+  const hasSavedService = Boolean(serviceSelect && serviceSelect.value);
+  const shouldShow = Boolean(actionSelect && actionSelect.value === '1' && !hasSavedService);
+
+  if (hasSavedService && actionSelect) {
+    actionSelect.value = '';
+  }
+
+  categoryFields.forEach(field => {
+    field.classList.toggle('d-none', !shouldShow);
+  });
+
+  if (!shouldShow) {
+    if (categorySelect) {
+      categorySelect.value = '';
+    }
+    if (newCategoryInput) {
+      newCategoryInput.value = '';
+    }
+  }
 }
 
 function addLineItem() {
@@ -365,6 +441,7 @@ function addLineItem() {
     field.disabled = false;
   });
   container.appendChild(newItem);
+  updateManualServiceOptions(newItem);
   updateTotals();
 }
 
@@ -406,9 +483,12 @@ document.addEventListener('input', function(e) {
 document.addEventListener('change', function(e) {
   if (e.target.matches('.service-select')) {
     applySelectedService(e.target);
+  } else if (e.target.matches('.manual-service-action')) {
+    updateManualServiceOptions(e.target.closest('.line-item'));
   }
 });
 
+document.querySelectorAll('.line-item:not(#line-item-template)').forEach(updateManualServiceOptions);
 updateTotals();
 </script>
 

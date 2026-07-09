@@ -1,6 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
+from urllib.parse import quote
 
 from django.core import mail
 from django.core.exceptions import ValidationError
@@ -11,7 +12,7 @@ from django.utils import timezone
 from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
-from apps.crm.models import ActivityLog, BusinessService, Client
+from apps.crm.models import ActivityLog, BusinessService, Client, ServiceCategory
 
 from .models import Invoice, InvoiceLine
 
@@ -251,6 +252,67 @@ class BillingBusinessScopingTests(TestCase):
         response = self.client.get(reverse("invoice_detail", args=[self.other_invoice.id]))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_invoice_detail_includes_whatsapp_share_link(self):
+        self._add_invoice_line()
+        self.client.force_login(self.user)
+        expected_message = (
+            "Hello Alicia Client, invoice INV-ALPHA-001 from Alpha Workspace is ready. "
+            "Total: $133.13. Please contact us if you have any questions."
+        )
+        expected_url = f"https://wa.me/17215550001?text={quote(expected_message)}"
+
+        response = self.client.get(reverse("invoice_detail", args=[self.invoice.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Share on WhatsApp")
+        self.assertContains(response, expected_url)
+
+    def test_owner_can_delete_invoice(self):
+        line = self._add_invoice_line()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_delete", args=[self.invoice.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("invoice_list"))
+        self.assertFalse(Invoice.objects.filter(pk=self.invoice.pk).exists())
+        self.assertFalse(InvoiceLine.objects.filter(pk=line.pk).exists())
+        self.assertContains(response, "Invoice INV-ALPHA-001 was deleted.")
+
+    def test_admin_can_delete_invoice(self):
+        admin_user = self._create_admin_user()
+        self.client.force_login(admin_user)
+
+        response = self.client.post(
+            reverse("invoice_delete", args=[self.invoice.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("invoice_list"))
+        self.assertFalse(Invoice.objects.filter(pk=self.invoice.pk).exists())
+
+    def test_staff_cannot_delete_invoice(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.post(
+            reverse("invoice_delete", args=[self.invoice.id]),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("invoice_list"))
+        self.assertTrue(Invoice.objects.filter(pk=self.invoice.pk).exists())
+        self.assertContains(response, "You do not have permission to delete invoices.")
+
+    def test_invoice_delete_blocks_other_business_invoice(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("invoice_delete", args=[self.other_invoice.id]))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Invoice.objects.filter(pk=self.other_invoice.pk).exists())
 
     def test_owner_admin_staff_accountant_and_viewer_can_download_invoice_pdf(self):
         self._add_invoice_line()
@@ -542,6 +604,69 @@ class BillingBusinessScopingTests(TestCase):
         self.assertIn("function isWholeUnitQuantity(value)", html)
         self.assertIn("quantityInput.value = '1.00';", html)
 
+    def test_invoice_list_create_button_opens_invoice_create_page(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("invoice_create"))
+        self.assertContains(response, "Create Invoice")
+        self.assertNotContains(response, "Create from Client")
+
+    def test_invoice_create_page_can_search_current_business_clients(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="client_id"')
+        self.assertContains(response, 'data-choices="data-choices"')
+        self.assertContains(response, "Search or select a client")
+        self.assertContains(response, "Alicia Client")
+        self.assertNotContains(response, "Boris Client")
+
+    def test_invoice_create_page_posts_selected_client(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create"),
+            data={
+                "client_id": str(self.client_record.id),
+                "service_id": [""],
+                "description": ["After-hours emergency callout"],
+                "quantity": ["2"],
+                "unit_price": ["75.00"],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(created_invoice.client, self.client_record)
+        self.assertEqual(created_invoice.lines.get().description, "After-hours emergency callout")
+
+    def test_invoice_create_page_rejects_other_business_client_selection(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create"),
+            data={
+                "client_id": str(self.other_client_record.id),
+                "service_id": [""],
+                "description": ["Tampered client line"],
+                "quantity": ["1"],
+                "unit_price": ["75.00"],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a client before creating the invoice.")
+        self.assertFalse(Invoice.objects.filter(invoice_number="CLR-0250").exists())
+
     def test_invoice_create_from_client_uses_service_snapshot_values(self):
         self.client.force_login(self.user)
 
@@ -599,6 +724,137 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(created_invoice.subtotal, Decimal("150.00"))
         self.assertEqual(created_invoice.tax, Decimal("9.75"))
         self.assertEqual(created_invoice.total, Decimal("159.75"))
+
+    def test_invoice_create_manual_line_can_be_saved_as_service_with_new_category(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create"),
+            data={
+                "client_id": str(self.client_record.id),
+                "service_id": [""],
+                "description": ["Emergency generator reset"],
+                "quantity": ["1"],
+                "unit_price": ["145.00"],
+                "save_as_service": ["1"],
+                "service_category_id": [""],
+                "new_service_category_name": ["Emergency Work"],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+        created_category = ServiceCategory.objects.get(
+            business=self.business,
+            name="Emergency Work",
+        )
+        created_service = BusinessService.objects.get(
+            business=self.business,
+            name="Emergency generator reset",
+        )
+        line = created_invoice.lines.get()
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertEqual(created_service.category, created_category)
+        self.assertEqual(created_service.unit_price, Decimal("145.00"))
+        self.assertEqual(created_service.tax_rate, self.business.tax_rate)
+        self.assertEqual(line.service, created_service)
+        self.assertEqual(line.description, "Emergency generator reset")
+
+    def test_invoice_create_manual_line_can_be_saved_as_uncategorized_service(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_client", args=[self.client_record.id]),
+            data={
+                "service_id": [""],
+                "description": ["One-off consultation"],
+                "quantity": ["1"],
+                "unit_price": ["90.00"],
+                "save_as_service": ["1"],
+                "service_category_id": [""],
+                "new_service_category_name": [""],
+            },
+        )
+
+        created_invoice = Invoice.objects.get(
+            business=self.business,
+            invoice_number="CLR-0250",
+        )
+        created_service = BusinessService.objects.get(
+            business=self.business,
+            name="One-off consultation",
+        )
+
+        self.assertRedirects(response, reverse("invoice_detail", args=[created_invoice.id]))
+        self.assertIsNone(created_service.category)
+        self.assertEqual(created_invoice.lines.get().service, created_service)
+
+    def test_invoice_create_manual_service_rejects_other_business_category(self):
+        other_category = ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Other Category",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create"),
+            data={
+                "client_id": str(self.client_record.id),
+                "service_id": [""],
+                "description": ["Cross-business category line"],
+                "quantity": ["1"],
+                "unit_price": ["75.00"],
+                "save_as_service": ["1"],
+                "service_category_id": [str(other_category.id)],
+                "new_service_category_name": [""],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Line item 1: selected service category is not available in this workspace.",
+        )
+        self.assertFalse(Invoice.objects.filter(invoice_number="CLR-0250").exists())
+
+    def test_invoice_create_rejects_overlong_line_description(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_client", args=[self.client_record.id]),
+            data={
+                "service_id": [""],
+                "description": ["x" * 256],
+                "quantity": ["1"],
+                "unit_price": ["75.00"],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Line item 1: description must be 255 characters or fewer.")
+        self.assertFalse(Invoice.objects.filter(invoice_number="CLR-0250").exists())
+
+    def test_invoice_create_rejects_overlong_service_snapshot_description(self):
+        self.business_service.description = "x" * 256
+        self.business_service.save(update_fields=["description", "updated_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_create_from_client", args=[self.client_record.id]),
+            data={
+                "service_id": [str(self.business_service.id)],
+                "description": [""],
+                "quantity": ["1"],
+                "unit_price": [""],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Line item 1: description must be 255 characters or fewer.")
+        self.assertFalse(Invoice.objects.filter(invoice_number="CLR-0250").exists())
 
     def test_invoice_create_from_appointment_prefills_context_on_get(self):
         self.client.force_login(self.user)
@@ -974,6 +1230,7 @@ class BillingBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, reverse("invoice_edit", args=[self.invoice.id]))
+        self.assertNotContains(response, reverse("invoice_delete", args=[self.invoice.id]))
         self.assertNotContains(response, reverse("invoice_change_status", args=[self.invoice.id]))
 
     def test_invoice_detail_links_back_to_appointment_when_linked(self):
@@ -1073,6 +1330,25 @@ class BillingBusinessScopingTests(TestCase):
         self.assertEqual(self.invoice.subtotal, Decimal("200.00"))
         self.assertEqual(self.invoice.tax, Decimal("13.00"))
         self.assertEqual(self.invoice.total, Decimal("213.00"))
+
+    def test_invoice_edit_rejects_overlong_line_description(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_edit", args=[self.invoice.id]),
+            data={
+                "notes": "Updated invoice",
+                "new_description": ["x" * 256],
+                "new_quantity": ["1"],
+                "new_unit_price": ["75.00"],
+            },
+        )
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "New line 1: description must be 255 characters or fewer.")
+        self.assertEqual(self.invoice.lines.count(), 0)
+        self.assertEqual(self.invoice.subtotal, Decimal("0.00"))
 
     def test_invoice_edit_uses_current_business_service_snapshot_values(self):
         line = InvoiceLine.objects.create(
