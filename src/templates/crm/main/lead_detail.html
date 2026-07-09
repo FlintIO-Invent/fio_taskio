@@ -38,7 +38,7 @@
       <div class="d-flex gap-2">
         <span class="badge bg-info">{{ lead.get_lead_type_display }}</span>
         {% if lead.is_public_booking_request %}
-          <span class="badge bg-primary">Public Booking</span>
+          <span class="badge bg-primary">Online Booking</span>
         {% endif %}
         <span class="badge bg-{% if lead.status == 'NEW' %}primary{% elif lead.status == 'CONTACTED' %}warning{% elif lead.status == 'INVOICED' %}success{% else %}secondary{% endif %}">
           {{ lead.get_status_display }}

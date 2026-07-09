@@ -56,7 +56,7 @@
               <div class="line-item row g-3 mb-3 pb-3 border-bottom">
                 <input type="hidden" name="line_id" value="{{ line.line_id }}">
                 <div class="col-md-5">
-                  <label class="form-label">Saved Service</label>
+                  <label class="form-label">Saved Service{% include "includes/help_icon.html" with text="Leave the saved service blank to keep this line fully custom." %}</label>
                   <select class="form-select service-select" name="service_id">
                     <option value="">Select a saved service</option>
                     {% for service in available_services %}
@@ -72,9 +72,8 @@
                     </option>
                     {% endfor %}
                   </select>
-                  <div class="form-text">Leave the saved service blank to keep this line fully custom.</div>
                   <label class="form-label mt-2">Description</label>
-                  <input type="text" class="form-control" name="description" value="{{ line.description }}" required>
+                  <input type="text" class="form-control" name="description" value="{{ line.description }}" maxlength="255" required>
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Quantity</label>
@@ -93,13 +92,14 @@
                     <span class="fa-solid fa-trash"></span>
                   </button>
                 </div>
+                {% include "billings/includes/invoice_line_manual_service_fields.html" with line=line field_prefix="" %}
               </div>
               {% endfor %}
 
               {% for line in new_line_rows %}
               <div class="line-item row g-3 mb-3 pb-3 border-bottom">
                 <div class="col-md-5">
-                  <label class="form-label">Saved Service</label>
+                  <label class="form-label">Saved Service{% include "includes/help_icon.html" with text="Leave the saved service blank and complete the fields below for a custom line item." %}</label>
                   <select class="form-select service-select" name="new_service_id">
                     <option value="">Select a saved service</option>
                     {% for service in available_services %}
@@ -115,9 +115,8 @@
                     </option>
                     {% endfor %}
                   </select>
-                  <div class="form-text">Leave the saved service blank and complete the fields below for a custom line item.</div>
                   <label class="form-label mt-2">Description</label>
-                  <input type="text" class="form-control" name="new_description" value="{{ line.description }}">
+                  <input type="text" class="form-control" name="new_description" value="{{ line.description }}" maxlength="255">
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Quantity</label>
@@ -136,13 +135,14 @@
                     <span class="fa-solid fa-trash"></span>
                   </button>
                 </div>
+                {% include "billings/includes/invoice_line_manual_service_fields.html" with line=line field_prefix="new_" %}
               </div>
               {% endfor %}
             </div>
 
             <div id="line-item-template" class="line-item row g-3 mb-3 pb-3 border-bottom" style="display: none;">
               <div class="col-md-5">
-                <label class="form-label">Saved Service</label>
+                <label class="form-label">Saved Service{% include "includes/help_icon.html" with text="Leave the saved service blank and complete the fields below for a custom line item." %}</label>
                 <select class="form-select service-select" name="new_service_id" disabled>
                   <option value="">Select a saved service</option>
                   {% for service in available_services %}
@@ -157,9 +157,8 @@
                   </option>
                   {% endfor %}
                 </select>
-                <div class="form-text">Leave the saved service blank and complete the fields below for a custom line item.</div>
                 <label class="form-label mt-2">Description</label>
-                <input type="text" class="form-control" name="new_description" disabled>
+                <input type="text" class="form-control" name="new_description" maxlength="255" disabled>
               </div>
               <div class="col-md-2">
                 <label class="form-label">Quantity</label>
@@ -178,6 +177,7 @@
                   <span class="fa-solid fa-trash"></span>
                 </button>
               </div>
+              {% include "billings/includes/invoice_line_manual_service_fields.html" with line=blank_line_row field_prefix="new_" disabled=True %}
             </div>
           </div>
         </div>
@@ -278,11 +278,13 @@ function isWholeUnitQuantity(value) {
 
 function applySelectedService(selectElement) {
   const selectedOption = selectElement.options[selectElement.selectedIndex];
+  const lineItem = selectElement.closest('.line-item');
   if (!selectedOption || !selectedOption.value) {
+    updateManualServiceOptions(lineItem);
     return;
   }
 
-  const lineItem = selectElement.closest('.line-item');
+  const saveAsServiceSelect = lineItem.querySelector('.manual-service-action');
   setInputValue(lineItem, 'description', 'new_description', selectedOption.dataset.description || selectedOption.dataset.name || '');
   setInputValue(lineItem, 'unit_price', 'new_unit_price', selectedOption.dataset.unitPrice || '');
 
@@ -290,8 +292,43 @@ function applySelectedService(selectElement) {
   if (!isWholeUnitQuantity(quantityValue)) {
     setInputValue(lineItem, 'quantity', 'new_quantity', '1.00');
   }
+  if (saveAsServiceSelect) {
+    saveAsServiceSelect.value = '';
+  }
 
+  updateManualServiceOptions(lineItem);
   updateTotals();
+}
+
+function updateManualServiceOptions(lineItem) {
+  if (!lineItem) {
+    return;
+  }
+
+  const serviceSelect = lineItem.querySelector('.service-select');
+  const actionSelect = lineItem.querySelector('.manual-service-action');
+  const categoryFields = lineItem.querySelectorAll('.manual-service-category-fields');
+  const categorySelect = lineItem.querySelector('select[name$="service_category_id"]');
+  const newCategoryInput = lineItem.querySelector('input[name$="new_service_category_name"]');
+  const hasSavedService = Boolean(serviceSelect && serviceSelect.value);
+  const shouldShow = Boolean(actionSelect && actionSelect.value === '1' && !hasSavedService);
+
+  if (hasSavedService && actionSelect) {
+    actionSelect.value = '';
+  }
+
+  categoryFields.forEach(field => {
+    field.classList.toggle('d-none', !shouldShow);
+  });
+
+  if (!shouldShow) {
+    if (categorySelect) {
+      categorySelect.value = '';
+    }
+    if (newCategoryInput) {
+      newCategoryInput.value = '';
+    }
+  }
 }
 
 function addLineItem() {
@@ -307,6 +344,7 @@ function addLineItem() {
     }
   });
   container.appendChild(newItem);
+  updateManualServiceOptions(newItem);
   updateTotals();
 }
 
@@ -348,9 +386,12 @@ document.addEventListener('input', function(e) {
 document.addEventListener('change', function(e) {
   if (e.target.matches('.service-select')) {
     applySelectedService(e.target);
+  } else if (e.target.matches('.manual-service-action')) {
+    updateManualServiceOptions(e.target.closest('.line-item'));
   }
 });
 
+document.querySelectorAll('.line-item:not(#line-item-template)').forEach(updateManualServiceOptions);
 updateTotals();
 </script>
 

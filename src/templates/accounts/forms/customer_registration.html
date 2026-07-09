@@ -70,9 +70,8 @@
                 {% if form.address.errors %}<div class="invalid-feedback d-block">{{ form.address.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-6">
-                <label class="form-label" for="{{ form.password1.id_for_label }}">Password</label>
+                <label class="form-label" for="{{ form.password1.id_for_label }}">Password{% include "includes/help_icon.html" with text=form.password1.help_text %}</label>
                 {{ form.password1 }}
-                {% if form.password1.help_text %}<div class="form-text">{{ form.password1.help_text|safe }}</div>{% endif %}
                 {% if form.password1.errors %}<div class="invalid-feedback d-block">{{ form.password1.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-6">

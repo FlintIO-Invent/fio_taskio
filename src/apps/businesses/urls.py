@@ -5,6 +5,7 @@ from .views import (
     business_settings,
     business_setup,
     business_subscription,
+    business_team_member_deactivate,
     business_team_members,
     business_weekly_availability_deactivate,
 )
@@ -20,4 +21,9 @@ urlpatterns = [
     ),
     path("subscription/", business_subscription, name="business_subscription"),
     path("team/", business_team_members, name="business_team_members"),
+    path(
+        "team/<int:membership_id>/deactivate/",
+        business_team_member_deactivate,
+        name="business_team_member_deactivate",
+    ),
 ]

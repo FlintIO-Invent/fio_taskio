@@ -91,12 +91,28 @@
                   <h5 class="mb-0">{{ client.first_name }} {{ client.last_name }}</h5>
                   <p class="text-body-secondary mb-0">{{ client.company_name|default:"No company" }} • {{ client.get_client_type_display }}</p>
                 </div>
-                {% if role_access.can_manage_clients %}
-                  <a href="{% url 'staff_client_update' client.id %}" class="btn btn-phoenix-primary btn-sm">
-                    <span class="fa-solid fa-edit me-2"></span>Edit
-                  </a>
-                {% endif %}
-              </div>
+	                {% if role_access.can_manage_clients or role_access.can_delete_clients %}
+                    <div class="d-flex flex-wrap gap-2">
+                      {% if role_access.can_manage_clients %}
+                        <a href="{% url 'staff_client_update' client.id %}" class="btn btn-phoenix-primary btn-sm">
+                          <span class="fa-solid fa-edit me-2"></span>Edit
+                        </a>
+                      {% endif %}
+                      {% if role_access.can_delete_clients and client.is_active %}
+                        <form method="post" action="{% url 'staff_client_archive' client.id %}">
+                          {% csrf_token %}
+                          <button
+                            class="btn btn-outline-danger btn-sm"
+                            type="submit"
+                            onclick="return confirm('Archive {{ client.first_name|escapejs }} {{ client.last_name|escapejs }}? Existing invoices and appointments will be kept.');"
+                          >
+                            <span class="fa-solid fa-box-archive me-2"></span>Archive
+                          </button>
+                        </form>
+                      {% endif %}
+                    </div>
+	                {% endif %}
+	              </div>
 
               <div class="card-body">
                 <!-- Display Mode Only -->

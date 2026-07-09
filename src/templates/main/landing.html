@@ -227,19 +227,31 @@
                       {% endif %}
                     </div>
                     <p class="text-body-tertiary mb-5">{{ plan.description|default:"Motionmate workspace access and module availability." }}</p>
-                    <h1 class="fs-3 d-flex align-items-center gap-1 mb-1">{{ plan.display_pricing.monthly_display }}<span class="fs-8 fw-normal">/ month</span></h1>
-                    <p class="fs-9 text-body-tertiary mb-4">
-                      {{ plan.display_pricing.yearly_display }} billed yearly{% if plan.display_pricing.tax_note %} {{ plan.display_pricing.tax_note }}{% endif %}
-                    </p>
+                    <div class="d-flex flex-wrap gap-4 mb-4">
+                      <div>
+                        <h1 class="fs-3 d-flex align-items-center gap-1 mb-1">{{ plan.usd_display_pricing.monthly_display }}<span class="fs-8 fw-normal">/ month</span></h1>
+                        <p class="fs-9 text-body-tertiary mb-0">{{ plan.usd_display_pricing.yearly_display }} yearly USD</p>
+                      </div>
+                      <div>
+                        <h2 class="fs-5 d-flex align-items-center gap-1 mb-1">{{ plan.eur_display_pricing.monthly_display }}<span class="fs-8 fw-normal">/ month</span></h2>
+                        <p class="fs-9 text-body-tertiary mb-0">{{ plan.eur_display_pricing.yearly_display }} yearly EUR</p>
+                      </div>
+                    </div>
                     <a class="btn btn-lg w-100 mb-7 {% if plan.is_recommended %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'register_business' %}" role="button">Start {{ plan.name }}</a>
                     <h5 class="mb-4">What’s included</h5>
                     <ul class="fa-ul ps-4 m-0 pricing">
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
-                        <p class="mb-0">Client Management</p>
+                        <p class="mb-0">Client CRM</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Service Requests</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Service Catalog</p>
                       </li>
                       {% if plan.allow_invoicing %}
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
-                        <p class="mb-0">Invoicing</p>
+                        <p class="mb-0">Invoicing with PDF, email, and WhatsApp sharing</p>
                       </li>
                       {% endif %}
                       {% if plan.allow_appointments %}
@@ -249,18 +261,49 @@
                       {% endif %}
                       {% if plan.allow_public_booking %}
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
-                        <p class="mb-0">Public Bookings</p>
+                        <p class="mb-0">Online Booking</p>
                       </li>
                       {% endif %}
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
-                        <p class="mb-0">{{ plan.max_users|default:"Unlimited" }} team users</p>
+                        <p class="mb-0">{{ plan.user_limit_summary }}</p>
                       </li>
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
-                        <p class="mb-0">{{ plan.max_clients|default:"Unlimited" }} clients</p>
+                        <p class="mb-0">{{ plan.max_clients|default_if_none:"Unlimited" }} active clients</p>
                       </li>
                       <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
-                        <p class="mb-0">{{ plan.max_invoices_per_month|default:"Unlimited" }} invoices / month</p>
+                        <p class="mb-0">{{ plan.max_invoices_per_month|default_if_none:"Unlimited" }} invoices / month</p>
                       </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">{{ plan.max_appointments_per_month|default_if_none:"Unlimited" }} appointments / month</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">{{ plan.max_public_bookings_per_month|default_if_none:"Unlimited" }} online bookings / month</p>
+                      </li>
+                      {% if plan.slug == "starter" %}
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Basic email notifications</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Motionmate branding included</p>
+                      </li>
+                      {% elif plan.slug == "pro" %}
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Staff assignment and availability settings</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Appointment-to-invoice workflow</p>
+                      </li>
+                      {% elif plan.slug == "business" %}
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Advanced team roles</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">CSV service import</p>
+                      </li>
+                      <li class="d-flex align-items-center mb-3"><span class="fa-li"><span class="fas fa-check text-primary"></span></span>
+                        <p class="mb-0">Priority support</p>
+                      </li>
+                      {% endif %}
                     </ul>
                   </div>
                 </div>

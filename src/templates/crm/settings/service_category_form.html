@@ -6,7 +6,7 @@
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
       <li class="breadcrumb-item"><a href="{% url 'business_settings' %}">Business Settings</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'business_service_category_list' %}">Service Categories</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_service_list' %}">Services</a></li>
       <li class="breadcrumb-item active">{{ page_title }}</li>
     </ol>
   </nav>
@@ -20,7 +20,7 @@
         <p class="text-body-tertiary mb-0">This category will belong only to {{ business.name }}.</p>
       </div>
       <div class="col-auto d-flex gap-2">
-        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_category_list' %}">Cancel</a>
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Cancel</a>
         <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
       </div>
     </div>
@@ -40,16 +40,15 @@
                 {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">
-                <label class="form-label" for="{{ form.code.id_for_label }}">Code</label>
+                <label class="form-label" for="{{ form.code.id_for_label }}">Code{% include "includes/help_icon.html" with text=form.code.help_text %}</label>
                 {{ form.code }}
-                {% if form.code.help_text %}<div class="form-text">{{ form.code.help_text }}</div>{% endif %}
                 {% if form.code.errors %}<div class="invalid-feedback d-block">{{ form.code.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">
                 <div class="form-check">
                   {{ form.is_active }}
                   <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                    Keep this category active on staff and public booking forms
+                    Keep this category active on staff and online booking forms
                   </label>
                 </div>
                 {% if form.is_active.errors %}<div class="invalid-feedback d-block">{{ form.is_active.errors|striptags }}</div>{% endif %}

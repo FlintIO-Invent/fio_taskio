@@ -2,7 +2,7 @@
   <div class="card-body p-4">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
       <div>
-        <h4 class="mb-1">Public Booking Link</h4>
+        <h4 class="mb-1">Online Booking Link</h4>
         <p class="text-body-tertiary mb-0">Share this booking page when customers are ready to request appointment times.</p>
       </div>
       {% if public_booking_share_ready %}
@@ -14,8 +14,8 @@
 
     {% if public_booking_share_ready %}
       <div class="input-group mb-3">
-        <input class="form-control" type="url" value="{{ public_booking_url }}" readonly aria-label="Public booking link">
-        <button class="btn btn-phoenix-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ public_booking_url|escapejs }}')" aria-label="Copy public booking link">
+        <input class="form-control" type="url" value="{{ public_booking_url }}" readonly aria-label="Online booking link">
+        <button class="btn btn-phoenix-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ public_booking_url|escapejs }}')" aria-label="Copy online booking link">
           <span class="fa-solid fa-copy me-2"></span>Copy
         </button>
         <a class="btn btn-primary" href="{{ public_booking_path }}" target="_blank" rel="noopener">
@@ -26,8 +26,8 @@
     {% else %}
       {% if public_booking_allowed %}
         <div class="input-group mb-3">
-          <input class="form-control" type="url" value="{{ public_booking_url }}" readonly aria-label="Public booking link preview">
-          <button class="btn btn-phoenix-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ public_booking_url|escapejs }}')" aria-label="Copy public booking link">
+          <input class="form-control" type="url" value="{{ public_booking_url }}" readonly aria-label="Online booking link preview">
+          <button class="btn btn-phoenix-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ public_booking_url|escapejs }}')" aria-label="Copy online booking link">
             <span class="fa-solid fa-copy me-2"></span>Copy
           </button>
           <a class="btn btn-phoenix-secondary" href="{% url 'business_booking_settings' %}">
@@ -42,7 +42,7 @@
           {% for item in public_booking_setup_items %}
             <li>{{ item }}</li>
           {% empty %}
-            <li>Review public booking settings before sharing.</li>
+            <li>Review online booking settings before sharing.</li>
           {% endfor %}
         </ul>
       </div>

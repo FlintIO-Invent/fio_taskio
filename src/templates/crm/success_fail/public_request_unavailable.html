@@ -11,13 +11,13 @@
           <img class="img-fluid w-md-50 w-lg-100 d-dark-none" src="{% static 'assets/img/spot-illustrations/dark_500-illustration.png' %}" alt="" width="540" />
         </div>
         <div class="col-12 col-lg-6 text-center text-lg-start">
-          <h2 class="text-body-secondary fw-bolder mb-3">Public Bookings Unavailable</h2>
+          <h2 class="text-body-secondary fw-bolder mb-3">Online Booking Unavailable</h2>
           <p class="text-body mb-3">
             {{ availability_message }}
           </p>
           {% if public_business %}
             <p class="text-body-tertiary mb-5">
-              {{ public_business.name }} can re-enable public bookings by updating its Motionmate plan.
+              {{ public_business.name }} can re-enable online booking by updating its Motionmate plan.
             </p>
           {% endif %}
           <a class="btn btn-lg btn-primary" href="{% url 'home' %}">Go Home</a>

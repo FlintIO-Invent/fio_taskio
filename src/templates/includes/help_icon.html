@@ -1,0 +1,5 @@
+{% if text %}
+  <span class="field-help-icon" tabindex="0" role="img" aria-label="{{ text|striptags }}" data-bs-toggle="tooltip" data-bs-trigger="hover focus" data-bs-placement="{{ placement|default:'top' }}" data-bs-title="{{ text|striptags }}">
+    <span class="fa-solid fa-circle-exclamation" aria-hidden="true"></span>
+  </span>
+{% endif %}

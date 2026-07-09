@@ -271,12 +271,17 @@ PLAN_LIMIT_FIELDS = {
     "public_bookings_per_month": "max_public_bookings_per_month",
 }
 PLAN_LIMIT_LABELS = {
-    "users": "team users",
-    "clients": "clients",
+    "users": "total users/seats",
+    "clients": "active clients",
     "invoices_per_month": "invoices this month",
     "appointments_per_month": "appointments this month",
-    "public_bookings_per_month": "public bookings this month",
+    "public_bookings_per_month": "online bookings this month",
 }
+PLAN_CHANGE_MODULES = (
+    "invoicing",
+    "appointments",
+    "public_booking",
+)
 
 
 def _normalize_plan_limit_name(limit_name: str) -> str:
@@ -294,6 +299,21 @@ def get_business_plan_limit(business: Business | None, limit_name: str) -> int |
         return None
 
     return getattr(subscription.plan, field_name, None)
+
+
+def get_plan_limit(plan: ClarivoPlan | None, limit_name: str) -> int | None:
+    normalized_name = _normalize_plan_limit_name(limit_name)
+    field_name = PLAN_LIMIT_FIELDS.get(normalized_name)
+    if field_name is None or plan is None:
+        return None
+
+    return getattr(plan, field_name, None)
+
+
+def _format_limit_value(limit: int | None) -> str:
+    if limit is None:
+        return "Unlimited"
+    return str(limit)
 
 
 def _current_month_bounds():
@@ -326,7 +346,18 @@ def get_business_usage_count(
         return user_count
 
     if normalized_name == "clients":
-        return business.clients.count()
+        from apps.crm.models import Client
+
+        return (
+            business.clients.filter(is_active=True)
+            .exclude(
+                client_status__in=(
+                    Client.ClientStatus.INACTIVE,
+                    Client.ClientStatus.ARCHIVED,
+                )
+            )
+            .count()
+        )
 
     if normalized_name == "invoices_per_month":
         month_start, next_month_start = _current_month_bounds()
@@ -338,8 +369,8 @@ def get_business_usage_count(
     if normalized_name == "appointments_per_month":
         month_start, next_month_start = _current_month_bounds()
         return business.appointments.filter(
-            created_at__gte=month_start,
-            created_at__lt=next_month_start,
+            start_time__gte=month_start,
+            start_time__lt=next_month_start,
         ).count()
 
     if normalized_name == "public_bookings_per_month":
@@ -351,6 +382,71 @@ def get_business_usage_count(
         ).count()
 
     return 0
+
+
+def get_business_plan_usage_summary(
+    business: Business | None,
+    plan: ClarivoPlan | None,
+    *,
+    include_pending_invitations: bool = True,
+) -> list[dict[str, Any]]:
+    usage_summary = []
+    for limit_name in PLAN_LIMIT_FIELDS:
+        limit = get_plan_limit(plan, limit_name)
+        usage_count = get_business_usage_count(
+            business,
+            limit_name,
+            include_pending_invitations=include_pending_invitations,
+        )
+        usage_summary.append(
+            {
+                "name": limit_name,
+                "label": PLAN_LIMIT_LABELS.get(limit_name, "items"),
+                "usage": usage_count,
+                "limit": limit,
+                "limit_display": _format_limit_value(limit),
+                "exceeded": limit is not None and usage_count > limit,
+                "at_limit": limit is not None and usage_count == limit,
+            }
+        )
+
+    return usage_summary
+
+
+def get_business_plan_module_losses(
+    business: Business | None,
+    target_plan: ClarivoPlan | None,
+) -> list[dict[str, str]]:
+    subscription = get_business_subscription(business)
+    if subscription is None or target_plan is None or subscription.plan_id == target_plan.id:
+        return []
+
+    current_plan = subscription.plan
+    return [
+        {
+            "name": module_name,
+            "label": get_module_display_name(module_name),
+        }
+        for module_name in PLAN_CHANGE_MODULES
+        if current_plan.allows_module(module_name) and not target_plan.allows_module(module_name)
+    ]
+
+
+def get_business_plan_change_impact(
+    business: Business | None,
+    target_plan: ClarivoPlan | None,
+) -> dict[str, Any]:
+    usage_summary = get_business_plan_usage_summary(business, target_plan)
+    over_limit_usage = [usage for usage in usage_summary if usage["exceeded"]]
+    module_losses = get_business_plan_module_losses(business, target_plan)
+
+    return {
+        "target_plan": target_plan,
+        "usage_summary": usage_summary,
+        "over_limit_usage": over_limit_usage,
+        "module_losses": module_losses,
+        "requires_confirmation": bool(over_limit_usage or module_losses),
+    }
 
 
 def business_limit_reached(
@@ -392,10 +488,10 @@ def get_module_display_name(module_name: str) -> str:
     display_names = {
         "client_management": "Client Management",
         "invoicing": "Invoicing",
-        "public_request_form": "Public Bookings",
-        "public_request": "Public Bookings",
-        "public_booking": "Public Bookings",
-        "public_booking_requests": "Public Bookings",
+        "public_request_form": "Online Booking",
+        "public_request": "Online Booking",
+        "public_booking": "Online Booking",
+        "public_booking_requests": "Online Booking",
         "appointments": "Appointments",
     }
     if normalized_name in display_names:
@@ -450,9 +546,9 @@ def get_public_booking_share_context(
 
     setup_items = []
     if not public_booking_allowed:
-        setup_items.append("Upgrade to a plan with Public Bookings.")
+        setup_items.append("Upgrade to a plan with Online Booking.")
     if not booking_enabled:
-        setup_items.append("Enable public bookings.")
+        setup_items.append("Enable online booking.")
     if bookable_service_count == 0:
         setup_items.append("Add at least one active service that is bookable online.")
     if active_availability_count == 0:

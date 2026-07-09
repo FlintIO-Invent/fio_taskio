@@ -31,7 +31,7 @@
 
     {% if public_booking_allowed %}
       <div class="alert alert-info border mb-4" role="alert">
-        Public bookings are included in the current workspace plan. These fields control how this service appears on the public booking form.
+        Online Booking is included in the current workspace plan. These fields control how this service appears on the online booking form.
       </div>
     {% else %}
       <div class="alert alert-warning border mb-4" role="alert">
@@ -50,26 +50,28 @@
                 {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-6">
-                <label class="form-label" for="{{ form.category.id_for_label }}">Service category</label>
+                <label class="form-label" for="{{ form.category.id_for_label }}">Service category{% include "includes/help_icon.html" with text=form.category.help_text %}</label>
                 {{ form.category }}
                 {% if form.category.errors %}<div class="invalid-feedback d-block">{{ form.category.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-6">
-                <label class="form-label" for="{{ form.external_code.id_for_label }}">External code</label>
+                <label class="form-label" for="{{ form.new_category_name.id_for_label }}">New category{% include "includes/help_icon.html" with text=form.new_category_name.help_text %}</label>
+                {{ form.new_category_name }}
+                {% if form.new_category_name.errors %}<div class="invalid-feedback d-block">{{ form.new_category_name.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.external_code.id_for_label }}">External code{% include "includes/help_icon.html" with text=form.external_code.help_text %}</label>
                 {{ form.external_code }}
-                {% if form.external_code.help_text %}<div class="form-text">{{ form.external_code.help_text }}</div>{% endif %}
                 {% if form.external_code.errors %}<div class="invalid-feedback d-block">{{ form.external_code.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-3">
-                <label class="form-label" for="{{ form.unit_price.id_for_label }}">Unit price</label>
+                <label class="form-label" for="{{ form.unit_price.id_for_label }}">Unit price{% include "includes/help_icon.html" with text=form.unit_price.help_text %}</label>
                 {{ form.unit_price }}
-                {% if form.unit_price.help_text %}<div class="form-text">{{ form.unit_price.help_text }}</div>{% endif %}
                 {% if form.unit_price.errors %}<div class="invalid-feedback d-block">{{ form.unit_price.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-md-3">
-                <label class="form-label" for="{{ form.tax_rate.id_for_label }}">Tax rate</label>
+                <label class="form-label" for="{{ form.tax_rate.id_for_label }}">Tax rate{% include "includes/help_icon.html" with text=form.tax_rate.help_text %}</label>
                 {{ form.tax_rate }}
-                {% if form.tax_rate.help_text %}<div class="form-text">{{ form.tax_rate.help_text }}</div>{% endif %}
                 {% if form.tax_rate.errors %}<div class="invalid-feedback d-block">{{ form.tax_rate.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">
@@ -80,43 +82,39 @@
 
               <div class="col-12">
                 <hr class="my-2">
-                <h5 class="mb-1">Public Bookings</h5>
-                <p class="text-body-tertiary mb-3">Only services marked bookable online can appear on the public booking form. Public visitors request a time and your team confirms internally.</p>
+                <h5 class="mb-1">Online Booking</h5>
+                <p class="text-body-tertiary mb-3">Only services marked bookable online can appear on the online booking form. Public visitors request a time and your team confirms internally.</p>
               </div>
 
               <div class="col-12">
                 <div class="form-check form-switch">
                   {{ form.is_bookable_online }}
-                  <label class="form-check-label" for="{{ form.is_bookable_online.id_for_label }}">Bookable online</label>
+                  <label class="form-check-label" for="{{ form.is_bookable_online.id_for_label }}">Bookable online{% include "includes/help_icon.html" with text=form.is_bookable_online.help_text %}</label>
                 </div>
-                {% if form.is_bookable_online.help_text %}<div class="form-text">{{ form.is_bookable_online.help_text }}</div>{% endif %}
                 {% if form.is_bookable_online.errors %}<div class="invalid-feedback d-block">{{ form.is_bookable_online.errors|striptags }}</div>{% endif %}
               </div>
 
               <div class="col-md-6">
-                <label class="form-label" for="{{ form.default_duration_minutes.id_for_label }}">Default booking duration</label>
+                <label class="form-label" for="{{ form.default_duration_minutes.id_for_label }}">Default booking duration{% include "includes/help_icon.html" with text=form.default_duration_minutes.help_text %}</label>
                 <div class="input-group">
                   {{ form.default_duration_minutes }}
                   <span class="input-group-text">minutes</span>
                 </div>
-                {% if form.default_duration_minutes.help_text %}<div class="form-text">{{ form.default_duration_minutes.help_text }}</div>{% endif %}
                 {% if form.default_duration_minutes.errors %}<div class="invalid-feedback d-block">{{ form.default_duration_minutes.errors|striptags }}</div>{% endif %}
               </div>
 
               <div class="col-md-6">
-                <label class="form-label" for="{{ form.booking_buffer_minutes.id_for_label }}">Booking buffer</label>
+                <label class="form-label" for="{{ form.booking_buffer_minutes.id_for_label }}">Booking buffer{% include "includes/help_icon.html" with text=form.booking_buffer_minutes.help_text %}</label>
                 <div class="input-group">
                   {{ form.booking_buffer_minutes }}
                   <span class="input-group-text">minutes</span>
                 </div>
-                {% if form.booking_buffer_minutes.help_text %}<div class="form-text">{{ form.booking_buffer_minutes.help_text }}</div>{% endif %}
                 {% if form.booking_buffer_minutes.errors %}<div class="invalid-feedback d-block">{{ form.booking_buffer_minutes.errors|striptags }}</div>{% endif %}
               </div>
 
               <div class="col-12">
-                <label class="form-label" for="{{ form.public_description.id_for_label }}">Public description</label>
+                <label class="form-label" for="{{ form.public_description.id_for_label }}">Public description{% include "includes/help_icon.html" with text=form.public_description.help_text %}</label>
                 {{ form.public_description }}
-                {% if form.public_description.help_text %}<div class="form-text">{{ form.public_description.help_text }}</div>{% endif %}
                 {% if form.public_description.errors %}<div class="invalid-feedback d-block">{{ form.public_description.errors|striptags }}</div>{% endif %}
               </div>
 
@@ -124,10 +122,9 @@
                 <div class="form-check">
                   {{ form.requires_manual_confirmation }}
                   <label class="form-check-label" for="{{ form.requires_manual_confirmation.id_for_label }}">
-                    Requires manual confirmation
+                    Requires manual confirmation{% include "includes/help_icon.html" with text=form.requires_manual_confirmation.help_text %}
                   </label>
                 </div>
-                {% if form.requires_manual_confirmation.help_text %}<div class="form-text">{{ form.requires_manual_confirmation.help_text }}</div>{% endif %}
                 {% if form.requires_manual_confirmation.errors %}<div class="invalid-feedback d-block">{{ form.requires_manual_confirmation.errors|striptags }}</div>{% endif %}
               </div>
 

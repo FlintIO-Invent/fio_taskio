@@ -257,8 +257,10 @@
 
                     <div class="col-md-6">
                       <label class="form-label" for="{{ form.postal_code.id_for_label }}" data-address-label="postal">{{ form.postal_code.label }}</label>
+                      <span class="field-help-icon{% if not form.postal_code.help_text %} d-none{% endif %}" tabindex="0" role="img" aria-label="{{ form.postal_code.help_text|striptags }}" data-bs-toggle="tooltip" data-bs-trigger="hover focus" data-bs-placement="top" data-bs-title="{{ form.postal_code.help_text|striptags }}" data-address-help="postal">
+                        <span class="fa-solid fa-circle-exclamation" aria-hidden="true"></span>
+                      </span>
                       {{ form.postal_code }}
-                      <div class="form-text{% if not form.postal_code.help_text %} d-none{% endif %}" data-address-help="postal">{{ form.postal_code.help_text }}</div>
                       {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
                     </div>
                   
@@ -583,8 +585,14 @@
         }
 
         if (postalHelp) {
-          postalHelp.textContent = style.postalHelp || '';
-          postalHelp.classList.toggle('d-none', !style.postalHelp);
+          const postalHelpText = style.postalHelp || '';
+          postalHelp.classList.toggle('d-none', !postalHelpText);
+          postalHelp.setAttribute('aria-label', postalHelpText);
+          postalHelp.setAttribute('data-bs-title', postalHelpText);
+          const postalTooltip = window.bootstrap ? window.bootstrap.Tooltip.getInstance(postalHelp) : null;
+          if (postalTooltip) {
+            postalTooltip.setContent({ '.tooltip-inner': postalHelpText });
+          }
         }
       }
 

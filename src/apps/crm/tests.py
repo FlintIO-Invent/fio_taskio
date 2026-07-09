@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.template.defaultfilters import date as date_filter
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -259,6 +260,70 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("staff_client_detail", args=[foreign_client.id]))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_owner_can_archive_client(self):
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Casey",
+            last_name="Client",
+            email="casey-client@example.com",
+            phone="+1 721 555 1011",
+            company_name="Archive Client Co",
+            street_address="12 Main Street",
+            client_status=Client.ClientStatus.ACTIVE,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("staff_client_archive", args=[client_record.id]),
+            follow=True,
+        )
+
+        client_record.refresh_from_db()
+        self.assertRedirects(response, reverse("staff_client_list"))
+        self.assertFalse(client_record.is_active)
+        self.assertEqual(client_record.client_status, Client.ClientStatus.INACTIVE)
+        self.assertContains(response, "Existing invoices and appointments were kept")
+
+    def test_staff_cannot_archive_client(self):
+        client_record = Client.objects.create(
+            business=self.business,
+            first_name="Taylor",
+            last_name="Client",
+            email="staff-blocked-archive@example.com",
+            phone="+1 721 555 1012",
+            company_name="Blocked Archive Co",
+            street_address="14 Main Street",
+        )
+
+        self.client.force_login(self.staff_user)
+        response = self.client.post(
+            reverse("staff_client_archive", args=[client_record.id]),
+            follow=True,
+        )
+
+        client_record.refresh_from_db()
+        self.assertRedirects(response, reverse("staff_client_list"))
+        self.assertTrue(client_record.is_active)
+        self.assertContains(response, "You do not have permission to archive clients.")
+
+    def test_client_archive_blocks_other_business_client(self):
+        foreign_client = Client.objects.create(
+            business=self.other_business,
+            first_name="Foreign",
+            last_name="Client",
+            email="foreign-archive@example.com",
+            phone="+1 721 555 1013",
+            company_name="Foreign Archive Co",
+            street_address="99 Foreign Street",
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("staff_client_archive", args=[foreign_client.id]))
+
+        foreign_client.refresh_from_db()
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(foreign_client.is_active)
 
     def test_client_detail_shows_only_that_clients_current_business_appointments(self):
         self._enable_appointments_for_business()
@@ -657,10 +722,10 @@ class CRMBusinessScopingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
         self.assertContains(
             response,
-            "Public Bookings is not included in the current workspace plan",
+            "Online Booking is not included in the current workspace plan",
             status_code=403,
         )
         self.assertFalse(Lead.objects.filter(email="blocked-plan@example.com").exists())
@@ -1154,6 +1219,10 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("agent_dashboard"))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            date_filter(response.context["dashboard_today"], "l, F j, Y"),
+        )
         self.assertEqual(response.context["client_count"], 1)
         self.assertEqual(response.context["service_request_count"], 1)
         self.assertEqual(response.context["open_service_request_count"], 1)
@@ -1173,7 +1242,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(list(response.context["service_request_followups"]), [current_request])
         self.assertContains(response, "Alpha scheduled visit")
         self.assertContains(response, "ALPHA-1001")
-        self.assertContains(response, "Public Booking Review")
+        self.assertContains(response, "Online Booking Review")
         self.assertNotContains(response, "Bravo scheduled visit")
         self.assertNotContains(response, "BRAVO-1000")
         self.assertNotContains(response, "Bravo Request")
@@ -1205,7 +1274,7 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["public_booking_share_ready"])
-        self.assertContains(response, "Public Booking Link")
+        self.assertContains(response, "Online Booking Link")
         self.assertContains(response, reverse("public_booking", args=[self.business.slug]))
 
     def test_dashboard_shows_appointment_card_when_plan_allows_appointments(self):
@@ -1389,10 +1458,14 @@ class CRMBusinessScopingTests(TestCase):
         session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
         session.save()
 
-        list_response = self.client.get(reverse("business_service_category_list"))
+        category_list_response = self.client.get(reverse("business_service_category_list"))
+        list_response = self.client.get(reverse("business_service_list"))
 
+        self.assertRedirects(category_list_response, reverse("business_service_list"))
         self.assertEqual(list_response.status_code, 200)
+        self.assertContains(list_response, "Services & Categories")
         self.assertContains(list_response, own_category.name)
+        self.assertContains(list_response, "Service Categories")
         self.assertNotContains(list_response, "Foreign Category")
 
         create_response = self.client.post(
@@ -1407,7 +1480,10 @@ class CRMBusinessScopingTests(TestCase):
 
         created_category = ServiceCategory.objects.get(name="Emergency Callout")
 
-        self.assertRedirects(create_response, reverse("business_service_category_list"))
+        self.assertRedirects(
+            create_response,
+            f"{reverse('business_service_create')}?category={created_category.pk}",
+        )
         self.assertEqual(created_category.business, self.business)
         self.assertEqual(created_category.code, "emergency_callout")
 
@@ -1423,7 +1499,7 @@ class CRMBusinessScopingTests(TestCase):
 
         created_category.refresh_from_db()
 
-        self.assertRedirects(update_response, reverse("business_service_category_list"))
+        self.assertRedirects(update_response, reverse("business_service_list"))
         self.assertEqual(created_category.name, "Emergency Dispatch")
         self.assertEqual(created_category.code, "dispatch_priority")
 
@@ -1434,7 +1510,7 @@ class CRMBusinessScopingTests(TestCase):
 
         created_category.refresh_from_db()
 
-        self.assertRedirects(archive_response, reverse("business_service_category_list"))
+        self.assertRedirects(archive_response, reverse("business_service_list"))
         self.assertFalse(created_category.is_active)
         self.assertTrue(ServiceCategory.objects.filter(pk=created_category.pk).exists())
 
@@ -1526,7 +1602,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertContains(list_response, "Bookable")
         self.assertContains(
             list_response,
-            "Public bookings are included in the current workspace plan.",
+            "Online Booking is included in the current workspace plan.",
         )
         self.assertEqual(list_response.context["bookable_service_count"], 1)
         self.assertNotContains(list_response, "Foreign Service")
@@ -1607,6 +1683,78 @@ class CRMBusinessScopingTests(TestCase):
             reverse("business_service_update", args=[foreign_service.id]),
         )
         self.assertEqual(foreign_update_response.status_code, 404)
+
+    def test_business_service_create_can_create_category_inline(self):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.post(
+            reverse("business_service_create"),
+            {
+                "category": "",
+                "new_category_name": "Roof Repairs",
+                "name": "Leak Patch",
+                "external_code": "ROOF-001",
+                "description": "Patch active roof leaks.",
+                "unit_price": "180.00",
+                "tax_rate": "",
+                "is_active": "on",
+                "default_duration_minutes": "",
+                "booking_buffer_minutes": "",
+                "public_description": "",
+                "requires_manual_confirmation": "on",
+            },
+            follow=True,
+        )
+
+        created_category = ServiceCategory.objects.get(name="Roof Repairs")
+        created_service = BusinessService.objects.get(external_code="ROOF-001")
+
+        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertEqual(created_category.business, self.business)
+        self.assertEqual(created_category.code, "roof_repairs")
+        self.assertEqual(created_service.business, self.business)
+        self.assertEqual(created_service.category, created_category)
+        self.assertContains(response, "Roof Repairs")
+        self.assertContains(response, "Leak Patch")
+
+    def test_business_service_create_requires_existing_or_new_category_choice(self):
+        current_category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Diagnostics",
+        )
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+        response = self.client.post(
+            reverse("business_service_create"),
+            {
+                "category": current_category.id,
+                "new_category_name": "Roof Repairs",
+                "name": "Conflicting Category Service",
+                "external_code": "CONFLICT-001",
+                "description": "Should not save with both category fields.",
+                "unit_price": "180.00",
+                "tax_rate": "",
+                "is_active": "on",
+                "default_duration_minutes": "",
+                "booking_buffer_minutes": "",
+                "public_description": "",
+                "requires_manual_confirmation": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Choose an existing category or enter a new category, not both.",
+        )
+        self.assertFalse(BusinessService.objects.filter(external_code="CONFLICT-001").exists())
+        self.assertFalse(ServiceCategory.objects.filter(name="Roof Repairs").exists())
 
     def test_business_service_price_display_and_input_follow_business_locale(self):
         self.business.country = "Netherlands"
@@ -2455,7 +2603,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Public Booking Form")
+        self.assertContains(response, "Online Booking Form")
         self.assertContains(response, "Book an appointment now")
         self.assertContains(response, "Contact me before booking")
         self.assertContains(response, "Choose a date from")
@@ -2511,10 +2659,10 @@ class PublicBookingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
         self.assertContains(
             response,
-            "Public Booking Enabled plan limit of 1 public bookings this month",
+            "Public Booking Enabled plan limit of 1 online bookings this month",
             status_code=403,
         )
         self.assertFalse(Lead.objects.filter(email="limit-blocked-booking@example.com").exists())
@@ -2609,10 +2757,10 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
         self.assertContains(
             response,
-            "Public bookings are not available for this business right now.",
+            "Online Booking is not available for this business right now.",
             status_code=403,
         )
         self.assertNotContains(response, "current workspace plan", status_code=403)
@@ -2624,7 +2772,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
 
     def test_public_booking_page_unavailable_without_bookable_services(self):
         BusinessService.objects.filter(business=self.business).update(
@@ -2634,7 +2782,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
 
     def test_public_booking_page_unavailable_without_active_availability(self):
         WeeklyAvailability.objects.filter(business=self.business).update(is_active=False)
@@ -2642,7 +2790,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Public Bookings Unavailable", status_code=403)
+        self.assertContains(response, "Online Booking Unavailable", status_code=403)
 
     def test_public_booking_only_shows_active_bookable_current_business_services(self):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
@@ -3011,7 +3159,7 @@ class PublicBookingTests(TestCase):
 
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Booking Request")
-                self.assertContains(response, "Public Booking")
+                self.assertContains(response, "Online Booking")
                 self.assertContains(response, self.service.name)
                 self.assertContains(response, "45 minutes")
                 self.assertContains(response, "Please confirm if this time works.")

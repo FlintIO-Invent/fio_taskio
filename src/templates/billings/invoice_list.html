@@ -28,8 +28,8 @@
     <div class="col-auto">
       <div class="d-flex gap-3">
         {% if role_access.can_manage_invoices %}
-          <a class="btn btn-phoenix-primary" href="{% url 'staff_client_list' %}">
-            <span class="fa-solid fa-plus me-2"></span>Create from Client
+          <a class="btn btn-phoenix-primary" href="{% url 'invoice_create' %}">
+            <span class="fa-solid fa-plus me-2"></span>Create Invoice
           </a>
         {% endif %}
       </div>
@@ -100,13 +100,25 @@
                           <a href="{% url 'invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary">
                             <span class="fa-solid fa-eye"></span>
                           </a>
-                          {% if role_access.can_manage_invoices and invoice.status == 'DRAFT' %}
-                          <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-sm btn-outline-warning">
-                            <span class="fa-solid fa-edit"></span>
-                          </a>
-                          {% endif %}
-                        </div>
-                      </td>
+	                          {% if role_access.can_manage_invoices and invoice.status == 'DRAFT' %}
+	                          <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-sm btn-outline-warning">
+	                            <span class="fa-solid fa-edit"></span>
+	                          </a>
+	                          {% endif %}
+                            {% if role_access.can_delete_invoices %}
+                              <form method="post" action="{% url 'invoice_delete' invoice.pk %}">
+                                {% csrf_token %}
+                                <button
+                                  class="btn btn-sm btn-outline-danger"
+                                  type="submit"
+                                  onclick="return confirm('Delete invoice {{ invoice.invoice_number|escapejs }}? This cannot be undone.');"
+                                >
+                                  <span class="fa-solid fa-trash"></span>
+                                </button>
+                              </form>
+                            {% endif %}
+	                        </div>
+	                      </td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -129,7 +141,7 @@
               {% endif %}
             </p>
             {% if role_access.can_manage_invoices %}
-              <a href="{% url 'staff_client_list' %}" class="btn btn-phoenix-primary">
+              <a href="{% url 'invoice_create' %}" class="btn btn-phoenix-primary">
                 <span class="fa-solid fa-plus me-2"></span>Create Your First Invoice
               </a>
             {% endif %}

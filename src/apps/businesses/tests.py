@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import time, timedelta
 from decimal import Decimal
 from unittest import mock
 
@@ -6,11 +6,15 @@ from django.core import mail
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse
+from django.template.loader import render_to_string
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.models import TaskIOUser
-from apps.crm.models import BusinessService
+from apps.appointments.models import Appointment
+from apps.billings.models import Invoice
+from apps.crm.models import BusinessService, Client, Lead
 from config import Settings
 from helpers import build_public_url
 
@@ -36,6 +40,7 @@ from .utils import (
     can_use_module,
     get_current_business,
     get_current_business_membership,
+    get_business_usage_count,
 )
 
 
@@ -275,37 +280,40 @@ class MotionmatePlanCatalogTests(TestCase):
     def test_default_motionmate_plans_have_agreed_prices_limits_and_modules(self):
         expected = {
             "starter": {
-                "monthly": Decimal("19.00"),
-                "yearly": Decimal("190.00"),
+                "usd_monthly": Decimal("39.00"),
+                "eur_monthly": Decimal("39.00"),
+                "usd_yearly": Decimal("390.00"),
+                "eur_yearly": Decimal("390.00"),
                 "users": 2,
-                "clients": 100,
+                "staff": 1,
+                "clients": 15,
                 "invoices": 50,
-                "appointments": 0,
-                "public_bookings": 0,
-                "allow_appointments": False,
-                "allow_public_booking": False,
+                "appointments": 35,
+                "public_bookings": 50,
             },
             "pro": {
-                "monthly": Decimal("69.00"),
-                "yearly": Decimal("690.00"),
+                "usd_monthly": Decimal("79.00"),
+                "eur_monthly": Decimal("79.00"),
+                "usd_yearly": Decimal("790.00"),
+                "eur_yearly": Decimal("790.00"),
                 "users": 5,
-                "clients": 500,
-                "invoices": 250,
-                "appointments": 250,
-                "public_bookings": 0,
-                "allow_appointments": True,
-                "allow_public_booking": False,
+                "staff": 4,
+                "clients": 60,
+                "invoices": 200,
+                "appointments": 150,
+                "public_bookings": 250,
             },
             "business": {
-                "monthly": Decimal("119.00"),
-                "yearly": Decimal("1190.00"),
-                "users": 15,
-                "clients": 2000,
-                "invoices": 1000,
-                "appointments": 1000,
-                "public_bookings": 1000,
-                "allow_appointments": True,
-                "allow_public_booking": True,
+                "usd_monthly": Decimal("159.00"),
+                "eur_monthly": Decimal("149.00"),
+                "usd_yearly": Decimal("1590.00"),
+                "eur_yearly": Decimal("1490.00"),
+                "users": 10,
+                "staff": 9,
+                "clients": 150,
+                "invoices": 500,
+                "appointments": 400,
+                "public_bookings": 750,
             },
         }
 
@@ -315,9 +323,26 @@ class MotionmatePlanCatalogTests(TestCase):
         for plan in plans:
             with self.subTest(plan=plan.slug):
                 expected_plan = expected[plan.slug]
-                self.assertEqual(plan.price_monthly, expected_plan["monthly"])
-                self.assertEqual(plan.price_yearly, expected_plan["yearly"])
+                self.assertEqual(plan.price_monthly, expected_plan["usd_monthly"])
+                self.assertEqual(plan.price_yearly, expected_plan["usd_yearly"])
+                self.assertEqual(
+                    Decimal(plan.regional_prices["usd"]["monthly"]),
+                    expected_plan["usd_monthly"],
+                )
+                self.assertEqual(
+                    Decimal(plan.regional_prices["usd"]["yearly"]),
+                    expected_plan["usd_yearly"],
+                )
+                self.assertEqual(
+                    Decimal(plan.regional_prices["eur"]["monthly"]),
+                    expected_plan["eur_monthly"],
+                )
+                self.assertEqual(
+                    Decimal(plan.regional_prices["eur"]["yearly"]),
+                    expected_plan["eur_yearly"],
+                )
                 self.assertEqual(plan.max_users, expected_plan["users"])
+                self.assertEqual(plan.staff_account_limit, expected_plan["staff"])
                 self.assertEqual(plan.max_clients, expected_plan["clients"])
                 self.assertEqual(plan.max_invoices_per_month, expected_plan["invoices"])
                 self.assertEqual(
@@ -330,32 +355,17 @@ class MotionmatePlanCatalogTests(TestCase):
                 )
                 self.assertTrue(plan.allows_module("client_management"))
                 self.assertTrue(plan.allows_module("invoicing"))
-                self.assertEqual(
-                    plan.allows_module("appointments"),
-                    expected_plan["allow_appointments"],
-                )
-                self.assertEqual(
-                    plan.allows_module("public_booking"),
-                    expected_plan["allow_public_booking"],
-                )
-                self.assertEqual(
-                    plan.allows_module("public_booking_requests"),
-                    expected_plan["allow_public_booking"],
-                )
-                self.assertEqual(
-                    plan.allows_module("public_request_form"),
-                    expected_plan["allow_public_booking"],
-                )
-                self.assertEqual(
-                    plan.regional_prices["netherlands"]["tax_note"],
-                    "ex. VAT",
-                )
+                self.assertTrue(plan.allows_module("appointments"))
+                self.assertTrue(plan.allows_module("public_booking"))
+                self.assertTrue(plan.allows_module("public_booking_requests"))
+                self.assertTrue(plan.allows_module("public_request_form"))
+                self.assertIn("total users", plan.user_limit_summary)
 
         self.assertTrue(ClarivoPlan.objects.get(slug="pro").is_recommended)
         self.assertFalse(ClarivoPlan.objects.get(slug="starter").is_recommended)
         self.assertFalse(ClarivoPlan.objects.get(slug="business").is_recommended)
 
-    def test_display_pricing_defaults_publicly_and_uses_netherlands_business_context(self):
+    def test_display_pricing_supports_usd_default_and_eur_business_context(self):
         plan = ClarivoPlan.objects.get(slug="business")
         dutch_business = Business.objects.create(
             name="Amsterdam Ops",
@@ -365,13 +375,16 @@ class MotionmatePlanCatalogTests(TestCase):
 
         public_pricing = plan.get_display_pricing()
         dutch_pricing = plan.get_display_pricing(business=dutch_business)
+        eur_pricing = plan.get_display_pricing(region=ClarivoPlan.EUR_PRICING_REGION)
 
-        self.assertEqual(public_pricing["monthly_display"], "€119")
-        self.assertEqual(public_pricing["yearly_display"], "€1,190")
+        self.assertEqual(public_pricing["monthly_display"], "$159")
+        self.assertEqual(public_pricing["yearly_display"], "$1,590")
         self.assertEqual(public_pricing["tax_note"], "")
-        self.assertEqual(dutch_pricing["monthly_display"], "€169")
-        self.assertEqual(dutch_pricing["yearly_display"], "€1,690")
-        self.assertEqual(dutch_pricing["tax_note"], "ex. VAT")
+        self.assertEqual(dutch_pricing["monthly_display"], "€149")
+        self.assertEqual(dutch_pricing["yearly_display"], "€1,490")
+        self.assertEqual(dutch_pricing["tax_note"], "")
+        self.assertEqual(eur_pricing["monthly_display"], "€149")
+        self.assertEqual(eur_pricing["yearly_display"], "€1,490")
 
     def test_business_limit_helper_uses_subscription_plan_limits(self):
         business = Business.objects.create(name="Starter Limit HQ", slug="starter-limit-hq")
@@ -394,10 +407,147 @@ class MotionmatePlanCatalogTests(TestCase):
 
         self.assertTrue(business_limit_reached(business, "users"))
         self.assertFalse(business_limit_reached(business, "clients"))
+        self.assertFalse(business_limit_reached(business, "appointments_per_month"))
+        self.assertFalse(business_limit_reached(business, "public_bookings_per_month"))
+
+    def _create_client(self, business, email: str, **overrides):
+        defaults = {
+            "business": business,
+            "first_name": "Test",
+            "last_name": "Client",
+            "email": email,
+            "phone": "+1 721 555 0000",
+            "company_name": "Test Client Co",
+            "street_address": "Front Street 1",
+        }
+        defaults.update(overrides)
+        return Client.objects.create(**defaults)
+
+    def test_active_client_usage_excludes_archived_and_inactive_clients(self):
+        business = Business.objects.create(name="Active Client HQ", slug="active-client-hq")
+        plan = ClarivoPlan.objects.create(
+            name="Active Client Cap",
+            slug="active-client-cap",
+            max_clients=2,
+            allow_invoicing=True,
+            allow_appointments=True,
+            allow_public_booking=True,
+        )
+        BusinessSubscription.objects.create(
+            business=business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        self._create_client(
+            business,
+            "active@example.com",
+            client_status=Client.ClientStatus.ACTIVE,
+        )
+        self._create_client(
+            business,
+            "prospect@example.com",
+            client_status=Client.ClientStatus.PROSPECT,
+        )
+        self._create_client(
+            business,
+            "inactive-status@example.com",
+            client_status=Client.ClientStatus.INACTIVE,
+        )
+        self._create_client(
+            business,
+            "archived-status@example.com",
+            client_status=Client.ClientStatus.ARCHIVED,
+        )
+        self._create_client(
+            business,
+            "inactive-flag@example.com",
+            is_active=False,
+        )
+
+        self.assertEqual(get_business_usage_count(business, "clients"), 2)
+        self.assertTrue(business_limit_reached(business, "clients"))
+
+    def test_monthly_usage_limits_count_current_month_records_only(self):
+        business = Business.objects.create(name="Monthly Limit HQ", slug="monthly-limit-hq")
+        plan = ClarivoPlan.objects.create(
+            name="Monthly Cap",
+            slug="monthly-cap",
+            max_invoices_per_month=1,
+            max_appointments_per_month=1,
+            max_public_bookings_per_month=1,
+            allow_invoicing=True,
+            allow_appointments=True,
+            allow_public_booking=True,
+        )
+        BusinessSubscription.objects.create(
+            business=business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        client = self._create_client(business, "monthly-client@example.com")
+        now = timezone.now()
+        previous_month = now - timedelta(days=40)
+
+        old_invoice = Invoice.objects.create(
+            business=business,
+            client=client,
+            invoice_number="OLD-001",
+        )
+        Invoice.objects.filter(pk=old_invoice.pk).update(created_at=previous_month)
+        old_appointment = Appointment.objects.create(
+            business=business,
+            client=client,
+            title="Old appointment",
+            start_time=previous_month,
+            end_time=previous_month + timedelta(hours=1),
+        )
+        Appointment.objects.filter(pk=old_appointment.pk).update(created_at=now)
+        old_booking = Lead.objects.create(
+            business=business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            request_source=Lead.RequestSource.PUBLIC_BOOKING,
+            first_name="Old",
+            last_name="Booking",
+            email="old-booking@example.com",
+            phone="+1 721 555 1111",
+            company_name="Old Booking Co",
+        )
+        Lead.objects.filter(pk=old_booking.pk).update(created_at=previous_month)
+
+        self.assertFalse(business_limit_reached(business, "invoices_per_month"))
+        self.assertFalse(business_limit_reached(business, "appointments_per_month"))
+        self.assertFalse(business_limit_reached(business, "public_bookings_per_month"))
+
+        Invoice.objects.create(
+            business=business,
+            client=client,
+            invoice_number="CUR-001",
+        )
+        Appointment.objects.create(
+            business=business,
+            client=client,
+            title="Current appointment",
+            start_time=now + timedelta(hours=1),
+            end_time=now + timedelta(hours=2),
+        )
+        Lead.objects.create(
+            business=business,
+            lead_type=Lead.LeadType.REQUEST,
+            status=Lead.Status.NEW,
+            request_source=Lead.RequestSource.PUBLIC_BOOKING,
+            first_name="Current",
+            last_name="Booking",
+            email="current-booking@example.com",
+            phone="+1 721 555 2222",
+            company_name="Current Booking Co",
+        )
+
+        self.assertTrue(business_limit_reached(business, "invoices_per_month"))
         self.assertTrue(business_limit_reached(business, "appointments_per_month"))
         self.assertTrue(business_limit_reached(business, "public_bookings_per_month"))
 
-    def test_public_pricing_page_uses_euro_prices_and_no_growth_plan(self):
+    def test_public_pricing_page_uses_final_dual_currency_prices_and_no_growth_plan(self):
         ClarivoPlan.objects.create(
             name="Growth",
             slug="growth",
@@ -409,20 +559,69 @@ class MotionmatePlanCatalogTests(TestCase):
         response = self.client.get(reverse("home"), HTTP_HOST="localhost", secure=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "€19")
-        self.assertContains(response, "€69")
-        self.assertContains(response, "€119")
-        self.assertContains(response, "€1,190 billed yearly")
+        self.assertContains(response, "$39")
+        self.assertContains(response, "€39")
+        self.assertContains(response, "$79")
+        self.assertContains(response, "€79")
+        self.assertContains(response, "$159")
+        self.assertContains(response, "€149")
+        self.assertContains(response, "$1,590 yearly USD")
+        self.assertContains(response, "€1,490 yearly EUR")
         self.assertContains(response, "Recommended")
-        self.assertContains(response, "Client Management")
-        self.assertContains(response, "Public Bookings")
+        self.assertContains(response, "Client CRM")
+        self.assertContains(response, "Online Booking")
+        self.assertContains(response, "2 total users: owner + 1 staff account")
         self.assertNotContains(response, "$0.00")
         self.assertNotContains(response, "Free")
         self.assertNotContains(response, "Growth")
         self.assertNotContains(response, "Public Request Form")
-        self.assertNotContains(response, "Public booking requests")
+        self.assertNotContains(response, "Public Booking")
 
-    def test_starter_direct_urls_block_locked_services_cleanly(self):
+    def test_current_landing_page_stays_on_existing_template(self):
+        response = self.client.get(reverse("home"), HTTP_HOST="localhost", secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "main/landing.html")
+        self.assertContains(response, "assets/css/theme.min.css")
+        self.assertNotContains(response, "public_site/css/theme.min.css")
+
+    def test_public_site_preview_uses_namespaced_template_and_assets(self):
+        response = self.client.get(reverse("site_preview"), HTTP_HOST="localhost", secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "public_site/home.html")
+        self.assertTemplateUsed(response, "public_site/base.html")
+        self.assertContains(response, "public_site/css/theme.min.css")
+        self.assertContains(response, "public_site/js/theme.min.js")
+        self.assertNotContains(response, "/static/assets/css/theme.min.css")
+        self.assertContains(response, "Task Management Assistant You Gonna Love")
+
+    def test_public_site_templates_use_django_static_paths(self):
+        template_names = [
+            "public_site/base.html",
+            "public_site/home.html",
+            "public_site/landing-saas-v1.html",
+            "public_site/landing-saas-v2.html",
+            "public_site/landing-saas-v3.html",
+        ]
+
+        for template_name in template_names:
+            with self.subTest(template_name=template_name):
+                html = render_to_string(template_name)
+                self.assertIn("public_site/", html)
+                self.assertNotIn('href="assets/', html)
+                self.assertNotIn('src="assets/', html)
+                self.assertNotIn('content="assets/', html)
+                self.assertNotIn("url(assets/", html)
+                self.assertNotIn("public_site/assets/", html)
+
+    def test_root_still_redirects_to_current_landing(self):
+        response = self.client.get("/", HTTP_HOST="localhost", secure=True)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("home"))
+
+    def test_starter_direct_urls_allow_included_modules_and_show_setup_state(self):
         business = Business.objects.create(
             name="Starter Direct URL",
             slug="starter-direct-url",
@@ -448,20 +647,16 @@ class MotionmatePlanCatalogTests(TestCase):
 
         client_response = self.client.get(reverse("staff_client_list"))
         invoice_response = self.client.get(reverse("invoice_list"))
-        appointment_response = self.client.get(reverse("appointment_list"), follow=True)
+        appointment_response = self.client.get(reverse("appointment_list"))
         public_booking_response = self.client.get(reverse("public_booking", args=[business.slug]))
 
         self.assertEqual(client_response.status_code, 200)
         self.assertEqual(invoice_response.status_code, 200)
-        self.assertRedirects(appointment_response, reverse("business_subscription"))
-        self.assertContains(
-            appointment_response,
-            "Appointments is not included in the current workspace plan.",
-        )
+        self.assertEqual(appointment_response.status_code, 200)
         self.assertEqual(public_booking_response.status_code, 403)
         self.assertContains(
             public_booking_response,
-            "Public Bookings Unavailable",
+            "Online Booking Unavailable",
             status_code=403,
         )
 
@@ -624,9 +819,9 @@ class BusinessSettingsViewTests(TestCase):
         self.assertContains(response, 'name="tax_rate"')
         self.assertContains(response, 'step="1.00"')
 
-    def test_business_settings_showcases_ready_public_booking_link(self):
+    def test_business_settings_showcases_ready_online_booking_link(self):
         public_booking_plan = ClarivoPlan.objects.create(
-            name="Public Booking",
+            name="Online Booking",
             slug="business-settings-public-booking",
             allow_public_booking=True,
         )
@@ -654,7 +849,7 @@ class BusinessSettingsViewTests(TestCase):
 
         response = self.client.get(reverse("business_settings"))
 
-        self.assertContains(response, "Public Booking Link")
+        self.assertContains(response, "Online Booking Link")
         self.assertContains(response, "Ready to share")
         self.assertContains(response, reverse("public_booking", args=[self.business.slug]))
 
@@ -837,6 +1032,21 @@ class BusinessBookingSettingsTests(TestCase):
         payload.update(overrides)
         return payload
 
+    def _bulk_availability_payload(self, **overrides):
+        payload = {
+            "form_kind": "bulk_availability",
+            "days": [
+                WeeklyAvailability.DayOfWeek.MONDAY,
+                WeeklyAvailability.DayOfWeek.WEDNESDAY,
+                WeeklyAvailability.DayOfWeek.FRIDAY,
+            ],
+            "start_time": "09:00",
+            "end_time": "17:00",
+            "is_active": "on",
+        }
+        payload.update(overrides)
+        return payload
+
     def test_booking_settings_validation_rejects_invalid_values(self):
         settings = BusinessBookingSettings(
             business=self.business,
@@ -868,6 +1078,7 @@ class BusinessBookingSettingsTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Booking Settings")
                 self.assertContains(response, "Add Weekly Availability")
+                self.assertContains(response, "Bulk")
 
     def test_accountant_and_viewer_cannot_edit_booking_settings(self):
         for role in [
@@ -932,6 +1143,72 @@ class BusinessBookingSettingsTests(TestCase):
         self.assertEqual(availability.end_time, time(17, 0))
         self.assertTrue(availability.is_active)
         self.assertFalse(WeeklyAvailability.objects.filter(business=self.other_business).exists())
+
+    def test_bulk_weekly_availability_creates_selected_days(self):
+        self._login_with_role(BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._bulk_availability_payload(),
+            follow=True,
+        )
+
+        availability_blocks = list(
+            WeeklyAvailability.objects.filter(business=self.business).order_by("day_of_week")
+        )
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertContains(response, "3 weekly availability blocks added.")
+        self.assertEqual(len(availability_blocks), 3)
+        self.assertEqual(
+            [block.day_of_week for block in availability_blocks],
+            [
+                WeeklyAvailability.DayOfWeek.MONDAY,
+                WeeklyAvailability.DayOfWeek.WEDNESDAY,
+                WeeklyAvailability.DayOfWeek.FRIDAY,
+            ],
+        )
+        self.assertTrue(all(block.start_time == time(9, 0) for block in availability_blocks))
+        self.assertTrue(all(block.end_time == time(17, 0) for block in availability_blocks))
+        self.assertTrue(all(block.staff_member is None for block in availability_blocks))
+        self.assertFalse(WeeklyAvailability.objects.filter(business=self.other_business).exists())
+
+    def test_staff_bulk_availability_is_added_to_own_schedule(self):
+        self._login_with_role(BusinessUser.Role.STAFF)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._bulk_availability_payload(
+                staff_member="",
+                days=[
+                    WeeklyAvailability.DayOfWeek.TUESDAY,
+                    WeeklyAvailability.DayOfWeek.THURSDAY,
+                ],
+            ),
+            follow=True,
+        )
+
+        availability_blocks = list(
+            WeeklyAvailability.objects.filter(business=self.business).order_by("day_of_week")
+        )
+
+        self.assertRedirects(response, reverse("business_booking_settings"))
+        self.assertEqual(len(availability_blocks), 2)
+        self.assertTrue(all(block.staff_member == self.user for block in availability_blocks))
+        self.assertContains(response, "Booking Owner")
+
+    def test_bulk_weekly_availability_requires_selected_days(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+
+        response = self.client.post(
+            reverse("business_booking_settings"),
+            self._bulk_availability_payload(days=[]),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Please correct the bulk availability errors below.")
+        self.assertContains(response, "This field is required.")
+        self.assertFalse(WeeklyAvailability.objects.filter(business=self.business).exists())
 
     def test_admin_can_create_staff_specific_availability(self):
         self._login_with_role(BusinessUser.Role.ADMIN)
@@ -1092,7 +1369,7 @@ class BusinessBookingSettingsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            "Public Bookings is not included in the current workspace plan.",
+            "Online Booking is not included in the current workspace plan.",
         )
         self.assertContains(response, "You can still prepare these settings now")
 
@@ -1107,7 +1384,7 @@ class BusinessBookingSettingsTests(TestCase):
         response = self.client.get(reverse("business_booking_settings"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Public bookings require setup")
+        self.assertContains(response, "Online Booking requires setup")
 
     def test_staff_can_see_ready_public_booking_link_in_booking_settings(self):
         BusinessSubscription.objects.create(
@@ -1144,7 +1421,7 @@ class BusinessBookingSettingsTests(TestCase):
         response = self.client.get(reverse("business_booking_settings"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Public Booking Link")
+        self.assertContains(response, "Online Booking Link")
         self.assertContains(response, "Ready to share")
         self.assertContains(response, reverse("public_booking", args=[self.business.slug]))
 
@@ -1165,6 +1442,7 @@ class BusinessSubscriptionViewTests(TestCase):
         )
         self.starter_plan = ClarivoPlan.objects.get(slug="starter")
         self.pro_plan = ClarivoPlan.objects.get(slug="pro")
+        self.business_plan = ClarivoPlan.objects.get(slug="business")
 
     def _login_with_role(self, role: str):
         BusinessUser.objects.create(
@@ -1176,6 +1454,17 @@ class BusinessSubscriptionViewTests(TestCase):
         session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
         session.save()
         self.client.force_login(self.user)
+
+    def _add_business_member(self, email: str, role: str = BusinessUser.Role.STAFF):
+        user = TaskIOUser.objects.create_user(
+            email=email,
+            password="StrongPass123!",
+        )
+        return BusinessUser.objects.create(
+            user=user,
+            business=self.business,
+            role=role,
+        )
 
     def test_owner_can_view_subscription_page(self):
         self._login_with_role(BusinessUser.Role.OWNER)
@@ -1193,8 +1482,11 @@ class BusinessSubscriptionViewTests(TestCase):
         self.assertContains(response, "Current Plan")
         self.assertContains(response, "Pro")
         self.assertNotContains(response, "Recommended")
+        self.assertContains(response, "Online Booking")
+        self.assertContains(response, "Current Usage")
+        self.assertNotContains(response, "Marketing Tools")
 
-    def test_subscription_page_shows_netherlands_prices_as_ex_vat(self):
+    def test_subscription_page_shows_final_usd_and_eur_prices(self):
         self.business.country = "Netherlands"
         self.business.save(update_fields=["country", "updated_at"])
         self._login_with_role(BusinessUser.Role.OWNER)
@@ -1207,10 +1499,13 @@ class BusinessSubscriptionViewTests(TestCase):
         response = self.client.get(reverse("business_subscription"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "€29")
-        self.assertContains(response, "€99")
-        self.assertContains(response, "€169")
-        self.assertContains(response, "ex. VAT")
+        self.assertContains(response, "$39")
+        self.assertContains(response, "€39")
+        self.assertContains(response, "$79")
+        self.assertContains(response, "€79")
+        self.assertContains(response, "$159")
+        self.assertContains(response, "€149")
+        self.assertNotContains(response, "ex. VAT")
         self.assertContains(response, "Current Plan")
         self.assertContains(response, "Recommended")
 
@@ -1235,6 +1530,77 @@ class BusinessSubscriptionViewTests(TestCase):
         self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
         self.assertTrue(subscription.can_use_module("appointments"))
         self.assertContains(response, "Workspace plan updated to Pro")
+
+    def test_over_quota_downgrade_requires_confirmation_before_plan_changes(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        self._add_business_member("staff-one@example.com")
+        self._add_business_member("staff-two@example.com")
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.business_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {"plan": self.starter_plan.id},
+        )
+
+        subscription.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(subscription.plan, self.business_plan)
+        self.assertContains(response, "Review the limits before changing to Starter.")
+        self.assertContains(response, "Confirm change to Starter")
+        self.assertContains(response, "Over Starter quota")
+        self.assertContains(response, "Total users/seats: using 3, Starter allows 2.")
+        self.assertNotContains(response, "Workspace plan updated to Starter")
+
+    def test_confirmed_over_quota_downgrade_keeps_records_and_updates_plan(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        self._add_business_member("staff-one@example.com")
+        self._add_business_member("staff-two@example.com")
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.business_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {
+                "plan": self.starter_plan.id,
+                "confirm_plan_change": "1",
+            },
+            follow=True,
+        )
+
+        subscription.refresh_from_db()
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertEqual(subscription.plan, self.starter_plan)
+        self.assertEqual(self.business.memberships.filter(is_active=True).count(), 3)
+        self.assertTrue(business_limit_reached(self.business, "users"))
+        self.assertContains(response, "Workspace plan updated to Starter")
+        self.assertContains(response, "Existing records were kept")
+
+    def test_downgrade_without_quota_or_module_loss_updates_immediately(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.business_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {"plan": self.pro_plan.id},
+            follow=True,
+        )
+
+        subscription.refresh_from_db()
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertEqual(subscription.plan, self.pro_plan)
+        self.assertContains(response, "Workspace plan updated to Pro")
+        self.assertNotContains(response, "Modules no longer included")
 
     def test_owner_can_start_trial_from_subscription_page_if_missing(self):
         self._login_with_role(BusinessUser.Role.OWNER)
@@ -1292,6 +1658,103 @@ class BusinessInvitationViewTests(TestCase):
         session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
         session.save()
         self.client.force_login(user)
+
+    def test_invitation_role_choices_follow_plan_packaging(self):
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=ClarivoPlan.objects.get(slug="starter"),
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        self._login(self.owner, BusinessUser.Role.OWNER)
+
+        starter_response = self.client.get(reverse("business_team_members"))
+        starter_roles = {
+            role_value
+            for role_value, _role_label in starter_response.context[
+                "invite_form"
+            ].fields["role"].choices
+        }
+
+        self.assertIn(BusinessUser.Role.OWNER, starter_roles)
+        self.assertIn(BusinessUser.Role.ADMIN, starter_roles)
+        self.assertIn(BusinessUser.Role.STAFF, starter_roles)
+        self.assertNotIn(BusinessUser.Role.ACCOUNTANT, starter_roles)
+        self.assertNotIn(BusinessUser.Role.VIEWER, starter_roles)
+
+        subscription.plan = ClarivoPlan.objects.get(slug="business")
+        subscription.save(update_fields=["plan", "updated_at"])
+
+        business_response = self.client.get(reverse("business_team_members"))
+        business_roles = {
+            role_value
+            for role_value, _role_label in business_response.context[
+                "invite_form"
+            ].fields["role"].choices
+        }
+
+        self.assertIn(BusinessUser.Role.ACCOUNTANT, business_roles)
+        self.assertIn(BusinessUser.Role.VIEWER, business_roles)
+
+    def test_owner_can_deactivate_team_member(self):
+        self._login(self.owner, BusinessUser.Role.OWNER)
+        staff_user = TaskIOUser.objects.create_user(
+            email="staff-to-remove@example.com",
+            password="StrongPass123!",
+        )
+        staff_membership = BusinessUser.objects.create(
+            user=staff_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+
+        response = self.client.post(
+            reverse("business_team_member_deactivate", args=[staff_membership.id]),
+            follow=True,
+        )
+
+        staff_membership.refresh_from_db()
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertFalse(staff_membership.is_active)
+        self.assertContains(response, "was removed from the active team")
+
+    def test_admin_can_deactivate_staff_team_member(self):
+        self._login(self.admin, BusinessUser.Role.ADMIN)
+        staff_user = TaskIOUser.objects.create_user(
+            email="staff-admin-remove@example.com",
+            password="StrongPass123!",
+        )
+        staff_membership = BusinessUser.objects.create(
+            user=staff_user,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+
+        response = self.client.post(
+            reverse("business_team_member_deactivate", args=[staff_membership.id]),
+            follow=True,
+        )
+
+        staff_membership.refresh_from_db()
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertFalse(staff_membership.is_active)
+
+    def test_admin_cannot_deactivate_owner_team_member(self):
+        owner_membership = BusinessUser.objects.create(
+            user=self.owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self._login(self.admin, BusinessUser.Role.ADMIN)
+
+        response = self.client.post(
+            reverse("business_team_member_deactivate", args=[owner_membership.id]),
+            follow=True,
+        )
+
+        owner_membership.refresh_from_db()
+        self.assertRedirects(response, reverse("business_team_members"))
+        self.assertTrue(owner_membership.is_active)
+        self.assertContains(response, "You do not have permission to remove that workspace role.")
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
