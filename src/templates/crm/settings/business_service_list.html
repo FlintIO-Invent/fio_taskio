@@ -20,6 +20,7 @@
       <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Back to settings</a>
       <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Sample CSV</a>
       <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Import CSV</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_category_create' %}">Create category</a>
       <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create service</a>
     </div>
   </div>
@@ -167,7 +168,7 @@
             <h4 class="mb-1">Service Categories</h4>
             <p class="text-body-tertiary mb-0">Categories organize services on staff and online booking forms.</p>
           </div>
-          <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create service with category</a>
+          <a class="btn btn-primary" href="{% url 'business_service_category_create' %}">Create category</a>
         </div>
       </div>
 
@@ -217,8 +218,8 @@
       {% else %}
         <div class="p-4 p-lg-5 text-center">
           <h4 class="mb-2">No categories yet</h4>
-          <p class="text-body-tertiary mb-4">Create your first service and enter a category name in the same form.</p>
-          <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create service with category</a>
+          <p class="text-body-tertiary mb-4">Create the service categories this workspace should use for service requests.</p>
+          <a class="btn btn-primary" href="{% url 'business_service_category_create' %}">Create first category</a>
         </div>
       {% endif %}
     </div>

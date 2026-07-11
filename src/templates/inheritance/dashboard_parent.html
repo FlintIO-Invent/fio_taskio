@@ -174,32 +174,47 @@
                                     </div>
                                 </a>
                                 <div class="parent-wrapper label-1">
-                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-client">
-                                        <li class="collapsed-nav-item-title d-none"></li>
-                                        <li class="nav-item">
-                                            <a class="nav-link" href="{% url 'staff_client_list' %}">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">View All Clients</span></div>
-                                            </a>
-                                            {% if role_access.can_manage_clients %}
-                                                <a class="nav-link" href="{% url 'staff_client_create' %}">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Client</span></div>
-                                                </a>
-                                            {% endif %}
-                                        </li>
-                                        <li class="nav-item">
-                                            <a class="nav-link" href="{% url 'staff_lead_list' %}" data-onboarding-target="service-requests">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
-                                            </a>
-                                            {% if role_access.can_manage_leads %}
-                                                <a class="nav-link" href="{% url 'staff_lead_create' %}">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Service Request</span></div>
-                                                </a>
-                                            {% endif %}
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </li>
+	                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-client">
+	                                        <li class="collapsed-nav-item-title d-none"></li>
+	                                        <li class="nav-item">
+	                                            <a class="nav-link" href="{% url 'staff_client_list' %}">
+	                                                <div class="d-flex align-items-center"><span class="nav-link-text">View All Clients</span></div>
+	                                            </a>
+	                                            {% if role_access.can_manage_clients %}
+	                                                <a class="nav-link" href="{% url 'staff_client_create' %}">
+	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Client</span></div>
+	                                                </a>
+	                                            {% endif %}
+	                                        </li>
+	                                    </ul>
+	                                </div>
+	                            </div>
+
+	                            <!-- service request navigation -->
+	                            <div class="nav-item-wrapper">
+	                                <a class="nav-link dropdown-indicator label-1" href="#nv-service-requests" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-service-requests" data-onboarding-target="service-requests">
+	                                    <div class="d-flex align-items-center">
+	                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+	                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Service Requests</span>
+	                                    </div>
+	                                </a>
+	                                <div class="parent-wrapper label-1">
+	                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-service-requests">
+	                                        <li class="collapsed-nav-item-title d-none">Service Requests</li>
+	                                        <li class="nav-item">
+	                                            <a class="nav-link" href="{% url 'staff_lead_list' %}">
+	                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
+	                                            </a>
+	                                            {% if role_access.can_manage_leads %}
+	                                                <a class="nav-link" href="{% url 'staff_lead_create' %}">
+	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Service Request</span></div>
+	                                                </a>
+	                                            {% endif %}
+	                                        </li>
+	                                    </ul>
+	                                </div>
+	                            </div>
+	                        </li>
 
                         <!-- Module Section -->
                         <li class="nav-item">
