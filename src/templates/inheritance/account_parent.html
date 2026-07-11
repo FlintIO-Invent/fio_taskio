@@ -106,61 +106,6 @@
                             <p class="navbar-vertical-label">Workspace</p>
                             <hr class="navbar-vertical-line" />
 
-                            <!-- service request navigation -->
-                            <div class="nav-item-wrapper">
-                                <a class="nav-link dropdown-indicator label-1" href="#nv-service-requests" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-service-requests">
-                                    <div class="d-flex align-items-center">
-                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Service Requests</span>
-                                    </div>
-                                </a>
-                                <div class="parent-wrapper label-1">
-                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-service-requests">
-                                        <li class="collapsed-nav-item-title d-none">Service Requests</li>
-                                        <li class="nav-item">
-                                            <a class="nav-link" href="{% url 'staff_lead_create' %}">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create service request</span></div>
-                                            </a>
-                                            <!-- more inner pages-->
-                                        </li>
-                                        <li class="nav-item">
-                                            <a class="nav-link" href="{% url 'staff_lead_list' %}">  
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests </span></div>
-                                            </a>
-                                            <!-- more inner pages-->
-                                        </li>
-                                        
-                                        <!-- Verson 1 Additions -->
-                                        <template>
-                                            <li class="nav-item">
-                                                <a class="nav-link" href="../apps/project-management/project-card-view.html">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Project card view</span></div>
-                                                </a>
-                                                <!-- more inner pages-->
-                                            </li>
-                                            <li class="nav-item">
-                                                <a class="nav-link" href="../apps/project-management/project-board-view.html">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Project board view</span></div>
-                                                </a>
-                                                <!-- more inner pages-->
-                                            </li>
-                                            <li class="nav-item">
-                                                <a class="nav-link" href="../apps/project-management/todo-list.html">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Todo list</span></div>
-                                                </a>
-                                                <!-- more inner pages-->
-                                            </li>
-                                            <li class="nav-item">
-                                                <a class="nav-link" href="../apps/project-management/project-details.html">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Project details</span></div>
-                                                </a>
-                                                <!-- more inner pages-->
-                                            </li>
-                                        </template>
-                                    </ul>
-                                </div>
-                            </div>
-
                             <!-- client navigation -->
                             <div class="nav-item-wrapper">
                                 <a class="nav-link dropdown-indicator label-1" href="#nv-clients" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-clients">
@@ -212,6 +157,31 @@
                                                 <!-- more inner pages-->
                                             </li>
                                         </template>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- service request navigation -->
+                            <div class="nav-item-wrapper">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-service-requests" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-service-requests">
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Service Requests</span>
+                                    </div>
+                                </a>
+                                <div class="parent-wrapper label-1">
+                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-service-requests">
+                                        <li class="collapsed-nav-item-title d-none">Service Requests</li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'staff_lead_list' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'staff_lead_create' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create Service Request</span></div>
+                                            </a>
+                                        </li>
                                     </ul>
                                 </div>
                             </div>

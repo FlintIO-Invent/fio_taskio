@@ -1461,13 +1461,18 @@ class CRMBusinessScopingTests(TestCase):
 
         category_list_response = self.client.get(reverse("business_service_category_list"))
         list_response = self.client.get(reverse("business_service_list"))
+        create_page_response = self.client.get(reverse("business_service_category_create"))
 
         self.assertRedirects(category_list_response, reverse("business_service_list"))
         self.assertEqual(list_response.status_code, 200)
         self.assertContains(list_response, "Services & Categories")
         self.assertContains(list_response, own_category.name)
         self.assertContains(list_response, "Service Categories")
+        self.assertContains(list_response, reverse("business_service_category_create"))
+        self.assertNotContains(list_response, "Create service with category")
         self.assertNotContains(list_response, "Foreign Category")
+        self.assertEqual(create_page_response.status_code, 200)
+        self.assertContains(create_page_response, "Create service category")
 
         create_response = self.client.post(
             reverse("business_service_category_create"),
@@ -1483,7 +1488,7 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertRedirects(
             create_response,
-            f"{reverse('business_service_create')}?category={created_category.pk}",
+            reverse("business_service_list"),
         )
         self.assertEqual(created_category.business, self.business)
         self.assertEqual(created_category.code, "emergency_callout")
@@ -3649,6 +3654,27 @@ class DashboardOnboardingViewTests(TestCase):
 
         self.assertContains(owner_response, "Open Setup Guide")
         self.assertNotContains(staff_response, "Open Setup Guide")
+
+    def test_dashboard_sidebar_shows_service_requests_below_clients(self):
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        html = response.content.decode()
+        clients_menu_index = html.index('id="nv-client"')
+        service_requests_menu_index = html.index('id="nv-service-requests"')
+        clients_menu_html = html[clients_menu_index:service_requests_menu_index]
+        service_requests_menu_html = html[service_requests_menu_index:]
+
+        self.assertLess(clients_menu_index, service_requests_menu_index)
+        self.assertIn("Clients", clients_menu_html)
+        self.assertIn(reverse("staff_client_list"), clients_menu_html)
+        self.assertIn(reverse("staff_client_create"), clients_menu_html)
+        self.assertNotIn(reverse("staff_lead_list"), clients_menu_html)
+        self.assertNotIn(reverse("staff_lead_create"), clients_menu_html)
+        self.assertIn("Service Requests", service_requests_menu_html)
+        self.assertIn(reverse("staff_lead_list"), service_requests_menu_html)
+        self.assertIn(reverse("staff_lead_create"), service_requests_menu_html)
 
     def test_owner_with_selected_journey_gets_guide_panel_state(self):
         UserOnboardingState.objects.create(
