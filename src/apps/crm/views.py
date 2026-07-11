@@ -1740,19 +1740,18 @@ def business_service_category_list(request: HttpRequest) -> HttpResponse:
 def business_service_category_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
 
-    if request.method == "GET":
-        return redirect("business_service_create")
-
     if request.method == "POST":
         form = ServiceCategoryForm(request.POST, business=current_business)
         if form.is_valid():
-            category = form.save()
+            form.save()
             messages.success(
                 request,
-                "Service category created. Create a service for it now.",
+                "Service category created.",
             )
-            return redirect(f"{reverse('business_service_create')}?category={category.pk}")
+            return redirect("business_service_list")
         messages.error(request, "Please correct the errors below.")
+    else:
+        form = ServiceCategoryForm(business=current_business)
 
     context: dict[str, Any] = {
         "form": form,
