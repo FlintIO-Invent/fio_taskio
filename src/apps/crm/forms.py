@@ -903,6 +903,10 @@ class PublicBookingForm(CRMAddressStyleMixin, forms.Form):
         if wants_appointment and preferred_time is None:
             self.add_error("preferred_time", "Select an available time.")
 
+        cleaned_data["preferred_start_time"] = None
+        cleaned_data["preferred_end_time"] = None
+        cleaned_data["duration_minutes"] = None
+
         if not (service and preferred_date and preferred_time):
             return cleaned_data
 
