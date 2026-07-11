@@ -76,7 +76,7 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "configure_online_booking": {
         "key": "configure_online_booking",
-        "title": "Configure online booking",
+        "title": "Open or configure online booking",
         "description": "Enable or configure the public booking settings customers can use.",
         "cta_label": "Open Booking Settings",
         "url_name": "business_booking_settings",
@@ -111,7 +111,10 @@ JOURNEY_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
         "key": "setup_business",
         "title": "Set Up My Business",
-        "purpose": "Help the user set up the foundation of their Motionmate workspace.",
+        "purpose": (
+            "Get your workspace ready by completing your business profile, adding services, "
+            "and setting availability."
+        ),
         "tasks": (
             "complete_business_profile",
             "add_first_service",
@@ -121,7 +124,10 @@ JOURNEY_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
         "key": "manage_clients",
         "title": "Start Managing Clients",
-        "purpose": "Help the user understand the core service workflow.",
+        "purpose": (
+            "Learn how Motionmate helps you manage customers, service requests, "
+            "and appointments."
+        ),
         "tasks": (
             "add_first_client",
             "create_first_service_request",
@@ -131,7 +137,9 @@ JOURNEY_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
         "key": "booked_and_paid",
         "title": "Get Booked & Paid",
-        "purpose": "Help the user experience Motionmate's value quickly.",
+        "purpose": (
+            "Explore online booking and invoicing so you can turn customer work into revenue."
+        ),
         "tasks": (
             "configure_online_booking",
             "create_first_invoice",
@@ -337,15 +345,26 @@ def get_onboarding_status(
             selected_journey = journey_status
 
     all_tasks = list(flat_task_statuses.values())
+    visible = user_can_view_onboarding(user, business)
+    completed_welcome = bool(state and state.completed_welcome)
+    dismissed_at = state.dismissed_at if state else None
+    should_auto_show_welcome = (
+        visible
+        and not selected_journey_key
+        and not completed_welcome
+        and dismissed_at is None
+    )
     return {
         "state": state,
         "available_journeys": available_journeys,
         "selected_journey": selected_journey,
         "selected_journey_key": selected_journey_key,
         "tasks": all_tasks,
-        "visible": user_can_view_onboarding(user, business),
-        "completed_welcome": bool(state and state.completed_welcome),
-        "dismissed_at": state.dismissed_at if state else None,
+        "visible": visible,
+        "completed_welcome": completed_welcome,
+        "dismissed_at": dismissed_at,
+        "should_auto_show_welcome": should_auto_show_welcome,
+        "auto_show_welcome": should_auto_show_welcome,
         "last_step_key": state.last_step_key if state else None,
         **_progress_for_tasks(all_tasks),
     }

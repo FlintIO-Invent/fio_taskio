@@ -323,6 +323,8 @@ class OnboardingStatusHelperTests(TestCase):
 
         self.assertTrue(status["visible"])
         self.assertIsNone(status["selected_journey"])
+        self.assertTrue(status["should_auto_show_welcome"])
+        self.assertTrue(status["auto_show_welcome"])
         self.assertEqual(len(status["available_journeys"]), 3)
         self.assertEqual(status["progress_count"], 0)
         self.assertEqual(status["total_task_count"], 9)
@@ -343,8 +345,22 @@ class OnboardingStatusHelperTests(TestCase):
         tasks = self._task_map(status)
 
         self.assertEqual(status["selected_journey"]["key"], "setup_business")
+        self.assertFalse(status["should_auto_show_welcome"])
         self.assertTrue(tasks["add_first_service"]["skipped"])
         self.assertFalse(tasks["set_availability"]["skipped"])
+
+    def test_status_helper_does_not_auto_show_after_welcome_is_dismissed(self):
+        UserOnboardingState.objects.create(
+            user=self.owner,
+            business=self.business,
+            completed_welcome=True,
+            dismissed_at=timezone.now(),
+        )
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+
+        self.assertTrue(status["visible"])
+        self.assertFalse(status["should_auto_show_welcome"])
 
     def test_completion_logic_updates_for_real_workspace_records(self):
         status = get_onboarding_status(user=self.owner, business=self.business)

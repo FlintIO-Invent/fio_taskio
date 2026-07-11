@@ -23,6 +23,13 @@
           Here is today's workspace snapshot for {{ current_business.name }}.
         </p>
       </div>
+      {% if onboarding_status.visible %}
+        <div class="col-auto">
+          <button class="btn btn-phoenix-secondary" type="button" data-bs-toggle="modal" data-bs-target="#onboardingWelcomeModal">
+            <span class="fa-solid fa-compass me-2"></span>Open Setup Guide
+          </button>
+        </div>
+      {% endif %}
     </div>
 
     <div class="row g-3 mb-4">
@@ -393,4 +400,20 @@
       </div>
     </div>
   </div>
+
+  {% if onboarding_status.visible %}
+    {% include "crm/agent_dashboard/includes/onboarding_welcome_modal.html" %}
+  {% endif %}
+
+  {% if onboarding_status.should_auto_show_welcome %}
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        var modalElement = document.getElementById('onboardingWelcomeModal');
+        if (!modalElement || !window.bootstrap) {
+          return;
+        }
+        window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
+      });
+    </script>
+  {% endif %}
 {% endblock %}

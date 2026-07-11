@@ -27,6 +27,10 @@ from apps.businesses.localization import (
     uses_sint_maarten_districts,
 )
 from apps.businesses.models import Business, BusinessBookingSettings, WeeklyAvailability
+from apps.businesses.onboarding import (
+    get_onboarding_status,
+    get_or_create_user_onboarding_state,
+)
 from apps.businesses.utils import (
     ALL_WORKSPACE_ROLES,
     APPOINTMENT_VIEW_ROLES,
@@ -738,11 +742,58 @@ def _import_business_services_from_csv(
 
 # Fucntions below relate to public-facing lead capture and agent dashboard
 @business_required()
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 def agent_dashboard(request: HttpRequest) -> HttpResponse:
     """Render the agent dashboard."""
     current_business = request.current_business
     current_membership = get_current_business_membership(request)
+    onboarding_status = get_onboarding_status(user=request.user, business=current_business)
+
+    if request.method == "POST":
+        onboarding_action = request.POST.get("onboarding_action", "").strip()
+
+        if onboarding_action == "select_journey" and onboarding_status["visible"]:
+            selected_journey = request.POST.get("selected_journey", "").strip()
+            available_journey_keys = {
+                journey["key"] for journey in onboarding_status["available_journeys"]
+            }
+            if selected_journey in available_journey_keys:
+                state, _created = get_or_create_user_onboarding_state(
+                    user=request.user,
+                    business=current_business,
+                )
+                state.selected_journey = selected_journey
+                state.completed_welcome = True
+                state.dismissed_at = None
+                state.save(
+                    update_fields=[
+                        "selected_journey",
+                        "completed_welcome",
+                        "dismissed_at",
+                        "updated_at",
+                    ]
+                )
+                messages.success(request, "Setup journey saved.")
+            else:
+                messages.error(request, "Choose a valid setup journey.")
+            return redirect("agent_dashboard")
+
+        if onboarding_action == "dismiss_welcome" and onboarding_status["visible"]:
+            state, _created = get_or_create_user_onboarding_state(
+                user=request.user,
+                business=current_business,
+            )
+            state.completed_welcome = True
+            state.dismissed_at = timezone.now()
+            state.save(update_fields=["completed_welcome", "dismissed_at", "updated_at"])
+            messages.info(
+                request,
+                "Setup guide dismissed. You can reopen it from the dashboard.",
+            )
+            return redirect("agent_dashboard")
+
+        return redirect("agent_dashboard")
+
     now = timezone.now()
     start_of_today, start_of_tomorrow, start_of_month = _business_local_periods(
         current_business,
@@ -844,6 +895,7 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
 
     context: dict[str, Any] = {
         "current_business": current_business,
+        "onboarding_status": onboarding_status,
         "dashboard_today": start_of_today.date(),
         "dashboard_appointments_enabled": can_view_appointment_activity,
         "dashboard_invoices_enabled": can_view_invoice_activity,
