@@ -815,6 +815,8 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
                 messages.success(request, "Setup journey saved.")
             else:
                 messages.error(request, "Choose a valid setup journey.")
+            if request.POST.get("open_guide_after_select") == "1":
+                return _redirect_to_dashboard_setup_guide()
             return redirect("agent_dashboard")
 
         if onboarding_action == "dismiss_welcome" and onboarding_status["visible"]:
@@ -879,7 +881,7 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
                     business=current_business,
                     step_key=current_step_key,
                 )
-                cta_url = current_task.get("cta_url")
+                cta_url = current_task.get("effective_cta_url")
                 if cta_url and not current_task.get("locked"):
                     return redirect(cta_url)
             return _redirect_to_dashboard_setup_guide()

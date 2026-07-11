@@ -22,7 +22,7 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
         "url_name": "business_settings",
         "prerequisites": [],
         "module_key": None,
-        "target_selector": None,
+        "target_selector": "[data-onboarding-target='business-settings']",
     },
     "add_first_service": {
         "key": "add_first_service",
@@ -32,7 +32,7 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
         "url_name": "business_service_create",
         "prerequisites": [],
         "module_key": None,
-        "target_selector": None,
+        "target_selector": "[data-onboarding-target='services']",
     },
     "set_availability": {
         "key": "set_availability",
@@ -40,10 +40,10 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
         "description": "Add at least one weekly availability block for your workspace or team.",
         "cta_label": "Set Availability",
         "url_name": "business_booking_settings",
-        "prerequisites": [],
+        "prerequisites": ["add_first_service"],
         "module_key": None,
         "future_module_key": "availability",
-        "target_selector": None,
+        "target_selector": "[data-onboarding-target='availability']",
     },
     "add_first_client": {
         "key": "add_first_client",
@@ -53,7 +53,7 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
         "url_name": "staff_client_create",
         "prerequisites": [],
         "module_key": None,
-        "target_selector": None,
+        "target_selector": "[data-onboarding-target='clients']",
     },
     "create_first_service_request": {
         "key": "create_first_service_request",
@@ -63,7 +63,7 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
         "url_name": "staff_lead_create",
         "prerequisites": [],
         "module_key": None,
-        "target_selector": None,
+        "target_selector": "[data-onboarding-target='service-requests']",
     },
     "schedule_first_appointment": {
         "key": "schedule_first_appointment",
@@ -71,9 +71,9 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
         "description": "Create an appointment so your team can track scheduled work.",
         "cta_label": "Schedule Appointment",
         "url_name": "appointment_create",
-        "prerequisites": ["add_first_client"],
+        "prerequisites": ["add_first_client", "add_first_service"],
         "module_key": "appointments",
-        "target_selector": None,
+        "target_selector": "[data-onboarding-target='appointments']",
     },
     "configure_online_booking": {
         "key": "configure_online_booking",
@@ -83,7 +83,7 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
         "url_name": "business_booking_settings",
         "prerequisites": ["add_first_service", "set_availability"],
         "module_key": "public_booking",
-        "target_selector": None,
+        "target_selector": "[data-onboarding-target='booking-settings']",
     },
     "create_first_invoice": {
         "key": "create_first_invoice",
@@ -93,7 +93,7 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
         "url_name": "invoice_create",
         "prerequisites": ["add_first_client"],
         "module_key": "invoicing",
-        "target_selector": None,
+        "target_selector": "[data-onboarding-target='invoices']",
     },
     "send_or_download_invoice": {
         "key": "send_or_download_invoice",
@@ -103,7 +103,7 @@ TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
         "url_name": "invoice_list",
         "prerequisites": ["create_first_invoice"],
         "module_key": "invoicing",
-        "target_selector": None,
+        "target_selector": "[data-onboarding-target='invoices']",
     },
 }
 
@@ -206,8 +206,9 @@ def _has_business_profile(business: Business) -> bool:
     has_location = bool(business.formatted_address_lines or (business.country or "").strip())
     required_fields = (
         business.name,
-        business.business_type,
         business.timezone,
+        business.currency,
+        business.invoice_prefix,
     )
     return all(bool((value or "").strip()) for value in required_fields) and has_contact and has_location
 
@@ -291,6 +292,19 @@ COMPLETION_CHECKS = {
 }
 
 
+COMPLETION_SOURCES = {
+    "complete_business_profile": "business_profile_fields",
+    "add_first_service": "active_business_service_exists",
+    "set_availability": "active_weekly_availability_exists",
+    "add_first_client": "active_non_archived_client_exists",
+    "create_first_service_request": "service_request_lead_exists",
+    "schedule_first_appointment": "appointment_exists",
+    "configure_online_booking": "booking_settings_configured_or_enabled",
+    "create_first_invoice": "invoice_exists",
+    "send_or_download_invoice": "sent_paid_or_emailed_invoice_exists",
+}
+
+
 def _is_step_skipped(skipped_steps, task_key: str) -> bool:
     if isinstance(skipped_steps, dict):
         return bool(skipped_steps.get(task_key))
@@ -309,6 +323,7 @@ def _task_status(
     completion_check = COMPLETION_CHECKS[task_key]
     module_key = definition.get("module_key")
     module_allowed = can_use_module(business, module_key) if module_key else True
+    locked = bool(module_key and not module_allowed)
     cta_url = ""
     url_name = definition.get("url_name")
     if url_name:
@@ -320,11 +335,91 @@ def _task_status(
     return {
         **definition,
         "cta_url": cta_url,
+        "effective_cta_label": definition["cta_label"],
+        "effective_cta_url": cta_url,
         "completed": completion_check(business),
+        "completion_source": COMPLETION_SOURCES[task_key],
         "skipped": _is_step_skipped(skipped_steps, task_key),
-        "locked": bool(module_key and not module_allowed),
+        "locked": locked,
         "module_allowed": module_allowed,
+        "effective_target_selector": "" if locked else definition.get("target_selector", ""),
+        "has_missing_prerequisites": False,
+        "prerequisite_message": "",
+        "prerequisite_cta_label": "",
+        "prerequisite_cta_url": "",
+        "recommended_previous_task_key": None,
     }
+
+
+DEPENDENCY_MESSAGES = {
+    "set_availability": "Add a service first so your availability can be connected to what you offer.",
+    "schedule_first_appointment": (
+        "Appointments work best after you have at least one client and service."
+    ),
+    "configure_online_booking": (
+        "Online booking works best after you add services and set your availability."
+    ),
+    "create_first_invoice": "Invoices work best after you add a client.",
+    "send_or_download_invoice": "Create an invoice first, then you can send or download it.",
+}
+
+
+def _prerequisite_fallback_task_key(
+    *,
+    task_key: str,
+    flat_task_statuses: dict[str, dict[str, Any]],
+) -> str | None:
+    if task_key == "set_availability":
+        return "add_first_service" if not flat_task_statuses["add_first_service"]["completed"] else None
+
+    if task_key == "schedule_first_appointment":
+        if not flat_task_statuses["add_first_client"]["completed"]:
+            return "add_first_client"
+        if not flat_task_statuses["add_first_service"]["completed"]:
+            return "add_first_service"
+        return None
+
+    if task_key == "configure_online_booking":
+        if not flat_task_statuses["add_first_service"]["completed"]:
+            return "add_first_service"
+        if not flat_task_statuses["set_availability"]["completed"]:
+            return "set_availability"
+        return None
+
+    if task_key == "create_first_invoice":
+        return "add_first_client" if not flat_task_statuses["add_first_client"]["completed"] else None
+
+    if task_key == "send_or_download_invoice":
+        return (
+            "create_first_invoice"
+            if not flat_task_statuses["create_first_invoice"]["completed"]
+            else None
+        )
+
+    return None
+
+
+def _apply_dependency_context(flat_task_statuses: dict[str, dict[str, Any]]) -> None:
+    for task_key, task in flat_task_statuses.items():
+        if task["completed"] or task["locked"]:
+            continue
+
+        fallback_task_key = _prerequisite_fallback_task_key(
+            task_key=task_key,
+            flat_task_statuses=flat_task_statuses,
+        )
+        if fallback_task_key is None:
+            continue
+
+        fallback_task = flat_task_statuses[fallback_task_key]
+        task["has_missing_prerequisites"] = True
+        task["prerequisite_message"] = DEPENDENCY_MESSAGES[task_key]
+        task["prerequisite_cta_label"] = fallback_task["cta_label"]
+        task["prerequisite_cta_url"] = fallback_task["cta_url"]
+        task["recommended_previous_task_key"] = fallback_task_key
+        task["effective_cta_label"] = fallback_task["cta_label"]
+        task["effective_cta_url"] = fallback_task["cta_url"]
+        task["effective_target_selector"] = fallback_task["target_selector"]
 
 
 def _progress_for_tasks(tasks: list[dict[str, Any]]) -> dict[str, int]:
@@ -418,6 +513,7 @@ def get_onboarding_status(
         )
         for task_key in TASK_DEFINITIONS
     }
+    _apply_dependency_context(flat_task_statuses)
 
     available_journeys: list[dict[str, Any]] = []
     selected_journey = None

@@ -4,7 +4,7 @@
       <div class="modal-header align-items-start">
         <div>
           <h3 class="modal-title mb-1" id="onboardingWelcomeModalLabel">Welcome to Motionmate</h3>
-          <p class="text-body-secondary mb-0">Choose a journey to explore the platform and get your workspace ready.</p>
+          <p class="text-body-secondary mb-0">Choose where to start. The other journeys stay in your Setup Guide for later.</p>
         </div>
         <form method="post" action="{% url 'agent_dashboard' %}" class="ms-3">
           {% csrf_token %}
@@ -43,6 +43,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="onboarding_action" value="select_journey">
                     <input type="hidden" name="selected_journey" value="{{ journey.key }}">
+                    <input type="hidden" name="open_guide_after_select" value="1">
                     <button class="btn btn-primary w-100" type="submit">Start this journey</button>
                   </form>
                 </div>

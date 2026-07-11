@@ -1,5 +1,5 @@
 {% extends "inheritance/dashboard_parent.html" %}
-{% load money %}
+{% load static money %}
 
 {% block content %}
   <div class="content">
@@ -40,7 +40,7 @@
 
     <div class="row g-3 mb-4">
       <div class="col-sm-6 col-xl-3">
-        <div class="card h-100">
+        <div class="card h-100" data-onboarding-target="clients">
           <div class="card-body">
             <div class="d-flex align-items-center mb-3">
               <div class="icon-wrapper-sm bg-primary-subtle text-primary-emphasis me-3">
@@ -57,7 +57,7 @@
       </div>
 
       <div class="col-sm-6 col-xl-3">
-        <div class="card h-100">
+        <div class="card h-100" data-onboarding-target="service-requests">
           <div class="card-body">
             <div class="d-flex align-items-center mb-3">
               <div class="icon-wrapper-sm bg-info-subtle text-info-emphasis me-3">
@@ -76,7 +76,7 @@
       </div>
 
       <div class="col-sm-6 col-xl-3">
-        <div class="card h-100">
+        <div class="card h-100" data-onboarding-target="booking-settings">
           <div class="card-body">
             <div class="d-flex align-items-center mb-3">
               <div class="icon-wrapper-sm {% if public_booking_module_enabled %}bg-warning-subtle text-warning-emphasis{% else %}bg-secondary-subtle text-secondary-emphasis{% endif %} me-3">
@@ -99,7 +99,7 @@
       </div>
 
       <div class="col-sm-6 col-xl-3">
-        <div class="card h-100">
+        <div class="card h-100" data-onboarding-target="appointments">
           <div class="card-body">
             <div class="d-flex align-items-center mb-3">
               <div class="icon-wrapper-sm {% if dashboard_appointments_enabled %}bg-success-subtle text-success-emphasis{% else %}bg-secondary-subtle text-secondary-emphasis{% endif %} me-3">
@@ -131,7 +131,7 @@
     {% endif %}
 
     {% if dashboard_invoices_enabled %}
-      <div class="row g-3 mb-4">
+      <div class="row g-3 mb-4" data-onboarding-target="invoices">
         <div class="col-sm-6 col-xl-3">
           <div class="card h-100">
             <div class="card-body">
@@ -374,14 +374,18 @@
           </div>
         {% endif %}
 
-        <div class="card">
+        <div class="card" data-onboarding-target="business-settings">
           <div class="card-header d-flex justify-content-between align-items-center">
             <div>
               <h4 class="mb-1">Workspace Details</h4>
               <p class="text-body-tertiary mb-0">Business defaults used across operational records.</p>
             </div>
             {% if role_access.can_manage_business_settings %}
-              <a href="{% url 'business_settings' %}" class="btn btn-sm btn-outline-secondary">Business Settings</a>
+              <div class="d-flex gap-2 flex-wrap justify-content-end">
+                <a href="{% url 'business_service_list' %}" class="btn btn-sm btn-outline-primary" data-onboarding-target="services">Services</a>
+                <a href="{% url 'business_booking_settings' %}" class="btn btn-sm btn-outline-primary" data-onboarding-target="availability">Availability</a>
+                <a href="{% url 'business_settings' %}" class="btn btn-sm btn-outline-secondary" data-onboarding-target="business-settings">Business Settings</a>
+              </div>
             {% endif %}
           </div>
           <div class="card-body">
@@ -413,6 +417,7 @@
 
   {% if onboarding_status.visible and onboarding_status.selected_journey %}
     {% include "crm/agent_dashboard/includes/onboarding_guide_panel.html" %}
+    <script src="{% static 'assets/js/onboarding-guide.js' %}?v=motionmate-onboarding-spotlight-20260711"></script>
   {% endif %}
 
   {% if onboarding_status.should_auto_show_welcome %}

@@ -124,7 +124,7 @@ class BusinessRegistrationViewTests(TestCase):
         subscription = BusinessSubscription.objects.get(business=business)
         profile = SaaSUserProfile.objects.get(user=user)
 
-        self.assertRedirects(response, reverse("business_settings"))
+        self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertTrue(user.check_password("StrongPass123!"))
         self.assertEqual(user.company_name, "Acme Freight")
         self.assertEqual(business.email, "hello@acmefreight.com")
@@ -140,6 +140,8 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(profile.billing_email, "hello@acmefreight.com")
         self.assertEqual(int(self.client.session[CURRENT_BUSINESS_SESSION_KEY]), business.id)
         self.assertContains(response, "14-day trial")
+        self.assertContains(response, "Welcome to Motionmate")
+        self.assertTrue(response.context["onboarding_status"]["should_auto_show_welcome"])
 
     def test_post_generates_unique_slug_for_duplicate_business_names(self):
         existing_owner = get_user_model().objects.create_user(
@@ -198,7 +200,7 @@ class BusinessRegistrationViewTests(TestCase):
         business = Business.objects.get(name="Starter Workspace")
         subscription = BusinessSubscription.objects.get(business=business)
 
-        self.assertRedirects(response, reverse("business_settings"))
+        self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertEqual(subscription.plan.slug, "starter")
         self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
 
@@ -222,7 +224,7 @@ class BusinessRegistrationViewTests(TestCase):
 
         business = Business.objects.get(name="No Plan Workspace")
 
-        self.assertRedirects(response, reverse("business_settings"))
+        self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertFalse(BusinessSubscription.objects.filter(business=business).exists())
         self.assertContains(response, "Subscription setup is pending")
 
