@@ -26,7 +26,15 @@ from .models import (
     BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
+    UserOnboardingState,
     WeeklyAvailability,
+)
+from .onboarding import (
+    get_journey_definitions,
+    get_onboarding_status,
+    get_or_create_user_onboarding_state,
+    get_task_definitions,
+    user_can_view_onboarding,
 )
 from .utils import (
     CURRENT_BUSINESS_SESSION_KEY,
@@ -38,9 +46,9 @@ from .utils import (
     business_required,
     business_role_required,
     can_use_module,
+    get_business_usage_count,
     get_current_business,
     get_current_business_membership,
-    get_business_usage_count,
 )
 
 
@@ -224,6 +232,476 @@ class BusinessUserModelTests(TestCase):
                 BusinessUser.objects.create(
                     user=user, business=business, role=BusinessUser.Role.ADMIN
                 )
+
+
+class UserOnboardingStateTests(TestCase):
+    def setUp(self):
+        self.user = TaskIOUser.objects.create_user(
+            email="owner-onboarding@example.com",
+            password="testpass123",
+        )
+        self.business = Business.objects.create(
+            name="Onboarding HQ",
+            slug="onboarding-hq",
+        )
+
+    def test_user_onboarding_state_can_be_created(self):
+        state = UserOnboardingState.objects.create(
+            user=self.user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+            skipped_steps=["add_first_service"],
+            last_step_key="complete_business_profile",
+        )
+
+        self.assertEqual(state.user, self.user)
+        self.assertEqual(state.business, self.business)
+        self.assertEqual(state.selected_journey, "setup_business")
+        self.assertTrue(state.completed_welcome)
+        self.assertEqual(state.skipped_steps, ["add_first_service"])
+        self.assertIn("owner-onboarding@example.com", str(state))
+
+    def test_user_onboarding_state_is_unique_per_user_and_business(self):
+        UserOnboardingState.objects.create(user=self.user, business=self.business)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                UserOnboardingState.objects.create(user=self.user, business=self.business)
+
+    def test_get_or_create_user_onboarding_state_reuses_existing_record(self):
+        created_state, created = get_or_create_user_onboarding_state(
+            user=self.user,
+            business=self.business,
+        )
+        existing_state, existing_created = get_or_create_user_onboarding_state(
+            user=self.user,
+            business=self.business,
+        )
+
+        self.assertTrue(created)
+        self.assertFalse(existing_created)
+        self.assertEqual(created_state, existing_state)
+
+
+class OnboardingJourneyDefinitionTests(TestCase):
+    def test_journey_definitions_include_three_initial_journeys(self):
+        journeys = get_journey_definitions()
+
+        self.assertEqual(
+            [journey["key"] for journey in journeys],
+            ["setup_business", "manage_clients", "booked_and_paid"],
+        )
+
+    def test_each_initial_journey_has_three_tasks(self):
+        journeys = get_journey_definitions()
+
+        self.assertTrue(all(len(journey["tasks"]) == 3 for journey in journeys))
+
+
+class OnboardingStatusHelperTests(TestCase):
+    def setUp(self):
+        self.owner = TaskIOUser.objects.create_user(
+            email="guide-owner@example.com",
+            password="testpass123",
+        )
+        self.business = Business.objects.create(
+            name="Guide HQ",
+            slug="guide-hq",
+        )
+        self.plan = ClarivoPlan.objects.create(
+            name="Onboarding Full Access",
+            slug="onboarding-full-access",
+            allow_public_booking=True,
+            allow_appointments=True,
+            allow_invoicing=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessUser.objects.create(
+            user=self.owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+
+    @staticmethod
+    def _task_map(status):
+        return {task["key"]: task for task in status["tasks"]}
+
+    def test_status_helper_returns_empty_business_progress(self):
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+
+        self.assertTrue(status["visible"])
+        self.assertIsNone(status["selected_journey"])
+        self.assertTrue(status["should_auto_show_welcome"])
+        self.assertTrue(status["auto_show_welcome"])
+        self.assertEqual(len(status["available_journeys"]), 3)
+        self.assertEqual(status["progress_count"], 0)
+        self.assertEqual(status["total_task_count"], 9)
+        self.assertEqual(status["percent_complete"], 0)
+        self.assertTrue(
+            all(len(journey["tasks"]) == 3 for journey in status["available_journeys"])
+        )
+        self.assertTrue(all(not task["completed"] for task in tasks.values()))
+
+    def test_task_metadata_includes_spotlight_target_selectors(self):
+        task_definitions = get_task_definitions()
+        expected_selectors = {
+            "complete_business_profile": "[data-onboarding-target='business-settings']",
+            "add_first_service": "[data-onboarding-target='services']",
+            "set_availability": "[data-onboarding-target='availability']",
+            "add_first_client": "[data-onboarding-target='clients']",
+            "create_first_service_request": "[data-onboarding-target='service-requests']",
+            "schedule_first_appointment": "[data-onboarding-target='appointments']",
+            "configure_online_booking": "[data-onboarding-target='booking-settings']",
+            "create_first_invoice": "[data-onboarding-target='invoices']",
+            "send_or_download_invoice": "[data-onboarding-target='invoices']",
+        }
+
+        for task_key, selector in expected_selectors.items():
+            with self.subTest(task_key=task_key):
+                self.assertEqual(task_definitions[task_key]["target_selector"], selector)
+
+    def test_status_helper_respects_skipped_steps(self):
+        UserOnboardingState.objects.create(
+            user=self.owner,
+            business=self.business,
+            selected_journey="setup_business",
+            skipped_steps={"add_first_service": True},
+        )
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+
+        self.assertEqual(status["selected_journey"]["key"], "setup_business")
+        self.assertFalse(status["should_auto_show_welcome"])
+        self.assertTrue(tasks["add_first_service"]["skipped"])
+        self.assertFalse(tasks["set_availability"]["skipped"])
+
+    def test_status_helper_does_not_auto_show_after_welcome_is_dismissed(self):
+        UserOnboardingState.objects.create(
+            user=self.owner,
+            business=self.business,
+            completed_welcome=True,
+            dismissed_at=timezone.now(),
+        )
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+
+        self.assertTrue(status["visible"])
+        self.assertFalse(status["should_auto_show_welcome"])
+
+    def test_business_profile_completion_uses_safe_business_fields(self):
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        self.assertFalse(tasks["complete_business_profile"]["completed"])
+
+        self.business.email = "hello@guide.example"
+        self.business.country = "Sint Maarten"
+        self.business.save(update_fields=["email", "country", "updated_at"])
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        self.assertTrue(tasks["complete_business_profile"]["completed"])
+        self.assertEqual(
+            tasks["complete_business_profile"]["completion_source"],
+            "business_profile_fields",
+        )
+
+    def test_adding_availability_completes_availability_task(self):
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        self.assertFalse(tasks["set_availability"]["completed"])
+
+        WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+        )
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        self.assertTrue(tasks["set_availability"]["completed"])
+
+    def test_completion_logic_updates_for_real_workspace_records(self):
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        self.assertFalse(tasks["add_first_service"]["completed"])
+        self.assertFalse(tasks["add_first_client"]["completed"])
+        self.assertFalse(tasks["schedule_first_appointment"]["completed"])
+        self.assertFalse(tasks["create_first_invoice"]["completed"])
+        self.assertFalse(tasks["send_or_download_invoice"]["completed"])
+
+        service = BusinessService.objects.create(
+            business=self.business,
+            name="Site visit",
+        )
+        client = Client.objects.create(
+            business=self.business,
+            first_name="Jamie",
+            last_name="Client",
+            email="jamie@example.com",
+            phone="+1 721 555 0101",
+            company_name="Jamie Co",
+            street_address="Front Street 12",
+        )
+        start_time = timezone.now() + timedelta(days=1)
+        Appointment.objects.create(
+            business=self.business,
+            client=client,
+            service=service,
+            title="Site visit - Jamie Co",
+            start_time=start_time,
+            end_time=start_time + timedelta(hours=1),
+        )
+        invoice = Invoice.objects.create(
+            business=self.business,
+            client=client,
+            invoice_number="INV-0001",
+        )
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        self.assertTrue(tasks["add_first_service"]["completed"])
+        self.assertTrue(tasks["add_first_client"]["completed"])
+        self.assertTrue(tasks["schedule_first_appointment"]["completed"])
+        self.assertTrue(tasks["create_first_invoice"]["completed"])
+        self.assertFalse(tasks["send_or_download_invoice"]["completed"])
+
+        invoice.status = Invoice.Status.SENT
+        invoice.save(update_fields=["status", "updated_at"])
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        self.assertTrue(tasks["send_or_download_invoice"]["completed"])
+
+    def test_paid_invoice_completes_send_or_download_invoice_task(self):
+        client = Client.objects.create(
+            business=self.business,
+            first_name="Paid",
+            last_name="Client",
+            email="paid-client@example.com",
+            phone="+1 721 555 0199",
+            company_name="Paid Co",
+            street_address="Front Street 19",
+        )
+        Invoice.objects.create(
+            business=self.business,
+            client=client,
+            invoice_number="PAID-0001",
+            status=Invoice.Status.PAID,
+        )
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+
+        self.assertTrue(tasks["send_or_download_invoice"]["completed"])
+
+    def test_inactive_or_archived_clients_do_not_complete_client_task(self):
+        Client.objects.create(
+            business=self.business,
+            first_name="Inactive",
+            last_name="Client",
+            email="inactive-client@example.com",
+            phone="+1 721 555 0200",
+            company_name="Inactive Co",
+            street_address="Front Street 20",
+            client_status=Client.ClientStatus.INACTIVE,
+            is_active=True,
+        )
+        Client.objects.create(
+            business=self.business,
+            first_name="Archived",
+            last_name="Client",
+            email="archived-client@example.com",
+            phone="+1 721 555 0201",
+            company_name="Archived Co",
+            street_address="Front Street 21",
+            client_status=Client.ClientStatus.ARCHIVED,
+            is_active=True,
+        )
+        Client.objects.create(
+            business=self.business,
+            first_name="Deactivated",
+            last_name="Client",
+            email="deactivated-client@example.com",
+            phone="+1 721 555 0202",
+            company_name="Deactivated Co",
+            street_address="Front Street 22",
+            client_status=Client.ClientStatus.ACTIVE,
+            is_active=False,
+        )
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+
+        self.assertFalse(tasks["add_first_client"]["completed"])
+
+    def test_completion_logic_updates_for_service_request_and_booking_setup(self):
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        self.assertFalse(tasks["create_first_service_request"]["completed"])
+        self.assertFalse(tasks["configure_online_booking"]["completed"])
+
+        Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            first_name="Taylor",
+            last_name="Requester",
+            email="taylor@example.com",
+            phone="+1 721 555 0102",
+            company_name="Taylor Co",
+        )
+        BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+        )
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        self.assertTrue(tasks["create_first_service_request"]["completed"])
+        self.assertTrue(tasks["configure_online_booking"]["completed"])
+
+    def test_invoice_dependency_changes_cta_to_add_client_when_client_missing(self):
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        invoice_task = tasks["create_first_invoice"]
+
+        self.assertTrue(invoice_task["has_missing_prerequisites"])
+        self.assertEqual(invoice_task["prerequisite_message"], "Invoices work best after you add a client.")
+        self.assertEqual(invoice_task["recommended_previous_task_key"], "add_first_client")
+        self.assertEqual(invoice_task["effective_cta_label"], "Add Client")
+        self.assertEqual(invoice_task["effective_cta_url"], reverse("staff_client_create"))
+        self.assertEqual(invoice_task["target_selector"], "[data-onboarding-target='invoices']")
+        self.assertEqual(
+            invoice_task["effective_target_selector"],
+            "[data-onboarding-target='clients']",
+        )
+
+    def test_online_booking_dependency_prefers_service_then_availability(self):
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        booking_task = tasks["configure_online_booking"]
+
+        self.assertTrue(booking_task["has_missing_prerequisites"])
+        self.assertEqual(booking_task["recommended_previous_task_key"], "add_first_service")
+        self.assertEqual(booking_task["effective_cta_label"], "Add Service")
+        self.assertEqual(booking_task["effective_cta_url"], reverse("business_service_create"))
+        self.assertEqual(
+            booking_task["effective_target_selector"],
+            "[data-onboarding-target='services']",
+        )
+
+        BusinessService.objects.create(
+            business=self.business,
+            name="Inspection",
+        )
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        booking_task = tasks["configure_online_booking"]
+
+        self.assertTrue(booking_task["has_missing_prerequisites"])
+        self.assertEqual(booking_task["recommended_previous_task_key"], "set_availability")
+        self.assertEqual(booking_task["effective_cta_label"], "Set Availability")
+        self.assertEqual(booking_task["effective_cta_url"], reverse("business_booking_settings"))
+        self.assertEqual(
+            booking_task["effective_target_selector"],
+            "[data-onboarding-target='availability']",
+        )
+
+    def test_send_invoice_dependency_changes_cta_to_create_invoice_when_invoice_missing(self):
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        send_task = tasks["send_or_download_invoice"]
+
+        self.assertTrue(send_task["has_missing_prerequisites"])
+        self.assertEqual(send_task["recommended_previous_task_key"], "create_first_invoice")
+        self.assertEqual(send_task["effective_cta_label"], "Create Invoice")
+        self.assertEqual(send_task["effective_cta_url"], reverse("invoice_create"))
+        self.assertEqual(
+            send_task["effective_target_selector"],
+            "[data-onboarding-target='invoices']",
+        )
+
+    def test_locked_tasks_do_not_expose_effective_spotlight_target(self):
+        self.plan.allow_appointments = False
+        self.plan.save(update_fields=["allow_appointments"])
+
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        tasks = self._task_map(status)
+        appointment_task = tasks["schedule_first_appointment"]
+
+        self.assertTrue(appointment_task["locked"])
+        self.assertEqual(
+            appointment_task["target_selector"],
+            "[data-onboarding-target='appointments']",
+        )
+        self.assertEqual(appointment_task["effective_target_selector"], "")
+
+    def test_task_copy_does_not_include_unfinished_features(self):
+        status = get_onboarding_status(user=self.owner, business=self.business)
+        forbidden_terms = (
+            "Marketing tools",
+            "Stripe checkout",
+            "Subscription payments",
+            "Payment collection",
+            "Quotes/estimates",
+            "Documents/files",
+            "Reminder automation",
+            "Client portal",
+            "Workspace switching",
+        )
+        rendered_copy = " ".join(
+            " ".join(
+                str(task.get(field, ""))
+                for field in ("title", "description", "cta_label", "prerequisite_message")
+            )
+            for task in status["tasks"]
+        )
+
+        for term in forbidden_terms:
+            with self.subTest(term=term):
+                self.assertNotIn(term, rendered_copy)
+
+
+class OnboardingVisibilityTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(
+            name="Visibility HQ",
+            slug="visibility-hq",
+        )
+
+    def _user_with_role(self, role: str):
+        user = TaskIOUser.objects.create_user(
+            email=f"{role}@example.com",
+            password="testpass123",
+        )
+        BusinessUser.objects.create(user=user, business=self.business, role=role)
+        return user
+
+    def test_owner_and_admin_can_view_onboarding(self):
+        for role in (BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN):
+            with self.subTest(role=role):
+                user = self._user_with_role(role)
+
+                self.assertTrue(user_can_view_onboarding(user, self.business))
+
+    def test_staff_viewer_and_accountant_cannot_view_onboarding(self):
+        for role in (
+            BusinessUser.Role.STAFF,
+            BusinessUser.Role.VIEWER,
+            BusinessUser.Role.ACCOUNTANT,
+        ):
+            with self.subTest(role=role):
+                user = self._user_with_role(role)
+
+                self.assertFalse(user_can_view_onboarding(user, self.business))
 
 
 class SubscriptionAccessTests(TestCase):

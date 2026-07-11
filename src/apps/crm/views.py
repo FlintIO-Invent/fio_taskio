@@ -27,6 +27,11 @@ from apps.businesses.localization import (
     uses_sint_maarten_districts,
 )
 from apps.businesses.models import Business, BusinessBookingSettings, WeeklyAvailability
+from apps.businesses.onboarding import (
+    add_skipped_onboarding_step,
+    get_onboarding_status,
+    get_or_create_user_onboarding_state,
+)
 from apps.businesses.utils import (
     ALL_WORKSPACE_ROLES,
     APPOINTMENT_VIEW_ROLES,
@@ -737,12 +742,152 @@ def _import_business_services_from_csv(
 
 
 # Fucntions below relate to public-facing lead capture and agent dashboard
+def _redirect_to_dashboard_setup_guide() -> HttpResponse:
+    return redirect(f"{reverse('agent_dashboard')}?setup_guide=1")
+
+
+def _selected_onboarding_task_keys(onboarding_status: dict[str, Any]) -> list[str]:
+    selected_journey = onboarding_status.get("selected_journey")
+    if not selected_journey:
+        return []
+    return [task["key"] for task in selected_journey["tasks"]]
+
+
+def _selected_onboarding_task(
+    onboarding_status: dict[str, Any],
+    task_key: str,
+) -> dict[str, Any] | None:
+    selected_journey = onboarding_status.get("selected_journey")
+    if not selected_journey:
+        return None
+    for task in selected_journey["tasks"]:
+        if task["key"] == task_key:
+            return task
+    return None
+
+
+def _save_onboarding_last_step(
+    *,
+    request: HttpRequest,
+    business: Business,
+    step_key: str,
+) -> None:
+    state, _created = get_or_create_user_onboarding_state(
+        user=request.user,
+        business=business,
+    )
+    state.last_step_key = step_key
+    state.save(update_fields=["last_step_key", "updated_at"])
+
+
 @business_required()
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 def agent_dashboard(request: HttpRequest) -> HttpResponse:
     """Render the agent dashboard."""
     current_business = request.current_business
     current_membership = get_current_business_membership(request)
+    onboarding_status = get_onboarding_status(user=request.user, business=current_business)
+
+    if request.method == "POST":
+        onboarding_action = request.POST.get("onboarding_action", "").strip()
+
+        if onboarding_action == "select_journey" and onboarding_status["visible"]:
+            selected_journey = request.POST.get("selected_journey", "").strip()
+            available_journey_keys = {
+                journey["key"] for journey in onboarding_status["available_journeys"]
+            }
+            if selected_journey in available_journey_keys:
+                state, _created = get_or_create_user_onboarding_state(
+                    user=request.user,
+                    business=current_business,
+                )
+                state.selected_journey = selected_journey
+                state.completed_welcome = True
+                state.dismissed_at = None
+                state.save(
+                    update_fields=[
+                        "selected_journey",
+                        "completed_welcome",
+                        "dismissed_at",
+                        "updated_at",
+                    ]
+                )
+                messages.success(request, "Setup journey saved.")
+            else:
+                messages.error(request, "Choose a valid setup journey.")
+            if request.POST.get("open_guide_after_select") == "1":
+                return _redirect_to_dashboard_setup_guide()
+            return redirect("agent_dashboard")
+
+        if onboarding_action == "dismiss_welcome" and onboarding_status["visible"]:
+            state, _created = get_or_create_user_onboarding_state(
+                user=request.user,
+                business=current_business,
+            )
+            state.completed_welcome = True
+            state.dismissed_at = timezone.now()
+            state.save(update_fields=["completed_welcome", "dismissed_at", "updated_at"])
+            messages.info(
+                request,
+                "Setup guide dismissed. You can reopen it from the dashboard.",
+            )
+            return redirect("agent_dashboard")
+
+        if onboarding_action == "guide_step" and onboarding_status["visible"]:
+            target_step_key = request.POST.get("target_step_key", "").strip()
+            if target_step_key in _selected_onboarding_task_keys(onboarding_status):
+                _save_onboarding_last_step(
+                    request=request,
+                    business=current_business,
+                    step_key=target_step_key,
+                )
+            return _redirect_to_dashboard_setup_guide()
+
+        if onboarding_action == "skip_step" and onboarding_status["visible"]:
+            current_step_key = request.POST.get("current_step_key", "").strip()
+            task_keys = _selected_onboarding_task_keys(onboarding_status)
+            if current_step_key in task_keys:
+                state, _created = get_or_create_user_onboarding_state(
+                    user=request.user,
+                    business=current_business,
+                )
+                add_skipped_onboarding_step(state=state, task_key=current_step_key)
+                current_step_index = task_keys.index(current_step_key)
+                next_step_key = (
+                    task_keys[current_step_index + 1]
+                    if current_step_index + 1 < len(task_keys)
+                    else current_step_key
+                )
+                state.last_step_key = next_step_key
+                state.save(update_fields=["skipped_steps", "last_step_key", "updated_at"])
+            return _redirect_to_dashboard_setup_guide()
+
+        if onboarding_action == "continue_later" and onboarding_status["visible"]:
+            current_step_key = request.POST.get("current_step_key", "").strip()
+            if current_step_key in _selected_onboarding_task_keys(onboarding_status):
+                _save_onboarding_last_step(
+                    request=request,
+                    business=current_business,
+                    step_key=current_step_key,
+                )
+            return redirect("agent_dashboard")
+
+        if onboarding_action == "start_task" and onboarding_status["visible"]:
+            current_step_key = request.POST.get("current_step_key", "").strip()
+            current_task = _selected_onboarding_task(onboarding_status, current_step_key)
+            if current_task is not None:
+                _save_onboarding_last_step(
+                    request=request,
+                    business=current_business,
+                    step_key=current_step_key,
+                )
+                cta_url = current_task.get("effective_cta_url")
+                if cta_url and not current_task.get("locked"):
+                    return redirect(cta_url)
+            return _redirect_to_dashboard_setup_guide()
+
+        return redirect("agent_dashboard")
+
     now = timezone.now()
     start_of_today, start_of_tomorrow, start_of_month = _business_local_periods(
         current_business,
@@ -844,6 +989,12 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
 
     context: dict[str, Any] = {
         "current_business": current_business,
+        "onboarding_status": onboarding_status,
+        "open_onboarding_guide": (
+            onboarding_status["visible"]
+            and bool(onboarding_status["selected_journey"])
+            and request.GET.get("setup_guide") == "1"
+        ),
         "dashboard_today": start_of_today.date(),
         "dashboard_appointments_enabled": can_view_appointment_activity,
         "dashboard_invoices_enabled": can_view_invoice_activity,

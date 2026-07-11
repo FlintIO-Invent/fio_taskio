@@ -20,6 +20,7 @@ from apps.businesses.models import (
     BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
+    UserOnboardingState,
     WeeklyAvailability,
 )
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
@@ -3415,3 +3416,599 @@ class PublicBookingTests(TestCase):
         form = response.context["form"]
         self.assertEqual(form.initial["service"], "")
         self.assertNotContains(response, self.other_service.name)
+
+
+class DashboardOnboardingViewTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(
+            name="Dashboard Onboarding HQ",
+            slug="dashboard-onboarding-hq",
+        )
+        self.plan = ClarivoPlan.objects.create(
+            name="Dashboard Onboarding Full Access",
+            slug="dashboard-onboarding-full-access",
+            allow_public_booking=True,
+            allow_appointments=True,
+            allow_invoicing=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        self.owner_user = self._create_user_with_role(
+            email="dashboard-onboarding-owner@example.com",
+            role=BusinessUser.Role.OWNER,
+        )
+        self.admin_user = self._create_user_with_role(
+            email="dashboard-onboarding-admin@example.com",
+            role=BusinessUser.Role.ADMIN,
+        )
+        self.staff_user = self._create_user_with_role(
+            email="dashboard-onboarding-staff@example.com",
+            role=BusinessUser.Role.STAFF,
+        )
+        self.accountant_user = self._create_user_with_role(
+            email="dashboard-onboarding-accountant@example.com",
+            role=BusinessUser.Role.ACCOUNTANT,
+        )
+        self.viewer_user = self._create_user_with_role(
+            email="dashboard-onboarding-viewer@example.com",
+            role=BusinessUser.Role.VIEWER,
+        )
+
+    def _create_user_with_role(self, *, email: str, role: str):
+        user = TaskIOUser.objects.create_user(
+            email=email,
+            password="testpass123",
+        )
+        BusinessUser.objects.create(
+            user=user,
+            business=self.business,
+            role=role,
+        )
+        return user
+
+    def _login(self, user):
+        self.client.force_login(user)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        session.save()
+
+    def test_dashboard_context_includes_auto_show_status_for_first_time_owner(self):
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        onboarding_status = response.context["onboarding_status"]
+        self.assertTrue(onboarding_status["visible"])
+        self.assertTrue(onboarding_status["should_auto_show_welcome"])
+        self.assertContains(response, "Welcome to Motionmate")
+        self.assertContains(response, "Open Setup Guide")
+
+    def test_dashboard_context_includes_onboarding_status_for_admin(self):
+        self._login(self.admin_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        onboarding_status = response.context["onboarding_status"]
+        self.assertTrue(onboarding_status["visible"])
+        self.assertTrue(onboarding_status["should_auto_show_welcome"])
+
+    def test_staff_accountant_and_viewer_do_not_get_auto_show_onboarding(self):
+        for user in (self.staff_user, self.accountant_user, self.viewer_user):
+            with self.subTest(user=user.email):
+                self.client.logout()
+                self._login(user)
+
+                response = self.client.get(reverse("agent_dashboard"))
+
+                self.assertEqual(response.status_code, 200)
+                onboarding_status = response.context["onboarding_status"]
+                self.assertFalse(onboarding_status["visible"])
+                self.assertFalse(onboarding_status["should_auto_show_welcome"])
+                self.assertNotContains(response, "Welcome to Motionmate")
+                self.assertNotContains(response, "Open Setup Guide")
+
+    def test_dashboard_renders_journey_cards_from_helper_data(self):
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertContains(response, "Set Up My Business")
+        self.assertContains(response, "Pick a starting point")
+        self.assertContains(response, "Use this guide at your own pace")
+        self.assertContains(
+            response,
+            "Get your workspace ready by completing your business profile, adding services, "
+            "and setting availability.",
+        )
+        self.assertContains(response, "Complete business profile")
+        self.assertContains(response, "Add your first service")
+        self.assertContains(response, "Set your availability")
+        self.assertContains(response, "Start Managing Clients")
+        self.assertContains(
+            response,
+            "Learn how Motionmate helps you manage customers, service requests, and appointments.",
+        )
+        self.assertContains(response, "Add your first client")
+        self.assertContains(response, "Create your first service request")
+        self.assertContains(response, "Schedule your first appointment")
+        self.assertContains(response, "Get Booked &amp; Paid")
+        self.assertContains(
+            response,
+            "Explore online booking and invoicing so you can turn customer work into revenue.",
+        )
+        self.assertContains(response, "Open or configure online booking")
+        self.assertContains(response, "Create your first invoice")
+        self.assertContains(response, "Send or download your first invoice")
+        self.assertContains(response, "0 of 3 complete", count=3)
+        self.assertContains(response, "Start this journey", count=3)
+
+    def test_selecting_journey_saves_selected_journey(self):
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "select_journey",
+                "selected_journey": "manage_clients",
+            },
+        )
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        state = UserOnboardingState.objects.get(user=self.owner_user, business=self.business)
+        self.assertEqual(state.selected_journey, "manage_clients")
+        self.assertTrue(state.completed_welcome)
+        self.assertIsNone(state.dismissed_at)
+
+    def test_selecting_journey_from_modal_opens_guide_when_requested(self):
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "select_journey",
+                "selected_journey": "setup_business",
+                "open_guide_after_select": "1",
+            },
+        )
+
+        self.assertRedirects(response, f"{reverse('agent_dashboard')}?setup_guide=1")
+        state = UserOnboardingState.objects.get(user=self.owner_user, business=self.business)
+        self.assertEqual(state.selected_journey, "setup_business")
+
+    def test_selecting_journey_prevents_repeated_auto_show(self):
+        self._login(self.owner_user)
+        self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "select_journey",
+                "selected_journey": "booked_and_paid",
+            },
+        )
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        onboarding_status = response.context["onboarding_status"]
+        self.assertFalse(onboarding_status["should_auto_show_welcome"])
+        self.assertEqual(onboarding_status["selected_journey_key"], "booked_and_paid")
+        self.assertContains(response, "Current")
+
+    def test_skip_dismiss_prevents_repeated_auto_show(self):
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "dismiss_welcome",
+            },
+        )
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        state = UserOnboardingState.objects.get(user=self.owner_user, business=self.business)
+        self.assertTrue(state.completed_welcome)
+        self.assertIsNotNone(state.dismissed_at)
+
+        response = self.client.get(reverse("agent_dashboard"))
+        self.assertFalse(response.context["onboarding_status"]["should_auto_show_welcome"])
+        self.assertContains(response, "Open Setup Guide")
+
+    def test_dashboard_relaunch_button_respects_onboarding_visibility(self):
+        self._login(self.owner_user)
+        owner_response = self.client.get(reverse("agent_dashboard"))
+
+        self.client.logout()
+        self._login(self.staff_user)
+        staff_response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertContains(owner_response, "Open Setup Guide")
+        self.assertNotContains(staff_response, "Open Setup Guide")
+
+    def test_owner_with_selected_journey_gets_guide_panel_state(self):
+        UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        onboarding_status = response.context["onboarding_status"]
+        self.assertEqual(onboarding_status["selected_journey"]["key"], "setup_business")
+        self.assertEqual(onboarding_status["current_task"]["key"], "complete_business_profile")
+        self.assertContains(response, 'data-bs-toggle="offcanvas"')
+        self.assertContains(response, "#onboardingGuidePanel")
+        self.assertContains(response, "Setup Guide")
+        self.assertContains(response, "Step 1 of 3")
+        self.assertContains(
+            response,
+            'data-current-target-selector="[data-onboarding-target=&#x27;business-settings&#x27;]"',
+        )
+        self.assertContains(response, "assets/js/onboarding-guide.js")
+        self.assertContains(response, 'data-onboarding-target="business-settings"')
+        self.assertContains(response, 'data-onboarding-target="services"')
+        self.assertContains(response, 'data-onboarding-target="availability"')
+        self.assertContains(response, 'data-onboarding-target="clients"')
+        self.assertContains(response, 'data-onboarding-target="service-requests"')
+        self.assertContains(response, 'data-onboarding-target="appointments"')
+        self.assertContains(response, 'data-onboarding-target="booking-settings"')
+        self.assertContains(response, 'data-onboarding-target="invoices"')
+        self.assertContains(response, "This step is ready from the guide panel")
+        self.assertContains(response, "Your journeys")
+        self.assertContains(response, "Current")
+        self.assertContains(response, "Current journey")
+        self.assertContains(response, "Start journey", count=2)
+
+    def test_switching_journey_from_panel_updates_active_journey_and_reopens_guide(self):
+        state = UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "select_journey",
+                "selected_journey": "manage_clients",
+                "open_guide_after_select": "1",
+            },
+        )
+
+        self.assertRedirects(response, f"{reverse('agent_dashboard')}?setup_guide=1")
+        state.refresh_from_db()
+        self.assertEqual(state.selected_journey, "manage_clients")
+
+        response = self.client.get(f"{reverse('agent_dashboard')}?setup_guide=1")
+
+        onboarding_status = response.context["onboarding_status"]
+        self.assertTrue(response.context["open_onboarding_guide"])
+        self.assertEqual(onboarding_status["selected_journey_key"], "manage_clients")
+        self.assertEqual(onboarding_status["current_task"]["key"], "add_first_client")
+        self.assertContains(response, "Start Managing Clients")
+
+    def test_staff_cannot_access_owner_onboarding_panel(self):
+        UserOnboardingState.objects.create(
+            user=self.staff_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+        )
+        self._login(self.staff_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertFalse(response.context["onboarding_status"]["visible"])
+        self.assertNotContains(response, "Setup Guide")
+        self.assertNotContains(response, "onboardingGuidePanel")
+
+    def test_selected_journey_renders_current_step_data(self):
+        UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="manage_clients",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        onboarding_status = response.context["onboarding_status"]
+        self.assertEqual(onboarding_status["current_task"]["key"], "add_first_client")
+        self.assertContains(response, "Start Managing Clients")
+        self.assertContains(response, "Add your first client")
+        self.assertContains(
+            response,
+            "Create a client record so requests, appointments, and invoices have a customer.",
+        )
+        self.assertContains(response, "Add Client")
+        self.assertContains(response, "Step 1 of 3")
+
+    def test_panel_renders_prerequisite_message_and_effective_cta(self):
+        UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="booked_and_paid",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        onboarding_status = response.context["onboarding_status"]
+        self.assertEqual(onboarding_status["current_task"]["key"], "configure_online_booking")
+        self.assertTrue(onboarding_status["current_task"]["has_missing_prerequisites"])
+        self.assertContains(
+            response,
+            "Online booking works best after you add services and set your availability.",
+        )
+        self.assertContains(response, "Recommended first")
+        self.assertContains(response, "Add Service")
+        self.assertContains(
+            response,
+            'data-current-target-selector="[data-onboarding-target=&#x27;services&#x27;]"',
+        )
+
+    def test_locked_current_task_does_not_expose_active_spotlight_target(self):
+        self.plan.allow_public_booking = False
+        self.plan.save(update_fields=["allow_public_booking"])
+        UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="booked_and_paid",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertContains(response, 'data-current-target-selector=""')
+        self.assertNotContains(
+            response,
+            'data-current-target-selector="[data-onboarding-target=&#x27;booking-settings&#x27;]"',
+        )
+
+    def test_next_updates_last_step_key(self):
+        state = UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "guide_step",
+                "target_step_key": "add_first_service",
+            },
+        )
+
+        self.assertRedirects(response, f"{reverse('agent_dashboard')}?setup_guide=1")
+        state.refresh_from_db()
+        self.assertEqual(state.last_step_key, "add_first_service")
+
+    def test_back_updates_last_step_key(self):
+        state = UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+            last_step_key="add_first_service",
+        )
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "guide_step",
+                "target_step_key": "complete_business_profile",
+            },
+        )
+
+        self.assertRedirects(response, f"{reverse('agent_dashboard')}?setup_guide=1")
+        state.refresh_from_db()
+        self.assertEqual(state.last_step_key, "complete_business_profile")
+
+    def test_skip_updates_skipped_steps_and_moves_to_next_step(self):
+        state = UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "skip_step",
+                "current_step_key": "complete_business_profile",
+            },
+        )
+
+        self.assertRedirects(response, f"{reverse('agent_dashboard')}?setup_guide=1")
+        state.refresh_from_db()
+        self.assertIn("complete_business_profile", state.skipped_steps)
+        self.assertEqual(state.last_step_key, "add_first_service")
+
+    def test_continue_later_preserves_current_step(self):
+        state = UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+            last_step_key="add_first_service",
+        )
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "continue_later",
+                "current_step_key": "set_availability",
+            },
+        )
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        state.refresh_from_db()
+        self.assertEqual(state.last_step_key, "set_availability")
+
+    def test_start_task_saves_current_step_before_cta_redirect(self):
+        state = UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "start_task",
+                "current_step_key": "complete_business_profile",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("business_settings"))
+        state.refresh_from_db()
+        self.assertEqual(state.last_step_key, "complete_business_profile")
+
+    def test_start_task_uses_effective_cta_when_prerequisites_are_missing(self):
+        state = UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="booked_and_paid",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.post(
+            reverse("agent_dashboard"),
+            {
+                "onboarding_action": "start_task",
+                "current_step_key": "configure_online_booking",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("business_service_create"))
+        state.refresh_from_db()
+        self.assertEqual(state.last_step_key, "configure_online_booking")
+
+    def test_reopening_resumes_from_last_saved_step(self):
+        UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+            last_step_key="set_availability",
+        )
+        self._login(self.owner_user)
+
+        response = self.client.get(f"{reverse('agent_dashboard')}?setup_guide=1")
+
+        onboarding_status = response.context["onboarding_status"]
+        self.assertTrue(response.context["open_onboarding_guide"])
+        self.assertEqual(onboarding_status["current_task"]["key"], "set_availability")
+        self.assertContains(response, "Step 3 of 3")
+        self.assertContains(response, "window.bootstrap.Offcanvas")
+
+    def test_no_selected_journey_falls_back_to_journey_selection_modal(self):
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertIsNone(response.context["onboarding_status"]["selected_journey"])
+        self.assertContains(response, "#onboardingWelcomeModal")
+        self.assertNotContains(response, "onboardingGuidePanel")
+
+    def test_completed_selected_journey_shows_success_message(self):
+        self.business.business_type = "Field Services"
+        self.business.email = "hello@example.com"
+        self.business.country = "Sint Maarten"
+        self.business.save(
+            update_fields=["business_type", "email", "country", "updated_at"],
+        )
+        BusinessService.objects.create(
+            business=self.business,
+            name="Inspection",
+        )
+        WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+        )
+        UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        self.assertTrue(response.context["onboarding_status"]["selected_journey_complete"])
+        self.assertContains(response, "Great work")
+        self.assertContains(response, "this journey is complete")
+
+    def test_modal_copy_does_not_include_unfinished_features(self):
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        unfinished_features = [
+            "Marketing tools",
+            "Stripe checkout",
+            "Subscription payments",
+            "Payment collection",
+            "Quotes/estimates",
+            "Documents/files",
+            "Reminder automation",
+            "Client portal",
+            "Workspace switching",
+        ]
+        for feature in unfinished_features:
+            with self.subTest(feature=feature):
+                self.assertNotContains(response, feature)
+
+    def test_panel_copy_does_not_include_unfinished_features(self):
+        UserOnboardingState.objects.create(
+            user=self.owner_user,
+            business=self.business,
+            selected_journey="setup_business",
+            completed_welcome=True,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        unfinished_features = [
+            "Marketing tools",
+            "Stripe checkout",
+            "Subscription payments",
+            "Payment collection",
+            "Quotes/estimates",
+            "Documents/files",
+            "Reminder automation",
+            "Client portal",
+            "Workspace switching",
+            "Theme settings",
+            "Customizer",
+            "Layout options",
+        ]
+        for feature in unfinished_features:
+            with self.subTest(feature=feature):
+                self.assertNotContains(response, feature)

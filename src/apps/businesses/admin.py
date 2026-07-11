@@ -7,6 +7,7 @@ from .models import (
     BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
+    UserOnboardingState,
     WeeklyAvailability,
 )
 
@@ -144,6 +145,23 @@ class BusinessUserAdmin(admin.ModelAdmin):
     )
     list_filter = ("role", "is_active", "business")
     search_fields = ("user__email", "business__name", "business__slug")
+    autocomplete_fields = ("user", "business")
+    list_select_related = ("user", "business")
+
+
+@admin.register(UserOnboardingState)
+class UserOnboardingStateAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "business",
+        "selected_journey",
+        "completed_welcome",
+        "dismissed_at",
+        "last_step_key",
+        "updated_at",
+    )
+    list_filter = ("selected_journey", "completed_welcome", "business")
+    search_fields = ("user__email", "business__name", "business__slug", "last_step_key")
     autocomplete_fields = ("user", "business")
     list_select_related = ("user", "business")
 
