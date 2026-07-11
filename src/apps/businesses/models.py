@@ -576,6 +576,40 @@ class BusinessUser(TimeStampedModel):
         return f"{self.user} @ {self.business} ({self.get_role_display()})"
 
 
+class UserOnboardingState(TimeStampedModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="onboarding_states",
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="onboarding_states",
+    )
+    selected_journey = models.CharField(max_length=80, null=True, blank=True)
+    completed_welcome = models.BooleanField(default=False)
+    dismissed_at = models.DateTimeField(null=True, blank=True)
+    skipped_steps = models.JSONField(default=list, blank=True)
+    last_step_key = models.CharField(max_length=100, null=True, blank=True)
+
+    class Meta:
+        ordering = ["business__name", "user__email"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "business"],
+                name="businesses_onboarding_unique_user_business",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["business", "user"]),
+            models.Index(fields=["business", "selected_journey"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} onboarding @ {self.business}"
+
+
 class BusinessInvitation(TimeStampedModel):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"

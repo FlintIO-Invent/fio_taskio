@@ -1,0 +1,229 @@
+<div
+  class="offcanvas offcanvas-end onboarding-guide-panel"
+  tabindex="-1"
+  id="onboardingGuidePanel"
+  aria-labelledby="onboardingGuidePanelLabel"
+  data-bs-backdrop="static"
+  data-bs-keyboard="false"
+  data-current-target-selector="{% if onboarding_status.current_task %}{{ onboarding_status.current_task.effective_target_selector|default:'' }}{% endif %}"
+>
+  <div class="offcanvas-header border-bottom onboarding-guide-header">
+    <div>
+      <p class="text-body-tertiary fs-10 text-uppercase mb-1">Your journeys</p>
+      <h4 class="offcanvas-title mb-0" id="onboardingGuidePanelLabel">Setup Guide</h4>
+    </div>
+    <form method="post" action="{% url 'agent_dashboard' %}" class="onboarding-guide-close-form">
+      {% csrf_token %}
+      <input type="hidden" name="onboarding_action" value="continue_later">
+      {% if onboarding_status.current_step_key %}
+        <input type="hidden" name="current_step_key" value="{{ onboarding_status.current_step_key }}">
+      {% endif %}
+      <button class="btn-close onboarding-guide-close-button" type="submit" aria-label="Close"></button>
+    </form>
+  </div>
+  <div class="offcanvas-body d-flex flex-column">
+    <div class="onboarding-panel-section mb-4">
+      <div class="d-flex align-items-start justify-content-between gap-3 mb-2">
+        <h5 class="mb-0">{{ onboarding_status.selected_journey.title }}</h5>
+        {% if onboarding_status.selected_journey_complete %}
+          <span class="badge badge-phoenix badge-phoenix-success">Complete</span>
+        {% else %}
+          <span class="badge badge-phoenix badge-phoenix-primary">Current</span>
+        {% endif %}
+      </div>
+      <p class="text-body-secondary fs-9 mb-3">{{ onboarding_status.selected_journey.purpose }}</p>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fs-9 fw-semibold text-body-emphasis">
+          {% if onboarding_status.selected_journey_complete %}
+            Journey complete
+          {% else %}
+            Step {{ onboarding_status.current_step_number }} of {{ onboarding_status.selected_journey_task_count }}
+          {% endif %}
+        </span>
+        <span class="fs-10 text-body-tertiary">{{ onboarding_status.selected_journey.percent_complete }}% completed</span>
+      </div>
+      <div class="progress" style="height: 6px;" role="progressbar" aria-valuenow="{{ onboarding_status.current_step_percent }}" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar" style="width: {{ onboarding_status.current_step_percent }}%;"></div>
+      </div>
+    </div>
+
+    {% if onboarding_status.selected_journey_complete %}
+      <div class="onboarding-task-card border rounded-2 p-4 mb-4">
+        <div class="icon-wrapper-sm bg-success-subtle text-success-emphasis mb-3">
+          <span class="fa-solid fa-check"></span>
+        </div>
+        <h5 class="mb-2">Great work, this journey is complete.</h5>
+        <p class="text-body-secondary mb-0">You can review it anytime or continue with another journey below.</p>
+      </div>
+    {% elif onboarding_status.current_task %}
+      <div class="onboarding-task-card border rounded-2 p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <h5 class="mb-0">{{ onboarding_status.current_task.title }}</h5>
+          <div class="d-flex gap-2 flex-wrap justify-content-end">
+            {% if onboarding_status.current_task.completed %}
+              <span class="badge badge-phoenix badge-phoenix-success">Complete</span>
+            {% endif %}
+            {% if onboarding_status.current_task.skipped %}
+              <span class="badge badge-phoenix badge-phoenix-warning">Skipped</span>
+            {% endif %}
+            {% if onboarding_status.current_task.locked %}
+              <span class="badge badge-phoenix badge-phoenix-secondary">Locked</span>
+            {% endif %}
+            {% if onboarding_status.current_task.has_missing_prerequisites %}
+              <span class="badge badge-phoenix badge-phoenix-info">Recommended first</span>
+            {% endif %}
+          </div>
+        </div>
+        <p class="text-body-secondary fs-9 mb-4">{{ onboarding_status.current_task.description }}</p>
+        <div class="alert alert-subtle-info fs-9 mb-3 d-none" role="status" data-onboarding-spotlight-missing>
+          This step is ready from the guide panel. Use the button below to continue.
+        </div>
+
+        {% if onboarding_status.current_task.locked %}
+          <div class="alert alert-subtle-secondary fs-9 mb-0" role="status">
+            This step is locked for this workspace.
+          </div>
+        {% else %}
+          {% if onboarding_status.current_task.has_missing_prerequisites %}
+            <div class="alert alert-subtle-info fs-9 mb-3" role="status">
+              {{ onboarding_status.current_task.prerequisite_message }}
+            </div>
+          {% endif %}
+        {% endif %}
+
+        {% if not onboarding_status.current_task.locked and onboarding_status.current_task.effective_cta_url %}
+          <form method="post" action="{% url 'agent_dashboard' %}">
+            {% csrf_token %}
+            <input type="hidden" name="onboarding_action" value="start_task">
+            <input type="hidden" name="current_step_key" value="{{ onboarding_status.current_task.key }}">
+            <button class="btn btn-primary w-100" type="submit">{{ onboarding_status.current_task.effective_cta_label|default:"Start task" }}</button>
+          </form>
+        {% elif not onboarding_status.current_task.locked %}
+          <button class="btn btn-phoenix-secondary w-100" type="button" disabled>Start task</button>
+        {% endif %}
+      </div>
+
+      <div class="mb-4">
+        <p class="fs-10 fw-semibold text-body-tertiary text-uppercase mb-2">Current journey</p>
+        <div class="list-group list-group-flush border rounded-2">
+          {% for task in onboarding_status.selected_journey.tasks %}
+            <div class="list-group-item d-flex align-items-center justify-content-between gap-3 px-3 py-2 {% if task.key == onboarding_status.current_step_key %}bg-body-highlight{% endif %}">
+              <div class="min-w-0">
+                <p class="fs-9 fw-semibold text-body-emphasis mb-0">{{ task.title }}</p>
+                <p class="fs-10 text-body-tertiary mb-0">
+                  {% if task.completed %}
+                    Complete
+                  {% elif task.skipped %}
+                    Skipped
+                  {% elif task.locked %}
+                    Locked
+                  {% elif task.has_missing_prerequisites %}
+                    Recommended first
+                  {% else %}
+                    Step
+                  {% endif %}
+                </p>
+              </div>
+              {% if task.completed %}
+                <span class="fa-solid fa-check text-success"></span>
+              {% elif task.key == onboarding_status.current_step_key %}
+                <span class="fa-solid fa-circle-dot text-primary"></span>
+              {% else %}
+                <span class="fa-regular fa-circle text-body-tertiary"></span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="mb-4">
+      <p class="fs-10 fw-semibold text-body-tertiary text-uppercase mb-2">Your journeys</p>
+      <div class="list-group list-group-flush border rounded-2 onboarding-journey-list">
+        {% for journey in onboarding_status.available_journeys %}
+          <div class="list-group-item px-3 py-3 {% if journey.key == onboarding_status.selected_journey_key %}bg-body-highlight{% endif %}">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+              <div class="min-w-0">
+                <p class="fs-9 fw-semibold text-body-emphasis mb-1">{{ journey.title }}</p>
+                <p class="fs-10 text-body-tertiary mb-0">
+                  {{ journey.progress_count }} of {{ journey.total_task_count }} complete
+                </p>
+              </div>
+              {% if journey.key == onboarding_status.selected_journey_key %}
+                <span class="badge badge-phoenix badge-phoenix-primary">Current</span>
+              {% elif journey.percent_complete == 100 %}
+                <span class="badge badge-phoenix badge-phoenix-success">Complete</span>
+              {% endif %}
+            </div>
+            <div class="progress mb-3" style="height: 4px;" role="progressbar" aria-valuenow="{{ journey.percent_complete }}" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar" style="width: {{ journey.percent_complete }}%;"></div>
+            </div>
+            {% if journey.key != onboarding_status.selected_journey_key %}
+              <form method="post" action="{% url 'agent_dashboard' %}">
+                {% csrf_token %}
+                <input type="hidden" name="onboarding_action" value="select_journey">
+                <input type="hidden" name="selected_journey" value="{{ journey.key }}">
+                <input type="hidden" name="open_guide_after_select" value="1">
+                <button class="btn btn-sm btn-phoenix-secondary w-100" type="submit">
+                  {% if journey.percent_complete == 100 %}
+                    Review journey
+                  {% elif journey.progress_count %}
+                    Continue journey
+                  {% else %}
+                    Start journey
+                  {% endif %}
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="mt-auto border-top pt-3">
+      {% if onboarding_status.current_task %}
+        <div class="d-flex gap-2 mb-2">
+          <form method="post" action="{% url 'agent_dashboard' %}" class="flex-fill">
+            {% csrf_token %}
+            <input type="hidden" name="onboarding_action" value="guide_step">
+            {% if onboarding_status.previous_step_key %}
+              <input type="hidden" name="target_step_key" value="{{ onboarding_status.previous_step_key }}">
+              <button class="btn btn-phoenix-secondary w-100" type="submit">Back</button>
+            {% else %}
+              <button class="btn btn-phoenix-secondary w-100" type="button" disabled>Back</button>
+            {% endif %}
+          </form>
+          {% if onboarding_status.next_step_key %}
+            <form method="post" action="{% url 'agent_dashboard' %}" class="flex-fill">
+              {% csrf_token %}
+              <input type="hidden" name="onboarding_action" value="guide_step">
+              <input type="hidden" name="target_step_key" value="{{ onboarding_status.next_step_key }}">
+              <button class="btn btn-primary w-100" type="submit">Next</button>
+            </form>
+          {% else %}
+            <form method="post" action="{% url 'agent_dashboard' %}" class="flex-fill">
+              {% csrf_token %}
+              <input type="hidden" name="onboarding_action" value="continue_later">
+              <input type="hidden" name="current_step_key" value="{{ onboarding_status.current_task.key }}">
+              <button class="btn btn-primary w-100" type="submit">Finish</button>
+            </form>
+          {% endif %}
+        </div>
+        <form method="post" action="{% url 'agent_dashboard' %}" class="mb-2">
+          {% csrf_token %}
+          <input type="hidden" name="onboarding_action" value="skip_step">
+          <input type="hidden" name="current_step_key" value="{{ onboarding_status.current_task.key }}">
+          <button class="btn btn-link text-body-secondary w-100" type="submit">Skip for now</button>
+        </form>
+      {% endif %}
+      <form method="post" action="{% url 'agent_dashboard' %}">
+        {% csrf_token %}
+        <input type="hidden" name="onboarding_action" value="continue_later">
+        {% if onboarding_status.current_step_key %}
+          <input type="hidden" name="current_step_key" value="{{ onboarding_status.current_step_key }}">
+        {% endif %}
+        <button class="btn btn-phoenix-secondary w-100" type="submit">Continue later</button>
+      </form>
+    </div>
+  </div>
+</div>

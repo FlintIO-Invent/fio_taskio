@@ -216,7 +216,7 @@ def register_business(request: HttpRequest) -> HttpResponse:
             if subscription is not None:
                 messages.success(
                     request,
-                    "Your Motionmate workspace has been created with a 14-day trial. You can now review your workspace settings.",
+                    "Your Motionmate workspace has been created with a 14-day trial. You can now start from your dashboard.",
                 )
             else:
                 logger.warning(
@@ -227,7 +227,7 @@ def register_business(request: HttpRequest) -> HttpResponse:
                     request,
                     "Your Motionmate workspace has been created. Subscription setup is pending because no active trial plan is configured yet.",
                 )
-            return redirect("business_settings")
+            return redirect("agent_dashboard")
 
         logger.warning(
             "Business registration failed for email={}: {}",
