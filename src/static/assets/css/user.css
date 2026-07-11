@@ -239,6 +239,22 @@ html[data-bs-theme="dark"] .content .text-bg-light {
   width: var(--phoenix-offcanvas-width);
 }
 
+.onboarding-guide-header {
+  position: relative;
+  padding-right: 4.5rem;
+}
+
+.onboarding-guide-close-form {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  margin: 0;
+}
+
+.onboarding-guide-close-button {
+  display: block;
+}
+
 .onboarding-guide-panel .offcanvas-body {
   padding-bottom: 1rem;
 }

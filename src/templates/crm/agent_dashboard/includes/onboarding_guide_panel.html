@@ -7,18 +7,18 @@
   data-bs-keyboard="false"
   data-current-target-selector="{% if onboarding_status.current_task %}{{ onboarding_status.current_task.effective_target_selector|default:'' }}{% endif %}"
 >
-  <div class="offcanvas-header border-bottom">
+  <div class="offcanvas-header border-bottom onboarding-guide-header">
     <div>
       <p class="text-body-tertiary fs-10 text-uppercase mb-1">Your journeys</p>
       <h4 class="offcanvas-title mb-0" id="onboardingGuidePanelLabel">Setup Guide</h4>
     </div>
-    <form method="post" action="{% url 'agent_dashboard' %}">
+    <form method="post" action="{% url 'agent_dashboard' %}" class="onboarding-guide-close-form">
       {% csrf_token %}
       <input type="hidden" name="onboarding_action" value="continue_later">
       {% if onboarding_status.current_step_key %}
         <input type="hidden" name="current_step_key" value="{{ onboarding_status.current_step_key }}">
       {% endif %}
-      <button class="btn-close" type="submit" aria-label="Close"></button>
+      <button class="btn-close onboarding-guide-close-button" type="submit" aria-label="Close"></button>
     </form>
   </div>
   <div class="offcanvas-body d-flex flex-column">
