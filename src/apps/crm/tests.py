@@ -3518,6 +3518,8 @@ class DashboardOnboardingViewTests(TestCase):
         response = self.client.get(reverse("agent_dashboard"))
 
         self.assertContains(response, "Set Up My Business")
+        self.assertContains(response, "Pick a starting point")
+        self.assertContains(response, "Use this guide at your own pace")
         self.assertContains(
             response,
             "Get your workspace ready by completing your business profile, adding services, "
@@ -3542,6 +3544,7 @@ class DashboardOnboardingViewTests(TestCase):
         self.assertContains(response, "Open or configure online booking")
         self.assertContains(response, "Create your first invoice")
         self.assertContains(response, "Send or download your first invoice")
+        self.assertContains(response, "0 of 3 complete", count=3)
         self.assertContains(response, "Start this journey", count=3)
 
     def test_selecting_journey_saves_selected_journey(self):
@@ -3592,7 +3595,7 @@ class DashboardOnboardingViewTests(TestCase):
         onboarding_status = response.context["onboarding_status"]
         self.assertFalse(onboarding_status["should_auto_show_welcome"])
         self.assertEqual(onboarding_status["selected_journey_key"], "booked_and_paid")
-        self.assertContains(response, "Selected")
+        self.assertContains(response, "Current")
 
     def test_skip_dismiss_prevents_repeated_auto_show(self):
         self._login(self.owner_user)
@@ -3656,8 +3659,9 @@ class DashboardOnboardingViewTests(TestCase):
         self.assertContains(response, 'data-onboarding-target="booking-settings"')
         self.assertContains(response, 'data-onboarding-target="invoices"')
         self.assertContains(response, "This step is ready from the guide panel")
-        self.assertContains(response, "All journeys")
-        self.assertContains(response, "Active")
+        self.assertContains(response, "Your journeys")
+        self.assertContains(response, "Current")
+        self.assertContains(response, "Current journey")
         self.assertContains(response, "Start journey", count=2)
 
     def test_switching_journey_from_panel_updates_active_journey_and_reopens_guide(self):

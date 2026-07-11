@@ -215,6 +215,47 @@ html[data-bs-theme="dark"] .content .text-bg-light {
   border-color: var(--phoenix-border-color-translucent) !important;
 }
 
+.onboarding-welcome-modal .modal-content,
+.onboarding-guide-panel {
+  border-color: var(--phoenix-border-color-translucent);
+}
+
+.onboarding-welcome-modal .modal-header,
+.onboarding-welcome-modal .modal-footer {
+  background-color: var(--phoenix-body-highlight-bg);
+}
+
+.onboarding-journey-card {
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.onboarding-journey-card:hover {
+  border-color: rgba(var(--phoenix-primary-rgb), 0.42);
+  box-shadow: 0 0.6rem 1.35rem rgba(15, 23, 42, 0.08);
+}
+
+.onboarding-guide-panel {
+  --phoenix-offcanvas-width: min(100vw, 28rem);
+  width: var(--phoenix-offcanvas-width);
+}
+
+.onboarding-guide-panel .offcanvas-body {
+  padding-bottom: 1rem;
+}
+
+.onboarding-panel-section,
+.onboarding-task-card {
+  background-color: var(--phoenix-body-bg);
+}
+
+.onboarding-task-card {
+  border-color: var(--phoenix-border-color-translucent) !important;
+}
+
+.onboarding-journey-list .list-group-item {
+  transition: background-color 0.16s ease;
+}
+
 .onboarding-spotlight-positioned {
   position: relative !important;
 }
@@ -281,6 +322,16 @@ body.onboarding-spotlight-active .offcanvas-backdrop.show {
 @media (max-width: 991.98px) {
   body.onboarding-spotlight-active .offcanvas-backdrop.show {
     opacity: 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .onboarding-welcome-modal .modal-dialog {
+    margin: 0.75rem;
+  }
+
+  .onboarding-guide-panel {
+    --phoenix-offcanvas-width: 100vw;
   }
 }
 
