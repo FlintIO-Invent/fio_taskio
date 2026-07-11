@@ -39,7 +39,7 @@
           <div class="card-header d-flex justify-content-between align-items-center">
             <div>
               <h5 class="mb-0">Line Items</h5>
-              <p class="mb-0 text-body-secondary small">Saved lines keep their snapshot values. Select a saved service again only when you want to refresh the current catalog description and price.</p>
+              <p class="mb-0 text-body-secondary small">Choose a saved service or add a new service directly on each line.</p>
             </div>
             <button type="button" class="btn btn-sm btn-phoenix-primary" onclick="addLineItem()">
               <span class="fa-solid fa-plus me-2"></span>Add Service Line
@@ -55,25 +55,34 @@
               {% for line in existing_line_rows %}
               <div class="line-item row g-3 mb-3 pb-3 border-bottom">
                 <input type="hidden" name="line_id" value="{{ line.line_id }}">
-                <div class="col-md-5">
-                  <label class="form-label">Saved Service{% include "includes/help_icon.html" with text="Leave the saved service blank to keep this line fully custom." %}</label>
-                  <select class="form-select service-select" name="service_id">
-                    <option value="">Select a saved service</option>
-                    {% for service in available_services %}
-                    <option
-                      value="{{ service.id }}"
-                      data-name="{{ service.name }}"
-                      data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
-                      data-unit-price="{{ service.unit_price }}"
-                      data-tax-rate="{{ service.tax_rate }}"
-                      {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
-                    >
-                      {{ service.name }} - {{ service.unit_price|money:invoice.business }}
-                    </option>
-                    {% endfor %}
+                <div class="col-12">
+                  <label class="form-label">Service type</label>
+                  <select class="form-select service-source-select" aria-label="Service type">
+                    <option value="custom" {% if not line.service_id %}selected{% endif %}>New service</option>
+                    <option value="saved" {% if line.service_id %}selected{% endif %}>Saved service</option>
                   </select>
-                  <label class="form-label mt-2">Description</label>
-                  <input type="text" class="form-control" name="description" value="{{ line.description }}" maxlength="255" required>
+                </div>
+                <div class="col-md-5">
+                  <div class="saved-service-fields">
+                    <label class="form-label">Saved service{% include "includes/help_icon.html" with text="Pick a service from this workspace's saved services." %}</label>
+                    <select class="form-select service-select" name="service_id">
+                      <option value="">Select a saved service</option>
+                      {% for service in available_services %}
+                      <option
+                        value="{{ service.id }}"
+                        data-name="{{ service.name }}"
+                        data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
+                        data-unit-price="{{ service.unit_price }}"
+                        data-tax-rate="{{ service.tax_rate }}"
+                        {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
+                      >
+                        {{ service.name }} - {{ service.unit_price|money:invoice.business }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <label class="form-label mt-2 service-description-label">Service name</label>
+                  <input type="text" class="form-control" name="description" value="{{ line.description }}" maxlength="255">
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Quantity</label>
@@ -98,24 +107,33 @@
 
               {% for line in new_line_rows %}
               <div class="line-item row g-3 mb-3 pb-3 border-bottom">
-                <div class="col-md-5">
-                  <label class="form-label">Saved Service{% include "includes/help_icon.html" with text="Leave the saved service blank and complete the fields below for a custom line item." %}</label>
-                  <select class="form-select service-select" name="new_service_id">
-                    <option value="">Select a saved service</option>
-                    {% for service in available_services %}
-                    <option
-                      value="{{ service.id }}"
-                      data-name="{{ service.name }}"
-                      data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
-                      data-unit-price="{{ service.unit_price }}"
-                      data-tax-rate="{{ service.tax_rate }}"
-                      {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
-                    >
-                      {{ service.name }} - {{ service.unit_price|money:invoice.business }}
-                    </option>
-                    {% endfor %}
+                <div class="col-12">
+                  <label class="form-label">Service type</label>
+                  <select class="form-select service-source-select" aria-label="Service type">
+                    <option value="custom" {% if not line.service_id %}selected{% endif %}>New service</option>
+                    <option value="saved" {% if line.service_id %}selected{% endif %}>Saved service</option>
                   </select>
-                  <label class="form-label mt-2">Description</label>
+                </div>
+                <div class="col-md-5">
+                  <div class="saved-service-fields">
+                    <label class="form-label">Saved service{% include "includes/help_icon.html" with text="Pick a service from this workspace's saved services." %}</label>
+                    <select class="form-select service-select" name="new_service_id">
+                      <option value="">Select a saved service</option>
+                      {% for service in available_services %}
+                      <option
+                        value="{{ service.id }}"
+                        data-name="{{ service.name }}"
+                        data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
+                        data-unit-price="{{ service.unit_price }}"
+                        data-tax-rate="{{ service.tax_rate }}"
+                        {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
+                      >
+                        {{ service.name }} - {{ service.unit_price|money:invoice.business }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <label class="form-label mt-2 service-description-label">Service name</label>
                   <input type="text" class="form-control" name="new_description" value="{{ line.description }}" maxlength="255">
                 </div>
                 <div class="col-md-2">
@@ -141,23 +159,32 @@
             </div>
 
             <div id="line-item-template" class="line-item row g-3 mb-3 pb-3 border-bottom" style="display: none;">
-              <div class="col-md-5">
-                <label class="form-label">Saved Service{% include "includes/help_icon.html" with text="Leave the saved service blank and complete the fields below for a custom line item." %}</label>
-                <select class="form-select service-select" name="new_service_id" disabled>
-                  <option value="">Select a saved service</option>
-                  {% for service in available_services %}
-                  <option
-                    value="{{ service.id }}"
-                    data-name="{{ service.name }}"
-                    data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
-                    data-unit-price="{{ service.unit_price }}"
-                    data-tax-rate="{{ service.tax_rate }}"
-                  >
-                    {{ service.name }} - {{ service.unit_price|money:invoice.business }}
-                  </option>
-                  {% endfor %}
+              <div class="col-12">
+                <label class="form-label">Service type</label>
+                <select class="form-select service-source-select" aria-label="Service type" disabled>
+                  <option value="custom" selected>New service</option>
+                  <option value="saved">Saved service</option>
                 </select>
-                <label class="form-label mt-2">Description</label>
+              </div>
+              <div class="col-md-5">
+                <div class="saved-service-fields">
+                  <label class="form-label">Saved service{% include "includes/help_icon.html" with text="Pick a service from this workspace's saved services." %}</label>
+                  <select class="form-select service-select" name="new_service_id" disabled>
+                    <option value="">Select a saved service</option>
+                    {% for service in available_services %}
+                    <option
+                      value="{{ service.id }}"
+                      data-name="{{ service.name }}"
+                      data-description="{% if service.description %}{{ service.description }}{% else %}{{ service.name }}{% endif %}"
+                      data-unit-price="{{ service.unit_price }}"
+                      data-tax-rate="{{ service.tax_rate }}"
+                    >
+                      {{ service.name }} - {{ service.unit_price|money:invoice.business }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <label class="form-label mt-2 service-description-label">Service name</label>
                 <input type="text" class="form-control" name="new_description" maxlength="255" disabled>
               </div>
               <div class="col-md-2">
@@ -276,15 +303,66 @@ function isWholeUnitQuantity(value) {
   return value && Number.isFinite(quantity) && quantity >= 1 && Number.isInteger(quantity);
 }
 
+function setManualServiceSave(lineItem, shouldSave) {
+  const actionInput = lineItem.querySelector('.manual-service-action');
+  const actionToggle = lineItem.querySelector('.manual-service-action-toggle');
+
+  if (actionInput) {
+    actionInput.value = shouldSave ? '1' : '';
+  }
+  if (actionToggle) {
+    actionToggle.checked = shouldSave;
+  }
+}
+
+function setServiceSource(lineItem, source, { clearService = false } = {}) {
+  const serviceSelect = lineItem.querySelector('.service-select');
+  lineItem.dataset.serviceSource = source;
+
+  if (clearService && source === 'custom' && serviceSelect) {
+    serviceSelect.value = '';
+  }
+  if (source === 'saved') {
+    setManualServiceSave(lineItem, false);
+  }
+
+  updateServiceSource(lineItem);
+  updateManualServiceOptions(lineItem);
+}
+
+function updateServiceSource(lineItem) {
+  if (!lineItem) {
+    return;
+  }
+
+  const serviceSelect = lineItem.querySelector('.service-select');
+  const sourceSelect = lineItem.querySelector('.service-source-select');
+  const savedFields = lineItem.querySelector('.saved-service-fields');
+  const descriptionLabel = lineItem.querySelector('.service-description-label');
+  const source = lineItem.dataset.serviceSource || (sourceSelect && sourceSelect.value) || (serviceSelect && serviceSelect.value ? 'saved' : 'custom');
+
+  lineItem.dataset.serviceSource = source;
+  if (sourceSelect) {
+    sourceSelect.value = source;
+  }
+  if (savedFields) {
+    savedFields.classList.toggle('d-none', source !== 'saved');
+  }
+  if (descriptionLabel) {
+    descriptionLabel.textContent = source === 'saved' ? 'Description' : 'Service name';
+  }
+}
+
 function applySelectedService(selectElement) {
   const selectedOption = selectElement.options[selectElement.selectedIndex];
   const lineItem = selectElement.closest('.line-item');
+  lineItem.dataset.serviceSource = 'saved';
   if (!selectedOption || !selectedOption.value) {
+    updateServiceSource(lineItem);
     updateManualServiceOptions(lineItem);
     return;
   }
 
-  const saveAsServiceSelect = lineItem.querySelector('.manual-service-action');
   setInputValue(lineItem, 'description', 'new_description', selectedOption.dataset.description || selectedOption.dataset.name || '');
   setInputValue(lineItem, 'unit_price', 'new_unit_price', selectedOption.dataset.unitPrice || '');
 
@@ -292,10 +370,9 @@ function applySelectedService(selectElement) {
   if (!isWholeUnitQuantity(quantityValue)) {
     setInputValue(lineItem, 'quantity', 'new_quantity', '1.00');
   }
-  if (saveAsServiceSelect) {
-    saveAsServiceSelect.value = '';
-  }
+  setManualServiceSave(lineItem, false);
 
+  updateServiceSource(lineItem);
   updateManualServiceOptions(lineItem);
   updateTotals();
 }
@@ -306,15 +383,25 @@ function updateManualServiceOptions(lineItem) {
   }
 
   const serviceSelect = lineItem.querySelector('.service-select');
-  const actionSelect = lineItem.querySelector('.manual-service-action');
+  const actionInput = lineItem.querySelector('.manual-service-action');
+  const actionToggle = lineItem.querySelector('.manual-service-action-toggle');
+  const manualOptions = lineItem.querySelector('.manual-service-options');
   const categoryFields = lineItem.querySelectorAll('.manual-service-category-fields');
   const categorySelect = lineItem.querySelector('select[name$="service_category_id"]');
   const newCategoryInput = lineItem.querySelector('input[name$="new_service_category_name"]');
+  const serviceSource = lineItem.dataset.serviceSource || (serviceSelect && serviceSelect.value ? 'saved' : 'custom');
   const hasSavedService = Boolean(serviceSelect && serviceSelect.value);
-  const shouldShow = Boolean(actionSelect && actionSelect.value === '1' && !hasSavedService);
+  const canSaveManualService = serviceSource === 'custom' && !hasSavedService;
+  const shouldShow = Boolean(actionInput && actionInput.value === '1' && canSaveManualService);
 
-  if (hasSavedService && actionSelect) {
-    actionSelect.value = '';
+  if (!canSaveManualService) {
+    setManualServiceSave(lineItem, false);
+  }
+  if (manualOptions) {
+    manualOptions.classList.toggle('d-none', !canSaveManualService);
+  }
+  if (actionToggle && actionInput) {
+    actionToggle.checked = actionInput.value === '1';
   }
 
   categoryFields.forEach(field => {
@@ -339,12 +426,12 @@ function addLineItem() {
   newItem.style.display = 'flex';
   newItem.querySelectorAll('input, select').forEach(field => {
     field.disabled = false;
-    if (field.name === 'new_description' || field.name === 'new_quantity' || field.name === 'new_unit_price') {
+    if (field.name === 'new_quantity' || field.name === 'new_unit_price') {
       field.required = true;
     }
   });
   container.appendChild(newItem);
-  updateManualServiceOptions(newItem);
+  setServiceSource(newItem, 'custom');
   updateTotals();
 }
 
@@ -386,12 +473,26 @@ document.addEventListener('input', function(e) {
 document.addEventListener('change', function(e) {
   if (e.target.matches('.service-select')) {
     applySelectedService(e.target);
-  } else if (e.target.matches('.manual-service-action')) {
+  } else if (e.target.matches('.service-source-select')) {
+    setServiceSource(
+      e.target.closest('.line-item'),
+      e.target.value,
+      { clearService: e.target.value === 'custom' }
+    );
+    updateTotals();
+  } else if (e.target.matches('.manual-service-action-toggle')) {
+    setManualServiceSave(e.target.closest('.line-item'), e.target.checked);
     updateManualServiceOptions(e.target.closest('.line-item'));
   }
 });
 
-document.querySelectorAll('.line-item:not(#line-item-template)').forEach(updateManualServiceOptions);
+document.querySelectorAll('.line-item:not(#line-item-template)').forEach(lineItem => {
+  const initialServiceSelect = lineItem.querySelector('.service-select');
+  setServiceSource(
+    lineItem,
+    initialServiceSelect && initialServiceSelect.value ? 'saved' : 'custom'
+  );
+});
 updateTotals();
 </script>
 
