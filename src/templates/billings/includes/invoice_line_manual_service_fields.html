@@ -1,11 +1,11 @@
 <div class="col-12">
-  <div class="row g-3 align-items-end manual-service-options">
+  <div class="row g-3 align-items-end manual-service-options{% if line.service_id %} d-none{% endif %}">
     <div class="col-md-3">
-      <label class="form-label">Catalog</label>
-      <select class="form-select manual-service-action" name="{{ field_prefix }}save_as_service" {% if disabled %}disabled{% endif %}>
-        <option value="">Invoice line only</option>
-        <option value="1" {% if line.save_as_service %}selected{% endif %}>Save as service</option>
-      </select>
+      <input type="hidden" class="manual-service-action" name="{{ field_prefix }}save_as_service" value="{% if line.save_as_service %}1{% endif %}" {% if disabled %}disabled{% endif %}>
+      <label class="form-check form-switch mb-md-2">
+        <input type="checkbox" class="form-check-input manual-service-action-toggle" {% if line.save_as_service %}checked{% endif %} {% if disabled %}disabled{% endif %}>
+        <span class="form-check-label">Save to services</span>
+      </label>
     </div>
     <div class="col-md-4 manual-service-category-fields{% if not line.save_as_service %} d-none{% endif %}">
       <label class="form-label">Service category{% include "includes/help_icon.html" with text="Leave uncategorized or choose an existing category for the saved service." %}</label>

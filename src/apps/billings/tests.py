@@ -600,6 +600,12 @@ class BillingBusinessScopingTests(TestCase):
             html,
         )
         self.assertIn('name="unit_price" value="" step="1.00" min="0"', html)
+        self.assertIn("Service type", html)
+        self.assertIn('class="form-select service-source-select"', html)
+        self.assertIn("New service", html)
+        self.assertIn("Saved service", html)
+        self.assertIn("Save to services", html)
+        self.assertIn('class="manual-service-action" name="save_as_service"', html)
         self.assertNotIn('step="0.01"', html)
         self.assertIn("function isWholeUnitQuantity(value)", html)
         self.assertIn("quantityInput.value = '1.00';", html)
@@ -1173,6 +1179,12 @@ class BillingBusinessScopingTests(TestCase):
             html,
         )
         self.assertIn('name="unit_price" value="125.00" step="1.00" min="0"', html)
+        self.assertIn("Service type", html)
+        self.assertIn('class="form-select service-source-select"', html)
+        self.assertIn("New service", html)
+        self.assertIn("Saved service", html)
+        self.assertIn("Save to services", html)
+        self.assertIn('class="manual-service-action" name="save_as_service"', html)
         self.assertNotIn('step="0.01"', html)
         self.assertIn("function isWholeUnitQuantity(value)", html)
         self.assertIn(
