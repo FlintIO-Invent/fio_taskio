@@ -25,7 +25,13 @@
       </div>
       {% if onboarding_status.visible %}
         <div class="col-auto">
-          <button class="btn btn-phoenix-secondary" type="button" data-bs-toggle="modal" data-bs-target="#onboardingWelcomeModal">
+          <button
+            class="btn btn-phoenix-secondary"
+            type="button"
+            data-bs-toggle="{% if onboarding_status.selected_journey %}offcanvas{% else %}modal{% endif %}"
+            data-bs-target="{% if onboarding_status.selected_journey %}#onboardingGuidePanel{% else %}#onboardingWelcomeModal{% endif %}"
+            aria-controls="{% if onboarding_status.selected_journey %}onboardingGuidePanel{% else %}onboardingWelcomeModal{% endif %}"
+          >
             <span class="fa-solid fa-compass me-2"></span>Open Setup Guide
           </button>
         </div>
@@ -405,6 +411,10 @@
     {% include "crm/agent_dashboard/includes/onboarding_welcome_modal.html" %}
   {% endif %}
 
+  {% if onboarding_status.visible and onboarding_status.selected_journey %}
+    {% include "crm/agent_dashboard/includes/onboarding_guide_panel.html" %}
+  {% endif %}
+
   {% if onboarding_status.should_auto_show_welcome %}
     <script>
       document.addEventListener('DOMContentLoaded', function () {
@@ -413,6 +423,18 @@
           return;
         }
         window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
+      });
+    </script>
+  {% endif %}
+
+  {% if open_onboarding_guide %}
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        var panelElement = document.getElementById('onboardingGuidePanel');
+        if (!panelElement || !window.bootstrap) {
+          return;
+        }
+        window.bootstrap.Offcanvas.getOrCreateInstance(panelElement).show();
       });
     </script>
   {% endif %}

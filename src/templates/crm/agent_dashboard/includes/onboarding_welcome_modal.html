@@ -13,6 +13,11 @@
         </form>
       </div>
       <div class="modal-body">
+        {% if onboarding_status.selected_journey_missing %}
+          <div class="alert alert-subtle-warning" role="status">
+            Your previous setup journey is no longer available. Choose a journey to continue.
+          </div>
+        {% endif %}
         <p class="text-body-tertiary mb-4">You can come back to this guide anytime from your dashboard.</p>
         <div class="row g-3">
           {% for journey in onboarding_status.available_journeys %}

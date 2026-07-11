@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 from django.db.models import Q
+from django.urls import NoReverseMatch, reverse
 
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice
@@ -182,6 +183,24 @@ def get_or_create_user_onboarding_state(
     return UserOnboardingState.objects.get_or_create(user=user, business=business)
 
 
+def add_skipped_onboarding_step(
+    *,
+    state: UserOnboardingState,
+    task_key: str,
+) -> UserOnboardingState:
+    skipped_steps = deepcopy(state.skipped_steps or [])
+    if isinstance(skipped_steps, dict):
+        skipped_steps[task_key] = True
+    elif isinstance(skipped_steps, list):
+        if task_key not in skipped_steps:
+            skipped_steps.append(task_key)
+    else:
+        skipped_steps = [task_key]
+
+    state.skipped_steps = skipped_steps
+    return state
+
+
 def _has_business_profile(business: Business) -> bool:
     has_contact = bool((business.email or "").strip() or (business.phone or "").strip())
     has_location = bool(business.formatted_address_lines or (business.country or "").strip())
@@ -290,9 +309,17 @@ def _task_status(
     completion_check = COMPLETION_CHECKS[task_key]
     module_key = definition.get("module_key")
     module_allowed = can_use_module(business, module_key) if module_key else True
+    cta_url = ""
+    url_name = definition.get("url_name")
+    if url_name:
+        try:
+            cta_url = reverse(url_name)
+        except NoReverseMatch:
+            cta_url = ""
 
     return {
         **definition,
+        "cta_url": cta_url,
         "completed": completion_check(business),
         "skipped": _is_step_skipped(skipped_steps, task_key),
         "locked": bool(module_key and not module_allowed),
@@ -308,6 +335,67 @@ def _progress_for_tasks(tasks: list[dict[str, Any]]) -> dict[str, int]:
         "progress_count": progress_count,
         "total_task_count": total,
         "percent_complete": percent_complete,
+    }
+
+
+def _selected_journey_step_context(
+    *,
+    selected_journey: dict[str, Any] | None,
+    last_step_key: str | None,
+) -> dict[str, Any]:
+    if selected_journey is None:
+        return {
+            "current_task": None,
+            "current_step_key": None,
+            "current_step_index": None,
+            "current_step_number": 0,
+            "current_step_percent": 0,
+            "selected_journey_task_count": 0,
+            "previous_step_key": None,
+            "next_step_key": None,
+            "selected_journey_complete": False,
+        }
+
+    tasks = selected_journey["tasks"]
+    total = len(tasks)
+    selected_journey_complete = bool(total and all(task["completed"] for task in tasks))
+    if selected_journey_complete:
+        return {
+            "current_task": None,
+            "current_step_key": None,
+            "current_step_index": None,
+            "current_step_number": total,
+            "current_step_percent": 100,
+            "selected_journey_task_count": total,
+            "previous_step_key": tasks[-1]["key"] if tasks else None,
+            "next_step_key": None,
+            "selected_journey_complete": True,
+        }
+
+    task_keys = [task["key"] for task in tasks]
+    current_step_index = 0
+    if last_step_key in task_keys:
+        current_step_index = task_keys.index(last_step_key)
+    else:
+        for index, task in enumerate(tasks):
+            if not task["completed"] and not task["skipped"]:
+                current_step_index = index
+                break
+
+    current_task = tasks[current_step_index] if tasks else None
+    current_step_number = current_step_index + 1 if current_task else 0
+    return {
+        "current_task": current_task,
+        "current_step_key": current_task["key"] if current_task else None,
+        "current_step_index": current_step_index if current_task else None,
+        "current_step_number": current_step_number,
+        "current_step_percent": round((current_step_number / total) * 100) if total else 0,
+        "selected_journey_task_count": total,
+        "previous_step_key": tasks[current_step_index - 1]["key"] if current_step_index > 0 else None,
+        "next_step_key": (
+            tasks[current_step_index + 1]["key"] if current_step_index + 1 < total else None
+        ),
+        "selected_journey_complete": False,
     }
 
 
@@ -345,6 +433,10 @@ def get_onboarding_status(
             selected_journey = journey_status
 
     all_tasks = list(flat_task_statuses.values())
+    step_context = _selected_journey_step_context(
+        selected_journey=selected_journey,
+        last_step_key=state.last_step_key if state else None,
+    )
     visible = user_can_view_onboarding(user, business)
     completed_welcome = bool(state and state.completed_welcome)
     dismissed_at = state.dismissed_at if state else None
@@ -359,6 +451,7 @@ def get_onboarding_status(
         "available_journeys": available_journeys,
         "selected_journey": selected_journey,
         "selected_journey_key": selected_journey_key,
+        "selected_journey_missing": bool(selected_journey_key and selected_journey is None),
         "tasks": all_tasks,
         "visible": visible,
         "completed_welcome": completed_welcome,
@@ -366,5 +459,6 @@ def get_onboarding_status(
         "should_auto_show_welcome": should_auto_show_welcome,
         "auto_show_welcome": should_auto_show_welcome,
         "last_step_key": state.last_step_key if state else None,
+        **step_context,
         **_progress_for_tasks(all_tasks),
     }
