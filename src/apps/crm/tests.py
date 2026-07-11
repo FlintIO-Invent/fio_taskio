@@ -2928,6 +2928,29 @@ class PublicBookingTests(TestCase):
         self.assertIn("Requested service: Online Consultation", client.communication_notes)
         self.assertFalse(Appointment.objects.filter(source_lead=lead).exists())
 
+    def test_book_later_creates_request_without_preferred_time(self):
+        payload = self._booking_payload(
+            booking_intent=PublicBookingForm.BOOK_LATER,
+            email="book-later-no-time@example.com",
+        )
+        payload.pop("preferred_date")
+        payload.pop("preferred_time")
+
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            data=payload,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("public_booking_thank_you", args=[self.business.slug]),
+        )
+        lead = Lead.objects.get(email="book-later-no-time@example.com")
+        self.assertIsNone(lead.preferred_start_time)
+        self.assertIsNone(lead.preferred_end_time)
+        self.assertIn("Booking intent: contact before booking.", lead.notes)
+        self.assertFalse(Appointment.objects.filter(source_lead=lead).exists())
+
     def test_book_now_creates_request_client_and_scheduled_appointment_for_selected_staff(self):
         lead = self._create_valid_book_now(email="book-now@example.com")
         client = Client.objects.get(business=self.business, email="book-now@example.com")
