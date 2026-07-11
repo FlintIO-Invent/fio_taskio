@@ -225,6 +225,22 @@ html[data-bs-theme="dark"] .content .text-bg-light {
   background-color: var(--phoenix-body-highlight-bg);
 }
 
+.onboarding-welcome-header {
+  position: relative;
+  padding-right: 4.5rem;
+}
+
+.onboarding-welcome-close-form {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  margin: 0;
+}
+
+.onboarding-welcome-close-button {
+  display: block;
+}
+
 .onboarding-journey-card {
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }

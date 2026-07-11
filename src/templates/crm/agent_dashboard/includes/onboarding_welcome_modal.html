@@ -1,7 +1,7 @@
 <div class="modal fade onboarding-welcome-modal" id="onboardingWelcomeModal" tabindex="-1" aria-labelledby="onboardingWelcomeModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header align-items-start">
+      <div class="modal-header align-items-start onboarding-welcome-header">
         <div class="d-flex align-items-start gap-3">
           <div class="icon-wrapper-sm bg-primary-subtle text-primary-emphasis mt-1">
             <span class="fa-solid fa-compass"></span>
@@ -11,10 +11,10 @@
             <p class="text-body-secondary mb-0">Pick a starting point. The other journeys stay in your Setup Guide for later.</p>
           </div>
         </div>
-        <form method="post" action="{% url 'agent_dashboard' %}" class="ms-3">
+        <form method="post" action="{% url 'agent_dashboard' %}" class="onboarding-welcome-close-form">
           {% csrf_token %}
           <input type="hidden" name="onboarding_action" value="dismiss_welcome">
-          <button class="btn-close" type="submit" aria-label="Close"></button>
+          <button class="btn-close onboarding-welcome-close-button" type="submit" aria-label="Close"></button>
         </form>
       </div>
       <div class="modal-body">
