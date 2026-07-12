@@ -183,6 +183,166 @@
               opacity: 0;
             }
           }
+
+          .motionmate-hero-visual {
+            position: relative;
+            width: min(100%, 675px);
+            aspect-ratio: 1.16;
+            min-height: 360px;
+          }
+
+          .motionmate-hero-panel,
+          .motionmate-hero-card {
+            color: #0b0f19;
+            background: rgba(255, 255, 255, .96);
+            border: 1px solid rgba(255, 255, 255, .72);
+            box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, .24);
+            backdrop-filter: blur(14px);
+          }
+
+          .motionmate-hero-panel {
+            width: min(92%, 560px);
+            border-radius: 1.25rem;
+            padding: 1rem;
+          }
+
+          .motionmate-hero-card {
+            position: absolute;
+            border-radius: 1rem;
+            padding: .95rem;
+          }
+
+          .motionmate-hero-topbar,
+          .motionmate-hero-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+          }
+
+          .motionmate-hero-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            border-radius: 999px;
+            padding: .25rem .55rem;
+            font-size: .72rem;
+            font-weight: 700;
+            white-space: nowrap;
+          }
+
+          .motionmate-hero-metric {
+            min-width: 0;
+            border-radius: .85rem;
+            padding: .8rem;
+            background: #f5f7fb;
+          }
+
+          .motionmate-hero-muted {
+            color: #6f7485;
+          }
+
+          .motionmate-hero-panel h3,
+          .motionmate-hero-panel strong,
+          .motionmate-hero-card strong {
+            color: #0b0f19;
+          }
+
+          .motionmate-hero-metric i {
+            font-size: 1.15rem;
+          }
+
+          .motionmate-hero-pill-success {
+            color: #148943;
+            background: rgba(34, 197, 94, .14);
+          }
+
+          .motionmate-hero-pill-warning {
+            color: #a36a00;
+            background: rgba(255, 186, 8, .18);
+          }
+
+          .motionmate-hero-pill-info {
+            color: #285ec7;
+            background: rgba(76, 130, 247, .14);
+          }
+
+          .motionmate-hero-pill-primary {
+            color: #4447d9;
+            background: rgba(99, 102, 241, .14);
+          }
+
+          .motionmate-hero-table {
+            overflow: hidden;
+            border-radius: .9rem;
+            border: 1px solid #edf0f7;
+          }
+
+          .motionmate-hero-table .motionmate-hero-row {
+            padding: .7rem .8rem;
+            border-bottom: 1px solid #edf0f7;
+          }
+
+          .motionmate-hero-table .motionmate-hero-row:last-child {
+            border-bottom: 0;
+          }
+
+          .motionmate-hero-card-booking {
+            top: 11%;
+            right: 0;
+            width: min(46%, 250px);
+          }
+
+          .motionmate-hero-card-invoice {
+            left: 2%;
+            bottom: 8%;
+            width: min(48%, 260px);
+          }
+
+          @media (max-width: 991.98px) {
+            .motionmate-hero-visual {
+              min-height: 320px;
+            }
+
+            .motionmate-hero-card-booking {
+              width: min(52%, 240px);
+            }
+
+            .motionmate-hero-card-invoice {
+              width: min(54%, 250px);
+            }
+          }
+
+          @media (max-width: 575.98px) {
+            .motionmate-hero-visual {
+              min-height: 300px;
+            }
+
+            .motionmate-hero-panel {
+              width: 96%;
+              padding: .8rem;
+            }
+
+            .motionmate-hero-card {
+              padding: .75rem;
+            }
+
+            .motionmate-hero-card-booking {
+              top: 16%;
+              right: 0;
+              width: 56%;
+            }
+
+            .motionmate-hero-card-invoice {
+              left: 0;
+              bottom: 4%;
+              width: 58%;
+            }
+
+            .motionmate-hero-table {
+              display: none;
+            }
+          }
         </style>
 
         <h2 class="display-2 hero-typed-heading pb-2 pb-sm-3">Smarter workflows for
@@ -197,7 +357,7 @@
         <p class="fs-lg d-md-none d-xl-block pb-2 pb-md-0 mb-4 mb-md-5">Manage clients, bookings, appointments, and invoices in one simple workspace.</p>
         <div class="d-flex justify-content-center justify-content-md-start pb-2 pt-lg-2 pt-xl-0">
           <a href="{% url 'register_business' %}" class="btn btn-lg btn-primary shadow-primary me-3 me-sm-4">Start trial now</a>
-          <a href="mailto:support@motionate.net" class="btn btn-lg btn-outline-secondary">Contact us</a>
+          <a href="mailto:support@motionmate.net" class="btn btn-lg btn-outline-secondary">Contact us</a>
         </div>
         <div class="d-flex align-items-center justify-content-center justify-content-md-start text-start pt-4 pt-lg-5 mt-xxl-5">
           <!-- <div class="d-flex me-3">
@@ -215,17 +375,103 @@
         </div>
       </div>
 
-        <!-- Parallax gfx -->
+      <!-- Parallax gfx -->
       <div class="col-xl-6 col-md-6 d-md-flex justify-content-end">
-        <div class="parallax mx-auto ms-md-0 me-md-n5" style="max-width: 675px;">
-          <div class="parallax-layer zindex-2" data-depth="0.1">
-            <img src="{% static 'public_site/img/landing/saas-3/hero/layer01.png' %}" alt="Card">
+        <div class="parallax motionmate-hero-visual mx-auto ms-md-0 me-md-n5" aria-hidden="true">
+          <div class="parallax-layer zindex-2 w-100 h-100 d-flex align-items-center justify-content-center" data-depth="0.1">
+            <div class="motionmate-hero-panel">
+              <div class="motionmate-hero-topbar mb-3">
+                <div>
+                  <p class="fs-xs motionmate-hero-muted mb-1">MotionMate Workspace</p>
+                  <h3 class="h6 mb-0">Today&apos;s Snapshot</h3>
+                </div>
+                <span class="motionmate-hero-pill motionmate-hero-pill-success">
+                  <i class="bx bx-check-circle"></i> Live
+                </span>
+              </div>
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <div class="motionmate-hero-metric">
+                    <div class="motionmate-hero-row mb-2">
+                      <i class="bx bx-user text-primary"></i>
+                      <span class="fs-xs motionmate-hero-muted">Clients</span>
+                    </div>
+                    <strong class="h4 mb-0">128</strong>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="motionmate-hero-metric">
+                    <div class="motionmate-hero-row mb-2">
+                      <i class="bx bx-wrench text-info"></i>
+                      <span class="fs-xs motionmate-hero-muted">Requests</span>
+                    </div>
+                    <strong class="h4 mb-0">24</strong>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="motionmate-hero-metric">
+                    <div class="motionmate-hero-row mb-2">
+                      <i class="bx bx-calendar-check text-warning"></i>
+                      <span class="fs-xs motionmate-hero-muted">Bookings</span>
+                    </div>
+                    <strong class="h4 mb-0">6</strong>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="motionmate-hero-metric">
+                    <div class="motionmate-hero-row mb-2">
+                      <i class="bx bx-receipt text-success"></i>
+                      <span class="fs-xs motionmate-hero-muted">Invoices</span>
+                    </div>
+                    <strong class="h4 mb-0">$4.2k</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="motionmate-hero-table">
+                <div class="motionmate-hero-row">
+                  <div>
+                    <strong class="fs-sm d-block">Service Request Follow-Up</strong>
+                    <span class="fs-xs motionmate-hero-muted">Alicia Brown · Initial Consultation</span>
+                  </div>
+                  <span class="motionmate-hero-pill motionmate-hero-pill-warning">Review</span>
+                </div>
+                <div class="motionmate-hero-row">
+                  <div>
+                    <strong class="fs-sm d-block">Appointment Today</strong>
+                    <span class="fs-xs motionmate-hero-muted">10:30 AM · On-site visit</span>
+                  </div>
+                  <span class="motionmate-hero-pill motionmate-hero-pill-info">Scheduled</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="parallax-layer zindex-3" data-depth="0.25">
-            <img src="{% static 'public_site/img/landing/saas-3/hero/layer02.png' %}" alt="Bubble">
+          <div class="parallax-layer zindex-3 w-100 h-100" data-depth="0.25">
+            <div class="motionmate-hero-card motionmate-hero-card-booking">
+              <span class="motionmate-hero-pill motionmate-hero-pill-warning mb-3">
+                <i class="bx bx-calendar-plus"></i> Online Booking
+              </span>
+              <strong class="fs-sm d-block mb-1">Alicia Brown</strong>
+              <p class="fs-xs motionmate-hero-muted mb-3">Initial Consultation · Tue, 10:30 AM</p>
+              <div class="motionmate-hero-row">
+                <span class="fs-xs fw-semibold">Pending review</span>
+                <i class="bx bx-time-five text-warning"></i>
+              </div>
+            </div>
           </div>
-          <div class="parallax-layer" data-depth="-0.15">
-            <img src="{% static 'public_site/img/landing/saas-3/hero/layer03.png' %}" alt="Bubble">
+          <div class="parallax-layer w-100 h-100" data-depth="-0.15">
+            <div class="motionmate-hero-card motionmate-hero-card-invoice">
+              <span class="motionmate-hero-pill motionmate-hero-pill-primary mb-3">
+                <i class="bx bx-receipt"></i> Invoice MM-1001
+              </span>
+              <div class="motionmate-hero-row mb-2">
+                <span class="fs-xs motionmate-hero-muted">Status</span>
+                <strong class="fs-sm">Sent</strong>
+              </div>
+              <div class="motionmate-hero-row">
+                <span class="fs-xs motionmate-hero-muted">Total</span>
+                <strong class="fs-5">USD 420.00</strong>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -362,19 +608,19 @@
 <section class="container py-5 my-md-2 my-lg-4 my-xl-5">
 
   <!-- Text -->
-  <h2 class="h1 text-center mx-auto mt-n2 mt-sm-0 pt-md-2" style="max-width: 530px;">Get Possibilities for Better Trading with Silicon</h2>
+  <h2 class="h1 text-center mx-auto mt-n2 mt-sm-0 pt-md-2" style="max-width: 530px;">More Control. Less Admin. Better Business.</h2>
   <ul class="list-unstyled d-flex flex-wrap justify-content-center mb-5">
     <li class="d-flex fs-xl mx-3 mt-2 mt-sm-3">
       <i class="bx bx-check lead text-primary mt-1 me-2"></i>
-      <span>Spend with the Crypto and get up to <strong class="text-primary ms-1">12% back</strong></span>
+      <span>Capture every lead and <strong class="text-primary ms-1">never miss a follow-up</strong></span>
     </li>
     <li class="d-flex fs-xl mx-3 mt-2 mt-sm-3">
       <i class="bx bx-check lead text-primary mt-1 me-2"></i>
-      <span>Invite friends and get <strong class="text-primary ms-1">new opportunities</strong></span>
+      <span>Manage clients and work from<strong class="text-primary ms-1">one simple dashboard</strong></span>
     </li>
     <li class="d-flex fs-xl mx-3 mt-2 mt-sm-3">
       <i class="bx bx-check lead text-primary mt-1 me-2"></i>
-      <span>Trade and earn <strong class="text-primary mx-1">200+ cryptocurrencies</strong> and get a permanent <strong class="text-primary ms-1">5% discount</strong></span>
+      <span>Create invoices <strong class="text-primary mx-1">10x faster and</strong> keep your business moving<strong class="text-primary ms-1">5% discount</strong></span>
     </li>
   </ul>
 
