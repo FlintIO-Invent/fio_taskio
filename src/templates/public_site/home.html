@@ -193,10 +193,10 @@
 
           .motionmate-hero-panel,
           .motionmate-hero-card {
-            color: #0b0f19;
-            background: rgba(255, 255, 255, .96);
-            border: 1px solid rgba(255, 255, 255, .72);
-            box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, .24);
+            color: #111827;
+            background: #fff;
+            border: 1px solid rgba(226, 229, 241, .95);
+            box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, .32);
             backdrop-filter: blur(14px);
           }
 
@@ -212,6 +212,11 @@
             padding: .95rem;
           }
 
+          .motionmate-hero-panel *,
+          .motionmate-hero-card * {
+            text-shadow: none;
+          }
+
           .motionmate-hero-topbar,
           .motionmate-hero-row {
             display: flex;
@@ -225,9 +230,10 @@
             align-items: center;
             gap: .35rem;
             border-radius: 999px;
-            padding: .25rem .55rem;
+            padding: .28rem .65rem;
             font-size: .72rem;
-            font-weight: 700;
+            font-weight: 800;
+            line-height: 1.2;
             white-space: nowrap;
           }
 
@@ -236,16 +242,19 @@
             border-radius: .85rem;
             padding: .8rem;
             background: #f5f7fb;
+            border: 1px solid #eceff7;
           }
 
-          .motionmate-hero-muted {
-            color: #6f7485;
+          .motionmate-hero-visual .motionmate-hero-muted {
+            color: #4b556d !important;
           }
 
-          .motionmate-hero-panel h3,
-          .motionmate-hero-panel strong,
-          .motionmate-hero-card strong {
-            color: #0b0f19;
+          .motionmate-hero-visual .motionmate-hero-panel h3,
+          .motionmate-hero-visual .motionmate-hero-panel strong,
+          .motionmate-hero-visual .motionmate-hero-card strong,
+          .motionmate-hero-visual .motionmate-hero-card .fw-semibold,
+          .motionmate-hero-visual .motionmate-hero-metric .h4 {
+            color: #111827 !important;
           }
 
           .motionmate-hero-metric i {
@@ -253,23 +262,23 @@
           }
 
           .motionmate-hero-pill-success {
-            color: #148943;
-            background: rgba(34, 197, 94, .14);
+            color: #0f6f39 !important;
+            background: #dcfce7;
           }
 
           .motionmate-hero-pill-warning {
-            color: #a36a00;
-            background: rgba(255, 186, 8, .18);
+            color: #8a4f00 !important;
+            background: #fff1c2;
           }
 
           .motionmate-hero-pill-info {
-            color: #285ec7;
-            background: rgba(76, 130, 247, .14);
+            color: #1f56b3 !important;
+            background: #e4edff;
           }
 
           .motionmate-hero-pill-primary {
-            color: #4447d9;
-            background: rgba(99, 102, 241, .14);
+            color: #3730a3 !important;
+            background: #e7e7ff;
           }
 
           .motionmate-hero-table {
