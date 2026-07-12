@@ -1,28 +1,37 @@
-# Motionmate Appointment Staging QA
+# MotionMate Appointment And Booking QA
 
 ## Purpose
 
-This checklist is for Motionmate's internal appointment workflow release candidate before appointments are exposed to private testers.
+This checklist is for the current MotionMate appointment, public booking, and appointment-to-invoice workflow.
 
-This is staging/PostgreSQL QA only. It does not add or expand product scope.
+Run it before promoting changes that touch appointments, booking settings, availability, services, service requests, invoices, or role/plan gating.
 
-## Release candidate scope
+This is staging/PostgreSQL QA. SQLite is acceptable only as a local fallback when PostgreSQL test database creation is blocked.
 
-The staging pass must cover the current internal appointment workflow:
+## Current Scope
+
+The staging pass must cover the current workflow:
 
 - Internal appointment management
 - Manual appointment creation
 - Appointment creation from a service request
+- Public booking request intake
+- Booking settings and weekly availability
 - Appointment visibility on the dashboard
 - Appointment visibility on client detail pages
 - Appointment visibility on service request detail pages
 - Invoice creation from an appointment
+- Appointment confirmation emails
 - Role enforcement
 - Plan enforcement
 - Tenant isolation
 
 Key routes to verify:
 
+- `/book/<business_slug>/`
+- `/book/<business_slug>/thanks/`
+- `/businesses/settings/booking/`
+- `/businesses/settings/booking/availability/<availability_id>/deactivate/`
 - `/appointments/`
 - `/appointments/create/`
 - `/appointments/create/from-request/<lead_id>/`
@@ -33,6 +42,7 @@ Key routes to verify:
 - `/crm/agent/dashboard/`
 - `/crm/staff/clients/<client_id>/`
 - `/crm/staff/leads/<lead_id>/`
+- `/crm/settings/services/`
 - `/businesses/subscription/`
 - `/admin/`
 
@@ -64,7 +74,7 @@ Run these from the repo root before pushing the release candidate:
 ```bash
 uv run --no-sync python src/manage.py check
 uv run --no-sync python src/manage.py makemigrations --check --dry-run
-uv run --no-sync python src/manage.py test apps.accounts.tests apps.businesses.tests apps.crm.tests apps.billings.tests apps.appointments.tests
+uv run --no-sync python src/manage.py test apps.accounts.tests apps.businesses.tests apps.crm.tests apps.appointments.tests apps.billings.tests apps.notifications.tests
 ```
 
 If local PostgreSQL test database creation is blocked by missing `CREATEDB`, treat SQLite as a local fallback only for development unblocking. Do not treat SQLite-only success as sufficient staging signoff.
@@ -112,8 +122,8 @@ What to confirm:
 
 ### A. System health
 
-- Load `/home/` and confirm Motionmate branding is visible
-- Load `/accounts/login/` and confirm Motionmate branding is visible
+- Load `/home/` and confirm MotionMate branding is visible
+- Load `/accounts/login/` and confirm MotionMate branding is visible
 - Confirm CSS, JS, and favicon assets load correctly
 - Load `/admin/` and confirm admin login works
 - Confirm logs do not show repeated 500 errors during basic navigation
@@ -131,12 +141,26 @@ What to confirm:
 
 - Create a service category
 - Create a business service
+- Mark at least one active service as bookable online
 - Create a client
 - Create an internal service request
 - Submit a public request if the current plan allows it
 - Confirm public request client upsert is safe and does not overwrite richer existing client data
 
-### D. Appointment flow
+### D. Public booking setup and intake
+
+- Confirm the plan allows public booking
+- Open `/businesses/settings/booking/`
+- Enable booking requests
+- Set default duration, notice, booking window, buffer, public instructions, cancellation text, and reschedule text
+- Add at least one active weekly availability block
+- Open `/book/<business_slug>/`
+- Submit a booking request for a valid bookable service and time
+- Confirm the customer is redirected to `/book/<business_slug>/thanks/`
+- Confirm a service request and matching client are created for the correct business
+- Confirm the visitor receipt and internal notification email flows are exercised in staging
+
+### E. Appointment flow
 
 - Confirm appointment navigation appears only when the plan allows appointments
 - Create an appointment manually from `/appointments/create/`
@@ -148,17 +172,22 @@ What to confirm:
 - Change appointment status
 - Confirm invalid time ranges are blocked
 - Rename the linked service and confirm the appointment keeps its original service-name snapshot
+- If the appointment comes from a public booking request, confirm appointment confirmation email behavior
 
-### E. Appointment to invoice flow
+### F. Appointment to invoice flow
 
 - Create an invoice from `/billings/from-appointment/<appointment_id>/`
 - Confirm the invoice uses the appointment client
 - Confirm the line item pre-fills from the appointment service when available
 - Confirm a manual line item still works
+- Confirm the invoice form supports the service type dropdown for new versus saved services
+- Confirm an on-the-fly service can be saved to the service catalog
 - Confirm totals calculate correctly
 - Confirm invoice status changes work
+- Confirm invoice PDF download works
+- Confirm invoice email sends the PDF attachment and updates email metadata
 
-### F. Role checks
+### G. Role checks
 
 - `Owner` can manage appointments and invoices
 - `Admin` can manage appointments and invoices
@@ -166,13 +195,14 @@ What to confirm:
 - `Accountant` can manage invoices but appointments are read-only
 - `Viewer` is read-only
 
-### G. Tenant isolation
+### H. Tenant isolation
 
 - Create two businesses
 - Verify one business cannot access another business's clients
 - Verify one business cannot access another business's service requests
 - Verify one business cannot access another business's appointments
 - Verify one business cannot create an invoice from another business's appointment
+- Verify public booking rejects a service ID that belongs to another business
 - Verify direct cross-business URLs return the expected `404` or permission response for the current pattern
 
 ## Issue tracking format
@@ -189,9 +219,9 @@ Capture each staging issue with:
 - `fix branch`
 - `retest result`
 
-## Release decision gate
+## Promotion Decision Gate
 
-Appointments can be exposed to private testers only if all of the following are true:
+Appointment and booking changes can be promoted only if all of the following are true:
 
 - Migrations pass on PostgreSQL
 - Browser smoke tests pass
@@ -199,7 +229,8 @@ Appointments can be exposed to private testers only if all of the following are 
 - No role-permission bypass is found
 - No repeated 500 errors appear in logs
 - Appointment and invoice workflows work end-to-end
-- Motionmate branding is consistent in the visible UI
+- Public booking request intake works end-to-end when the plan allows it
+- MotionMate branding is consistent in the visible UI
 
 ## Coverage notes
 
@@ -209,5 +240,7 @@ The current automated suites already cover the main release-candidate behaviors,
 - Service request to appointment linking
 - Dashboard, client-detail, and request-detail appointment visibility
 - Appointment-to-invoice creation
+- Public booking setup and booking request intake
+- Invoice PDF and invoice email flows
 - Role boundaries for owners, admins, staff, accountants, and viewers
 - Tenant scoping for clients, requests, appointments, services, and invoices

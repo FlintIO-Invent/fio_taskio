@@ -155,8 +155,18 @@
     <div class="row pt-3 pb-2 py-md-4">
 
       <!-- Text -->
-      <div class="col-xl-5 col-md-6 pt-lg-5 text-center text-md-start mb-4 mb-md-0">
+      <div class="col-xl-6 col-md-6 pt-lg-5 text-center text-md-start mb-4 mb-md-0">
         <style>
+          .hero-typed-heading {
+            min-height: 3lh;
+          }
+
+          @media (max-width: 575.98px) {
+            .hero-typed-heading {
+              min-height: 4lh;
+            }
+          }
+
           .typed-text::after {
             content: "";
             display: inline-block;
@@ -175,21 +185,19 @@
           }
         </style>
 
-        <h2 class="display-3 pb-2 pb-sm-3">Smarter business management</h2>
-        <h2 class="display-3 pb-2 pb-sm-3">built for
+        <h2 class="display-2 hero-typed-heading pb-2 pb-sm-3">Smarter workflows for
           <span
             class="typed-text"
             data-typed-text='["small businesses", "Caribbean entrepreneurs", "European teams", "consultants & agencies"]'
             data-typed-classes='["text-info", "text-primary", "text-warning", "text-secondary-lighter"]'>
-            small service businesses
           </span>
         </h2>
 
 
         <p class="fs-lg d-md-none d-xl-block pb-2 pb-md-0 mb-4 mb-md-5">Manage clients, bookings, appointments, and invoices in one simple workspace.</p>
         <div class="d-flex justify-content-center justify-content-md-start pb-2 pt-lg-2 pt-xl-0">
-          <a href="#" class="btn btn-lg btn-primary shadow-primary me-3 me-sm-4">Start trial now</a>
-          <a href="#" class="btn btn-lg btn-outline-secondary">Contact us</a>
+          <a href="{% url 'register_business' %}" class="btn btn-lg btn-primary shadow-primary me-3 me-sm-4">Start trial now</a>
+          <a href="mailto:support@motionate.net" class="btn btn-lg btn-outline-secondary">Contact us</a>
         </div>
         <div class="d-flex align-items-center justify-content-center justify-content-md-start text-start pt-4 pt-lg-5 mt-xxl-5">
           <!-- <div class="d-flex me-3">
@@ -208,7 +216,7 @@
       </div>
 
         <!-- Parallax gfx -->
-      <div class="col-xl-7 col-md-6 d-md-flex justify-content-end">
+      <div class="col-xl-6 col-md-6 d-md-flex justify-content-end">
         <div class="parallax mx-auto ms-md-0 me-md-n5" style="max-width: 675px;">
           <div class="parallax-layer zindex-2" data-depth="0.1">
             <img src="{% static 'public_site/img/landing/saas-3/hero/layer01.png' %}" alt="Card">
@@ -228,6 +236,7 @@
 <script>
   (function () {
     const typedText = document.querySelector('.typed-text');
+    const typedHeading = typedText ? typedText.closest('.hero-typed-heading') : null;
 
     if (!typedText) {
       return;
@@ -244,6 +253,58 @@
 
     const words = parseDataList('data-typed-text', [typedText.textContent.trim()]);
     const classes = parseDataList('data-typed-classes', []);
+    let resizeTimer = null;
+
+    const reserveHeadingHeight = function () {
+      if (!typedHeading) {
+        return;
+      }
+
+      const originalText = typedText.textContent;
+      const activeClasses = classes.filter(function (className) {
+        return typedText.classList.contains(className);
+      });
+      const currentMinHeight = typedHeading.style.minHeight;
+      let maxHeight = 0;
+
+      typedHeading.style.minHeight = '0px';
+
+      words.forEach(function (word, index) {
+        classes.forEach(function (className) {
+          typedText.classList.remove(className);
+        });
+
+        if (classes[index]) {
+          typedText.classList.add(classes[index]);
+        }
+
+        typedText.textContent = word;
+        maxHeight = Math.max(maxHeight, typedHeading.getBoundingClientRect().height);
+      });
+
+      classes.forEach(function (className) {
+        typedText.classList.remove(className);
+      });
+      activeClasses.forEach(function (className) {
+        typedText.classList.add(className);
+      });
+      typedText.textContent = originalText;
+
+      typedHeading.style.minHeight = maxHeight ? `${Math.ceil(maxHeight)}px` : currentMinHeight;
+    };
+
+    const scheduleHeadingResize = function () {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(reserveHeadingHeight, 150);
+    };
+
+    reserveHeadingHeight();
+
+    window.addEventListener('resize', scheduleHeadingResize);
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(reserveHeadingHeight);
+    }
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       typedText.textContent = words[0];

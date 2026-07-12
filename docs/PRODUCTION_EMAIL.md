@@ -5,6 +5,22 @@ It covers password resets, password-change confirmations, team invitations, cust
 
 This does not add marketing email, newsletters, background workers, webhooks, or scheduled reminders.
 
+## Current Email-Producing Flows
+
+The current repository sends or prepares transactional email for:
+
+- password reset
+- password change confirmation
+- business team invitation
+- public service request customer confirmation
+- public service request internal business alert
+- public booking request customer receipt
+- public booking request internal business alert
+- appointment confirmation
+- invoice email with PDF attachment
+
+Local development uses the console email backend by default. Staging and production should use SMTP through a transactional provider.
+
 ## Provider Choice
 
 Use a transactional email provider for staging and production.
@@ -88,16 +104,17 @@ Run this on staging before production launch.
 4. Set `MOTIONMATE_PUBLIC_BASE_URL` to the staging app URL, or to `https://www.motionmate.net` if testing against the production domain.
 5. Trigger a password reset email.
 6. Trigger a team invitation email.
-7. Trigger a customer request confirmation email from the public request/booking flow.
-8. Trigger an internal business alert from the public request/booking flow.
-9. Trigger an appointment confirmation email if appointments are enabled for the staging scope.
-10. Trigger an invoice email with a PDF attachment.
-11. Confirm each email arrives in the expected inbox.
-12. Confirm password reset and invitation links point to the intended MotionMate app URL.
-13. Confirm customer-facing emails do not contain staff-only notes or internal-only data.
-14. Confirm the invoice PDF attachment opens.
-15. Confirm failed sends are logged safely by temporarily using invalid staging SMTP credentials.
-16. Confirm logs do not contain passwords, reset tokens, SMTP credentials, API keys, or private DNS values.
+7. Trigger a customer request confirmation email from `/crm/public_request/<business_slug>/`.
+8. Trigger an internal business alert from `/crm/public_request/<business_slug>/`.
+9. Trigger a public booking receipt and internal alert from `/book/<business_slug>/`.
+10. Trigger an appointment confirmation email when a booking request is scheduled as an appointment.
+11. Trigger an invoice email with a PDF attachment.
+12. Confirm each email arrives in the expected inbox.
+13. Confirm password reset and invitation links point to the intended MotionMate app URL.
+14. Confirm customer-facing emails do not contain staff-only notes or internal-only data.
+15. Confirm the invoice PDF attachment opens.
+16. Confirm failed sends are logged safely by temporarily using invalid staging SMTP credentials.
+17. Confirm logs do not contain passwords, reset tokens, SMTP credentials, API keys, or private DNS values.
 
 No test-management command is required for this block. The safest staging test is to exercise the real transactional flows above because they also verify templates, links, attachments, and view-level failure behavior.
 
@@ -134,9 +151,10 @@ Trigger pilot-critical transactional flows:
 
 - Password reset: open `/accounts/password-reset/`, submit a pilot user email, and verify the reset link uses the expected MotionMate app URL.
 - Team invitation: as an owner/admin, open `/businesses/team/`, invite a test teammate, and verify the invite link uses the expected MotionMate app URL.
-- Customer request confirmation: submit the public request/booking form for a pilot business and verify the customer receives the confirmation.
-- Internal request alert: after the same public request/booking submission, verify the business notification recipient receives the internal alert with the internal request link.
-- Appointment confirmation: if appointments are in pilot scope, schedule/confirm an appointment and verify the customer receives the appointment details.
+- Customer request confirmation: submit `/crm/public_request/<business_slug>/` for a pilot business and verify the customer receives the confirmation.
+- Internal request alert: after the same public request submission, verify the business notification recipient receives the internal alert with the internal request link.
+- Public booking receipt and alert: submit `/book/<business_slug>/` and verify the visitor receipt plus internal alert are delivered.
+- Appointment confirmation: schedule or confirm an appointment from a booking request and verify the customer receives the appointment details.
 - Invoice PDF email: from an invoice detail page, manually click the invoice email action and verify the client receives exactly one email with an opening PDF attachment.
 
 Inspect Heroku logs safely:
@@ -179,7 +197,8 @@ Complete this before enabling production email delivery for real users.
 - Invitation link points to `https://www.motionmate.net`.
 - Customer request confirmation email arrives.
 - Internal business alert email arrives.
-- Appointment confirmation email arrives if appointments are in launch scope.
+- Public booking receipt and internal alert arrive.
+- Appointment confirmation email arrives.
 - Invoice email arrives with a PDF attachment.
 - Invoice PDF attachment opens.
 - `EMAIL_TIMEOUT=10` is configured.

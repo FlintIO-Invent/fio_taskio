@@ -1,10 +1,14 @@
-# Motionmate User Route Walkthrough
+# MotionMate User Route Walkthrough
 
-Date: 2026-06-26
+Original walkthrough date: 2026-06-26
+
+Repository refresh date: 2026-07-12
 
 ## Summary
 
-I performed a role-based route walkthrough against the current Motionmate Django app using an isolated SQLite database and local in-memory email backend. The walkthrough covered public visitor routes, workspace roles, tenant isolation, and the public booking request to appointment to invoice workflow.
+This document records a role-based route walkthrough against the MotionMate Django app using an isolated SQLite database and local in-memory email backend. The walkthrough covered public visitor routes, workspace roles, tenant isolation, and the public booking request to appointment to invoice workflow.
+
+The capability notes have been refreshed to match the current repository state: appointments, public booking, booking settings, availability, invoice PDFs, invoice email, and service imports are active repository features. Memberships, Stripe checkout, payment collection, background jobs, and instant auto-confirmed bookings remain out of active scope.
 
 Overall result: 118 of 118 route/workflow checks matched the expected status codes after disabling the test harness HTTPS redirect so requests reached the actual view logic.
 
@@ -12,7 +16,7 @@ No application behavior was changed. No migrations were created. No real user, p
 
 ## Current SaaS Product Capability Map
 
-Motionmate currently supports a one-business-per-login MVP workflow on top of a multi-tenant `Business` and `BusinessUser` model. The product can be used as an operations workspace for service businesses that need public intake, booking requests, customer management, appointment scheduling, invoicing, PDF generation, and email notifications.
+MotionMate currently supports one active workspace in session on top of a multi-tenant `Business` and `BusinessUser` model. A user can have memberships in more than one business, but the MVP still has no exposed workspace switcher. The product can be used as an operations workspace for service businesses that need public intake, booking requests, customer management, appointment scheduling, invoicing, PDF generation, and email notifications.
 
 | Product area | What can be done now | Primary roles |
 | --- | --- | --- |
@@ -68,7 +72,7 @@ Because the seed command source is missing, I used direct ORM setup in the isola
 
 Seeded QA data included:
 
-- A full-access Motionmate plan with invoicing, appointments, public request, and public booking enabled.
+- A full-access MotionMate plan with invoicing, appointments, public request, and public booking enabled.
 - One business: `[DEMO] FlintIO Demo QA`.
 - One separate tenant: `[DEMO] Other Tenant QA`.
 - Owner, admin, staff, accountant, and viewer users.
@@ -169,7 +173,7 @@ Tenant scoping behaved correctly in the exercised routes.
 
 1. Public visitor opens `/accounts/register-business/`.
 2. Visitor enters owner identity, login credentials, and business details.
-3. Motionmate creates the user, business, owner `BusinessUser` membership, default trial subscription when an active plan exists, and legacy SaaS profile defaults.
+3. MotionMate creates the user, business, owner `BusinessUser` membership, default trial subscription when an active plan exists, and legacy SaaS profile defaults.
 4. The owner is logged in and redirected into the workspace flow.
 5. Owner completes business settings: contact email, phone, country, currency, timezone, locale, tax defaults, invoice prefix/start number, and address.
 6. Owner lands on the dashboard and can begin configuring services, booking, team members, clients, and invoices.
@@ -178,7 +182,7 @@ Tenant scoping behaved correctly in the exercised routes.
 
 1. User opens `/accounts/login/`.
 2. User submits email and password.
-3. Motionmate authenticates the user and resolves their first active business membership or the selected session business.
+3. MotionMate authenticates the user and resolves their first active business membership or the selected session business.
 4. The current business is stored in session as `current_business_id`.
 5. User is redirected to `/crm/agent/dashboard/`.
 6. Dashboard widgets and navigation are filtered by role permissions and plan/module access.
@@ -196,8 +200,8 @@ Tenant scoping behaved correctly in the exercised routes.
 
 1. Public visitor opens `/crm/public_request/<business-slug>/`.
 2. Visitor selects request type/category and enters name, company, email, phone, service address, message, and consent.
-3. Motionmate creates a `Lead` scoped to that business with `request_source=public_request`.
-4. If the lead is a service request, Motionmate creates or updates a matching client.
+3. MotionMate creates a `Lead` scoped to that business with `request_source=public_request`.
+4. If the lead is a service request, MotionMate creates or updates a matching client.
 5. Visitor is redirected to `/crm/thanks/`.
 6. Workspace users can review the request in `/crm/staff/leads/`.
 7. Owner/admin/staff can edit or convert the request, then schedule an appointment or create an invoice when appropriate.
@@ -210,9 +214,9 @@ Tenant scoping behaved correctly in the exercised routes.
 4. Public visitor opens `/book/<business-slug>/`.
 5. Visitor selects a service and preferred date/time inside the booking window and availability hours.
 6. Visitor enters contact details, service location, message, and contact consent.
-7. Motionmate creates a service request lead with `request_source=public_booking`, the requested service, preferred start/end time, and business scope.
-8. Motionmate creates or updates a matching client.
-9. Motionmate sends a visitor receipt email and an internal booking notification through the configured email backend.
+7. MotionMate creates a service request lead with `request_source=public_booking`, the requested service, preferred start/end time, and business scope.
+8. MotionMate creates or updates a matching client.
+9. MotionMate sends a visitor receipt email and an internal booking notification through the configured email backend.
 10. Visitor is redirected to `/book/<business-slug>/thanks/`.
 11. Staff reviews the new request from dashboard public booking review or `/crm/staff/leads/`.
 
@@ -221,10 +225,10 @@ Tenant scoping behaved correctly in the exercised routes.
 1. Staff, admin, or owner opens the public booking service request detail.
 2. If no matching client exists, they complete client conversion first.
 3. They choose "schedule appointment from request" at `/appointments/create/from-request/<lead-id>/`.
-4. Motionmate pre-fills client, service, title, location, notes, and preferred time where possible.
+4. MotionMate pre-fills client, service, title, location, notes, and preferred time where possible.
 5. Staff confirms staff member, start/end time, location, and notes.
-6. Motionmate creates the appointment linked to the source lead.
-7. If the source lead is a public booking request, Motionmate sends an appointment confirmation email.
+6. MotionMate creates the appointment linked to the source lead.
+7. If the source lead is a public booking request, MotionMate sends an appointment confirmation email.
 8. The appointment becomes visible in appointment lists, client detail, dashboard upcoming appointments, and invoice-from-appointment flow.
 
 ### 7. Manual Client To Appointment Flow
@@ -232,7 +236,7 @@ Tenant scoping behaved correctly in the exercised routes.
 1. Owner/admin/staff/accountant creates or edits a client in `/crm/staff/clients/`.
 2. Owner/admin/staff opens `/appointments/create/`, optionally starting from a client.
 3. They select client, service, staff member, start/end time, location, and notes.
-4. Motionmate validates that the client, service, and staff membership belong to the current business.
+4. MotionMate validates that the client, service, and staff membership belong to the current business.
 5. The appointment is created as scheduled.
 6. Owner/admin/staff can edit the appointment or change status to completed, cancelled, or no-show.
 7. Accountant/viewer can inspect appointment details but cannot manage appointments.
@@ -241,10 +245,10 @@ Tenant scoping behaved correctly in the exercised routes.
 
 1. Accountant, admin, or owner opens an appointment detail page.
 2. They choose invoice from appointment at `/billings/from-appointment/<appointment-id>/`.
-3. Motionmate checks that no invoice is already linked to that appointment.
+3. MotionMate checks that no invoice is already linked to that appointment.
 4. The invoice form pre-fills appointment notes and service line item when possible.
 5. User confirms service/description/quantity/unit price and notes.
-6. Motionmate creates the invoice, generates the next business invoice number, creates line items, calculates subtotal/tax/total, and links the invoice to the appointment.
+6. MotionMate creates the invoice, generates the next business invoice number, creates line items, calculates subtotal/tax/total, and links the invoice to the appointment.
 7. User lands on the invoice detail page.
 8. Invoice is available in invoice list, dashboard billing widgets, client history, and PDF/email actions.
 
@@ -253,8 +257,8 @@ Tenant scoping behaved correctly in the exercised routes.
 1. Accountant, admin, or owner opens a client detail page.
 2. They choose create invoice from client at `/billings/from-client/<client-id>/`.
 3. They add one or more service or manual invoice lines.
-4. Motionmate validates selected services belong to the current business.
-5. Motionmate creates a draft invoice scoped to the current business and client.
+4. MotionMate validates selected services belong to the current business.
+5. MotionMate creates a draft invoice scoped to the current business and client.
 6. User can edit draft invoice lines and notes until the invoice is no longer draft.
 7. User can change invoice status through allowed transitions: draft to sent/cancelled, sent to paid/cancelled.
 
@@ -262,18 +266,18 @@ Tenant scoping behaved correctly in the exercised routes.
 
 1. Owner/admin/accountant/viewer opens invoice detail.
 2. User downloads PDF from `/billings/<invoice-id>/pdf/`.
-3. Motionmate renders a PDF with business name/address/contact, invoice number/date/status, client billing details, appointment context, lines, totals, and notes.
+3. MotionMate renders a PDF with business name/address/contact, invoice number/date/status, client billing details, appointment context, lines, totals, and notes.
 4. Owner/admin/accountant sends invoice email from `/billings/<invoice-id>/email/`.
-5. Motionmate validates the client email address.
-6. Motionmate attaches the generated PDF and sends a templated email through the configured backend.
-7. Motionmate records `emailed_at`, `emailed_to`, increments `email_send_count`, and logs an activity entry.
+5. MotionMate validates the client email address.
+6. MotionMate attaches the generated PDF and sends a templated email through the configured backend.
+7. MotionMate records `emailed_at`, `emailed_to`, increments `email_send_count`, and logs an activity entry.
 
 ### 11. Team And Role Flow
 
 1. Owner/admin opens `/businesses/team/`.
 2. They review active business members.
 3. They invite a new team member by email and role.
-4. Motionmate creates an invitation token and sends an invitation email.
+4. MotionMate creates an invitation token and sends an invitation email.
 5. Invitee opens `/accounts/invitations/accept/<token>/`.
 6. Invitee accepts the invitation and receives a `BusinessUser` membership.
 7. Their accessible routes are controlled by the assigned role.
@@ -289,7 +293,7 @@ Role boundaries observed:
 ### 12. Dashboard And Reporting Flow
 
 1. User opens `/crm/agent/dashboard/`.
-2. Motionmate resolves current business and membership role.
+2. MotionMate resolves current business and membership role.
 3. Dashboard loads counts and follow-ups for clients and service requests.
 4. If appointment module and role allow viewing, dashboard shows upcoming/today appointment metrics.
 5. If invoicing module and role allow viewing, dashboard shows invoice counts, draft/sent/paid totals, unpaid totals, and recent invoices.
@@ -304,14 +308,18 @@ Role boundaries observed:
 4. Public booking validates that selected services belong to the public business slug.
 5. Cross-tenant service IDs fail form validation and create no lead.
 
-### 14. Demo Data Flow
+### 14. Demo Data Status
 
-1. Preferred future command: `python src/manage.py seed_flintio_demo_data --business-slug <existing-business-slug>`.
-2. Alternative future command: `python src/manage.py seed_flintio_demo_data --owner-email <existing-owner-email>`.
-3. Separate demo workspace should only be created with `--create-demo-owner`.
-4. Fake records should be marked with `[DEMO]` or `FlintIO Demo`.
-5. `--reset-demo` should delete only marked demo records for the selected business.
-6. The command should never overwrite login email, password, role, profile, business, or non-demo data.
+The `seed_flintio_demo_data` management command is not present in this checkout.
+
+When that command is restored, expected safe behavior is:
+
+1. Allow seeding into an existing business with `--business-slug <existing-business-slug>`.
+2. Allow targeting an existing owner with `--owner-email <existing-owner-email>`.
+3. Create a separate demo workspace only when `--create-demo-owner` is provided.
+4. Mark fake records with `[DEMO]` or `FlintIO Demo`.
+5. Let `--reset-demo` delete only marked demo records for the selected business.
+6. Never overwrite login email, password, role, profile, business, or non-demo data.
 
 ## Issues Found
 
@@ -320,24 +328,19 @@ Role boundaries observed:
    - Observed: unknown command, and `src/apps/businesses/management/commands/` has no source command file.
    - Impact: the preferred safe demo-data setup workflow cannot be used, including the requested `--business-slug`, `--owner-email`, `--create-demo-owner`, and `--reset-demo` behavior.
 
-2. Navigation still exposes roadmap/stale module labels.
-   - `src/templates/inheritance/dashboard_parent.html` displays `Memberships` and `Public Booking` as planned/later badges.
-   - Public booking is already functional, while memberships are out of the active roadmap.
-   - Impact: owners may think public booking is not usable, and users may see a memberships concept that should not be active.
-
-3. Subscription page copy is ahead of the product decision.
-   - `src/templates/businesses/subscription.html` mentions Stripe and lists memberships in plan badges.
-   - The brief says memberships and Stripe/SaaS billing are on hold and should not be built.
-   - Impact: acceptable as placeholder copy if intentional, but it conflicts with the current refinement direction.
-
-4. Local QA can be masked by HTTPS redirect.
+2. Local QA can be masked by HTTPS redirect.
    - With current secure settings, the first test-client pass received 301 redirects to HTTPS for every HTTP route.
    - Impact: route walkthroughs should either use HTTPS locally or explicitly disable `SECURE_SSL_REDIRECT` in the QA harness.
 
-5. Permission-denied paths are mixed between 403 and 302.
+3. Permission-denied paths are mixed between 403 and 302.
    - Business settings/team/subscription use 403 for blocked roles.
    - Service management, appointment create, and invoice management often redirect with a message.
    - Impact: behavior is secure, but UX may feel inconsistent across modules.
+
+Resolved since the original walkthrough:
+
+- Navigation now links business settings, services, availability, subscription, invoices, clients, service requests, and appointments according to plan and role access.
+- Subscription copy now presents plan changes as manual pilot changes and clearly says checkout and payment collection are not connected.
 
 ## UX Notes
 
@@ -354,20 +357,15 @@ Role boundaries observed:
    - Reset only demo records for the selected business.
    - Never overwrite existing users, profiles, businesses, real clients, real leads, real appointments, or real invoices.
 
-2. Clean up navigation and plan copy.
-   - Remove or hide memberships from active UI.
-   - Change Public Booking nav state from planned/later to an actual route or a clear setup/status entry.
-   - Keep Stripe/SaaS billing copy explicitly marked as future/admin placeholder, or remove it from normal owner flows.
-
-3. Add a public booking readiness panel.
+2. Add a public booking readiness panel.
    - Show plan enabled, booking enabled, bookable services count, and active availability count.
    - This directly addresses "Booking Requests Unavailable" troubleshooting.
 
-4. Standardize blocked-role UX.
+3. Standardize blocked-role UX.
    - Decide which blocked routes should be 403 versus redirect-with-message.
    - Apply consistently across settings, services, appointments, and invoices.
 
-5. Convert this walkthrough into automated smoke tests.
+4. Convert this walkthrough into automated smoke tests.
    - Use a small `[DEMO]` fixture builder or restored seed command.
    - Assert public booking, appointment confirmation, invoice PDF, invoice email, and tenant isolation.
 
@@ -375,10 +373,10 @@ Role boundaries observed:
 
 | Command | Result |
 | --- | --- |
-| `DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/motionmate_route_walkthrough.sqlite3 EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend python src/manage.py migrate --noinput` | Passed |
-| `DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/motionmate_route_walkthrough.sqlite3 EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend python src/manage.py check` | Passed: no issues |
-| `DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/motionmate_route_walkthrough.sqlite3 EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend python src/manage.py makemigrations --check --dry-run` | Passed: no changes detected |
-| `DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/motionmate_route_tests.sqlite3 EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend python src/manage.py test apps.accounts apps.businesses apps.crm apps.appointments apps.billings --noinput` | Passed: 232 tests in 150.021s |
+| `DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/motionmate_route_walkthrough.sqlite3 EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend uv run --no-sync python src/manage.py migrate --noinput` | Historical walkthrough command; passed |
+| `DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/motionmate_route_walkthrough.sqlite3 EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend uv run --no-sync python src/manage.py check` | Historical walkthrough command; passed |
+| `DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/motionmate_route_walkthrough.sqlite3 EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend uv run --no-sync python src/manage.py makemigrations --check --dry-run` | Historical walkthrough command; passed |
+| `DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/motionmate_route_tests.sqlite3 EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend uv run --no-sync python src/manage.py test apps.accounts.tests apps.businesses.tests apps.crm.tests apps.appointments.tests apps.billings.tests apps.notifications.tests --noinput` | Use this shape for a current full local validation pass when PostgreSQL is unavailable |
 
 ## Explicit Non-Changes
 
