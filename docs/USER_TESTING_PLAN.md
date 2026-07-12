@@ -1,8 +1,8 @@
-# Motionmate User Testing Plan
+# MotionMate User Testing Plan
 
 ## Purpose
 
-This plan covers the current Motionmate MVP that is being prepared for private production testing. It is intentionally limited to the features that already exist and are safe to evaluate.
+This plan covers the current MotionMate private-testing product in this repository. It is intentionally limited to the features that already exist and are safe to evaluate.
 
 Private-testing environment rule:
 
@@ -26,20 +26,30 @@ Branch safety rule:
 - Tenant-scoped service requests
 - Business-specific service categories
 - Business-specific services and pricing
+- Service CSV imports
 - Public request form per business slug
+- Public booking request form per business slug
+- Booking settings and weekly availability
+- Appointment creation, editing, status changes, and request linking
 - Invoice creation, editing, and status changes
+- Invoice service type selection for new versus saved services
+- Invoice PDF download
+- Invoice email with PDF attachment
 - Subscription and plan visibility
+- Plan/module gating for invoicing, appointments, public requests, and public booking
+- Transactional email smoke testing
 - Admin support smoke testing
 
 ## Out of scope
 
-- Appointments
-- Public booking
 - Memberships
 - Stripe billing
+- Online payment collection
+- Background jobs, scheduled reminders, and webhooks
+- Automatic appointment confirmation without staff review
 - Major new product features
 
-Before appointments move into tester scope, complete the separate staging gate in [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md).
+Use [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md) as the deeper regression gate for appointment, booking, and appointment-to-invoice changes.
 
 ## Test data and accounts
 
@@ -51,7 +61,9 @@ Prepare these before testing:
 - One invited accountant or viewer email
 - One Django superuser for `/admin/`
 - One active default trial plan
-- One business slug to test public request forms
+- One plan that allows invoicing, appointments, public request forms, and public booking
+- One business slug to test public request and public booking forms
+- At least one bookable service and one weekly availability block
 
 Recommended role coverage:
 
@@ -76,13 +88,17 @@ Public and onboarding routes:
 - `/accounts/login/`
 - `/accounts/agent_login`
 - `/accounts/invitations/accept/<token>/`
+- `/accounts/password-reset/`
 - `/crm/public_request/<business_slug>/`
 - `/crm/thanks/`
+- `/book/<business_slug>/`
+- `/book/<business_slug>/thanks/`
 
 Workspace routes:
 
 - `/crm/agent/dashboard/`
 - `/businesses/settings/`
+- `/businesses/settings/booking/`
 - `/businesses/subscription/`
 - `/businesses/team/`
 - `/crm/staff/clients/`
@@ -91,7 +107,14 @@ Workspace routes:
 - `/crm/staff/leads/create/`
 - `/crm/settings/service-categories/`
 - `/crm/settings/services/`
+- `/crm/settings/services/import/`
+- `/appointments/`
+- `/appointments/create/`
+- `/appointments/create/from-request/<lead_id>/`
 - `/billings/`
+- `/billings/create/`
+- `/billings/from-client/<client_id>/`
+- `/billings/from-appointment/<appointment_id>/`
 
 Support route:
 
@@ -101,11 +124,12 @@ Important note:
 
 - Public testers should use `/crm/public_request/<business_slug>/`.
 - The generic `/crm/public_request/` route is not the external public entrypoint. It only redirects when a current workspace is already known in session.
+- Public booking testers should use `/book/<business_slug>/`.
 - `/accounts/customer_registration` is now a legacy compatibility route and should redirect users to business registration.
 
 ## First deployment smoke pass
 
-Run this quick pass on the deployed PostgreSQL-backed app before the deeper UT-01 through UT-15 walkthrough.
+Run this quick pass on the deployed PostgreSQL-backed app before the deeper UT-01 through UT-18 walkthrough.
 
 ### A. System and admin
 
@@ -153,13 +177,13 @@ Checks:
 
 - Verify `Owner` can access the current full scope
 - Verify `Admin` can manage team, CRM, and billing pages
-- Verify `Staff` can work with CRM and service-request flows but not subscription management
-- Verify `Accountant` can reach client and invoice flows but not lead-management actions
-- Verify `Viewer` remains read-only where allowed
+- Verify `Staff` can work with CRM, service-request, and appointment flows but not billing, settings, or subscription management
+- Verify `Accountant` can reach client and invoice flows and view appointments/service requests, but cannot manage service requests or appointments
+- Verify `Viewer` remains read-only where allowed, including invoice PDF access
 
 Expected result:
 
-- Role boundaries match the current Motionmate permission design
+- Role boundaries match the current MotionMate permission design
 
 ### E. CRM flow
 
@@ -181,11 +205,13 @@ Checks:
 
 - Create a service category
 - Create a priced business service
+- Confirm the service can be marked bookable online
+- Import services from CSV when using the import flow
 - Confirm both appear only inside the active workspace
 
 Expected result:
 
-- Service categories and services behave as business-scoped setup data for invoicing and request workflows
+- Service categories and services behave as business-scoped setup data for invoicing, appointment, request, and booking workflows
 
 ### G. Public request flow
 
@@ -201,20 +227,57 @@ Expected result:
 
 - Public request intake works for the active business slug and remains protected by current plan rules
 
-### H. Billing flow
+### H. Public booking flow
+
+Checks:
+
+- Open `/businesses/settings/booking/`
+- Confirm booking settings can be saved
+- Add at least one weekly availability block
+- Confirm at least one active service is bookable online
+- Open `/book/<business_slug>/`
+- Submit a booking request for an available time
+- Confirm redirect to `/book/<business_slug>/thanks/`
+- Confirm a service request and matching client are created for the correct business
+- Confirm plan gating blocks the public booking route only when expected
+
+Expected result:
+
+- Public booking creates a reviewable service request and remains protected by plan, service, booking setting, and availability gates
+
+### I. Appointment flow
+
+Checks:
+
+- Open `/appointments/`
+- Create an appointment manually
+- Create an appointment from a service request
+- Update an appointment
+- Change appointment status
+- Confirm invalid times are blocked
+- Confirm appointment visibility from dashboard, client detail, and service request detail pages
+
+Expected result:
+
+- Appointment scheduling works and remains scoped to the current business
+
+### J. Billing flow
 
 Checks:
 
 - Create an invoice from a client
 - Select a saved business service
-- Add a manual line item
+- Add a new service line with the service type dropdown
+- Save an on-the-fly invoice line as a saved service
 - Verify totals update correctly
+- Download the invoice PDF
+- Email the invoice PDF to the client
 - Move the invoice through `DRAFT`, `SENT`, and `PAID` as allowed
 - Confirm staff and viewer roles cannot perform restricted invoice actions
 
 Expected result:
 
-- Billing works on the deployed app and respects both tenant scoping and role permissions
+- Billing works on the deployed app and respects tenant scoping, role permissions, service selection, PDF generation, and email delivery
 
 ## Test scenarios
 
@@ -333,6 +396,7 @@ Routes to sample:
 
 - `/crm/staff/leads/`
 - `/crm/staff/clients/`
+- `/appointments/`
 - `/billings/`
 - `/businesses/subscription/`
 - `/businesses/team/`
@@ -340,10 +404,10 @@ Routes to sample:
 Checks:
 
 - Verify `Owner` can access everything in current scope
-- Verify `Admin` can manage clients, leads, billing, and team
-- Verify `Staff` can manage clients and service requests but not subscription
-- Verify `Accountant` can access billing but not lead management
-- Verify `Viewer` can view billing where allowed but not management pages
+- Verify `Admin` can manage clients, leads, services, appointments, billing, and team
+- Verify `Staff` can manage clients, service requests, and appointments but not billing, settings, team, or subscription
+- Verify `Accountant` can manage clients and billing, view service requests and appointments, and avoid lead/appointment management actions
+- Verify `Viewer` can view allowed CRM, appointment, invoice, and PDF pages but not management pages
 
 Expected result:
 
@@ -355,11 +419,15 @@ Expected result:
 Routes:
 
 - `/businesses/settings/`
+- `/businesses/settings/booking/`
 - `/businesses/subscription/`
 
 Checks:
 
 - Update editable business settings
+- Update invoice prefix, start number, currency, locale, and tax defaults
+- Update booking settings
+- Add and deactivate weekly availability
 - Review current plan details
 - Change plans through the current non-Stripe plan selector
 - Confirm current trial messaging is accurate
@@ -368,7 +436,7 @@ Expected result:
 
 - Workspace settings save successfully
 - Plan changes update the subscription record
-- Appointments, memberships, and public booking remain clearly presented as later modules
+- Module access reflects the selected plan
 
 ### UT-09 Service categories
 
@@ -401,13 +469,14 @@ Checks:
 
 - Create a business service with price and category
 - Edit service pricing
+- Configure online booking fields when needed
 - Import services from CSV
 - Download the sample CSV
 
 Expected result:
 
 - Services are scoped to the business
-- Imported services are usable in invoicing flows
+- Imported services are usable in invoicing, appointment, and booking flows
 
 ### UT-11 Clients
 
@@ -479,16 +548,25 @@ Expected result:
 Routes:
 
 - `/billings/`
+- `/billings/create/`
 - `/billings/from-client/<client_id>/`
+- `/billings/from-appointment/<appointment_id>/`
 - `/billings/<invoice_id>/`
 - `/billings/<invoice_id>/edit/`
+- `/billings/<invoice_id>/pdf/`
+- `/billings/<invoice_id>/email/`
 - `/billings/<invoice_id>/change-status/`
 
 Checks:
 
 - Create an invoice from a client
+- Create an invoice from an appointment
 - Add service lines from business services
+- Add a new service line from the service type dropdown
+- Save an on-the-fly service into the service catalog
 - Edit a draft invoice
+- Download the invoice PDF
+- Send the invoice email with PDF attachment
 - Change status through valid transitions
 - Verify plan gating for invoicing when using a plan without billing access
 
@@ -496,9 +574,82 @@ Expected result:
 
 - Invoice creation and editing work
 - Service selection reflects business-scoped services
+- PDF and email flows work without exposing internal notes
 - Invalid status changes are blocked
 
-### UT-15 Admin support smoke test
+### UT-15 Appointments
+
+Routes:
+
+- `/appointments/`
+- `/appointments/create/`
+- `/appointments/create/from-request/<lead_id>/`
+- `/appointments/<appointment_id>/`
+- `/appointments/<appointment_id>/edit/`
+- `/appointments/<appointment_id>/change-status/`
+
+Checks:
+
+- Create an appointment manually
+- Create an appointment from a service request
+- Confirm service, client, and staff member must belong to the current business
+- Confirm linked service names are snapshotted
+- Update appointment details
+- Change appointment status
+- Confirm accountant and viewer roles are read-only
+
+Expected result:
+
+- Appointment workflows are usable, role-aware, and tenant-scoped
+
+### UT-16 Public booking
+
+Routes:
+
+- `/businesses/settings/booking/`
+- `/book/<business_slug>/`
+- `/book/<business_slug>/thanks/`
+
+Checks:
+
+- Enable booking requests in booking settings
+- Add active weekly availability
+- Mark at least one service as bookable online
+- Submit a valid public booking request
+- Validate minimum notice, booking window, availability, and service validation
+- Confirm customer receipt and internal alert email behavior
+- Convert or schedule the booking request as an appointment
+
+Expected result:
+
+- Public booking creates a service request and client for the correct business and can flow into appointment scheduling
+
+### UT-17 Transactional email smoke test
+
+Routes and flows:
+
+- `/accounts/password-reset/`
+- `/businesses/team/`
+- `/crm/public_request/<business_slug>/`
+- `/book/<business_slug>/`
+- `/appointments/create/from-request/<lead_id>/`
+- `/billings/<invoice_id>/email/`
+
+Checks:
+
+- Password reset email uses the expected app URL
+- Team invitation email uses the expected app URL
+- Public request customer confirmation and internal alert are sent
+- Public booking customer receipt and internal alert are sent
+- Appointment confirmation is sent when a booking request is scheduled
+- Invoice email includes an opening PDF attachment
+- Failed sends are logged safely without exposing secrets
+
+Expected result:
+
+- Current transactional email flows work with the configured email backend
+
+### UT-18 Admin support smoke test
 
 Route:
 
@@ -508,7 +659,7 @@ Checks:
 
 - Confirm admin login works for the superuser
 - Confirm core models appear
-- Confirm businesses, memberships, invitations, plans, clients, leads, and invoices are manageable
+- Confirm businesses, plans, subscriptions, team memberships, invitations, clients, leads, services, appointments, and invoices are manageable
 
 Expected result:
 
@@ -523,9 +674,13 @@ Expected result:
 5. Invitation acceptance
 6. Service categories
 7. Business services
-8. Public request form
-9. Clients
-10. Service requests
-11. Invoices
-12. Role-permission pass
-13. Admin smoke test
+8. Booking settings and availability
+9. Public request form
+10. Public booking form
+11. Clients
+12. Service requests
+13. Appointments
+14. Invoices
+15. Transactional email pass
+16. Role-permission pass
+17. Admin smoke test
