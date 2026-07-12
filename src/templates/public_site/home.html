@@ -151,14 +151,18 @@
 
 <!-- Hero -->
 <section class="dark-mode bg-dark bg-size-cover bg-repeat-0 bg-position-center position-relative overflow-hidden py-5 mb-4" style="background-image: url({% static 'public_site/img/landing/saas-3/hero/hero-bg.jpg' %});">
-  <div class="container position-relative zindex-2 pt-5 pb-md-2 pb-lg-4 pb-xl-5">
-    <div class="row pt-3 pb-2 py-md-4">
+  <div class="container position-relative zindex-2 pt-5 pb-md-3 pb-lg-5">
+    <div class="row align-items-center g-4 g-xl-5 pt-3 pb-2 py-md-4">
 
       <!-- Text -->
-      <div class="col-xl-6 col-md-6 pt-lg-5 text-center text-md-start mb-4 mb-md-0">
+      <div class="col-xl-5 col-lg-6 col-md-6 pt-lg-5 text-center text-md-start mb-4 mb-md-0">
         <style>
           .hero-typed-heading {
             min-height: 3lh;
+          }
+
+          .motionmate-hero-copy {
+            max-width: 36rem;
           }
 
           @media (max-width: 575.98px) {
@@ -186,9 +190,9 @@
 
           .motionmate-hero-visual {
             position: relative;
-            width: min(100%, 675px);
-            aspect-ratio: 1.16;
-            min-height: 360px;
+            width: min(100%, 760px);
+            aspect-ratio: 1.28;
+            min-height: 430px;
           }
 
           .motionmate-hero-panel,
@@ -201,9 +205,9 @@
           }
 
           .motionmate-hero-panel {
-            width: min(92%, 560px);
+            width: min(88%, 620px);
             border-radius: 1.25rem;
-            padding: 1rem;
+            padding: 1.15rem;
           }
 
           .motionmate-hero-card {
@@ -297,28 +301,28 @@
           }
 
           .motionmate-hero-card-booking {
-            top: 11%;
-            right: 0;
-            width: min(46%, 250px);
+            top: 6%;
+            right: 1%;
+            width: min(40%, 260px);
           }
 
           .motionmate-hero-card-invoice {
-            left: 2%;
-            bottom: 8%;
-            width: min(48%, 260px);
+            left: 0;
+            bottom: 2%;
+            width: min(42%, 280px);
           }
 
           @media (max-width: 991.98px) {
             .motionmate-hero-visual {
-              min-height: 320px;
+              min-height: 340px;
             }
 
             .motionmate-hero-card-booking {
-              width: min(52%, 240px);
+              width: min(50%, 240px);
             }
 
             .motionmate-hero-card-invoice {
-              width: min(54%, 250px);
+              width: min(52%, 250px);
             }
           }
 
@@ -337,7 +341,7 @@
             }
 
             .motionmate-hero-card-booking {
-              top: 16%;
+              top: 12%;
               right: 0;
               width: 56%;
             }
@@ -354,7 +358,7 @@
           }
         </style>
 
-        <h2 class="display-2 hero-typed-heading pb-2 pb-sm-3">Smarter workflows for
+        <h2 class="display-3 hero-typed-heading pb-2 pb-sm-3">Smarter workflows for
           <span
             class="typed-text"
             data-typed-text='["small businesses", "Caribbean entrepreneurs", "European teams", "consultants & agencies"]'
@@ -363,30 +367,16 @@
         </h2>
 
 
-        <p class="fs-lg d-md-none d-xl-block pb-2 pb-md-0 mb-4 mb-md-5">Manage clients, bookings, appointments, and invoices in one simple workspace.</p>
+        <p class="motionmate-hero-copy fs-lg d-md-none d-xl-block mx-auto mx-md-0 pb-2 pb-md-0 mb-4 mb-md-5">Manage clients, bookings, appointments, and invoices in one simple workspace.</p>
         <div class="d-flex justify-content-center justify-content-md-start pb-2 pt-lg-2 pt-xl-0">
           <a href="{% url 'register_business' %}" class="btn btn-lg btn-primary shadow-primary me-3 me-sm-4">Start trial now</a>
           <a href="mailto:support@motionmate.net" class="btn btn-lg btn-outline-secondary">Contact us</a>
         </div>
-        <div class="d-flex align-items-center justify-content-center justify-content-md-start text-start pt-4 pt-lg-5 mt-xxl-5">
-          <!-- <div class="d-flex me-3">
-            <div class="d-flex align-items-center justify-content-center bg-light rounded-circle" style="width: 52px; height: 52px;">
-              <img src="{% static 'public_site/img/avatar/14.jpg' %}" class="rounded-circle" width="48" alt="Avatar">
-            </div>
-            <div class="d-flex align-items-center justify-content-center bg-light rounded-circle ms-n3" style="width: 52px; height: 52px;">
-              <img src="{% static 'public_site/img/avatar/08.jpg' %}" class="rounded-circle" width="48" alt="Avatar">
-            </div>
-            <div class="d-flex align-items-center justify-content-center bg-light rounded-circle ms-n3" style="width: 52px; height: 52px;">
-              <img src="{% static 'public_site/img/avatar/15.jpg' %}" class="rounded-circle" width="48" alt="Avatar">
-            </div>
-          </div> -->
-          <!-- <div class="text-light"><strong>400k+</strong> users already with us</div> -->
-        </div>
       </div>
 
       <!-- Parallax gfx -->
-      <div class="col-xl-6 col-md-6 d-md-flex justify-content-end">
-        <div class="parallax motionmate-hero-visual mx-auto ms-md-0 me-md-n5" aria-hidden="true">
+      <div class="col-xl-7 col-lg-6 col-md-6 d-md-flex justify-content-end">
+        <div class="parallax motionmate-hero-visual mx-auto ms-md-0 me-xl-n4" aria-hidden="true">
           <div class="parallax-layer zindex-2 w-100 h-100 d-flex align-items-center justify-content-center" data-depth="0.1">
             <div class="motionmate-hero-panel">
               <div class="motionmate-hero-topbar mb-3">
@@ -1126,7 +1116,7 @@
 
 <!-- Client Type (Types of customers that work with us) -->
 <section class="container">
-  <h2 class="h1 text-center pb-4 pb-lg-5">Stay Organized &amp; Keep Business Moving</h2>
+  <h2 class="h1 text-center pb-4 pb-lg-5">Built for Service Businesses Like Yours</h2>
   <div class="row">
     <div class="col-lg-3 col-md-4 col-sm-6 text-center pb-md-2 mb-3 mb-lg-4">
       <div class="d-inline-block bg-secondary rounded-circle p-3 mb-4">
@@ -1770,254 +1760,132 @@
 
 
 <!-- Pricing -->
+{# Pricing comes from ClarivoPlan monthly/yearly fields and regional_prices. #}
 <section class="container py-5 my-md-2 my-lg-4 my-xl-5">
-  <h2 class="h1 text-center pb-3 pb-md-4">Transparent Pricing for You</h2>
-  <div class="price-switch-wrapper mb-n2">
+  <div class="row justify-content-center text-center pb-3 pb-md-4">
+    <div class="col-lg-8 col-xl-7">
+      <h2 class="h1 mb-3">Simple plans for service businesses</h2>
+      <p class="fs-lg text-body mb-0">Start with the workspace size that fits today, then move up when your clients, bookings, and team grow.</p>
+    </div>
+  </div>
+  <div class="price-switch-wrapper">
     <div class="form-check form-switch price-switch justify-content-center mt-2 mb-4" data-bs-toggle="price">
       <input type="checkbox" class="form-check-input" id="pricing">
       <label class="form-check-label" for="pricing">Monthly</label>
-      <label class="form-check-label d-flex align-items-start" for="pricing">Annually <span class="text-danger fs-xs fw-semibold mt-n2 ms-2">-10%</span></label>
-    </div>    
-    <div class="table-responsive-xxl pt-md-3">
-      <div class="row flex-nowrap pb-4">
+      <label class="form-check-label d-flex align-items-start" for="pricing">Annually <span class="text-danger fs-xs fw-semibold mt-n2 ms-2">2 months free</span></label>
+    </div>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 pb-4">
+      {% for plan in pricing_plans %}
         <div class="col">
-          <div class="card h-100 border-0 shadow-sm p-xxl-3" style="min-width: 18rem;">
+          <div class="card h-100 border-0 {% if plan.is_recommended %}bg-primary shadow-primary shadow-dark-mode-none{% else %}shadow-sm{% endif %} p-xxl-3">
             <div class="card-body">
-              <div class="d-flex align-items-center pb-2 pb-md-3 mb-4">
-                <div class="flex-shrink-0 bg-secondary rounded-3">
-                  <img src="{% static 'public_site/img/landing/saas-1/pricing/basic.png' %}" width="84" alt="Icon">
-                </div>
-                <div class="ps-4">
-                  <h3 class="fs-lg fw-normal text-body mb-2">Basic</h3>
-                  <h4 class="h3 lh-1 mb-0">
-                    <span data-monthly-price>$6.00</span>
-                    <span class="d-none" data-annual-price>$5.40</span>
-                    <span class="text-body fs-sm fw-normal"> / per month</span>
-                  </h4>
+              <div class="d-flex align-items-start justify-content-between gap-3 pb-2 pb-md-3 mb-4">
+                <div class="d-flex align-items-center">
+                  <div class="flex-shrink-0 rounded-3 d-flex align-items-center justify-content-center {% if plan.is_recommended %}bg-white bg-opacity-10{% else %}bg-secondary{% endif %}" style="width: 64px; height: 64px;">
+                    {% if plan.slug == "starter" %}
+                      <i class="bx bx-rocket fs-1 {% if plan.is_recommended %}text-light{% else %}text-primary{% endif %}"></i>
+                    {% elif plan.slug == "pro" %}
+                      <i class="bx bx-trending-up fs-1 {% if plan.is_recommended %}text-light{% else %}text-primary{% endif %}"></i>
+                    {% else %}
+                      <i class="bx bx-buildings fs-1 {% if plan.is_recommended %}text-light{% else %}text-primary{% endif %}"></i>
+                    {% endif %}
+                  </div>
+                  <div class="ps-4">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                      <h3 class="fs-lg fw-semibold mb-0 {% if plan.is_recommended %}text-light{% else %}text-body{% endif %}">{{ plan.name }}</h3>
+                      {% if plan.is_recommended %}
+                        <span class="badge bg-light text-primary">Recommended</span>
+                      {% endif %}
+                    </div>
+                    <h4 class="h2 lh-1 mb-1 {% if plan.is_recommended %}text-light{% endif %}">
+                      <span data-monthly-price>{{ plan.usd_display_pricing.monthly_display }}</span>
+                      <span class="d-none" data-annual-price>{{ plan.usd_display_pricing.yearly_display }}</span>
+                      <span class="fs-sm fw-normal {% if plan.is_recommended %}text-light opacity-75{% else %}text-body{% endif %}">
+                        <span data-monthly-price>/ month</span>
+                        <span class="d-none" data-annual-price>/ year</span>
+                      </span>
+                    </h4>
+                    <p class="fs-xs mb-0 {% if plan.is_recommended %}text-light opacity-75{% else %}text-muted{% endif %}">
+                      <span data-monthly-price>Annual option: {{ plan.usd_display_pricing.yearly_display }} yearly USD</span>
+                      <span class="d-none" data-annual-price>Billed once yearly in USD</span>
+                    </p>
+                    <p class="fs-xs mb-0 {% if plan.is_recommended %}text-light opacity-75{% else %}text-muted{% endif %}">
+                      <span data-monthly-price>EUR: {{ plan.eur_display_pricing.monthly_display }} / month</span>
+                      <span class="d-none" data-annual-price>EUR: {{ plan.eur_display_pricing.yearly_display }} / year</span>
+                    </p>
+                  </div>
                 </div>
               </div>
+              <p class="fs-sm mb-4 {% if plan.is_recommended %}text-light opacity-90{% else %}text-body{% endif %}">{{ plan.description|default:"MotionMate workspace access for service businesses." }}</p>
               <ul class="list-unstyled fs-sm pb-md-3 mb-3">
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Aenean neque tortor, purus faucibus
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Client CRM and service requests</span>
                 </li>
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Nullam augue vitae et volutpat sagittis
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Appointments and online booking</span>
                 </li>
-                <li class="d-flex text-muted mb-2">
-                  <i class="bx bx-x fs-xl me-1"></i>
-                  Mauris massa penatibus enim elit quam
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Invoicing with client sharing</span>
                 </li>
-                <li class="d-flex text-muted mb-2">
-                  <i class="bx bx-x fs-xl me-1"></i>
-                  Nec ac sagittis nunc bibendum
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.user_limit_summary }}</span>
                 </li>
-                <li class="d-flex text-muted">
-                  <i class="bx bx-x fs-xl me-1"></i>
-                  Odio ut orci volutpat ultricies eleifend
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.max_clients|default_if_none:"Unlimited" }} active clients</span>
                 </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.max_invoices_per_month|default_if_none:"Unlimited" }} invoices / month</span>
+                </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.max_appointments_per_month|default_if_none:"Unlimited" }} appointments / month</span>
+                </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.max_public_bookings_per_month|default_if_none:"Unlimited" }} online bookings / month</span>
+                </li>
+                {% if plan.slug == "starter" %}
+                  <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                    <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                    <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Best for solo owners getting organized</span>
+                  </li>
+                {% elif plan.slug == "pro" %}
+                  <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                    <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                    <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Built for growing teams and recurring work</span>
+                  </li>
+                {% else %}
+                  <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                    <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                    <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Priority support for higher-volume teams</span>
+                  </li>
+                {% endif %}
               </ul>
             </div>
-            <div class="card-footer border-0 pt-0 pb-4">
-              <a href="#" class="btn btn-outline-primary w-100">Start free trial</a>
+            <div class="card-footer border-0 pt-0 pb-4 bg-transparent">
+              <a href="{% url 'register_business' %}" class="btn {% if plan.is_recommended %}btn-light{% else %}btn-outline-primary{% endif %} w-100">Start {{ plan.name }} trial</a>
             </div>
           </div>
         </div>
-        <div class="col">
-          <div class="card h-100 border-0 bg-primary shadow-primary shadow-dark-mode-none p-xxl-3" style="min-width: 18rem;">
-            <div class="card-body">
-              <div class="d-flex align-items-center pb-2 pb-md-3 mb-4">
-                <div class="flex-shrink-0 rounded-3" style="background-color: rgba(255,255,255, .1);">
-                  <img src="{% static 'public_site/img/landing/saas-1/pricing/standard.png' %}" width="84" alt="Icon">
-                </div>
-                <div class="ps-4">
-                  <h3 class="fs-lg fw-normal text-light opacity-70 mb-2">Standard</h3>
-                  <h4 class="h3 text-light lh-1 mb-0">
-                    <span data-monthly-price>$12.00</span>
-                    <span class="d-none" data-annual-price>$10.80</span>
-                    <span class="fs-sm fw-normal opacity-70"> / per month</span>
-                  </h4>
-                </div>
-              </div>
-              <ul class="list-unstyled fs-sm pb-md-3 mb-3">
-                <li class="d-flex text-light mb-2">
-                  <i class="bx bx-check fs-xl me-1"></i>
-                  <span class="opacity-70">Aenean neque tortor, purus faucibus</span>
-                </li>
-                <li class="d-flex text-light mb-2">
-                  <i class="bx bx-check fs-xl me-1"></i>
-                  <span class="opacity-70">Nullam augue vitae et volutpat sagittis</span>
-                </li>
-                <li class="d-flex text-light mb-2">
-                  <i class="bx bx-check fs-xl me-1"></i>
-                  <span class="opacity-70">Mauris massa penatibus enim elit quam</span>
-                </li>
-                <li class="d-flex text-light mb-2">
-                  <i class="bx bx-check fs-xl me-1"></i>
-                  <span class="opacity-70">Nec ac sagittis nunc bibendum</span>
-                </li>
-                <li class="d-flex text-light opacity-50">
-                  <i class="bx bx-x fs-xl me-1"></i>
-                  Odio ut orci volutpat ultricies eleifend
-                </li>
-              </ul>
-            </div>
-            <div class="card-footer border-0 pt-0 pb-4">
-              <a href="#" class="btn btn-light w-100">Start free trial</a>
-            </div>
+      {% empty %}
+        <div class="col-12">
+          <div class="alert alert-warning mb-0" role="alert">
+            MotionMate pricing plans are being prepared.
           </div>
         </div>
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm p-xxl-3" style="min-width: 18rem;">
-            <div class="card-body">
-              <div class="d-flex align-items-center pb-2 pb-md-3 mb-4">
-                <div class="flex-shrink-0 bg-secondary rounded-3">
-                  <img src="{% static 'public_site/img/landing/saas-1/pricing/ultimate.png' %}" width="84" alt="Icon">
-                </div>
-                <div class="ps-4">
-                  <h3 class="fs-lg fw-normal text-body mb-2">Ultimate</h3>
-                  <h4 class="h3 lh-1 mb-0">
-                    <span data-monthly-price>$18.00</span>
-                    <span class="d-none" data-annual-price>$16.20</span>
-                    <span class="text-body fs-sm fw-normal"> / per month</span>
-                  </h4>
-                </div>
-              </div>
-              <ul class="list-unstyled fs-sm pb-md-3 mb-3">
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Aenean neque tortor, purus faucibus
-                </li>
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Nullam augue vitae et volutpat sagittis
-                </li>
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Mauris massa penatibus enim elit quam
-                </li>
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Nec ac sagittis nunc bibendum
-                </li>
-                <li class="d-flex">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Odio ut orci volutpat ultricies eleifend
-                </li>
-              </ul>
-            </div>
-            <div class="card-footer border-0 pt-0 pb-4">
-              <a href="#" class="btn btn-outline-primary w-100">Start free trial</a>
-            </div>
-          </div>
-        </div>
-      </div>
+      {% endfor %}
     </div>
   </div>
 </section>
 
 
-<!-- Testimonials -->
-<section class="bg-secondary py-5">
-  <div class="container py-2 py-md-3 py-lg-4 py-xl-5">
-    <div class="row row-cols-1 row-cols-md-2 gx-3 gx-lg-4">
-      <div class="col-md-6 mb-3 mb-md-0">
-        <div class="card border-0 bg-dark h-100 p-xl-4">
-          <div class="card-body">
-            <h2 class="display-1 text-light">420k</h2>
-            <p class="lead fw-medium text-light"><span class="opacity-70">users are taking advantage of our</span> <span class="fw-bold">Task Manager Tool</span><span class="opacity-70">. It’s a new transparent and efficient way to organize all of your daily tasks.</span></p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card border-0 shadow-sm p-4 p-xxl-5">
-          <div class="d-flex justify-content-between pb-4 mb-2">
-            <span class="btn btn-icon btn-primary btn-lg shadow-primary pe-none">
-              <i class="bx bxs-quote-left"></i>
-            </span>
-            <div class="d-flex">
-              <button type="button" id="testimonials-prev" class="btn btn-prev btn-icon btn-sm me-2">
-                <i class="bx bx-chevron-left"></i>
-              </button>
-              <button type="button" id="testimonials-next" class="btn btn-next btn-icon btn-sm ms-2">
-                <i class="bx bx-chevron-right"></i>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Slider -->
-          <div class="swiper mx-0 mb-md-n2 mb-xxl-n3" data-swiper-options='{
-            "spaceBetween": 24,
-            "loop": true,
-            "pagination": {
-              "el": ".swiper-pagination",
-              "clickable": true
-            },
-            "navigation": {
-              "prevEl": "#testimonials-prev",
-              "nextEl": "#testimonials-next"
-            }
-          }'>
-            <div class="swiper-wrapper">
 
-              <!-- Item -->
-              <div class="swiper-slide h-auto">
-                <figure class="card h-100 position-relative border-0 bg-transparent">
-                  <blockquote class="card-body p-0 mb-0">
-                    <p class="fs-lg mb-0">Mi semper risus ultricies orci pulvinar in at enim orci. Quis facilisis nunc pellentesque in ullamcorper sit. Lorem blandit arcu sapien, senectus libero, amet dapibus cursus quam. Eget pellentesque eu purus volutpat adipiscing malesuada.</p>
-                  </blockquote>
-                  <figcaption class="card-footer border-0 d-flex align-items-center w-100 pb-2">
-                    <img src="{% static 'public_site/img/avatar/14.jpg' %}" width="60" class="rounded-circle" alt="Annette Black">
-                    <div class="ps-3">
-                      <h6 class="fw-semibold lh-base mb-0">Annette Black</h6>
-                      <span class="fs-sm text-muted">Strategic Advisor at Company LLC</span>
-                    </div>
-                  </figcaption>
-                </figure>
-              </div>
-
-              <!-- Item -->
-              <div class="swiper-slide h-auto">
-                <figure class="card h-100 position-relative border-0 bg-transparent">
-                  <blockquote class="card-body p-0 mb-0">
-                    <p class="fs-lg mb-0">Vestibulum nunc lectus auctor quis. Natoque lectus tortor lacus, eu. Nunc feugiat nisl maecenas nulla hac morbi. Vitae, donec facilisis sed nunc netus. Venenatis posuere faucibus enim est. Vel dignissim morbi blandit morbi tellus.</p>
-                  </blockquote>
-                  <figcaption class="card-footer border-0 d-flex align-items-center w-100 pb-2">
-                    <img src="{% static 'public_site/img/avatar/13.jpg' %}" width="60" class="rounded-circle" alt="Ralph Edwards">
-                    <div class="ps-3">
-                      <h6 class="fw-semibold lh-base mb-0">Ralph Edwards</h6>
-                      <span class="fs-sm text-muted">Head of Marketing at Lorem Ltd. </span>
-                    </div>
-                  </figcaption>
-                </figure>
-              </div>
-
-              <!-- Item -->
-              <div class="swiper-slide h-auto">
-                <figure class="card h-100 position-relative border-0 bg-transparent">
-                  <blockquote class="card-body p-0 mb-0">
-                    <p class="fs-lg mb-0">Ac at sed sit senectus massa. Massa ante amet ultrices magna porta tempor. Aliquet diam in et magna ultricies mi at. Lectus enim, vel enim egestas nam pellentesque et leo. Elit mi faucibus laoreet aliquam pellentesque sed aliquet integer massa.</p>
-                  </blockquote>
-                  <figcaption class="card-footer border-0 d-flex align-items-center w-100 pb-2">
-                    <img src="{% static 'public_site/img/avatar/11.jpg' %}" width="60" class="rounded-circle" alt="Darrell Steward">
-                    <div class="ps-3">
-                      <h6 class="fw-semibold lh-base mb-0">Darrell Steward</h6>
-                      <span class="fs-sm text-muted">Project Manager at Ipsum Ltd.</span>
-                    </div>
-                  </figcaption>
-                </figure>
-              </div>
-            </div>
-
-            <!-- Pagination (bullets) -->
-            <div class="swiper-pagination position-relative mt-5"></div>
-          </div>        
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
 
 
 <!-- CTA -->
@@ -2026,37 +1894,37 @@
     <div class="row position-relative zindex-2 py-5 my-1 my-md-3">
       <div class="col-md-6">
         <div class="mx-auto" style="max-width: 440px;">
-          <h2 class="h1 pb-1 pb-md-3 pb-lg-4">Let's start your investing easier now!</h2>
+          <h2 class="h1 pb-1 pb-md-3 pb-lg-4">Get started today!</h2>
           <ul class="list-unstyled fs-lg d-md-none pb-3">
             <li class="d-flex mb-2">
               <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-              Purus vestibulum pharetra amet tincidunt pretium
+              Capture leads and keep client information organized
             </li>
             <li class="d-flex mb-2">
               <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-              Haretra justo magna pharetra dui gravida sed nec
+              Manage appointments, tasks, and follow-ups in one place
             </li>
             <li class="d-flex">
               <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-              Venenatis risus faucibus volutpat amet feugiat a
+              Create invoices faster and keep your business moving
             </li>
           </ul>
-          <a href="#" class="btn btn-lg btn-primary shadow-primary w-100 w-sm-auto">Start trial now</a>
+          <a href="/accounts/register-business/" class="btn btn-lg btn-primary shadow-primary w-100 w-sm-auto">Start trial now</a>
         </div>
       </div>
       <div class="col-md-6 pt-lg-3 pt-xl-4">
         <ul class="list-unstyled fs-lg d-none d-md-block">
           <li class="d-flex mb-2">
             <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-            Purus vestibulum pharetra amet tincidunt pretium
+            Capture leads and keep client information organized
           </li>
           <li class="d-flex mb-2">
             <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-            Haretra justo magna pharetra dui gravida sed nec
+            Manage appointments, tasks, and follow-ups in one place
           </li>
           <li class="d-flex">
             <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-            Venenatis risus faucibus volutpat amet feugiat a
+            Create invoices faster and keep your business moving
           </li>
         </ul>
       </div>
