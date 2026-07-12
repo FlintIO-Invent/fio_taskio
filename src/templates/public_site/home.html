@@ -613,8 +613,320 @@
   })();
 </script>
 
-<!-- Feature section (Trading) -->
+<!-- Feature section (MotionMate dashboard preview) -->
 <section class="container py-5 my-md-2 my-lg-4 my-xl-5">
+  <style>
+    .motionmate-feature-visual {
+      position: relative;
+      max-width: 1079px;
+      margin-inline: auto;
+      color: #111827;
+    }
+
+    .motionmate-feature-shell,
+    .motionmate-feature-float {
+      border: 1px solid #e3e8f4;
+      background: #fff;
+      box-shadow: 0 1.875rem 7.5rem -.625rem rgba(63, 68, 104, .24);
+    }
+
+    .motionmate-feature-shell {
+      overflow: hidden;
+      border-radius: 1.5rem;
+    }
+
+    .motionmate-feature-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #edf0f7;
+      background: linear-gradient(135deg, #fff, #f7f8ff);
+    }
+
+    .motionmate-feature-brand {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      min-width: 0;
+    }
+
+    .motionmate-feature-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.55rem;
+      height: 2.55rem;
+      flex-shrink: 0;
+      border-radius: .85rem;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1, #4c82f7);
+      box-shadow: 0 .8rem 1.8rem rgba(99, 102, 241, .28);
+    }
+
+    .motionmate-feature-title {
+      display: block;
+      color: #111827;
+      font-weight: 800;
+    }
+
+    .motionmate-feature-muted {
+      color: #4b556d;
+      font-size: .82rem;
+    }
+
+    .motionmate-feature-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      flex-shrink: 0;
+      border-radius: 999px;
+      padding: .35rem .7rem;
+      font-size: .75rem;
+      font-weight: 800;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .motionmate-feature-pill-primary {
+      color: #3730a3;
+      background: #e7e7ff;
+    }
+
+    .motionmate-feature-pill-info {
+      color: #1f56b3;
+      background: #e4edff;
+    }
+
+    .motionmate-feature-pill-success {
+      color: #0f6f39;
+      background: #dcfce7;
+    }
+
+    .motionmate-feature-pill-warning {
+      color: #8a4f00;
+      background: #fff1c2;
+    }
+
+    .motionmate-feature-grid {
+      display: grid;
+      grid-template-columns: 13rem minmax(0, 1fr);
+      min-height: 520px;
+    }
+
+    .motionmate-feature-sidebar {
+      padding: 1rem;
+      border-right: 1px solid #edf0f7;
+      background: #f8f9ff;
+    }
+
+    .motionmate-feature-nav {
+      display: grid;
+      gap: .55rem;
+      margin-top: 1rem;
+    }
+
+    .motionmate-feature-nav-item {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      border-radius: .75rem;
+      padding: .65rem .75rem;
+      color: #4b556d;
+      font-size: .85rem;
+      font-weight: 800;
+    }
+
+    .motionmate-feature-nav-item.is-active {
+      color: #3730a3;
+      background: #e7e7ff;
+    }
+
+    .motionmate-feature-main {
+      padding: 1.1rem;
+      background: #fff;
+    }
+
+    .motionmate-feature-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .85rem;
+      margin-bottom: .95rem;
+    }
+
+    .motionmate-feature-card,
+    .motionmate-feature-panel {
+      border: 1px solid #edf0f7;
+      border-radius: 1rem;
+      background: #fff;
+    }
+
+    .motionmate-feature-card {
+      padding: .9rem;
+      background: #f8f9ff;
+    }
+
+    .motionmate-feature-card i {
+      color: #6366f1;
+      font-size: 1.2rem;
+    }
+
+    .motionmate-feature-number {
+      display: block;
+      color: #111827;
+      font-size: 1.55rem;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .motionmate-feature-content {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(260px, .8fr);
+      gap: .95rem;
+    }
+
+    .motionmate-feature-panel-header,
+    .motionmate-feature-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .8rem;
+    }
+
+    .motionmate-feature-panel-header {
+      padding: .95rem 1rem;
+      border-bottom: 1px solid #edf0f7;
+    }
+
+    .motionmate-feature-list {
+      display: grid;
+    }
+
+    .motionmate-feature-row {
+      padding: .85rem 1rem;
+      border-bottom: 1px solid #edf0f7;
+    }
+
+    .motionmate-feature-row:last-child {
+      border-bottom: 0;
+    }
+
+    .motionmate-feature-person {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      min-width: 0;
+    }
+
+    .motionmate-feature-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.35rem;
+      height: 2.35rem;
+      flex-shrink: 0;
+      border-radius: 50%;
+      color: #3730a3;
+      background: #e7e7ff;
+      font-weight: 800;
+    }
+
+    .motionmate-feature-stack {
+      display: grid;
+      gap: .95rem;
+    }
+
+    .motionmate-feature-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .75rem;
+      padding: 1rem;
+    }
+
+    .motionmate-feature-mini {
+      border-radius: .85rem;
+      padding: .75rem;
+      background: #f8f9ff;
+      border: 1px solid #edf0f7;
+    }
+
+    .motionmate-feature-bars {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      align-items: end;
+      gap: .38rem;
+      height: 88px;
+      padding: 1rem;
+    }
+
+    .motionmate-feature-bar {
+      border-radius: 999px 999px .35rem .35rem;
+      background: linear-gradient(180deg, #6366f1, #4c82f7);
+    }
+
+    .motionmate-feature-float {
+      position: absolute;
+      z-index: 2;
+      border-radius: 1rem;
+      padding: .9rem;
+    }
+
+    .motionmate-feature-float-request {
+      left: 0;
+      bottom: 10%;
+      width: min(30%, 320px);
+    }
+
+    .motionmate-feature-float-invoice {
+      right: 1.5%;
+      top: 10%;
+      width: min(31%, 330px);
+    }
+
+    .motionmate-feature-float-booking {
+      right: 12%;
+      bottom: 3%;
+      width: min(29%, 310px);
+    }
+
+    @media (max-width: 991.98px) {
+      .motionmate-feature-grid {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+
+      .motionmate-feature-sidebar {
+        display: none;
+      }
+
+      .motionmate-feature-metrics,
+      .motionmate-feature-content {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .motionmate-feature-float {
+        position: relative;
+        inset: auto;
+        width: auto;
+        margin-top: .85rem;
+      }
+    }
+
+    @media (max-width: 575.98px) {
+      .motionmate-feature-metrics,
+      .motionmate-feature-content,
+      .motionmate-feature-mini-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .motionmate-feature-topbar,
+      .motionmate-feature-row,
+      .motionmate-feature-panel-header {
+        align-items: flex-start;
+      }
+    }
+  </style>
 
   <!-- Text -->
   <h2 class="h1 text-center mx-auto mt-n2 mt-sm-0 pt-md-2" style="max-width: 530px;">More Control. Less Admin. Better Business.</h2>
@@ -625,25 +937,188 @@
     </li>
     <li class="d-flex fs-xl mx-3 mt-2 mt-sm-3">
       <i class="bx bx-check lead text-primary mt-1 me-2"></i>
-      <span>Manage clients and work from<strong class="text-primary ms-1">one simple dashboard</strong></span>
+      <span>Manage clients and work from <strong class="text-primary ms-1">one simple dashboard</strong></span>
     </li>
     <li class="d-flex fs-xl mx-3 mt-2 mt-sm-3">
       <i class="bx bx-check lead text-primary mt-1 me-2"></i>
-      <span>Create invoices <strong class="text-primary mx-1">10x faster and</strong> keep your business moving<strong class="text-primary ms-1">5% discount</strong></span>
+      <span>Create invoices faster and <strong class="text-primary ms-1">keep cash flow clear</strong></span>
     </li>
   </ul>
 
   <!-- Parallax gfx -->
-  <div class="position-relative px-4 px-sm-5 mb-3 mb-md-4">
-    <img src="{% static 'public_site/img/landing/saas-3/feature-1/main.png' %}" width="1079" class="d-block mx-auto" style="border-radius: 1.5rem; box-shadow: 0 1.875rem 7.5rem -.625rem rgba(124,125,152, .2);" alt="Dashboard">
-    <div class="position-absolute w-100" style="left: 0; bottom: 13%; padding-right: 74.33%;">
-      <img src="{% static 'public_site/img/landing/saas-3/feature-1/popup01.png' %}" width="308" class="rellax d-block" style=" border-radius: .75rem; box-shadow: 0 .75rem 3.75rem -.625rem rgba(124,125,152, .2);" alt="Popup" data-rellax-percentage="0.5" data-rellax-speed="1" data-disable-parallax-down="lg">
+  <div class="motionmate-feature-visual px-2 px-sm-4 mb-3 mb-md-4">
+    <div class="motionmate-feature-shell">
+      <div class="motionmate-feature-topbar">
+        <div class="motionmate-feature-brand">
+          <span class="motionmate-feature-logo"><i class="bx bx-layer"></i></span>
+          <div>
+            <span class="motionmate-feature-muted d-block">MotionMate Business Workspace</span>
+            <span class="motionmate-feature-title">Operations Dashboard</span>
+          </div>
+        </div>
+        <span class="motionmate-feature-pill motionmate-feature-pill-success">
+          <i class="bx bx-check-circle"></i> Ready for today
+        </span>
+      </div>
+
+      <div class="motionmate-feature-grid">
+        <aside class="motionmate-feature-sidebar" aria-hidden="true">
+          <span class="motionmate-feature-muted d-block mb-2">Workspace</span>
+          <strong class="motionmate-feature-title">Caribbean Studio Co.</strong>
+          <nav class="motionmate-feature-nav">
+            <span class="motionmate-feature-nav-item is-active"><i class="bx bx-grid-alt"></i> Dashboard</span>
+            <span class="motionmate-feature-nav-item"><i class="bx bx-user"></i> Clients</span>
+            <span class="motionmate-feature-nav-item"><i class="bx bx-wrench"></i> Requests</span>
+            <span class="motionmate-feature-nav-item"><i class="bx bx-calendar-check"></i> Bookings</span>
+            <span class="motionmate-feature-nav-item"><i class="bx bx-receipt"></i> Invoices</span>
+          </nav>
+        </aside>
+
+        <div class="motionmate-feature-main">
+          <div class="motionmate-feature-metrics">
+            <div class="motionmate-feature-card">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="motionmate-feature-muted">Clients</span>
+                <i class="bx bx-user"></i>
+              </div>
+              <span class="motionmate-feature-number">128</span>
+              <span class="motionmate-feature-muted">12 added this month</span>
+            </div>
+            <div class="motionmate-feature-card">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="motionmate-feature-muted">Open requests</span>
+                <i class="bx bx-wrench"></i>
+              </div>
+              <span class="motionmate-feature-number">24</span>
+              <span class="motionmate-feature-muted">6 need follow-up</span>
+            </div>
+            <div class="motionmate-feature-card">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="motionmate-feature-muted">Appointments</span>
+                <i class="bx bx-calendar"></i>
+              </div>
+              <span class="motionmate-feature-number">9</span>
+              <span class="motionmate-feature-muted">3 scheduled today</span>
+            </div>
+            <div class="motionmate-feature-card">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="motionmate-feature-muted">Invoice value</span>
+                <i class="bx bx-line-chart"></i>
+              </div>
+              <span class="motionmate-feature-number">USD 4.2k</span>
+              <span class="motionmate-feature-muted">This month</span>
+            </div>
+          </div>
+
+          <div class="motionmate-feature-content">
+            <div class="motionmate-feature-panel">
+              <div class="motionmate-feature-panel-header">
+                <div>
+                  <span class="motionmate-feature-title">Work Needing Attention</span>
+                  <span class="motionmate-feature-muted">Requests, bookings, and client follow-ups</span>
+                </div>
+                <span class="motionmate-feature-pill motionmate-feature-pill-warning">6 open</span>
+              </div>
+              <div class="motionmate-feature-list">
+                <div class="motionmate-feature-row">
+                  <div class="motionmate-feature-person">
+                    <span class="motionmate-feature-avatar">AB</span>
+                    <div>
+                      <span class="motionmate-feature-title">Alicia Brown</span>
+                      <span class="motionmate-feature-muted">Initial consultation · Online booking</span>
+                    </div>
+                  </div>
+                  <span class="motionmate-feature-pill motionmate-feature-pill-info">Schedule</span>
+                </div>
+                <div class="motionmate-feature-row">
+                  <div class="motionmate-feature-person">
+                    <span class="motionmate-feature-avatar">MJ</span>
+                    <div>
+                      <span class="motionmate-feature-title">Marcus James</span>
+                      <span class="motionmate-feature-muted">Repair request · Quote needed</span>
+                    </div>
+                  </div>
+                  <span class="motionmate-feature-pill motionmate-feature-pill-warning">Follow up</span>
+                </div>
+                <div class="motionmate-feature-row">
+                  <div class="motionmate-feature-person">
+                    <span class="motionmate-feature-avatar">KR</span>
+                    <div>
+                      <span class="motionmate-feature-title">Keisha Roberts</span>
+                      <span class="motionmate-feature-muted">Invoice MM-1003 · Payment reminder</span>
+                    </div>
+                  </div>
+                  <span class="motionmate-feature-pill motionmate-feature-pill-primary">Invoice</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="motionmate-feature-stack">
+              <div class="motionmate-feature-panel">
+                <div class="motionmate-feature-panel-header">
+                  <div>
+                    <span class="motionmate-feature-title">Today&apos;s Schedule</span>
+                    <span class="motionmate-feature-muted">Appointments and booking requests</span>
+                  </div>
+                </div>
+                <div class="motionmate-feature-mini-grid">
+                  <div class="motionmate-feature-mini">
+                    <span class="motionmate-feature-muted d-block">10:30 AM</span>
+                    <strong class="motionmate-feature-title">Consultation</strong>
+                  </div>
+                  <div class="motionmate-feature-mini">
+                    <span class="motionmate-feature-muted d-block">2:00 PM</span>
+                    <strong class="motionmate-feature-title">Site visit</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="motionmate-feature-panel">
+                <div class="motionmate-feature-panel-header">
+                  <div>
+                    <span class="motionmate-feature-title">Invoice Trend</span>
+                    <span class="motionmate-feature-muted">Sent and paid work</span>
+                  </div>
+                </div>
+                <div class="motionmate-feature-bars">
+                  <span class="motionmate-feature-bar" style="height: 42%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 62%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 54%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 82%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 70%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 95%;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="position-absolute w-100" style="right: 0; top: 12%; padding-left: 74.16%;">
-      <img src="{% static 'public_site/img/landing/saas-3/feature-1/popup02.png' %}" width="310" class="rellax d-block" style="border-radius: .75rem; box-shadow: -.46875rem 2.25rem 6.5rem 0 rgba(126,123,160, .2);" alt="Popup" data-rellax-percentage="0.5" data-rellax-speed="1" data-disable-parallax-down="lg">
+
+    <div class="motionmate-feature-float motionmate-feature-float-request rellax" data-rellax-percentage="0.5" data-rellax-speed="1" data-disable-parallax-down="lg">
+      <span class="motionmate-feature-pill motionmate-feature-pill-warning mb-3">
+        <i class="bx bx-bell"></i> Follow-up due
+      </span>
+      <span class="motionmate-feature-title d-block">Public request captured</span>
+      <span class="motionmate-feature-muted">Customer selected Website Review and left preferred times.</span>
     </div>
-    <div class="position-absolute w-100" style="right: 0; bottom: 9.4%; padding-left: 64.83%; padding-right: 5.5%;">
-      <img src="{% static 'public_site/img/landing/saas-3/feature-1/popup03.png' %}" width="322" class="rellax d-block ms-auto" style="border-radius: .75rem; box-shadow: -.46875rem 2.25rem 6.5rem 0 rgba(120,118,148, .14);" alt="Popup" data-rellax-percentage="0.5" data-rellax-speed=".5" data-disable-parallax-down="lg">
+    <div class="motionmate-feature-float motionmate-feature-float-invoice rellax" data-rellax-percentage="0.5" data-rellax-speed="1" data-disable-parallax-down="lg">
+      <span class="motionmate-feature-pill motionmate-feature-pill-success mb-3">
+        <i class="bx bx-receipt"></i> Invoice sent
+      </span>
+      <div class="d-flex align-items-end justify-content-between gap-3">
+        <div>
+          <span class="motionmate-feature-title d-block">MM-1004</span>
+          <span class="motionmate-feature-muted">Sent by email with PDF</span>
+        </div>
+        <strong class="motionmate-feature-title h5 mb-0">USD 640</strong>
+      </div>
+    </div>
+    <div class="motionmate-feature-float motionmate-feature-float-booking rellax" data-rellax-percentage="0.5" data-rellax-speed=".5" data-disable-parallax-down="lg">
+      <span class="motionmate-feature-pill motionmate-feature-pill-info mb-3">
+        <i class="bx bx-calendar-plus"></i> Booking request
+      </span>
+      <span class="motionmate-feature-title d-block">Thursday, 11:00 AM</span>
+      <span class="motionmate-feature-muted">Ready for staff review and confirmation.</span>
     </div>
   </div>
 </section>
