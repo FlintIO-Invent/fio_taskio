@@ -1,6 +1,8 @@
-# Motionmate Development Workflow
+# MotionMate Development Workflow
 
-Motionmate is currently live for a small private tester group. During this cycle, keep the deployed app stable and move new feature work off the production line until it is ready to promote.
+MotionMate is a Django multi-tenant SaaS for service businesses. The current repository includes business workspaces, onboarding, team invitations, CRM, service requests, service setup/imports, appointments, public booking requests, invoicing, invoice PDFs/emails, plan gating, and transactional email helpers.
+
+During private testing, keep the deployed app stable and move new feature work off the production line until it is ready to promote.
 
 ## Branch roles
 
@@ -60,7 +62,13 @@ uv run --no-sync python src/manage.py makemigrations --check --dry-run
 Run the current main app suite:
 
 ```bash
-uv run --no-sync python src/manage.py test apps.crm.tests apps.accounts.tests apps.businesses.tests apps.billings.tests
+uv run --no-sync python src/manage.py test apps.accounts.tests apps.businesses.tests apps.crm.tests apps.appointments.tests apps.billings.tests apps.notifications.tests
+```
+
+Run the billing suite with a temporary SQLite fallback when local PostgreSQL cannot create a test database:
+
+```bash
+DATABASE_URL= DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/fio_taskio_test.sqlite3 uv run --no-sync python src/manage.py test apps.billings.tests
 ```
 
 ## Release checklist
@@ -74,6 +82,7 @@ Before merging `develop` or completed `feature/*` work into `main`:
 - smoke tests pass on staging or the private-test environment
 - no production-only config is broken
 - tester feedback issues and known regressions are reviewed
+- route and workflow docs in `docs/` are updated when scope changes
 
 ## Hotfix checklist
 

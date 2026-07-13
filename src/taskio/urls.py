@@ -23,15 +23,18 @@ from apps.businesses.models import ClarivoPlan
 from apps.crm.views import public_booking, public_booking_thank_you
 
 
-def landing(request):
+def motionmate_pricing_context():
     pricing_plans = list(ClarivoPlan.motionmate_plans())
     ClarivoPlan.attach_display_pricing(pricing_plans)
-    context = {"pricing_plans": pricing_plans}
-    return render(request, "main/landing.html", context)
+    return {"pricing_plans": pricing_plans}
+
+
+def landing(request):
+    return render(request, "main/landing.html", motionmate_pricing_context())
 
 
 def site_preview(request):
-    return render(request, "public_site/home.html")
+    return render(request, "public_site/home.html", motionmate_pricing_context())
 
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="home", permanent=False)),
