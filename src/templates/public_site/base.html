@@ -3,25 +3,25 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Silicon | SaaS Landing v.1</title>
+    <title>MotionMate | Service Business Workspace</title>
 
     <!-- SEO Meta Tags -->
-    <meta name="description" content="Silicon - Multipurpose Technology Bootstrap Template">
-    <meta name="keywords" content="bootstrap, business, creative agency, mobile app showcase, saas, fintech, finance, online courses, software, medical, conference landing, services, e-commerce, shopping cart, multipurpose, shop, ui kit, marketing, seo, landing, blog, portfolio, html5, css3, javascript, gallery, slider, touch, creative">
-    <meta name="author" content="Createx Studio">
+    <meta name="description" content="MotionMate helps service businesses manage clients, bookings, appointments, requests, and invoices from one workspace.">
+    <meta name="keywords" content="MotionMate, service business software, client management, bookings, appointments, invoices, service requests">
+    <meta name="author" content="MotionMate">
 
     <!-- Viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <!-- Favicon and Touch Icons -->
-    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'public_site/favicon/apple-touch-icon.png' %}">
-    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'public_site/favicon/favicon-32x32.png' %}">
-    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'public_site/favicon/favicon-16x16.png' %}">
-    <link rel="manifest" href="{% static 'public_site/favicon/site.webmanifest' %}">
-    <link rel="mask-icon" href="{% static 'public_site/favicon/safari-pinned-tab.svg' %}" color="#6366f1">
-    <link rel="shortcut icon" href="{% static 'public_site/favicon/favicon.ico' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'assets/img/favicons/apple-touch-icon.png' %}?v=motionmate-20260629">
+    <link rel="icon" type="image/svg+xml" href="{% static 'assets/img/favicons/motionmate-logo.svg' %}?v=motionmate-20260629">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/favicon-32x32.png' %}?v=motionmate-20260629">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/favicon-16x16.png' %}?v=motionmate-20260629">
+    <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}?v=motionmate-20260629">
+    <link rel="shortcut icon" href="{% static 'assets/img/favicons/favicon.ico' %}?v=motionmate-20260629">
     <meta name="msapplication-TileColor" content="#080032">
-    <meta name="msapplication-config" content="{% static 'public_site/favicon/browserconfig.xml' %}">
+    <meta name="msapplication-config" content="{% static 'assets/img/favicons/browserconfig.xml' %}?v=motionmate-20260629">
     <meta name="theme-color" content="#ffffff">
 
     <!-- Vendor Styles -->
@@ -155,10 +155,9 @@
         <div class="row pb-5">
           <div class="col-lg-4 col-md-6">
             <div class="navbar-brand text-dark p-0 me-0 mb-3 mb-lg-4">
-              <img src="{% static 'public_site/img/logo.svg' %}" width="47" alt="Silicon">
-              Silicon
+              {% include "includes/motionmate_logo.html" with mark_size=40 wordmark_class="fs-4" %}
             </div>
-            <p class="fs-sm pb-lg-3 mb-4">Proin ipsum pharetra, senectus eget scelerisque varius pretium platea velit. Lacus, eget eu vitae nullam proin turpis etiam mi sit. Non feugiat feugiat egestas nulla nec. Arcu tempus, eget elementum dolor ullamcorper sodales ultrices eros.</p>
+            <p class="fs-sm pb-lg-3 mb-4">MotionMate keeps clients, bookings, appointments, service requests, and invoices connected in one simple workspace.</p>
             <form class="needs-validation" novalidate>
               <label for="subscr-email" class="form-label">Subscribe to our newsletter</label>
               <div class="input-group">
@@ -204,14 +203,13 @@
               </div>
               <div class="col-xl-4 col-lg-5 pt-2 pt-lg-0">
                 <h6 class="mb-2">Contact Us</h6>
-                <a href="mailto:email@example.com" class="fw-medium">email@example.com</a>
+                <a href="mailto:support@motionmate.net" class="fw-medium">support@motionmate.net</a>
               </div>
             </div>
           </div>
         </div>
         <p class="nav d-block fs-xs text-center text-md-start pb-2 pb-lg-0 mb-0">
-          &copy; All rights reserved. Made by 
-          <a class="nav-link d-inline-block p-0" href="https://createx.studio/" target="_blank" rel="noopener">Createx Studio</a>
+          &copy; All rights reserved. MotionMate
         </p>
       </div>
     </footer>

@@ -1,164 +1,112 @@
 {% extends "public_site/base.html" %}
 {% load static %}
 {% block content %} 
-<!-- Navbar -->
-<!-- Remove "navbar-sticky" class to make navigation bar scrollable with the page -->
-<header class="header navbar navbar-expand-lg position-absolute navbar-sticky">
+<!-- Header -->
+<style>
+  .motionmate-public-navbar {
+    min-height: 5rem;
+    background: #080d1a;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    box-shadow: 0 .75rem 2rem rgba(2, 6, 23, .18);
+  }
+
+  .motionmate-public-navbar .motionmate-wordmark,
+  .motionmate-public-navbar .mode-switch .form-check-label {
+    color: #fff;
+  }
+
+  .motionmate-public-navbar .nav-link {
+    color: rgba(255, 255, 255, .76);
+    font-weight: 700;
+  }
+
+  .motionmate-public-navbar .nav-link:hover,
+  .motionmate-public-navbar .nav-link:focus,
+  .motionmate-public-navbar .nav-link.active {
+    color: #fff;
+  }
+
+  .motionmate-public-navbar .dropdown-menu {
+    background: #0c1222;
+    border-color: rgba(255, 255, 255, .1);
+  }
+
+  .motionmate-public-navbar .dropdown-item {
+    color: rgba(255, 255, 255, .82);
+  }
+
+  .motionmate-public-navbar .dropdown-item:hover,
+  .motionmate-public-navbar .dropdown-item:focus {
+    color: #fff;
+    background: rgba(255, 255, 255, .08);
+  }
+
+  .motionmate-login-caret {
+    display: inline-block;
+    width: .45rem;
+    height: .45rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translateY(-1px);
+  }
+</style>
+
+<header class="header navbar navbar-expand-lg navbar-dark motionmate-public-navbar position-absolute navbar-sticky">
   <div class="container px-3">
-    <a href="index.html" class="navbar-brand pe-3">
-      <img src="{% static 'public_site/img/logo.svg' %}" width="47" alt="Silicon">
-      Silicon
+    <a href="{% url 'home' %}" class="navbar-brand pe-3">
+      {% include "includes/motionmate_logo.html" with mark_size=36 wordmark_class="fs-4" %}
     </a>
-    <div id="navbarNav" class="offcanvas offcanvas-end">
-      <div class="offcanvas-header border-bottom">
-        <h5 class="offcanvas-title">Menu</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    <div id="navbarNav" class="offcanvas offcanvas-end bg-dark">
+      <div class="offcanvas-header border-bottom border-light border-opacity-10">
+        <h5 class="offcanvas-title text-white">MotionMate</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
-      <div class="offcanvas-body">
-        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <li class="nav-item dropdown">
-            <a href="#" class="nav-link dropdown-toggle active" data-bs-toggle="dropdown" aria-current="page">Landings</a>
-            <div class="dropdown-menu p-0">
-              <div class="d-lg-flex">
-                <div class="mega-dropdown-column bg-position-center bg-repeat-0 bg-size-cover rounded-3 rounded-end-0" style="background-image: url({% static 'public_site/img/landings.jpg' %}); margin: -1px;"></div>
-                <div class="mega-dropdown-column pt-lg-3 pb-lg-4">
-                  <ul class="list-unstyled mb-0">
-                    <li><a href="index.html" class="dropdown-item">Template Intro Page</a></li>
-                    <li><a href="landing-mobile-app-showcase-v1.html" class="dropdown-item">Mobile App Showcase v.1</a></li>
-                    <li><a href="landing-mobile-app-showcase-v2.html" class="dropdown-item">Mobile App Showcase v.2</a></li>
-                    <li><a href="landing-startup.html" class="dropdown-item d-flex align-items-center">Startup<span class="badge bg-success ms-2">New</span></a></li>
-                    <li><a href="landing-saas-v1.html" class="dropdown-item">SaaS v.1</a></li>
-                    <li><a href="landing-saas-v2.html" class="dropdown-item">SaaS v.2</a></li>
-                    <li><a href="landing-saas-v3.html" class="dropdown-item">SaaS v.3</a></li>
-                    <li><a href="landing-financial.html" class="dropdown-item">Financial Consulting</a></li>
-                  </ul>
-                </div>
-                <div class="mega-dropdown-column pt-lg-3 pb-lg-4">
-                  <ul class="list-unstyled mb-0">
-                    <li><a href="landing-online-courses.html" class="dropdown-item">Online Courses</a></li>
-                    <li><a href="landing-medical.html" class="dropdown-item">Medical</a></li>
-                    <li><a href="landing-software-company.html" class="dropdown-item">IT (Software) Company</a></li>
-                    <li><a href="landing-conference.html" class="dropdown-item">Conference</a></li>
-                    <li><a href="landing-digital-agency.html" class="dropdown-item">Digital Agency</a></li>
-                    <li><a href="landing-blog.html" class="dropdown-item">Blog Homepage</a></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </li>
-          <li class="nav-item dropdown">
-            <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Pages</a>
-            <div class="dropdown-menu">
-              <div class="d-lg-flex pt-lg-3">
-                <div class="mega-dropdown-column">
-                  <h6 class="px-3 mb-2">About</h6>
-                  <ul class="list-unstyled mb-3">
-                    <li><a href="about-v1.html" class="dropdown-item py-1">About v.1</a></li>
-                    <li><a href="about-v2.html" class="dropdown-item py-1">About v.2</a></li>
-                  </ul>
-                  <h6 class="px-3 mb-2">Blog</h6>
-                  <ul class="list-unstyled mb-3">
-                    <li><a href="blog-list-with-sidebar.html" class="dropdown-item py-1">List View with Sidebar</a></li>
-                    <li><a href="blog-grid-with-sidebar.html" class="dropdown-item py-1">Grid View with Sidebar</a></li>
-                    <li><a href="blog-list-no-sidebar.html" class="dropdown-item py-1">List View no Sidebar</a></li>
-                    <li><a href="blog-grid-no-sidebar.html" class="dropdown-item py-1">Grid View no Sidebar</a></li>
-                    <li><a href="blog-simple-feed.html" class="dropdown-item py-1">Simple Feed</a></li>
-                    <li><a href="blog-single.html" class="dropdown-item py-1">Single Post</a></li>
-                    <li><a href="blog-podcast.html" class="dropdown-item py-1">Podcast</a></li>
-                  </ul>
-                </div>
-                <div class="mega-dropdown-column">
-                  <h6 class="px-3 mb-2">Portfolio</h6>
-                  <ul class="list-unstyled mb-3">
-                    <li><a href="portfolio-grid.html" class="dropdown-item py-1">Grid View</a></li>
-                    <li><a href="portfolio-list.html" class="dropdown-item py-1">List View</a></li>
-                    <li><a href="portfolio-slider.html" class="dropdown-item py-1">Slider View</a></li>
-                    <li><a href="portfolio-courses.html" class="dropdown-item py-1">Courses</a></li>
-                    <li><a href="portfolio-single-project.html" class="dropdown-item py-1">Single Project</a></li>
-                    <li><a href="portfolio-single-course.html" class="dropdown-item py-1">Single Course</a></li>
-                  </ul>
-                  <h6 class="px-3 mb-2">Services</h6>
-                  <ul class="list-unstyled mb-3">
-                    <li><a href="services-v1.html" class="dropdown-item py-1">Services v.1</a></li>
-                    <li><a href="services-v2.html" class="dropdown-item py-1">Services v.2</a></li>
-                    <li><a href="services-single-v1.html" class="dropdown-item py-1">Service Details v.1</a></li>
-                    <li><a href="services-single-v2.html" class="dropdown-item py-1">Service Details v.2</a></li>
-                  </ul>
-                </div>
-                <div class="mega-dropdown-column">
-                  <h6 class="px-3 mb-2">Pricing</h6>
-                  <ul class="list-unstyled mb-3">
-                    <li><a href="pricing.html" class="dropdown-item py-1">Pricing Page</a></li>
-                  </ul>
-                  <h6 class="px-3 mb-2">Contacts</h6>
-                  <ul class="list-unstyled mb-3">
-                    <li><a href="contacts-v1.html" class="dropdown-item py-1">Contacts v.1</a></li>
-                    <li><a href="contacts-v2.html" class="dropdown-item py-1">Contacts v.2</a></li>
-                    <li><a href="contacts-v3.html" class="dropdown-item py-1">Contacts v.3</a></li>
-                  </ul>
-                  <h6 class="px-3 mb-2">Specialty</h6>
-                  <ul class="list-unstyled">
-                    <li><a href="404-v1.html" class="dropdown-item py-1">404 Error v.1</a></li>
-                    <li><a href="404-v2.html" class="dropdown-item py-1">404 Error v.2</a></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </li>
-          <li class="nav-item dropdown">
-            <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Account</a>
-            <ul class="dropdown-menu">
-              <li><a href="account-details.html" class="dropdown-item">Account Details</a></li>
-              <li><a href="account-security.html" class="dropdown-item">Security</a></li>
-              <li><a href="account-notifications.html" class="dropdown-item">Notifications</a></li>
-              <li><a href="account-messages.html" class="dropdown-item">Messages</a></li>
-              <li><a href="account-saved-items.html" class="dropdown-item">Saved Items</a></li>
-              <li><a href="account-collections.html" class="dropdown-item">My Collections</a></li>
-              <li><a href="account-payment.html" class="dropdown-item">Payment Details</a></li>
-              <li><a href="account-signin.html" class="dropdown-item">Sign In</a></li>
-              <li><a href="account-signup.html" class="dropdown-item">Sign Up</a></li>
-            </ul>
-          </li>
-          <li class="nav-item">
-            <a href="components/typography.html" class="nav-link">UI Kit</a>
-          </li>
-          <li class="nav-item">
-            <a href="docs/getting-started.html" class="nav-link">Docs</a>
-          </li>
-        </ul>
+      <div class="offcanvas-body align-items-center"></div>
+      <div class="offcanvas-header border-top border-light border-opacity-10 flex-column align-items-stretch gap-2 d-lg-none">
+        <a class="btn btn-outline-light w-100" href="{% url 'business_login' %}">Business Login</a>
+        <a class="btn btn-outline-light w-100" href="{% url 'agent_login' %}">Staff Login</a>
+        <a class="btn btn-outline-light w-100" href="mailto:support@motionmate.net">Support</a>
+        <a href="{% url 'register_business' %}" class="btn btn-primary w-100">Start trial now</a>
       </div>
-      <div class="offcanvas-header border-top">
-        <a href="https://themes.getbootstrap.com/product/silicon-business-technology-template-ui-kit/" class="btn btn-primary w-100" target="_blank" rel="noopener">
-          <i class="bx bx-cart fs-4 lh-1 me-1"></i>
-          &nbsp;Buy now
-        </a>
-      </div>      
     </div>
     <div class="form-check form-switch mode-switch pe-lg-1 ms-auto me-4" data-bs-toggle="mode">
       <input type="checkbox" class="form-check-input" id="theme-mode">
       <label class="form-check-label d-none d-sm-block" for="theme-mode">Light</label>
       <label class="form-check-label d-none d-sm-block" for="theme-mode">Dark</label>
     </div>
+    <div class="dropdown d-none d-lg-block ms-1">
+      <a href="#" class="nav-link px-2 d-inline-flex align-items-center gap-2" data-bs-toggle="dropdown">
+        Login <span class="motionmate-login-caret" aria-hidden="true"></span>
+      </a>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="{% url 'business_login' %}">Business Login</a></li>
+        <li><a class="dropdown-item" href="{% url 'agent_login' %}">Staff Login</a></li>
+        <li><a class="dropdown-item" href="mailto:support@motionmate.net">Support</a></li>
+      </ul>
+    </div>
     <button type="button" class="navbar-toggler" data-bs-toggle="offcanvas" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
-    <a href="https://themes.getbootstrap.com/product/silicon-business-technology-template-ui-kit/" class="btn btn-primary btn-sm fs-sm rounded d-none d-lg-inline-flex" target="_blank" rel="noopener">
-      <i class="bx bx-cart fs-5 lh-1 me-1"></i>
-      &nbsp;Buy now
+    <a href="{% url 'register_business' %}" class="btn btn-primary btn-sm fs-sm rounded d-none d-lg-inline-flex ms-3">
+      Start trial now
     </a>
   </div>
 </header>
 
 <!-- Hero -->
-<section class="dark-mode bg-dark bg-size-cover bg-repeat-0 bg-position-center position-relative overflow-hidden py-5 mb-4" style="background-image: url({% static 'public_site/img/landing/saas-3/hero/hero-bg.jpg' %});">
-  <div class="container position-relative zindex-2 pt-5 pb-md-2 pb-lg-4 pb-xl-5">
-    <div class="row pt-3 pb-2 py-md-4">
+<section id="home" class="dark-mode bg-dark bg-size-cover bg-repeat-0 bg-position-center position-relative overflow-hidden py-5 mb-4" style="background-image: url({% static 'public_site/img/landing/saas-3/hero/hero-bg.jpg' %});">
+  <div class="container position-relative zindex-2 pb-md-3 pb-lg-5" style="padding-top: 8rem;">
+    <div class="row align-items-center g-4 g-xl-5 pt-3 pb-2 py-md-4">
 
       <!-- Text -->
-      <div class="col-xl-6 col-md-6 pt-lg-5 text-center text-md-start mb-4 mb-md-0">
+      <div class="col-xl-5 col-lg-6 col-md-6 pt-lg-5 text-center text-md-start mb-4 mb-md-0">
         <style>
           .hero-typed-heading {
             min-height: 3lh;
+          }
+
+          .motionmate-hero-copy {
+            max-width: 36rem;
           }
 
           @media (max-width: 575.98px) {
@@ -186,30 +134,35 @@
 
           .motionmate-hero-visual {
             position: relative;
-            width: min(100%, 675px);
-            aspect-ratio: 1.16;
-            min-height: 360px;
+            width: min(100%, 760px);
+            aspect-ratio: 1.28;
+            min-height: 430px;
           }
 
           .motionmate-hero-panel,
           .motionmate-hero-card {
-            color: #0b0f19;
-            background: rgba(255, 255, 255, .96);
-            border: 1px solid rgba(255, 255, 255, .72);
-            box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, .24);
+            color: #111827;
+            background: #fff;
+            border: 1px solid rgba(226, 229, 241, .95);
+            box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, .32);
             backdrop-filter: blur(14px);
           }
 
           .motionmate-hero-panel {
-            width: min(92%, 560px);
+            width: min(88%, 620px);
             border-radius: 1.25rem;
-            padding: 1rem;
+            padding: 1.15rem;
           }
 
           .motionmate-hero-card {
             position: absolute;
             border-radius: 1rem;
             padding: .95rem;
+          }
+
+          .motionmate-hero-panel *,
+          .motionmate-hero-card * {
+            text-shadow: none;
           }
 
           .motionmate-hero-topbar,
@@ -225,9 +178,10 @@
             align-items: center;
             gap: .35rem;
             border-radius: 999px;
-            padding: .25rem .55rem;
+            padding: .28rem .65rem;
             font-size: .72rem;
-            font-weight: 700;
+            font-weight: 800;
+            line-height: 1.2;
             white-space: nowrap;
           }
 
@@ -236,16 +190,19 @@
             border-radius: .85rem;
             padding: .8rem;
             background: #f5f7fb;
+            border: 1px solid #eceff7;
           }
 
-          .motionmate-hero-muted {
-            color: #6f7485;
+          .motionmate-hero-visual .motionmate-hero-muted {
+            color: #4b556d !important;
           }
 
-          .motionmate-hero-panel h3,
-          .motionmate-hero-panel strong,
-          .motionmate-hero-card strong {
-            color: #0b0f19;
+          .motionmate-hero-visual .motionmate-hero-panel h3,
+          .motionmate-hero-visual .motionmate-hero-panel strong,
+          .motionmate-hero-visual .motionmate-hero-card strong,
+          .motionmate-hero-visual .motionmate-hero-card .fw-semibold,
+          .motionmate-hero-visual .motionmate-hero-metric .h4 {
+            color: #111827 !important;
           }
 
           .motionmate-hero-metric i {
@@ -253,23 +210,23 @@
           }
 
           .motionmate-hero-pill-success {
-            color: #148943;
-            background: rgba(34, 197, 94, .14);
+            color: #0f6f39 !important;
+            background: #dcfce7;
           }
 
           .motionmate-hero-pill-warning {
-            color: #a36a00;
-            background: rgba(255, 186, 8, .18);
+            color: #8a4f00 !important;
+            background: #fff1c2;
           }
 
           .motionmate-hero-pill-info {
-            color: #285ec7;
-            background: rgba(76, 130, 247, .14);
+            color: #1f56b3 !important;
+            background: #e4edff;
           }
 
           .motionmate-hero-pill-primary {
-            color: #4447d9;
-            background: rgba(99, 102, 241, .14);
+            color: #3730a3 !important;
+            background: #e7e7ff;
           }
 
           .motionmate-hero-table {
@@ -288,28 +245,28 @@
           }
 
           .motionmate-hero-card-booking {
-            top: 11%;
-            right: 0;
-            width: min(46%, 250px);
+            top: 6%;
+            right: 1%;
+            width: min(40%, 260px);
           }
 
           .motionmate-hero-card-invoice {
-            left: 2%;
-            bottom: 8%;
-            width: min(48%, 260px);
+            left: 0;
+            bottom: 2%;
+            width: min(42%, 280px);
           }
 
           @media (max-width: 991.98px) {
             .motionmate-hero-visual {
-              min-height: 320px;
+              min-height: 340px;
             }
 
             .motionmate-hero-card-booking {
-              width: min(52%, 240px);
+              width: min(50%, 240px);
             }
 
             .motionmate-hero-card-invoice {
-              width: min(54%, 250px);
+              width: min(52%, 250px);
             }
           }
 
@@ -328,7 +285,7 @@
             }
 
             .motionmate-hero-card-booking {
-              top: 16%;
+              top: 12%;
               right: 0;
               width: 56%;
             }
@@ -345,7 +302,7 @@
           }
         </style>
 
-        <h2 class="display-2 hero-typed-heading pb-2 pb-sm-3">Smarter workflows for
+        <h2 class="display-3 hero-typed-heading pb-2 pb-sm-3">Smarter workflows for
           <span
             class="typed-text"
             data-typed-text='["small businesses", "Caribbean entrepreneurs", "European teams", "consultants & agencies"]'
@@ -354,30 +311,16 @@
         </h2>
 
 
-        <p class="fs-lg d-md-none d-xl-block pb-2 pb-md-0 mb-4 mb-md-5">Manage clients, bookings, appointments, and invoices in one simple workspace.</p>
+        <p class="motionmate-hero-copy fs-lg d-md-none d-xl-block mx-auto mx-md-0 pb-2 pb-md-0 mb-4 mb-md-5">Manage clients, bookings, appointments, and invoices in one simple workspace.</p>
         <div class="d-flex justify-content-center justify-content-md-start pb-2 pt-lg-2 pt-xl-0">
           <a href="{% url 'register_business' %}" class="btn btn-lg btn-primary shadow-primary me-3 me-sm-4">Start trial now</a>
           <a href="mailto:support@motionmate.net" class="btn btn-lg btn-outline-secondary">Contact us</a>
         </div>
-        <div class="d-flex align-items-center justify-content-center justify-content-md-start text-start pt-4 pt-lg-5 mt-xxl-5">
-          <!-- <div class="d-flex me-3">
-            <div class="d-flex align-items-center justify-content-center bg-light rounded-circle" style="width: 52px; height: 52px;">
-              <img src="{% static 'public_site/img/avatar/14.jpg' %}" class="rounded-circle" width="48" alt="Avatar">
-            </div>
-            <div class="d-flex align-items-center justify-content-center bg-light rounded-circle ms-n3" style="width: 52px; height: 52px;">
-              <img src="{% static 'public_site/img/avatar/08.jpg' %}" class="rounded-circle" width="48" alt="Avatar">
-            </div>
-            <div class="d-flex align-items-center justify-content-center bg-light rounded-circle ms-n3" style="width: 52px; height: 52px;">
-              <img src="{% static 'public_site/img/avatar/15.jpg' %}" class="rounded-circle" width="48" alt="Avatar">
-            </div>
-          </div> -->
-          <!-- <div class="text-light"><strong>400k+</strong> users already with us</div> -->
-        </div>
       </div>
 
       <!-- Parallax gfx -->
-      <div class="col-xl-6 col-md-6 d-md-flex justify-content-end">
-        <div class="parallax motionmate-hero-visual mx-auto ms-md-0 me-md-n5" aria-hidden="true">
+      <div class="col-xl-7 col-lg-6 col-md-6 d-md-flex justify-content-end">
+        <div class="parallax motionmate-hero-visual mx-auto ms-md-0 me-xl-n4" aria-hidden="true">
           <div class="parallax-layer zindex-2 w-100 h-100 d-flex align-items-center justify-content-center" data-depth="0.1">
             <div class="motionmate-hero-panel">
               <div class="motionmate-hero-topbar mb-3">
@@ -604,8 +547,320 @@
   })();
 </script>
 
-<!-- Feature section (Trading) -->
-<section class="container py-5 my-md-2 my-lg-4 my-xl-5">
+<!-- Feature section (MotionMate dashboard preview) -->
+<section id="features" class="container py-5 my-md-2 my-lg-4 my-xl-5">
+  <style>
+    .motionmate-feature-visual {
+      position: relative;
+      max-width: 1079px;
+      margin-inline: auto;
+      color: #111827;
+    }
+
+    .motionmate-feature-shell,
+    .motionmate-feature-float {
+      border: 1px solid #e3e8f4;
+      background: #fff;
+      box-shadow: 0 1.875rem 7.5rem -.625rem rgba(63, 68, 104, .24);
+    }
+
+    .motionmate-feature-shell {
+      overflow: hidden;
+      border-radius: 1.5rem;
+    }
+
+    .motionmate-feature-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #edf0f7;
+      background: linear-gradient(135deg, #fff, #f7f8ff);
+    }
+
+    .motionmate-feature-brand {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      min-width: 0;
+    }
+
+    .motionmate-feature-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.55rem;
+      height: 2.55rem;
+      flex-shrink: 0;
+      border-radius: .85rem;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1, #4c82f7);
+      box-shadow: 0 .8rem 1.8rem rgba(99, 102, 241, .28);
+    }
+
+    .motionmate-feature-title {
+      display: block;
+      color: #111827;
+      font-weight: 800;
+    }
+
+    .motionmate-feature-muted {
+      color: #4b556d;
+      font-size: .82rem;
+    }
+
+    .motionmate-feature-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      flex-shrink: 0;
+      border-radius: 999px;
+      padding: .35rem .7rem;
+      font-size: .75rem;
+      font-weight: 800;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .motionmate-feature-pill-primary {
+      color: #3730a3;
+      background: #e7e7ff;
+    }
+
+    .motionmate-feature-pill-info {
+      color: #1f56b3;
+      background: #e4edff;
+    }
+
+    .motionmate-feature-pill-success {
+      color: #0f6f39;
+      background: #dcfce7;
+    }
+
+    .motionmate-feature-pill-warning {
+      color: #8a4f00;
+      background: #fff1c2;
+    }
+
+    .motionmate-feature-grid {
+      display: grid;
+      grid-template-columns: 13rem minmax(0, 1fr);
+      min-height: 520px;
+    }
+
+    .motionmate-feature-sidebar {
+      padding: 1rem;
+      border-right: 1px solid #edf0f7;
+      background: #f8f9ff;
+    }
+
+    .motionmate-feature-nav {
+      display: grid;
+      gap: .55rem;
+      margin-top: 1rem;
+    }
+
+    .motionmate-feature-nav-item {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      border-radius: .75rem;
+      padding: .65rem .75rem;
+      color: #4b556d;
+      font-size: .85rem;
+      font-weight: 800;
+    }
+
+    .motionmate-feature-nav-item.is-active {
+      color: #3730a3;
+      background: #e7e7ff;
+    }
+
+    .motionmate-feature-main {
+      padding: 1.1rem;
+      background: #fff;
+    }
+
+    .motionmate-feature-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .85rem;
+      margin-bottom: .95rem;
+    }
+
+    .motionmate-feature-card,
+    .motionmate-feature-panel {
+      border: 1px solid #edf0f7;
+      border-radius: 1rem;
+      background: #fff;
+    }
+
+    .motionmate-feature-card {
+      padding: .9rem;
+      background: #f8f9ff;
+    }
+
+    .motionmate-feature-card i {
+      color: #6366f1;
+      font-size: 1.2rem;
+    }
+
+    .motionmate-feature-number {
+      display: block;
+      color: #111827;
+      font-size: 1.55rem;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .motionmate-feature-content {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(260px, .8fr);
+      gap: .95rem;
+    }
+
+    .motionmate-feature-panel-header,
+    .motionmate-feature-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .8rem;
+    }
+
+    .motionmate-feature-panel-header {
+      padding: .95rem 1rem;
+      border-bottom: 1px solid #edf0f7;
+    }
+
+    .motionmate-feature-list {
+      display: grid;
+    }
+
+    .motionmate-feature-row {
+      padding: .85rem 1rem;
+      border-bottom: 1px solid #edf0f7;
+    }
+
+    .motionmate-feature-row:last-child {
+      border-bottom: 0;
+    }
+
+    .motionmate-feature-person {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      min-width: 0;
+    }
+
+    .motionmate-feature-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.35rem;
+      height: 2.35rem;
+      flex-shrink: 0;
+      border-radius: 50%;
+      color: #3730a3;
+      background: #e7e7ff;
+      font-weight: 800;
+    }
+
+    .motionmate-feature-stack {
+      display: grid;
+      gap: .95rem;
+    }
+
+    .motionmate-feature-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .75rem;
+      padding: 1rem;
+    }
+
+    .motionmate-feature-mini {
+      border-radius: .85rem;
+      padding: .75rem;
+      background: #f8f9ff;
+      border: 1px solid #edf0f7;
+    }
+
+    .motionmate-feature-bars {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      align-items: end;
+      gap: .38rem;
+      height: 88px;
+      padding: 1rem;
+    }
+
+    .motionmate-feature-bar {
+      border-radius: 999px 999px .35rem .35rem;
+      background: linear-gradient(180deg, #6366f1, #4c82f7);
+    }
+
+    .motionmate-feature-float {
+      position: absolute;
+      z-index: 2;
+      border-radius: 1rem;
+      padding: .9rem;
+    }
+
+    .motionmate-feature-float-request {
+      left: 0;
+      bottom: 10%;
+      width: min(30%, 320px);
+    }
+
+    .motionmate-feature-float-invoice {
+      right: 1.5%;
+      top: 10%;
+      width: min(31%, 330px);
+    }
+
+    .motionmate-feature-float-booking {
+      right: 12%;
+      bottom: 3%;
+      width: min(29%, 310px);
+    }
+
+    @media (max-width: 991.98px) {
+      .motionmate-feature-grid {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+
+      .motionmate-feature-sidebar {
+        display: none;
+      }
+
+      .motionmate-feature-metrics,
+      .motionmate-feature-content {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .motionmate-feature-float {
+        position: relative;
+        inset: auto;
+        width: auto;
+        margin-top: .85rem;
+      }
+    }
+
+    @media (max-width: 575.98px) {
+      .motionmate-feature-metrics,
+      .motionmate-feature-content,
+      .motionmate-feature-mini-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .motionmate-feature-topbar,
+      .motionmate-feature-row,
+      .motionmate-feature-panel-header {
+        align-items: flex-start;
+      }
+    }
+  </style>
 
   <!-- Text -->
   <h2 class="h1 text-center mx-auto mt-n2 mt-sm-0 pt-md-2" style="max-width: 530px;">More Control. Less Admin. Better Business.</h2>
@@ -616,89 +871,252 @@
     </li>
     <li class="d-flex fs-xl mx-3 mt-2 mt-sm-3">
       <i class="bx bx-check lead text-primary mt-1 me-2"></i>
-      <span>Manage clients and work from<strong class="text-primary ms-1">one simple dashboard</strong></span>
+      <span>Manage clients and work from <strong class="text-primary ms-1">one simple dashboard</strong></span>
     </li>
     <li class="d-flex fs-xl mx-3 mt-2 mt-sm-3">
       <i class="bx bx-check lead text-primary mt-1 me-2"></i>
-      <span>Create invoices <strong class="text-primary mx-1">10x faster and</strong> keep your business moving<strong class="text-primary ms-1">5% discount</strong></span>
+      <span>Create invoices faster and <strong class="text-primary ms-1">keep cash flow clear</strong></span>
     </li>
   </ul>
 
   <!-- Parallax gfx -->
-  <div class="position-relative px-4 px-sm-5 mb-3 mb-md-4">
-    <img src="{% static 'public_site/img/landing/saas-3/feature-1/main.png' %}" width="1079" class="d-block mx-auto" style="border-radius: 1.5rem; box-shadow: 0 1.875rem 7.5rem -.625rem rgba(124,125,152, .2);" alt="Dashboard">
-    <div class="position-absolute w-100" style="left: 0; bottom: 13%; padding-right: 74.33%;">
-      <img src="{% static 'public_site/img/landing/saas-3/feature-1/popup01.png' %}" width="308" class="rellax d-block" style=" border-radius: .75rem; box-shadow: 0 .75rem 3.75rem -.625rem rgba(124,125,152, .2);" alt="Popup" data-rellax-percentage="0.5" data-rellax-speed="1" data-disable-parallax-down="lg">
+  <div class="motionmate-feature-visual px-2 px-sm-4 mb-3 mb-md-4">
+    <div class="motionmate-feature-shell">
+      <div class="motionmate-feature-topbar">
+        <div class="motionmate-feature-brand">
+          <span class="motionmate-feature-logo"><i class="bx bx-layer"></i></span>
+          <div>
+            <span class="motionmate-feature-muted d-block">MotionMate Business Workspace</span>
+            <span class="motionmate-feature-title">Operations Dashboard</span>
+          </div>
+        </div>
+        <span class="motionmate-feature-pill motionmate-feature-pill-success">
+          <i class="bx bx-check-circle"></i> Ready for today
+        </span>
+      </div>
+
+      <div class="motionmate-feature-grid">
+        <aside class="motionmate-feature-sidebar" aria-hidden="true">
+          <span class="motionmate-feature-muted d-block mb-2">Workspace</span>
+          <strong class="motionmate-feature-title">Caribbean Studio Co.</strong>
+          <nav class="motionmate-feature-nav">
+            <span class="motionmate-feature-nav-item is-active"><i class="bx bx-grid-alt"></i> Dashboard</span>
+            <span class="motionmate-feature-nav-item"><i class="bx bx-user"></i> Clients</span>
+            <span class="motionmate-feature-nav-item"><i class="bx bx-wrench"></i> Requests</span>
+            <span class="motionmate-feature-nav-item"><i class="bx bx-calendar-check"></i> Bookings</span>
+            <span class="motionmate-feature-nav-item"><i class="bx bx-receipt"></i> Invoices</span>
+          </nav>
+        </aside>
+
+        <div class="motionmate-feature-main">
+          <div class="motionmate-feature-metrics">
+            <div class="motionmate-feature-card">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="motionmate-feature-muted">Clients</span>
+                <i class="bx bx-user"></i>
+              </div>
+              <span class="motionmate-feature-number">128</span>
+              <span class="motionmate-feature-muted">12 added this month</span>
+            </div>
+            <div class="motionmate-feature-card">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="motionmate-feature-muted">Open requests</span>
+                <i class="bx bx-wrench"></i>
+              </div>
+              <span class="motionmate-feature-number">24</span>
+              <span class="motionmate-feature-muted">6 need follow-up</span>
+            </div>
+            <div class="motionmate-feature-card">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="motionmate-feature-muted">Appointments</span>
+                <i class="bx bx-calendar"></i>
+              </div>
+              <span class="motionmate-feature-number">9</span>
+              <span class="motionmate-feature-muted">3 scheduled today</span>
+            </div>
+            <div class="motionmate-feature-card">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="motionmate-feature-muted">Invoice value</span>
+                <i class="bx bx-line-chart"></i>
+              </div>
+              <span class="motionmate-feature-number">USD 4.2k</span>
+              <span class="motionmate-feature-muted">This month</span>
+            </div>
+          </div>
+
+          <div class="motionmate-feature-content">
+            <div class="motionmate-feature-panel">
+              <div class="motionmate-feature-panel-header">
+                <div>
+                  <span class="motionmate-feature-title">Work Needing Attention</span>
+                  <span class="motionmate-feature-muted">Requests, bookings, and client follow-ups</span>
+                </div>
+                <span class="motionmate-feature-pill motionmate-feature-pill-warning">6 open</span>
+              </div>
+              <div class="motionmate-feature-list">
+                <div class="motionmate-feature-row">
+                  <div class="motionmate-feature-person">
+                    <span class="motionmate-feature-avatar">AB</span>
+                    <div>
+                      <span class="motionmate-feature-title">Alicia Brown</span>
+                      <span class="motionmate-feature-muted">Initial consultation · Online booking</span>
+                    </div>
+                  </div>
+                  <span class="motionmate-feature-pill motionmate-feature-pill-info">Schedule</span>
+                </div>
+                <div class="motionmate-feature-row">
+                  <div class="motionmate-feature-person">
+                    <span class="motionmate-feature-avatar">MJ</span>
+                    <div>
+                      <span class="motionmate-feature-title">Marcus James</span>
+                      <span class="motionmate-feature-muted">Repair request · Quote needed</span>
+                    </div>
+                  </div>
+                  <span class="motionmate-feature-pill motionmate-feature-pill-warning">Follow up</span>
+                </div>
+                <div class="motionmate-feature-row">
+                  <div class="motionmate-feature-person">
+                    <span class="motionmate-feature-avatar">KR</span>
+                    <div>
+                      <span class="motionmate-feature-title">Keisha Roberts</span>
+                      <span class="motionmate-feature-muted">Invoice MM-1003 · Payment reminder</span>
+                    </div>
+                  </div>
+                  <span class="motionmate-feature-pill motionmate-feature-pill-primary">Invoice</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="motionmate-feature-stack">
+              <div class="motionmate-feature-panel">
+                <div class="motionmate-feature-panel-header">
+                  <div>
+                    <span class="motionmate-feature-title">Today&apos;s Schedule</span>
+                    <span class="motionmate-feature-muted">Appointments and booking requests</span>
+                  </div>
+                </div>
+                <div class="motionmate-feature-mini-grid">
+                  <div class="motionmate-feature-mini">
+                    <span class="motionmate-feature-muted d-block">10:30 AM</span>
+                    <strong class="motionmate-feature-title">Consultation</strong>
+                  </div>
+                  <div class="motionmate-feature-mini">
+                    <span class="motionmate-feature-muted d-block">2:00 PM</span>
+                    <strong class="motionmate-feature-title">Site visit</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="motionmate-feature-panel">
+                <div class="motionmate-feature-panel-header">
+                  <div>
+                    <span class="motionmate-feature-title">Invoice Trend</span>
+                    <span class="motionmate-feature-muted">Sent and paid work</span>
+                  </div>
+                </div>
+                <div class="motionmate-feature-bars">
+                  <span class="motionmate-feature-bar" style="height: 42%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 62%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 54%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 82%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 70%;"></span>
+                  <span class="motionmate-feature-bar" style="height: 95%;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="position-absolute w-100" style="right: 0; top: 12%; padding-left: 74.16%;">
-      <img src="{% static 'public_site/img/landing/saas-3/feature-1/popup02.png' %}" width="310" class="rellax d-block" style="border-radius: .75rem; box-shadow: -.46875rem 2.25rem 6.5rem 0 rgba(126,123,160, .2);" alt="Popup" data-rellax-percentage="0.5" data-rellax-speed="1" data-disable-parallax-down="lg">
+
+    <div class="motionmate-feature-float motionmate-feature-float-request rellax" data-rellax-percentage="0.5" data-rellax-speed="1" data-disable-parallax-down="lg">
+      <span class="motionmate-feature-pill motionmate-feature-pill-warning mb-3">
+        <i class="bx bx-bell"></i> Follow-up due
+      </span>
+      <span class="motionmate-feature-title d-block">Public request captured</span>
+      <span class="motionmate-feature-muted">Customer selected Website Review and left preferred times.</span>
     </div>
-    <div class="position-absolute w-100" style="right: 0; bottom: 9.4%; padding-left: 64.83%; padding-right: 5.5%;">
-      <img src="{% static 'public_site/img/landing/saas-3/feature-1/popup03.png' %}" width="322" class="rellax d-block ms-auto" style="border-radius: .75rem; box-shadow: -.46875rem 2.25rem 6.5rem 0 rgba(120,118,148, .14);" alt="Popup" data-rellax-percentage="0.5" data-rellax-speed=".5" data-disable-parallax-down="lg">
+    <div class="motionmate-feature-float motionmate-feature-float-invoice rellax" data-rellax-percentage="0.5" data-rellax-speed="1" data-disable-parallax-down="lg">
+      <span class="motionmate-feature-pill motionmate-feature-pill-success mb-3">
+        <i class="bx bx-receipt"></i> Invoice sent
+      </span>
+      <div class="d-flex align-items-end justify-content-between gap-3">
+        <div>
+          <span class="motionmate-feature-title d-block">MM-1004</span>
+          <span class="motionmate-feature-muted">Sent by email with PDF</span>
+        </div>
+        <strong class="motionmate-feature-title h5 mb-0">USD 640</strong>
+      </div>
+    </div>
+    <div class="motionmate-feature-float motionmate-feature-float-booking rellax" data-rellax-percentage="0.5" data-rellax-speed=".5" data-disable-parallax-down="lg">
+      <span class="motionmate-feature-pill motionmate-feature-pill-info mb-3">
+        <i class="bx bx-calendar-plus"></i> Booking request
+      </span>
+      <span class="motionmate-feature-title d-block">Thursday, 11:00 AM</span>
+      <span class="motionmate-feature-muted">Ready for staff review and confirmation.</span>
     </div>
   </div>
 </section>
 
 
-<!-- Features (Icon + Text) -->
-<section class="container">
-  <h2 class="h1 text-center pb-4 pb-lg-5">Stay Organized &amp; Connected</h2>
+<!-- Client Type (Types of customers that work with us) -->
+<section id="businesses" class="container">
+  <h2 class="h1 text-center pb-4 pb-lg-5">Built for Service Businesses Like Yours</h2>
   <div class="row">
     <div class="col-lg-3 col-md-4 col-sm-6 text-center pb-md-2 mb-3 mb-lg-4">
       <div class="d-inline-block bg-secondary rounded-circle p-3 mb-4">
-        <img src="{% static 'public_site/img/landing/saas-1/features/chat.svg' %}" width="32" alt="Icon">
+        <i class="bx bx-briefcase-alt-2 fs-2 text-primary" aria-hidden="true"></i>
       </div>
-      <h3 class="h5 pb-1 mb-2">Task Comments</h3>
-      <p class="fs-sm">Id mollis consectetur congue egestas egestas suspendisse blandit justo.</p>
+      <h3 class="h5 pb-1 mb-2">Consultants &amp; Freelancers</h3>
+      <p class="fs-sm">Manage leads, appointments, client details, tasks, and invoices without juggling multiple tools.</p>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6 text-center pb-md-2 mb-3 mb-lg-4">
       <div class="d-inline-block bg-secondary rounded-circle p-3 mb-4">
-        <img src="{% static 'public_site/img/landing/saas-1/features/analytics.svg' %}" width="32" alt="Icon">
+        <i class="bx bx-cut fs-2 text-primary" aria-hidden="true"></i>
       </div>
-      <h3 class="h5 pb-1 mb-2">Tasks Analytics</h3>
-      <p class="fs-sm">Augue pulvinar justo, fermentum fames aliquamant accumsan vestibulum.</p>
+      <h3 class="h5 pb-1 mb-2">Salons &amp; Beauty Professionals</h3>
+      <p class="fs-sm">Organize bookings, customer information, follow-ups, and payments from one simple workspace.</p>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6 text-center pb-md-2 mb-3 mb-lg-4">
       <div class="d-inline-block bg-secondary rounded-circle p-3 mb-4">
-        <img src="{% static 'public_site/img/landing/saas-1/features/bell.svg' %}" width="32" alt="Icon">
+        <i class="bx bx-spray-can fs-2 text-primary" aria-hidden="true"></i>
       </div>
-      <h3 class="h5 pb-1 mb-2">Notifications</h3>
-      <p class="fs-sm">Mattis urna ultricies non amet, purus in auctor non. Odio vulputate ac nibh.</p>
+      <h3 class="h5 pb-1 mb-2">Cleaning Services</h3>
+      <p class="fs-sm">Capture service requests, schedule jobs, coordinate your team, and track invoices with ease.</p>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6 text-center pb-md-2 mb-3 mb-lg-4">
       <div class="d-inline-block bg-secondary rounded-circle p-3 mb-4">
-        <img src="{% static 'public_site/img/landing/saas-1/features/tasks.svg' %}" width="32" alt="Icon">
+        <i class="bx bx-wrench fs-2 text-primary" aria-hidden="true"></i>
       </div>
-      <h3 class="h5 pb-1 mb-2">Sections &amp; Subtasks</h3>
-      <p class="fs-sm">A elementum, imperdiet enim, pretium etiam facilisi in aenean quam mauris.</p>
+      <h3 class="h5 pb-1 mb-2">Repair &amp; Maintenance</h3>
+      <p class="fs-sm">Turn customer enquiries into scheduled appointments, completed jobs, and professional invoices.</p>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6 text-center pb-md-2 mb-3 mb-lg-4">
       <div class="d-inline-block bg-secondary rounded-circle p-3 mb-4">
-        <img src="{% static 'public_site/img/landing/saas-1/features/calendar.svg' %}" width="32" alt="Icon">
+        <i class="bx bx-body fs-2 text-primary" aria-hidden="true"></i>
       </div>
-      <h3 class="h5 pb-1 mb-2">Progress Tracking</h3>
-      <p class="fs-sm">Sit facilisis dolor arcu, fermentum vestibulum arcu elementum imperdiet eleifend.</p>
+      <h3 class="h5 pb-1 mb-2">Coaches &amp; Wellness Providers</h3>
+      <p class="fs-sm">Manage sessions, bookings, client information, and important follow-ups all in one place.</p>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6 text-center pb-md-2 mb-3 mb-lg-4">
       <div class="d-inline-block bg-secondary rounded-circle p-3 mb-4">
-        <img src="{% static 'public_site/img/landing/saas-1/features/add-group.svg' %}" width="32" alt="Icon">
+        <i class="bx bx-palette fs-2 text-primary" aria-hidden="true"></i>
       </div>
-      <h3 class="h5 pb-1 mb-2">Multiple Assignees</h3>
-      <p class="fs-sm">Faucibus cursus maecenas lorem cursus nibh. Sociis sit risus id. Sit facilisis dolor arcu.</p>
+      <h3 class="h5 pb-1 mb-2">Creative &amp; Digital Agencies</h3>
+      <p class="fs-sm">Keep prospects, clients, tasks, appointments, and billing connected throughout every project.</p>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6 text-center pb-md-2 mb-3 mb-lg-4">
       <div class="d-inline-block bg-secondary rounded-circle p-3 mb-4">
-        <img src="{% static 'public_site/img/landing/saas-1/features/headset.svg' %}" width="32" alt="Icon">
+        <i class="bx bxs-graduation fs-2 text-primary" aria-hidden="true"></i>
       </div>
-      <h3 class="h5 pb-1 mb-2">Support 24/7</h3>
-      <p class="fs-sm">Sapien sed massa sit erat pellentesque pellentesque nisl, elementum.</p>
+      <h3 class="h5 pb-1 mb-2">Tutors &amp; Training Providers</h3>
+      <p class="fs-sm">Schedule lessons, manage learners, track follow-ups, and keep payments organized.</p>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6 text-center pb-md-2 mb-3 mb-lg-4">
       <div class="d-inline-block bg-secondary rounded-circle p-3 mb-4">
-        <img src="{% static 'public_site/img/landing/saas-1/features/shield.svg' %}" width="32" alt="Icon">
+        <i class="bx bx-home-alt-2 fs-2 text-primary" aria-hidden="true"></i>
       </div>
-      <h3 class="h5 pb-1 mb-2">Data Security</h3>
-      <p class="fs-sm">Aliquet felis facilisi sem nunc. Sapien fermentum, fringilla molestie lorem nec.</p>
+      <h3 class="h5 pb-1 mb-2">Home &amp; Property Services</h3>
+      <p class="fs-sm">Coordinate customer requests, appointments, team responsibilities, and invoicing from one system.</p>
     </div>
   </div>
 </section>
@@ -711,31 +1129,31 @@
       <img src="{% static 'public_site/img/landing/saas-1/dashboard.png' %}" class="d-block mx-auto" width="746" alt="Image">
     </div>
     <div class="rellax col-md-5 col-xl-4 offset-xl-1 d-flex d-sm-block flex-column" data-rellax-percentage="0.5" data-rellax-speed="0.8" data-disable-parallax-down="lg">
-      <h2 class="pb-3 pt-2 pt-md-0">Manage Your Work</h2>
+      <h2 class="pb-3 pt-2 pt-md-0">Run Your Business Without the Busywork</h2>
       <ul class="list-unstyled pb-2">
         <li class="d-flex align-items-center pb-1 mb-2">
           <i class="bx bx-check-circle text-primary fs-xl me-2"></i>
-          Powerful project management
+          Manage leads, clients, tasks, and invoices in one place
         </li>
         <li class="d-flex align-items-center pb-1 mb-2">
           <i class="bx bx-check-circle text-primary fs-xl me-2"></i>
-          Transparent work management
+          Keep follow-ups clear so opportunities do not get missed
         </li>
         <li class="d-flex align-items-center pb-1 mb-2">
           <i class="bx bx-check-circle text-primary fs-xl me-2"></i>
-          Manage work &amp; focus on the most important tasks
+          Turn enquiries into organized, actionable work
         </li>
         <li class="d-flex align-items-center pb-1 mb-2">
           <i class="bx bx-check-circle text-primary fs-xl me-2"></i>
-          Track your progress with interactive charts
+          Track progress &amp; stay focused on what matters most
         </li>
         <li class="d-flex align-items-center pb-1 mb-2">
           <i class="bx bx-check-circle text-primary fs-xl me-2"></i>
-          Easiest way to track time spent on tasks
+          Spend less time on admin and more time growing your business
         </li>
       </ul>
-      <a href="#" class="btn btn-primary">
-        Learn more
+      <a href="#workflows" class="btn btn-primary" data-scroll>
+        Explore MotionMate
         <i class="bx bx-right-arrow-alt fs-xl ms-2"></i>
       </a>
     </div>
@@ -743,34 +1161,232 @@
 </section>
 
 
-<!-- Use cases (Tabs) -->
-<section class="container pt-5 pb-2 mt-3 mt-sm-4 mt-xl-5">
-  <h2 class="h1 text-center pb-3 pb-lg-4">One Tool — Endless Use Cases</h2>
+<!-- Use cases (Types of businesses) -->
+<section id="workflows" class="container pt-5 pb-2 mt-3 mt-sm-4 mt-xl-5">
+  <style>
+    .motionmate-usecase-visual {
+      position: relative;
+      width: min(100%, 595px);
+      min-height: 340px;
+      margin-inline: auto;
+      color: #0b0f19;
+    }
+
+    .motionmate-usecase-panel {
+      overflow: hidden;
+      border: 1px solid rgba(99, 102, 241, .12);
+      border-radius: 1.25rem;
+      background: #fff;
+      box-shadow: 0 1.25rem 4rem rgba(99, 102, 241, .16);
+    }
+
+    .motionmate-usecase-header,
+    .motionmate-usecase-row,
+    .motionmate-usecase-split {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .motionmate-usecase-header {
+      padding: 1rem 1.15rem;
+      border-bottom: 1px solid #edf0f7;
+      background: linear-gradient(135deg, #fff, #f7f8ff);
+    }
+
+    .motionmate-usecase-body {
+      padding: 1rem;
+    }
+
+    .motionmate-usecase-label {
+      color: #6f7485;
+      font-size: .74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .motionmate-usecase-title {
+      display: block;
+      color: #0b0f19;
+      font-weight: 800;
+    }
+
+    .motionmate-usecase-muted {
+      color: #6f7485;
+      font-size: .82rem;
+    }
+
+    .motionmate-usecase-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      flex-shrink: 0;
+      border-radius: 999px;
+      padding: .25rem .6rem;
+      font-size: .72rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .motionmate-usecase-pill-primary {
+      color: #4447d9;
+      background: rgba(99, 102, 241, .14);
+    }
+
+    .motionmate-usecase-pill-info {
+      color: #285ec7;
+      background: rgba(76, 130, 247, .14);
+    }
+
+    .motionmate-usecase-pill-success {
+      color: #148943;
+      background: rgba(34, 197, 94, .14);
+    }
+
+    .motionmate-usecase-pill-warning {
+      color: #a36a00;
+      background: rgba(255, 186, 8, .18);
+    }
+
+    .motionmate-usecase-tile,
+    .motionmate-usecase-list,
+    .motionmate-usecase-mini {
+      border: 1px solid #edf0f7;
+      border-radius: .95rem;
+      background: #f8f9ff;
+    }
+
+    .motionmate-usecase-tile {
+      padding: .85rem;
+    }
+
+    .motionmate-usecase-list {
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .motionmate-usecase-row {
+      padding: .75rem .85rem;
+      border-bottom: 1px solid #edf0f7;
+    }
+
+    .motionmate-usecase-row:last-child {
+      border-bottom: 0;
+    }
+
+    .motionmate-usecase-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.35rem;
+      height: 2.35rem;
+      flex-shrink: 0;
+      border-radius: .75rem;
+      background: rgba(99, 102, 241, .12);
+      color: #6366f1;
+      font-size: 1.25rem;
+    }
+
+    .motionmate-usecase-bars {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      align-items: end;
+      gap: .45rem;
+      height: 108px;
+    }
+
+    .motionmate-usecase-bar {
+      border-radius: 999px 999px .35rem .35rem;
+      background: linear-gradient(180deg, #6366f1, #4c82f7);
+    }
+
+    .motionmate-usecase-calendar {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: .45rem;
+    }
+
+    .motionmate-usecase-day {
+      min-height: 68px;
+      border: 1px solid #edf0f7;
+      border-radius: .75rem;
+      padding: .55rem;
+      background: #fff;
+    }
+
+    .motionmate-usecase-day.is-active {
+      border-color: rgba(99, 102, 241, .36);
+      background: #f5f6ff;
+    }
+
+    .motionmate-usecase-pipeline {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .75rem;
+    }
+
+    .motionmate-usecase-column {
+      min-width: 0;
+      border: 1px solid #edf0f7;
+      border-radius: .95rem;
+      padding: .75rem;
+      background: #f8f9ff;
+    }
+
+    .motionmate-usecase-mini {
+      padding: .7rem;
+      background: #fff;
+    }
+
+    @media (max-width: 767.98px) {
+      .motionmate-usecase-visual {
+        min-height: auto;
+      }
+
+      .motionmate-usecase-header,
+      .motionmate-usecase-row,
+      .motionmate-usecase-split {
+        align-items: flex-start;
+      }
+
+      .motionmate-usecase-pipeline,
+      .motionmate-usecase-calendar {
+        grid-template-columns: 1fr;
+      }
+
+      .motionmate-usecase-day {
+        min-height: auto;
+      }
+    }
+  </style>
+
+  <h2 class="h1 text-center pb-3 pb-lg-4">One Tool — To Keep Business Moving</h2>
 
   <!-- Nav tabs -->
   <ul class="nav nav-tabs flex-nowrap justify-content-lg-center overflow-auto pb-2 mb-3 mb-lg-4" role="tablist">
     <li class="nav-item" role="presentation">
       <button class="nav-link text-nowrap active" id="project-management-tab" data-bs-toggle="tab" data-bs-target="#project-management" type="button" role="tab" aria-controls="project-management" aria-selected="true">
         <i class="bx bx-star fs-lg opacity-60 me-2"></i>
-        Project Management
+        Client Management
       </button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link text-nowrap" id="remote-work-tab" data-bs-toggle="tab" data-bs-target="#remote-work" type="button" role="tab" aria-controls="remote-work" aria-selected="false">
         <i class="bx bx-briefcase-alt-2 fs-lg opacity-60 me-2"></i>
-        Remote Work
+        Invoicing & Insights
       </button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link text-nowrap" id="product-release-tab" data-bs-toggle="tab" data-bs-target="#product-release" type="button" role="tab" aria-controls="product-release" aria-selected="false">
         <i class="bx bx-rocket fs-lg opacity-60 me-2"></i>
-        Product Release
+        Appointments & Bookings
       </button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link text-nowrap" id="campaign-planning-tab" data-bs-toggle="tab" data-bs-target="#campaign-planning" type="button" role="tab" aria-controls="campaign-planning" aria-selected="false">
         <i class="bx bx-bar-chart-alt-2 fs-lg opacity-60 me-2"></i>
-        Campaign Planning
+        Lead Management
       </button>
     </li>
   </ul>
@@ -782,11 +1398,77 @@
     <div class="tab-pane fade show active" id="project-management" role="tabpanel" aria-labelledby="project-management-tab">
       <div class="row align-items-center pt-3 pt-sm-4 pt-md-0 px-3 px-sm-4 px-lg-0">
         <div class="col-lg-4 col-md-5 offset-lg-1 text-center text-md-start">
-          <h3 class="mb-lg-4">Project management</h3>
-          <p>Vestibulum nunc lectus auctor quis. Natoque lectus tortor lacus, eu. Nunc feugiat nisl maecenas nulla hac morbi. Vitae, donec facilisis sed nunc netus. Venenatis posuere faucibus enim est. Vel dignissim morbi blandit morbi tellus. Arcu ullamcorper quis enim.</p>
+          <h3 class="mb-lg-4">Client Management</h3>
+          <p>Keep customer details, service history, requests, appointments, and invoices connected in one organized client record. Find the information you need quickly and manage relationships with greater clarity.</p>
         </div>
         <div class="col-lg-6 col-md-7 mt-md-4">
-          <img src="{% static 'public_site/img/landing/saas-1/use-cases/01.png' %}" class="d-block my-lg-2 mx-auto me-md-0" width="595" alt="Image">
+          <div class="motionmate-usecase-visual my-lg-2 me-md-0">
+            <div class="motionmate-usecase-panel">
+              <div class="motionmate-usecase-header">
+                <div>
+                  <span class="motionmate-usecase-label">Client Record</span>
+                  <span class="motionmate-usecase-title">Alicia Brown</span>
+                </div>
+                <span class="motionmate-usecase-pill motionmate-usecase-pill-success">
+                  <i class="bx bx-check-circle"></i> Active client
+                </span>
+              </div>
+              <div class="motionmate-usecase-body">
+                <div class="row g-3 mb-3">
+                  <div class="col-sm-4">
+                    <div class="motionmate-usecase-tile">
+                      <span class="motionmate-usecase-label">Requests</span>
+                      <span class="motionmate-usecase-title h4 mb-0">3</span>
+                    </div>
+                  </div>
+                  <div class="col-sm-4">
+                    <div class="motionmate-usecase-tile">
+                      <span class="motionmate-usecase-label">Appointments</span>
+                      <span class="motionmate-usecase-title h4 mb-0">2</span>
+                    </div>
+                  </div>
+                  <div class="col-sm-4">
+                    <div class="motionmate-usecase-tile">
+                      <span class="motionmate-usecase-label">Invoices</span>
+                      <span class="motionmate-usecase-title h4 mb-0">USD 840</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="motionmate-usecase-list">
+                  <div class="motionmate-usecase-row">
+                    <div class="d-flex align-items-center gap-3">
+                      <span class="motionmate-usecase-icon"><i class="bx bx-wrench"></i></span>
+                      <div>
+                        <strong class="motionmate-usecase-title">Service request created</strong>
+                        <span class="motionmate-usecase-muted">Initial consultation for new project</span>
+                      </div>
+                    </div>
+                    <span class="motionmate-usecase-pill motionmate-usecase-pill-warning">Follow up</span>
+                  </div>
+                  <div class="motionmate-usecase-row">
+                    <div class="d-flex align-items-center gap-3">
+                      <span class="motionmate-usecase-icon"><i class="bx bx-calendar-check"></i></span>
+                      <div>
+                        <strong class="motionmate-usecase-title">Appointment scheduled</strong>
+                        <span class="motionmate-usecase-muted">Tuesday, 10:30 AM</span>
+                      </div>
+                    </div>
+                    <span class="motionmate-usecase-pill motionmate-usecase-pill-info">Upcoming</span>
+                  </div>
+                  <div class="motionmate-usecase-row">
+                    <div class="d-flex align-items-center gap-3">
+                      <span class="motionmate-usecase-icon"><i class="bx bx-receipt"></i></span>
+                      <div>
+                        <strong class="motionmate-usecase-title">Invoice sent</strong>
+                        <span class="motionmate-usecase-muted">MM-1001 emailed to client</span>
+                      </div>
+                    </div>
+                    <span class="motionmate-usecase-pill motionmate-usecase-pill-primary">Sent</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -795,11 +1477,76 @@
     <div class="tab-pane fade" id="remote-work" role="tabpanel" aria-labelledby="remote-work-tab">
       <div class="row align-items-center pt-3 pb-2 pb-sm-3 pt-sm-4 pt-md-0 px-3 px-sm-4 px-lg-0">
         <div class="col-lg-4 col-md-5 offset-lg-1 text-center text-md-start">
-          <h3 class="mb-lg-4">Remote work</h3>
-          <p>Ut ornare quisque blandit condimentum nec viverra habitant non. Consequat id leo bibendum enim, fringilla pulvinar volutpat fames. Ut fames ut sed lobortis nulla. In dui enim et pharetra gravida diam semper lectus tellus. Faucibus mi convallis.</p>
+          <h3 class="mb-lg-4">Invoicing & Insights</h3>
+          <p>Create invoices directly from a client or completed appointment, add service or custom line items, and share invoices by email, PDF, or WhatsApp. Track invoice progress from draft to sent, paid, or cancelled.</p>
         </div>
         <div class="col-lg-6 col-md-7 mt-md-4">
-          <img src="{% static 'public_site/img/landing/saas-1/use-cases/02.png' %}" class="d-block my-lg-2 mx-auto me-md-0" width="502" alt="Image">
+          <div class="motionmate-usecase-visual my-lg-2 me-md-0">
+            <div class="motionmate-usecase-panel">
+              <div class="motionmate-usecase-header">
+                <div>
+                  <span class="motionmate-usecase-label">Invoice Overview</span>
+                  <span class="motionmate-usecase-title">This Month</span>
+                </div>
+                <span class="motionmate-usecase-pill motionmate-usecase-pill-primary">
+                  <i class="bx bx-line-chart"></i> USD 4,200
+                </span>
+              </div>
+              <div class="motionmate-usecase-body">
+                <div class="row g-3">
+                  <div class="col-sm-5">
+                    <div class="motionmate-usecase-tile h-100">
+                      <span class="motionmate-usecase-label">Invoice value</span>
+                      <span class="motionmate-usecase-title h3 mb-3">USD 4.2k</span>
+                      <div class="motionmate-usecase-bars">
+                        <span class="motionmate-usecase-bar" style="height: 42%;"></span>
+                        <span class="motionmate-usecase-bar" style="height: 66%;"></span>
+                        <span class="motionmate-usecase-bar" style="height: 52%;"></span>
+                        <span class="motionmate-usecase-bar" style="height: 88%;"></span>
+                        <span class="motionmate-usecase-bar" style="height: 72%;"></span>
+                        <span class="motionmate-usecase-bar" style="height: 96%;"></span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-sm-7">
+                    <div class="motionmate-usecase-list">
+                      <div class="motionmate-usecase-row">
+                        <div>
+                          <strong class="motionmate-usecase-title">Invoice MM-1001</strong>
+                          <span class="motionmate-usecase-muted">Initial consultation package</span>
+                        </div>
+                        <span class="motionmate-usecase-pill motionmate-usecase-pill-info">Sent</span>
+                      </div>
+                      <div class="motionmate-usecase-row">
+                        <div>
+                          <strong class="motionmate-usecase-title">Invoice MM-1002</strong>
+                          <span class="motionmate-usecase-muted">Monthly service retainer</span>
+                        </div>
+                        <span class="motionmate-usecase-pill motionmate-usecase-pill-success">Paid</span>
+                      </div>
+                      <div class="motionmate-usecase-row">
+                        <div>
+                          <strong class="motionmate-usecase-title">Draft invoice</strong>
+                          <span class="motionmate-usecase-muted">Created from appointment</span>
+                        </div>
+                        <span class="motionmate-usecase-pill motionmate-usecase-pill-warning">Draft</span>
+                      </div>
+                    </div>
+                    <div class="motionmate-usecase-split mt-3">
+                      <div class="motionmate-usecase-tile flex-fill">
+                        <span class="motionmate-usecase-label">Open</span>
+                        <span class="motionmate-usecase-title h5 mb-0">USD 940</span>
+                      </div>
+                      <div class="motionmate-usecase-tile flex-fill">
+                        <span class="motionmate-usecase-label">Paid</span>
+                        <span class="motionmate-usecase-title h5 mb-0">USD 3.2k</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -808,11 +1555,75 @@
     <div class="tab-pane fade" id="product-release" role="tabpanel" aria-labelledby="product-release-tab">
       <div class="row align-items-center pt-3 pt-sm-4 pt-md-0 px-3 pe-sm-4 pe-md-0 ps-sm-4 ps-lg-0">
         <div class="col-lg-4 col-md-5 offset-lg-1 text-center text-md-start">
-          <h3 class="mb-lg-4">Product release</h3>
-          <p>Fames netus pretium massa lobortis sit metus et. Sit risus odio fermentum hac fames enim, ac, in. Neque lacus, consequat hendrerit potenti in tristique dictum. Tortor nec lorem et venenatis facilisis risus viverra nunc, eu. Eget suscipit vel amet.</p>
+          <h3 class="mb-lg-4">Appointments & Bookings</h3>
+          <p>Manage appointments internally or allow customers to book services through your public booking page. Set availability, offer service and staff selection, prevent scheduling conflicts, and send booking confirmations—all from one place.</p>
         </div>
         <div class="col-lg-6 col-md-7 mt-n3 mt-md-1">
-          <img src="{% static 'public_site/img/landing/saas-1/use-cases/03.png' %}" class="d-block mb-lg-2 mx-auto me-md-0" width="525" alt="Image">
+          <div class="motionmate-usecase-visual mb-lg-2 me-md-0">
+            <div class="motionmate-usecase-panel">
+              <div class="motionmate-usecase-header">
+                <div>
+                  <span class="motionmate-usecase-label">Booking Calendar</span>
+                  <span class="motionmate-usecase-title">Appointments & Requests</span>
+                </div>
+                <span class="motionmate-usecase-pill motionmate-usecase-pill-warning">
+                  <i class="bx bx-time-five"></i> 3 pending
+                </span>
+              </div>
+              <div class="motionmate-usecase-body">
+                <div class="motionmate-usecase-calendar mb-3">
+                  <div class="motionmate-usecase-day">
+                    <span class="motionmate-usecase-label">Mon</span>
+                    <span class="motionmate-usecase-title">09</span>
+                    <span class="motionmate-usecase-muted">Available</span>
+                  </div>
+                  <div class="motionmate-usecase-day is-active">
+                    <span class="motionmate-usecase-label">Tue</span>
+                    <span class="motionmate-usecase-title">10</span>
+                    <span class="motionmate-usecase-muted">2 bookings</span>
+                  </div>
+                  <div class="motionmate-usecase-day">
+                    <span class="motionmate-usecase-label">Wed</span>
+                    <span class="motionmate-usecase-title">11</span>
+                    <span class="motionmate-usecase-muted">Open</span>
+                  </div>
+                  <div class="motionmate-usecase-day is-active">
+                    <span class="motionmate-usecase-label">Thu</span>
+                    <span class="motionmate-usecase-title">12</span>
+                    <span class="motionmate-usecase-muted">1 booking</span>
+                  </div>
+                  <div class="motionmate-usecase-day">
+                    <span class="motionmate-usecase-label">Fri</span>
+                    <span class="motionmate-usecase-title">13</span>
+                    <span class="motionmate-usecase-muted">Available</span>
+                  </div>
+                </div>
+                <div class="motionmate-usecase-list">
+                  <div class="motionmate-usecase-row">
+                    <div>
+                      <strong class="motionmate-usecase-title">Initial Consultation</strong>
+                      <span class="motionmate-usecase-muted">Alicia Brown · Tue, 10:30 AM</span>
+                    </div>
+                    <span class="motionmate-usecase-pill motionmate-usecase-pill-info">Scheduled</span>
+                  </div>
+                  <div class="motionmate-usecase-row">
+                    <div>
+                      <strong class="motionmate-usecase-title">Website Review</strong>
+                      <span class="motionmate-usecase-muted">Public booking request</span>
+                    </div>
+                    <span class="motionmate-usecase-pill motionmate-usecase-pill-warning">Review</span>
+                  </div>
+                  <div class="motionmate-usecase-row">
+                    <div>
+                      <strong class="motionmate-usecase-title">Invoice Follow-Up</strong>
+                      <span class="motionmate-usecase-muted">Linked to client record</span>
+                    </div>
+                    <span class="motionmate-usecase-pill motionmate-usecase-pill-success">Confirmed</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -821,11 +1632,70 @@
     <div class="tab-pane fade" id="campaign-planning" role="tabpanel" aria-labelledby="campaign-planning-tab">
       <div class="row align-items-center pt-3 pt-sm-4 pt-md-0 px-3 pe-sm-4 pe-md-0 ps-sm-4 ps-lg-0">
         <div class="col-lg-4 col-md-5 offset-lg-1 text-center text-md-start">
-          <h3 class="mb-lg-4">Campaign planning</h3>
-          <p>Diam bibendum scelerisque vel mauris magna. Iaculis interdum tincidunt eget nibh purus. Aliquet at sit morbi nisi volutpat fermentum scelerisque. Enim tincidunt eros sodales integer sapien. Eu ullamcorper egestas odio nunc faucibus. Sapien eu nunc sed facilisi luctus ac.</p>
+          <h3 class="mb-lg-4">Lead Management</h3>
+          <p>Capture enquiries from your team or public request page, organize every opportunity, and move promising leads toward becoming clients. Keep each request visible from first contact to the next action.</p>
         </div>
         <div class="col-lg-6 col-md-7 mt-n3 mt-md-1">
-          <img src="{% static 'public_site/img/landing/saas-1/use-cases/04.png' %}" class="d-block mb-lg-2 mx-auto me-md-0" width="545" alt="Image">
+          <div class="motionmate-usecase-visual mb-lg-2 me-md-0">
+            <div class="motionmate-usecase-panel">
+              <div class="motionmate-usecase-header">
+                <div>
+                  <span class="motionmate-usecase-label">Lead Pipeline</span>
+                  <span class="motionmate-usecase-title">Requests To Clients</span>
+                </div>
+                <span class="motionmate-usecase-pill motionmate-usecase-pill-success">
+                  <i class="bx bx-user-check"></i> 8 converted
+                </span>
+              </div>
+              <div class="motionmate-usecase-body">
+                <div class="motionmate-usecase-pipeline">
+                  <div class="motionmate-usecase-column">
+                    <span class="motionmate-usecase-label d-block mb-2">New</span>
+                    <div class="motionmate-usecase-mini mb-2">
+                      <strong class="motionmate-usecase-title">Website enquiry</strong>
+                      <span class="motionmate-usecase-muted">Needs follow-up</span>
+                    </div>
+                    <div class="motionmate-usecase-mini">
+                      <strong class="motionmate-usecase-title">Booking request</strong>
+                      <span class="motionmate-usecase-muted">Preferred time selected</span>
+                    </div>
+                  </div>
+                  <div class="motionmate-usecase-column">
+                    <span class="motionmate-usecase-label d-block mb-2">Follow-up</span>
+                    <div class="motionmate-usecase-mini mb-2">
+                      <strong class="motionmate-usecase-title">Proposal call</strong>
+                      <span class="motionmate-usecase-muted">Appointment ready</span>
+                    </div>
+                    <div class="motionmate-usecase-mini">
+                      <strong class="motionmate-usecase-title">Service quote</strong>
+                      <span class="motionmate-usecase-muted">Invoice draft created</span>
+                    </div>
+                  </div>
+                  <div class="motionmate-usecase-column">
+                    <span class="motionmate-usecase-label d-block mb-2">Converted</span>
+                    <div class="motionmate-usecase-mini mb-2">
+                      <strong class="motionmate-usecase-title">New client</strong>
+                      <span class="motionmate-usecase-muted">Profile created</span>
+                    </div>
+                    <div class="motionmate-usecase-mini">
+                      <strong class="motionmate-usecase-title">Work scheduled</strong>
+                      <span class="motionmate-usecase-muted">Team assigned</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="motionmate-usecase-split mt-3">
+                  <div class="motionmate-usecase-tile flex-fill">
+                    <span class="motionmate-usecase-label">Open leads</span>
+                    <span class="motionmate-usecase-title h5 mb-0">14</span>
+                  </div>
+                  <div class="motionmate-usecase-tile flex-fill">
+                    <span class="motionmate-usecase-label">Next actions</span>
+                    <span class="motionmate-usecase-title h5 mb-0">6 today</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -834,293 +1704,168 @@
 
 
 <!-- Pricing -->
-<section class="container py-5 my-md-2 my-lg-4 my-xl-5">
-  <h2 class="h1 text-center pb-3 pb-md-4">Transparent Pricing for You</h2>
-  <div class="price-switch-wrapper mb-n2">
-    <div class="form-check form-switch price-switch justify-content-center mt-2 mb-4" data-bs-toggle="price">
-      <input type="checkbox" class="form-check-input" id="pricing">
-      <label class="form-check-label" for="pricing">Monthly</label>
-      <label class="form-check-label d-flex align-items-start" for="pricing">Annually <span class="text-danger fs-xs fw-semibold mt-n2 ms-2">-10%</span></label>
-    </div>    
-    <div class="table-responsive-xxl pt-md-3">
-      <div class="row flex-nowrap pb-4">
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm p-xxl-3" style="min-width: 18rem;">
-            <div class="card-body">
-              <div class="d-flex align-items-center pb-2 pb-md-3 mb-4">
-                <div class="flex-shrink-0 bg-secondary rounded-3">
-                  <img src="{% static 'public_site/img/landing/saas-1/pricing/basic.png' %}" width="84" alt="Icon">
-                </div>
-                <div class="ps-4">
-                  <h3 class="fs-lg fw-normal text-body mb-2">Basic</h3>
-                  <h4 class="h3 lh-1 mb-0">
-                    <span data-monthly-price>$6.00</span>
-                    <span class="d-none" data-annual-price>$5.40</span>
-                    <span class="text-body fs-sm fw-normal"> / per month</span>
-                  </h4>
-                </div>
-              </div>
-              <ul class="list-unstyled fs-sm pb-md-3 mb-3">
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Aenean neque tortor, purus faucibus
-                </li>
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Nullam augue vitae et volutpat sagittis
-                </li>
-                <li class="d-flex text-muted mb-2">
-                  <i class="bx bx-x fs-xl me-1"></i>
-                  Mauris massa penatibus enim elit quam
-                </li>
-                <li class="d-flex text-muted mb-2">
-                  <i class="bx bx-x fs-xl me-1"></i>
-                  Nec ac sagittis nunc bibendum
-                </li>
-                <li class="d-flex text-muted">
-                  <i class="bx bx-x fs-xl me-1"></i>
-                  Odio ut orci volutpat ultricies eleifend
-                </li>
-              </ul>
-            </div>
-            <div class="card-footer border-0 pt-0 pb-4">
-              <a href="#" class="btn btn-outline-primary w-100">Start free trial</a>
-            </div>
-          </div>
-        </div>
-        <div class="col">
-          <div class="card h-100 border-0 bg-primary shadow-primary shadow-dark-mode-none p-xxl-3" style="min-width: 18rem;">
-            <div class="card-body">
-              <div class="d-flex align-items-center pb-2 pb-md-3 mb-4">
-                <div class="flex-shrink-0 rounded-3" style="background-color: rgba(255,255,255, .1);">
-                  <img src="{% static 'public_site/img/landing/saas-1/pricing/standard.png' %}" width="84" alt="Icon">
-                </div>
-                <div class="ps-4">
-                  <h3 class="fs-lg fw-normal text-light opacity-70 mb-2">Standard</h3>
-                  <h4 class="h3 text-light lh-1 mb-0">
-                    <span data-monthly-price>$12.00</span>
-                    <span class="d-none" data-annual-price>$10.80</span>
-                    <span class="fs-sm fw-normal opacity-70"> / per month</span>
-                  </h4>
-                </div>
-              </div>
-              <ul class="list-unstyled fs-sm pb-md-3 mb-3">
-                <li class="d-flex text-light mb-2">
-                  <i class="bx bx-check fs-xl me-1"></i>
-                  <span class="opacity-70">Aenean neque tortor, purus faucibus</span>
-                </li>
-                <li class="d-flex text-light mb-2">
-                  <i class="bx bx-check fs-xl me-1"></i>
-                  <span class="opacity-70">Nullam augue vitae et volutpat sagittis</span>
-                </li>
-                <li class="d-flex text-light mb-2">
-                  <i class="bx bx-check fs-xl me-1"></i>
-                  <span class="opacity-70">Mauris massa penatibus enim elit quam</span>
-                </li>
-                <li class="d-flex text-light mb-2">
-                  <i class="bx bx-check fs-xl me-1"></i>
-                  <span class="opacity-70">Nec ac sagittis nunc bibendum</span>
-                </li>
-                <li class="d-flex text-light opacity-50">
-                  <i class="bx bx-x fs-xl me-1"></i>
-                  Odio ut orci volutpat ultricies eleifend
-                </li>
-              </ul>
-            </div>
-            <div class="card-footer border-0 pt-0 pb-4">
-              <a href="#" class="btn btn-light w-100">Start free trial</a>
-            </div>
-          </div>
-        </div>
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm p-xxl-3" style="min-width: 18rem;">
-            <div class="card-body">
-              <div class="d-flex align-items-center pb-2 pb-md-3 mb-4">
-                <div class="flex-shrink-0 bg-secondary rounded-3">
-                  <img src="{% static 'public_site/img/landing/saas-1/pricing/ultimate.png' %}" width="84" alt="Icon">
-                </div>
-                <div class="ps-4">
-                  <h3 class="fs-lg fw-normal text-body mb-2">Ultimate</h3>
-                  <h4 class="h3 lh-1 mb-0">
-                    <span data-monthly-price>$18.00</span>
-                    <span class="d-none" data-annual-price>$16.20</span>
-                    <span class="text-body fs-sm fw-normal"> / per month</span>
-                  </h4>
-                </div>
-              </div>
-              <ul class="list-unstyled fs-sm pb-md-3 mb-3">
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Aenean neque tortor, purus faucibus
-                </li>
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Nullam augue vitae et volutpat sagittis
-                </li>
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Mauris massa penatibus enim elit quam
-                </li>
-                <li class="d-flex mb-2">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Nec ac sagittis nunc bibendum
-                </li>
-                <li class="d-flex">
-                  <i class="bx bx-check fs-xl text-primary me-1"></i>
-                  Odio ut orci volutpat ultricies eleifend
-                </li>
-              </ul>
-            </div>
-            <div class="card-footer border-0 pt-0 pb-4">
-              <a href="#" class="btn btn-outline-primary w-100">Start free trial</a>
-            </div>
-          </div>
-        </div>
-      </div>
+{# Pricing comes from ClarivoPlan monthly/yearly fields and regional_prices. #}
+<section id="pricing" class="container py-5 my-md-2 my-lg-4 my-xl-5">
+  <div class="row justify-content-center text-center pb-3 pb-md-4">
+    <div class="col-lg-8 col-xl-7">
+      <h2 class="h1 mb-3">Simple plans for service businesses</h2>
+      <p class="fs-lg text-body mb-0">Start with the workspace size that fits today, then move up when your clients, bookings, and team grow.</p>
     </div>
   </div>
-</section>
-
-
-<!-- Testimonials -->
-<section class="bg-secondary py-5">
-  <div class="container py-2 py-md-3 py-lg-4 py-xl-5">
-    <div class="row row-cols-1 row-cols-md-2 gx-3 gx-lg-4">
-      <div class="col-md-6 mb-3 mb-md-0">
-        <div class="card border-0 bg-dark h-100 p-xl-4">
-          <div class="card-body">
-            <h2 class="display-1 text-light">420k</h2>
-            <p class="lead fw-medium text-light"><span class="opacity-70">users are taking advantage of our</span> <span class="fw-bold">Task Manager Tool</span><span class="opacity-70">. It’s a new transparent and efficient way to organize all of your daily tasks.</span></p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card border-0 shadow-sm p-4 p-xxl-5">
-          <div class="d-flex justify-content-between pb-4 mb-2">
-            <span class="btn btn-icon btn-primary btn-lg shadow-primary pe-none">
-              <i class="bx bxs-quote-left"></i>
-            </span>
-            <div class="d-flex">
-              <button type="button" id="testimonials-prev" class="btn btn-prev btn-icon btn-sm me-2">
-                <i class="bx bx-chevron-left"></i>
-              </button>
-              <button type="button" id="testimonials-next" class="btn btn-next btn-icon btn-sm ms-2">
-                <i class="bx bx-chevron-right"></i>
-              </button>
+  <div class="price-switch-wrapper">
+    <div class="form-check form-switch price-switch justify-content-center mt-2 mb-4" data-bs-toggle="price">
+      <input type="checkbox" class="form-check-input" id="pricing-billing-toggle">
+      <label class="form-check-label" for="pricing-billing-toggle">Monthly</label>
+      <label class="form-check-label d-flex align-items-start" for="pricing-billing-toggle">Annually <span class="text-danger fs-xs fw-semibold mt-n2 ms-2">2 months free</span></label>
+    </div>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 pb-4">
+      {% for plan in pricing_plans %}
+        <div class="col">
+          <div class="card h-100 border-0 {% if plan.is_recommended %}bg-primary shadow-primary shadow-dark-mode-none{% else %}shadow-sm{% endif %} p-xxl-3">
+            <div class="card-body">
+              <div class="d-flex align-items-start justify-content-between gap-3 pb-2 pb-md-3 mb-4">
+                <div class="d-flex align-items-center">
+                  <div class="flex-shrink-0 rounded-3 d-flex align-items-center justify-content-center {% if plan.is_recommended %}bg-white bg-opacity-10{% else %}bg-secondary{% endif %}" style="width: 64px; height: 64px;">
+                    {% if plan.slug == "starter" %}
+                      <i class="bx bx-rocket fs-1 {% if plan.is_recommended %}text-light{% else %}text-primary{% endif %}"></i>
+                    {% elif plan.slug == "pro" %}
+                      <i class="bx bx-trending-up fs-1 {% if plan.is_recommended %}text-light{% else %}text-primary{% endif %}"></i>
+                    {% else %}
+                      <i class="bx bx-buildings fs-1 {% if plan.is_recommended %}text-light{% else %}text-primary{% endif %}"></i>
+                    {% endif %}
+                  </div>
+                  <div class="ps-4">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                      <h3 class="fs-lg fw-semibold mb-0 {% if plan.is_recommended %}text-light{% else %}text-body{% endif %}">{{ plan.name }}</h3>
+                      {% if plan.is_recommended %}
+                        <span class="badge bg-light text-primary">Recommended</span>
+                      {% endif %}
+                    </div>
+                    <h4 class="h2 lh-1 mb-1 {% if plan.is_recommended %}text-light{% endif %}">
+                      <span data-monthly-price>{{ plan.usd_display_pricing.monthly_display }}</span>
+                      <span class="d-none" data-annual-price>{{ plan.usd_display_pricing.yearly_display }}</span>
+                      <span class="fs-sm fw-normal {% if plan.is_recommended %}text-light opacity-75{% else %}text-body{% endif %}">
+                        <span data-monthly-price>/ month</span>
+                        <span class="d-none" data-annual-price>/ year</span>
+                      </span>
+                    </h4>
+                    <p class="fs-xs mb-0 {% if plan.is_recommended %}text-light opacity-75{% else %}text-muted{% endif %}">
+                      <span data-monthly-price>Annual option: {{ plan.usd_display_pricing.yearly_display }} yearly USD</span>
+                      <span class="d-none" data-annual-price>Billed once yearly in USD</span>
+                    </p>
+                    <p class="fs-xs mb-0 {% if plan.is_recommended %}text-light opacity-75{% else %}text-muted{% endif %}">
+                      <span data-monthly-price>EUR: {{ plan.eur_display_pricing.monthly_display }} / month</span>
+                      <span class="d-none" data-annual-price>EUR: {{ plan.eur_display_pricing.yearly_display }} / year</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p class="fs-sm mb-4 {% if plan.is_recommended %}text-light opacity-90{% else %}text-body{% endif %}">{{ plan.description|default:"MotionMate workspace access for service businesses." }}</p>
+              <ul class="list-unstyled fs-sm pb-md-3 mb-3">
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Client CRM and service requests</span>
+                </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Appointments and online booking</span>
+                </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Invoicing with client sharing</span>
+                </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.user_limit_summary }}</span>
+                </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.max_clients|default_if_none:"Unlimited" }} active clients</span>
+                </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.max_invoices_per_month|default_if_none:"Unlimited" }} invoices / month</span>
+                </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.max_appointments_per_month|default_if_none:"Unlimited" }} appointments / month</span>
+                </li>
+                <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                  <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                  <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>{{ plan.max_public_bookings_per_month|default_if_none:"Unlimited" }} online bookings / month</span>
+                </li>
+                {% if plan.slug == "starter" %}
+                  <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                    <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                    <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Best for solo owners getting organized</span>
+                  </li>
+                {% elif plan.slug == "pro" %}
+                  <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                    <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                    <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Built for growing teams and recurring work</span>
+                  </li>
+                {% else %}
+                  <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
+                    <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
+                    <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Priority support for higher-volume teams</span>
+                  </li>
+                {% endif %}
+              </ul>
+            </div>
+            <div class="card-footer border-0 pt-0 pb-4 bg-transparent">
+              <a href="{% url 'register_business' %}" class="btn {% if plan.is_recommended %}btn-light{% else %}btn-outline-primary{% endif %} w-100">Start {{ plan.name }} trial</a>
             </div>
           </div>
-          
-          <!-- Slider -->
-          <div class="swiper mx-0 mb-md-n2 mb-xxl-n3" data-swiper-options='{
-            "spaceBetween": 24,
-            "loop": true,
-            "pagination": {
-              "el": ".swiper-pagination",
-              "clickable": true
-            },
-            "navigation": {
-              "prevEl": "#testimonials-prev",
-              "nextEl": "#testimonials-next"
-            }
-          }'>
-            <div class="swiper-wrapper">
-
-              <!-- Item -->
-              <div class="swiper-slide h-auto">
-                <figure class="card h-100 position-relative border-0 bg-transparent">
-                  <blockquote class="card-body p-0 mb-0">
-                    <p class="fs-lg mb-0">Mi semper risus ultricies orci pulvinar in at enim orci. Quis facilisis nunc pellentesque in ullamcorper sit. Lorem blandit arcu sapien, senectus libero, amet dapibus cursus quam. Eget pellentesque eu purus volutpat adipiscing malesuada.</p>
-                  </blockquote>
-                  <figcaption class="card-footer border-0 d-flex align-items-center w-100 pb-2">
-                    <img src="{% static 'public_site/img/avatar/14.jpg' %}" width="60" class="rounded-circle" alt="Annette Black">
-                    <div class="ps-3">
-                      <h6 class="fw-semibold lh-base mb-0">Annette Black</h6>
-                      <span class="fs-sm text-muted">Strategic Advisor at Company LLC</span>
-                    </div>
-                  </figcaption>
-                </figure>
-              </div>
-
-              <!-- Item -->
-              <div class="swiper-slide h-auto">
-                <figure class="card h-100 position-relative border-0 bg-transparent">
-                  <blockquote class="card-body p-0 mb-0">
-                    <p class="fs-lg mb-0">Vestibulum nunc lectus auctor quis. Natoque lectus tortor lacus, eu. Nunc feugiat nisl maecenas nulla hac morbi. Vitae, donec facilisis sed nunc netus. Venenatis posuere faucibus enim est. Vel dignissim morbi blandit morbi tellus.</p>
-                  </blockquote>
-                  <figcaption class="card-footer border-0 d-flex align-items-center w-100 pb-2">
-                    <img src="{% static 'public_site/img/avatar/13.jpg' %}" width="60" class="rounded-circle" alt="Ralph Edwards">
-                    <div class="ps-3">
-                      <h6 class="fw-semibold lh-base mb-0">Ralph Edwards</h6>
-                      <span class="fs-sm text-muted">Head of Marketing at Lorem Ltd. </span>
-                    </div>
-                  </figcaption>
-                </figure>
-              </div>
-
-              <!-- Item -->
-              <div class="swiper-slide h-auto">
-                <figure class="card h-100 position-relative border-0 bg-transparent">
-                  <blockquote class="card-body p-0 mb-0">
-                    <p class="fs-lg mb-0">Ac at sed sit senectus massa. Massa ante amet ultrices magna porta tempor. Aliquet diam in et magna ultricies mi at. Lectus enim, vel enim egestas nam pellentesque et leo. Elit mi faucibus laoreet aliquam pellentesque sed aliquet integer massa.</p>
-                  </blockquote>
-                  <figcaption class="card-footer border-0 d-flex align-items-center w-100 pb-2">
-                    <img src="{% static 'public_site/img/avatar/11.jpg' %}" width="60" class="rounded-circle" alt="Darrell Steward">
-                    <div class="ps-3">
-                      <h6 class="fw-semibold lh-base mb-0">Darrell Steward</h6>
-                      <span class="fs-sm text-muted">Project Manager at Ipsum Ltd.</span>
-                    </div>
-                  </figcaption>
-                </figure>
-              </div>
-            </div>
-
-            <!-- Pagination (bullets) -->
-            <div class="swiper-pagination position-relative mt-5"></div>
-          </div>        
         </div>
-      </div>
+      {% empty %}
+        <div class="col-12">
+          <div class="alert alert-warning mb-0" role="alert">
+            MotionMate pricing plans are being prepared.
+          </div>
+        </div>
+      {% endfor %}
     </div>
   </div>
 </section>
 
 
 <!-- CTA -->
-<section class="container">
+<section id="contact" class="container">
   <div class="dark-mode bg-dark bg-size-cover bg-position-center bg-repeat-0 position-relative overflow-hidden rounded-3 py-lg-3 py-xl-5 px-4 px-lg-5 px-xl-0" style="background-image: url({% static 'public_site/img/landing/saas-3/cta-bg.jpg' %});">
     <div class="row position-relative zindex-2 py-5 my-1 my-md-3">
       <div class="col-md-6">
         <div class="mx-auto" style="max-width: 440px;">
-          <h2 class="h1 pb-1 pb-md-3 pb-lg-4">Let's start your investing easier now!</h2>
+          <h2 class="h1 pb-1 pb-md-3 pb-lg-4">Get started today!</h2>
           <ul class="list-unstyled fs-lg d-md-none pb-3">
             <li class="d-flex mb-2">
               <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-              Purus vestibulum pharetra amet tincidunt pretium
+              Capture leads and keep client information organized
             </li>
             <li class="d-flex mb-2">
               <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-              Haretra justo magna pharetra dui gravida sed nec
+              Manage appointments, tasks, and follow-ups in one place
             </li>
             <li class="d-flex">
               <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-              Venenatis risus faucibus volutpat amet feugiat a
+              Create invoices faster and keep your business moving
             </li>
           </ul>
-          <a href="#" class="btn btn-lg btn-primary shadow-primary w-100 w-sm-auto">Start trial now</a>
+          <a href="{% url 'register_business' %}" class="btn btn-lg btn-primary shadow-primary w-100 w-sm-auto">Start trial now</a>
         </div>
       </div>
       <div class="col-md-6 pt-lg-3 pt-xl-4">
         <ul class="list-unstyled fs-lg d-none d-md-block">
           <li class="d-flex mb-2">
             <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-            Purus vestibulum pharetra amet tincidunt pretium
+            Capture leads and keep client information organized
           </li>
           <li class="d-flex mb-2">
             <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-            Haretra justo magna pharetra dui gravida sed nec
+            Manage appointments, tasks, and follow-ups in one place
           </li>
           <li class="d-flex">
             <i class="bx bx-check lead text-primary me-2" style="margin-top: .125rem;"></i>
-            Venenatis risus faucibus volutpat amet feugiat a
+            Create invoices faster and keep your business moving
           </li>
         </ul>
       </div>
