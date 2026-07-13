@@ -66,6 +66,11 @@
     <!--    Main Content-->
     <!-- ===============================================-->
     <main class="main" id="top">
+      <div class="position-absolute top-0 start-0 p-4">
+        <a class="text-decoration-none" href="{% url 'home' %}">
+          {% include "includes/motionmate_logo.html" with mark_size=40 %}
+        </a>
+      </div>
       {% block content %} {% endblock %}
       <script>
         var navbarTopStyle = window.config.config.phoenixNavbarTopStyle;

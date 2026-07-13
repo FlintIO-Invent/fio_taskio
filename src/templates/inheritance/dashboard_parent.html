@@ -288,12 +288,7 @@
                   </button>
                   <a class="navbar-brand me-1 me-sm-3" href="{% url 'agent_dashboard' %}">
                       <div class="d-flex align-items-center">
-                          <div class="d-flex align-items-center motionmate-brand-inline">
-                              <span class="motionmate-logo-mark me-2">
-                                  <img src="{% static 'assets/img/icons/motionmate-logo.svg' %}" alt="" width="27" height="27" />
-                              </span>
-                              <h5 class="logo-text motionmate-wordmark ms-1 d-none d-sm-block">Motionmate</h5>
-                          </div>
+                          {% include "includes/motionmate_logo.html" with variant="inline" mark_size=27 mark_class="me-2" wordmark_class="logo-text ms-1 d-none d-sm-block" %}
                       </div>
                   </a>
               </div>

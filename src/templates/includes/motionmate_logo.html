@@ -1,0 +1,7 @@
+{% load static %}
+<span class="d-inline-flex align-items-center gap-2 {% if variant == 'inline' %}motionmate-brand-inline{% else %}motionmate-logo-lockup{% endif %}{% if wrapper_class %} {{ wrapper_class }}{% endif %}">
+  <span class="motionmate-logo-mark d-inline-flex align-items-center justify-content-center{% if mark_class %} {{ mark_class }}{% endif %}">
+    <img src="{% static 'assets/img/icons/motionmate-logo.svg' %}" alt="" width="{{ mark_size|default:'48' }}" height="{{ mark_size|default:'48' }}">
+  </span>
+  <span class="motionmate-wordmark fw-bold{% if wordmark_class %} {{ wordmark_class }}{% else %} fs-5{% endif %}">MotionMate</span>
+</span>
