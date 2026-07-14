@@ -19,10 +19,6 @@
         <h2 class="mb-2 text-body-emphasis">{{ page_title }}</h2>
         <p class="text-body-tertiary mb-0">This service and its pricing will belong only to {{ business.name }}.</p>
       </div>
-      <div class="col-auto d-flex gap-2">
-        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Cancel</a>
-        <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
-      </div>
     </div>
 
     {% if form.non_field_errors %}
@@ -156,6 +152,11 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4">
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Cancel</a>
+      <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
     </div>
   </form>
 </div>
