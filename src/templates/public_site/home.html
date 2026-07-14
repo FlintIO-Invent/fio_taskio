@@ -49,6 +49,228 @@
     border-bottom: 2px solid currentColor;
     transform: rotate(45deg) translateY(-1px);
   }
+
+  @media (max-width: 991.98px) {
+    .rellax,
+    [data-rellax-speed] {
+      transform: none !important;
+      will-change: auto !important;
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    body {
+      overflow-x: hidden;
+    }
+
+    .motionmate-public-navbar {
+      min-height: 4.25rem;
+    }
+
+    .motionmate-public-navbar .motionmate-logo-mark img {
+      width: 32px;
+      height: 32px;
+    }
+
+    .motionmate-public-navbar .motionmate-wordmark {
+      font-size: 1.1rem !important;
+    }
+
+    #home {
+      margin-bottom: 0 !important;
+      padding-top: 3.75rem !important;
+      padding-bottom: 2.25rem !important;
+      background-position: center top !important;
+    }
+
+    #home > .container {
+      padding-top: 4.75rem !important;
+      padding-bottom: 1rem !important;
+    }
+
+    #home .row {
+      --bs-gutter-y: 1.5rem;
+    }
+
+    #home .display-3 {
+      font-size: clamp(2.45rem, 13vw, 3.7rem);
+      line-height: 1.02;
+    }
+
+    .motionmate-hero-copy {
+      font-size: 1rem !important;
+      margin-bottom: 1.25rem !important;
+    }
+
+    .motionmate-hero-actions {
+      display: grid !important;
+      grid-template-columns: 1fr;
+      gap: .75rem;
+      max-width: 28rem;
+      margin-inline: auto;
+    }
+
+    .motionmate-hero-actions .btn {
+      width: 100%;
+      margin: 0 !important;
+    }
+
+    #features,
+    #businesses,
+    #workflows,
+    #pricing,
+    #contact {
+      padding-top: 3rem !important;
+      padding-bottom: 1.75rem !important;
+      margin-top: 0 !important;
+    }
+
+    #features h2,
+    #businesses h2,
+    #workflows h2,
+    #pricing h2,
+    #contact h2 {
+      font-size: clamp(2rem, 9vw, 2.75rem);
+      line-height: 1.08;
+    }
+
+    #features > ul {
+      display: grid !important;
+      grid-template-columns: 1fr;
+      gap: .75rem;
+      margin-bottom: 2rem !important;
+    }
+
+    #features > ul li {
+      margin: 0 !important;
+      padding: .85rem 1rem;
+      color: #0b0f19;
+      border: 1px solid #edf0f7;
+      border-radius: 1rem;
+      background: #fff;
+      box-shadow: 0 .75rem 2rem rgba(63, 68, 104, .08);
+    }
+
+    #features > ul li span {
+      color: #0b0f19;
+    }
+
+    #businesses .row {
+      gap: .75rem;
+    }
+
+    #businesses .row > [class*="col-"] {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      gap: .2rem .85rem;
+      margin-bottom: 0 !important;
+      padding: 1rem;
+      text-align: left !important;
+      color: #0b0f19;
+      border: 1px solid #edf0f7;
+      border-radius: 1rem;
+      background: #fff;
+      box-shadow: 0 .75rem 2rem rgba(63, 68, 104, .08);
+    }
+
+    #businesses .row > [class*="col-"] > .d-inline-block {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+      margin-bottom: 0 !important;
+      padding: .7rem !important;
+    }
+
+    #businesses .row > [class*="col-"] h3 {
+      grid-column: 2;
+      margin: 0 0 .2rem !important;
+      padding: 0 !important;
+      color: #0b0f19 !important;
+    }
+
+    #businesses .row > [class*="col-"] p {
+      grid-column: 2;
+      margin-bottom: 0;
+      color: #4b556d !important;
+    }
+
+    #workflows .nav-tabs {
+      justify-content: flex-start !important;
+      gap: .5rem;
+      margin-inline: -1rem;
+      padding-inline: 1rem;
+      border-bottom: 0;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+    }
+
+    #workflows .nav-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    #workflows .nav-item {
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+    }
+
+    #workflows .nav-link {
+      color: #0b0f19 !important;
+      border: 1px solid #e4e8f5;
+      border-radius: 999px;
+      background: #fff;
+    }
+
+    #workflows .nav-link i {
+      color: currentColor;
+      opacity: 1 !important;
+    }
+
+    #workflows .nav-link.active {
+      color: #3730a3 !important;
+      border-color: rgba(99, 102, 241, .24);
+      background: #e7e7ff;
+    }
+
+    #workflows .tab-content {
+      border-radius: 1.1rem !important;
+      padding-block: 1.25rem !important;
+    }
+
+    #pricing .card {
+      border-radius: 1.1rem;
+    }
+
+    #pricing .card-body {
+      padding: 1.15rem;
+    }
+
+    #pricing .card-body > .d-flex {
+      align-items: flex-start !important;
+    }
+
+    #pricing .card-body > .d-flex > .d-flex {
+      align-items: flex-start !important;
+    }
+
+    #pricing .card-body .rounded-3 {
+      width: 52px !important;
+      height: 52px !important;
+    }
+
+    #pricing .card-body .ps-4 {
+      padding-left: .9rem !important;
+    }
+
+    #pricing .h2 {
+      font-size: 2rem;
+    }
+
+    #contact > .dark-mode {
+      border-radius: 1.1rem !important;
+      padding-inline: 1.25rem !important;
+      text-align: center;
+    }
+  }
 </style>
 
 <header class="header navbar navbar-expand-lg navbar-dark motionmate-public-navbar position-absolute navbar-sticky">
@@ -270,30 +492,46 @@
             }
           }
 
-          @media (max-width: 575.98px) {
+          @media (max-width: 767.98px) {
             .motionmate-hero-visual {
-              min-height: 300px;
+              display: grid;
+              gap: .85rem;
+              aspect-ratio: auto;
+              min-height: auto;
+              max-width: 34rem;
+            }
+
+            .motionmate-hero-visual .parallax-layer {
+              position: static !important;
+              display: block !important;
+              width: 100% !important;
+              height: auto !important;
+              transform: none !important;
+            }
+
+            .motionmate-hero-panel,
+            .motionmate-hero-card {
+              width: 100% !important;
+              max-width: none;
             }
 
             .motionmate-hero-panel {
-              width: 96%;
               padding: .8rem;
             }
 
             .motionmate-hero-card {
+              position: static;
               padding: .75rem;
             }
 
             .motionmate-hero-card-booking {
-              top: 12%;
-              right: 0;
-              width: 56%;
+              top: auto;
+              right: auto;
             }
 
             .motionmate-hero-card-invoice {
-              left: 0;
-              bottom: 4%;
-              width: 58%;
+              left: auto;
+              bottom: auto;
             }
 
             .motionmate-hero-table {
@@ -302,17 +540,17 @@
           }
         </style>
 
-        <h2 class="display-3 hero-typed-heading pb-2 pb-sm-3">Smarter workflows for
+        <h2 class="display-3 hero-typed-heading pb-2 pb-sm-3">Smarter workflows for <br>
           <span
             class="typed-text"
-            data-typed-text='["Freelancers", "Start-ups", "Consultants", "Consultants", "Scale-ups", "Agencies"]'
+            data-typed-text='["Freelancers", "Start-ups", "Consultants", "Scale-ups", "Agencies"]'
             data-typed-classes='["text-info", "text-primary", "text-warning", "text-secondary-lighter"]'>
           </span>
         </h2>
 
 
         <p class="motionmate-hero-copy fs-lg d-md-none d-xl-block mx-auto mx-md-0 pb-2 pb-md-0 mb-4 mb-md-5">Manage clients, bookings, appointments, and invoices in one simple workspace.</p>
-        <div class="d-flex justify-content-center justify-content-md-start pb-2 pt-lg-2 pt-xl-0">
+        <div class="motionmate-hero-actions d-flex justify-content-center justify-content-md-start pb-2 pt-lg-2 pt-xl-0">
           <a href="{% url 'register_business' %}" class="btn btn-lg btn-primary shadow-primary me-3 me-sm-4">Start trial now</a>
           <a href="mailto:support@motionmate.net" class="btn btn-lg btn-outline-secondary">Contact us</a>
         </div>
