@@ -19,14 +19,6 @@
         <h2 class="mb-2">{{ page_title|default:"Create a new service request" }}</h2>
         <h5 class="text-body-tertiary fw-semibold">This service request will be saved to {{ current_business.name }}.</h5>
       </div>
-      <div class="col-auto d-flex gap-2">
-        {% if lead %}
-        <a class="btn btn-phoenix-secondary mb-2 mb-sm-0" href="{% url 'staff_lead_detail' lead.id %}">Cancel</a>
-        {% else %}
-        <a class="btn btn-phoenix-secondary mb-2 mb-sm-0" href="{% url 'staff_lead_list' %}">Cancel</a>
-        {% endif %}
-        <button class="btn btn-primary mb-2 mb-sm-0" type="submit">{{ submit_label|default:"Save service request" }}</button>
-      </div>
     </div>
 
     {% if form.non_field_errors %}
@@ -155,6 +147,15 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4">
+      {% if lead %}
+      <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_detail' lead.id %}">Cancel</a>
+      {% else %}
+      <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_list' %}">Cancel</a>
+      {% endif %}
+      <button class="btn btn-primary" type="submit">{{ submit_label|default:"Save service request" }}</button>
     </div>
   </form>
 </div>

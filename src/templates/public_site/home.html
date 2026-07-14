@@ -305,7 +305,7 @@
         <h2 class="display-3 hero-typed-heading pb-2 pb-sm-3">Smarter workflows for
           <span
             class="typed-text"
-            data-typed-text='["small businesses", "Caribbean entrepreneurs", "European teams", "consultants & agencies"]'
+            data-typed-text='["Freelancers", "Start-ups", "Consultants", "Consultants", "Scale-ups", "Agencies"]'
             data-typed-classes='["text-info", "text-primary", "text-warning", "text-secondary-lighter"]'>
           </span>
         </h2>
@@ -1124,9 +1124,524 @@
 
 <!-- Dashboard -->
 <section class="container pt-3 pt-md-4 pt-lg-5 pb-2 mt-lg-2 mt-xl-4">
+  <style>
+    .motionmate-dashboard-preview {
+      position: relative;
+      max-width: 780px;
+      margin-inline: auto;
+      color: #0b0f19;
+    }
+
+    .motionmate-dashboard-frame {
+      display: grid;
+      grid-template-columns: 10.5rem minmax(0, 1fr) 12rem;
+      overflow: hidden;
+      min-height: 430px;
+      border: 1px solid #e4e8f5;
+      border-radius: 1.25rem;
+      background: #fff;
+      box-shadow: 0 1.75rem 5rem rgba(63, 68, 104, .2);
+    }
+
+    .motionmate-dashboard-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding: 1.15rem;
+      background: linear-gradient(180deg, #f0f1ff, #f8f9ff);
+      border-right: 1px solid #edf0f7;
+    }
+
+    .motionmate-dashboard-brand {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      min-width: 0;
+      font-weight: 800;
+    }
+
+    .motionmate-dashboard-brand-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      flex-shrink: 0;
+      border-radius: .75rem;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1, #4c82f7);
+      box-shadow: 0 .65rem 1.4rem rgba(99, 102, 241, .28);
+    }
+
+    .motionmate-dashboard-nav {
+      display: grid;
+      gap: .45rem;
+      margin-top: .75rem;
+    }
+
+    .motionmate-dashboard-nav span,
+    .motionmate-dashboard-workspace,
+    .motionmate-dashboard-card,
+    .motionmate-dashboard-list,
+    .motionmate-dashboard-rail-card {
+      border: 1px solid #edf0f7;
+      border-radius: .85rem;
+    }
+
+    .motionmate-dashboard-nav span {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      padding: .6rem .7rem;
+      color: #536079;
+      font-size: .78rem;
+      font-weight: 800;
+    }
+
+    .motionmate-dashboard-nav span.is-active {
+      color: #3730a3;
+      background: #e7e7ff;
+      border-color: rgba(99, 102, 241, .24);
+    }
+
+    .motionmate-dashboard-workspace {
+      margin-top: auto;
+      padding: .7rem;
+      background: #fff;
+    }
+
+    .motionmate-dashboard-main {
+      padding: 1.15rem;
+      background: #fff;
+    }
+
+    .motionmate-dashboard-topbar,
+    .motionmate-dashboard-header,
+    .motionmate-dashboard-row,
+    .motionmate-dashboard-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .8rem;
+    }
+
+    .motionmate-dashboard-search {
+      width: min(46%, 15rem);
+      min-height: 2.3rem;
+      border: 1px solid #edf0f7;
+      border-radius: .75rem;
+      padding: .55rem .7rem;
+      color: #7b8497;
+      font-size: .76rem;
+      background: #f8f9ff;
+    }
+
+    .motionmate-dashboard-welcome {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1rem;
+      margin: 1rem 0;
+      padding: 1rem;
+      border-radius: 1rem;
+      color: #fff;
+      background: linear-gradient(135deg, #5b5ee8, #4c82f7);
+      box-shadow: 0 1rem 2.5rem rgba(76, 130, 247, .22);
+    }
+
+    .motionmate-dashboard-welcome i {
+      font-size: 3.2rem;
+      opacity: .92;
+    }
+
+    .motionmate-dashboard-title {
+      display: block;
+      color: #0b0f19;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .motionmate-dashboard-muted {
+      color: #667085;
+      font-size: .76rem;
+      line-height: 1.45;
+    }
+
+    .motionmate-dashboard-main .motionmate-dashboard-title {
+      font-size: .9rem;
+    }
+
+    .motionmate-dashboard-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .75rem;
+      margin-bottom: .85rem;
+    }
+
+    .motionmate-dashboard-card {
+      padding: .75rem;
+      background: #f8f9ff;
+    }
+
+    .motionmate-dashboard-number {
+      display: block;
+      margin-top: .3rem;
+      color: #0b0f19;
+      font-size: 1.15rem;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .motionmate-dashboard-calendar {
+      overflow: hidden;
+      border: 1px solid #edf0f7;
+      border-radius: 1rem;
+      background: #fff;
+    }
+
+    .motionmate-dashboard-days {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      border-bottom: 1px solid #edf0f7;
+      background: #fbfcff;
+    }
+
+    .motionmate-dashboard-day {
+      padding: .65rem .5rem;
+      text-align: center;
+      border-right: 1px solid #edf0f7;
+    }
+
+    .motionmate-dashboard-day:last-child,
+    .motionmate-dashboard-slot:last-child {
+      border-right: 0;
+    }
+
+    .motionmate-dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      min-height: 140px;
+      background-image: linear-gradient(#edf0f7 1px, transparent 1px);
+      background-size: 100% 2.75rem;
+    }
+
+    .motionmate-dashboard-slot {
+      position: relative;
+      border-right: 1px solid #edf0f7;
+      padding: .65rem .45rem;
+    }
+
+    .motionmate-dashboard-event {
+      display: block;
+      border-radius: .65rem;
+      padding: .45rem .5rem;
+      color: #fff;
+      font-size: .68rem;
+      font-weight: 800;
+      line-height: 1.2;
+      box-shadow: 0 .65rem 1.25rem rgba(76, 130, 247, .2);
+    }
+
+    .motionmate-dashboard-event-primary {
+      margin-top: .8rem;
+      background: #6366f1;
+    }
+
+    .motionmate-dashboard-event-info {
+      margin-top: 2.4rem;
+      background: #4c82f7;
+    }
+
+    .motionmate-dashboard-event-success {
+      margin-top: 1.6rem;
+      background: #20b26b;
+    }
+
+    .motionmate-dashboard-event-warning {
+      margin-top: 3.2rem;
+      color: #5e4200;
+      background: #ffcf5c;
+    }
+
+    .motionmate-dashboard-rail {
+      padding: 1.15rem;
+      background: #fbfcff;
+      border-left: 1px solid #edf0f7;
+    }
+
+    .motionmate-dashboard-profile {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      margin-bottom: 1rem;
+    }
+
+    .motionmate-dashboard-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.35rem;
+      height: 2.35rem;
+      flex-shrink: 0;
+      border-radius: 50%;
+      color: #3730a3;
+      background: #e7e7ff;
+      font-weight: 800;
+    }
+
+    .motionmate-dashboard-action {
+      width: 100%;
+      border: 0;
+      border-radius: .75rem;
+      padding: .7rem .85rem;
+      color: #fff;
+      font-size: .78rem;
+      font-weight: 800;
+      background: #6366f1;
+    }
+
+    .motionmate-dashboard-rail-card {
+      margin-top: .85rem;
+      padding: .85rem;
+      background: #fff;
+    }
+
+    .motionmate-dashboard-list {
+      overflow: hidden;
+      margin-top: .7rem;
+      background: #fff;
+    }
+
+    .motionmate-dashboard-row {
+      padding: .65rem 0;
+      border-bottom: 1px solid #edf0f7;
+    }
+
+    .motionmate-dashboard-row:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .motionmate-dashboard-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: .22rem .52rem;
+      font-size: .66rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .motionmate-dashboard-pill-info {
+      color: #285ec7;
+      background: rgba(76, 130, 247, .14);
+    }
+
+    .motionmate-dashboard-pill-warning {
+      color: #936200;
+      background: rgba(255, 186, 8, .2);
+    }
+
+    .motionmate-dashboard-pill-success {
+      color: #148943;
+      background: rgba(34, 197, 94, .14);
+    }
+
+    @media (max-width: 1199.98px) {
+      .motionmate-dashboard-frame {
+        grid-template-columns: 9.5rem minmax(0, 1fr);
+      }
+
+      .motionmate-dashboard-rail {
+        display: none;
+      }
+    }
+
+    @media (max-width: 991.98px) {
+      .motionmate-dashboard-frame {
+        grid-template-columns: 1fr;
+      }
+
+      .motionmate-dashboard-sidebar {
+        display: none;
+      }
+    }
+
+    @media (max-width: 767.98px) {
+      .motionmate-dashboard-frame {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+
+      .motionmate-dashboard-sidebar {
+        display: none;
+      }
+
+      .motionmate-dashboard-search {
+        width: 100%;
+      }
+
+      .motionmate-dashboard-topbar,
+      .motionmate-dashboard-header,
+      .motionmate-dashboard-card-head {
+        align-items: flex-start;
+      }
+
+      .motionmate-dashboard-welcome,
+      .motionmate-dashboard-metrics,
+      .motionmate-dashboard-days,
+      .motionmate-dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .motionmate-dashboard-day,
+      .motionmate-dashboard-slot {
+        border-right: 0;
+      }
+
+      .motionmate-dashboard-grid {
+        min-height: auto;
+        background-image: none;
+      }
+
+      .motionmate-dashboard-event {
+        margin-top: .45rem;
+      }
+    }
+  </style>
   <div class="row align-items-center">
     <div class="rellax col-md-7" data-rellax-percentage="0.5" data-rellax-speed="-0.6" data-disable-parallax-down="lg">
-      <img src="{% static 'public_site/img/landing/saas-1/dashboard.png' %}" class="d-block mx-auto" width="746" alt="Image">
+      <div class="motionmate-dashboard-preview">
+        <div class="motionmate-dashboard-frame" aria-label="MotionMate dashboard preview">
+          <aside class="motionmate-dashboard-sidebar" aria-hidden="true">
+            <div class="motionmate-dashboard-brand">
+              <span class="motionmate-dashboard-brand-mark">M</span>
+              <span>MotionMate</span>
+            </div>
+            <nav class="motionmate-dashboard-nav">
+              <span class="is-active"><i class="bx bx-grid-alt"></i> Dashboard</span>
+              <span><i class="bx bx-user"></i> Clients</span>
+              <span><i class="bx bx-wrench"></i> Requests</span>
+              <span><i class="bx bx-calendar"></i> Appointments</span>
+              <span><i class="bx bx-receipt"></i> Invoices</span>
+            </nav>
+            <div class="motionmate-dashboard-workspace">
+              <span class="motionmate-dashboard-muted d-block">Workspace</span>
+              <strong class="motionmate-dashboard-title">Bright Services</strong>
+            </div>
+          </aside>
+
+          <div class="motionmate-dashboard-main">
+            <div class="motionmate-dashboard-topbar">
+              <h3 class="h5 mb-0">Dashboard</h3>
+              <div class="motionmate-dashboard-search">Find client, booking, invoice...</div>
+            </div>
+
+            <div class="motionmate-dashboard-welcome">
+              <div>
+                <span class="d-block fw-bold mb-1">Good morning, Maya</span>
+                <span class="d-block small opacity-90">You have 3 follow-ups, 2 online bookings, and 4 invoices ready to review.</span>
+              </div>
+              <i class="bx bx-briefcase-alt-2" aria-hidden="true"></i>
+            </div>
+
+            <div class="motionmate-dashboard-metrics">
+              <div class="motionmate-dashboard-card">
+                <div class="motionmate-dashboard-card-head">
+                  <span class="motionmate-dashboard-muted">New leads</span>
+                  <i class="bx bx-user-plus text-primary"></i>
+                </div>
+                <span class="motionmate-dashboard-number">24</span>
+              </div>
+              <div class="motionmate-dashboard-card">
+                <div class="motionmate-dashboard-card-head">
+                  <span class="motionmate-dashboard-muted">Bookings</span>
+                  <i class="bx bx-calendar-check text-success"></i>
+                </div>
+                <span class="motionmate-dashboard-number">9</span>
+              </div>
+              <div class="motionmate-dashboard-card">
+                <div class="motionmate-dashboard-card-head">
+                  <span class="motionmate-dashboard-muted">Invoices</span>
+                  <i class="bx bx-line-chart text-warning"></i>
+                </div>
+                <span class="motionmate-dashboard-number">USD 4.2k</span>
+              </div>
+            </div>
+
+            <div class="motionmate-dashboard-calendar">
+              <div class="motionmate-dashboard-header px-3 py-2">
+                <div>
+                  <span class="motionmate-dashboard-title">This Week</span>
+                  <span class="motionmate-dashboard-muted">Bookings, jobs, and follow-ups</span>
+                </div>
+                <span class="motionmate-dashboard-pill motionmate-dashboard-pill-info">Live view</span>
+              </div>
+              <div class="motionmate-dashboard-days">
+                <div class="motionmate-dashboard-day"><span class="motionmate-dashboard-muted d-block">Mon</span><strong>15</strong></div>
+                <div class="motionmate-dashboard-day"><span class="motionmate-dashboard-muted d-block">Tue</span><strong>16</strong></div>
+                <div class="motionmate-dashboard-day"><span class="motionmate-dashboard-muted d-block">Wed</span><strong>17</strong></div>
+                <div class="motionmate-dashboard-day"><span class="motionmate-dashboard-muted d-block">Thu</span><strong>18</strong></div>
+                <div class="motionmate-dashboard-day"><span class="motionmate-dashboard-muted d-block">Fri</span><strong>19</strong></div>
+              </div>
+              <div class="motionmate-dashboard-grid">
+                <div class="motionmate-dashboard-slot">
+                  <span class="motionmate-dashboard-event motionmate-dashboard-event-primary">Client consult<br><small>9:30 AM</small></span>
+                </div>
+                <div class="motionmate-dashboard-slot">
+                  <span class="motionmate-dashboard-event motionmate-dashboard-event-warning">Invoice follow-up<br><small>11:00 AM</small></span>
+                </div>
+                <div class="motionmate-dashboard-slot">
+                  <span class="motionmate-dashboard-event motionmate-dashboard-event-success">Cleaning quote<br><small>1:15 PM</small></span>
+                </div>
+                <div class="motionmate-dashboard-slot">
+                  <span class="motionmate-dashboard-event motionmate-dashboard-event-info">Site visit<br><small>2:00 PM</small></span>
+                </div>
+                <div class="motionmate-dashboard-slot">
+                  <span class="motionmate-dashboard-event motionmate-dashboard-event-primary">Team check-in<br><small>3:30 PM</small></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="motionmate-dashboard-rail" aria-hidden="true">
+            <div class="motionmate-dashboard-profile">
+              <span class="motionmate-dashboard-avatar">MB</span>
+              <div>
+                <span class="motionmate-dashboard-title">Maya Blake</span>
+                <span class="motionmate-dashboard-muted">Owner</span>
+              </div>
+            </div>
+            <span class="motionmate-dashboard-action d-block text-center">+ Add service request</span>
+            <div class="motionmate-dashboard-rail-card">
+              <span class="motionmate-dashboard-title">Priority follow-ups</span>
+              <div class="motionmate-dashboard-list">
+                <div class="motionmate-dashboard-row">
+                  <div>
+                    <span class="motionmate-dashboard-title">Alicia Brown</span>
+                    <span class="motionmate-dashboard-muted">Online booking</span>
+                  </div>
+                  <span class="motionmate-dashboard-pill motionmate-dashboard-pill-info">Review</span>
+                </div>
+                <div class="motionmate-dashboard-row">
+                  <div>
+                    <span class="motionmate-dashboard-title">Marcus James</span>
+                    <span class="motionmate-dashboard-muted">Quote needed</span>
+                  </div>
+                  <span class="motionmate-dashboard-pill motionmate-dashboard-pill-warning">Today</span>
+                </div>
+                <div class="motionmate-dashboard-row">
+                  <div>
+                    <span class="motionmate-dashboard-title">MM-1004</span>
+                    <span class="motionmate-dashboard-muted">Invoice sent</span>
+                  </div>
+                  <span class="motionmate-dashboard-pill motionmate-dashboard-pill-success">Paid</span>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
     </div>
     <div class="rellax col-md-5 col-xl-4 offset-xl-1 d-flex d-sm-block flex-column" data-rellax-percentage="0.5" data-rellax-speed="0.8" data-disable-parallax-down="lg">
       <h2 class="pb-3 pt-2 pt-md-0">Run Your Business Without the Busywork</h2>
