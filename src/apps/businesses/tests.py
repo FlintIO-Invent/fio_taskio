@@ -1055,13 +1055,16 @@ class MotionmatePlanCatalogTests(TestCase):
         self.assertNotContains(response, "Public Request Form")
         self.assertNotContains(response, "Public Booking")
 
-    def test_current_landing_page_stays_on_existing_template(self):
+    def test_home_uses_public_site_landing_template_and_assets(self):
         response = self.client.get(reverse("home"), HTTP_HOST="localhost", secure=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "main/landing.html")
-        self.assertContains(response, "assets/css/theme.min.css")
-        self.assertNotContains(response, "public_site/css/theme.min.css")
+        self.assertTemplateUsed(response, "public_site/home.html")
+        self.assertTemplateUsed(response, "public_site/base.html")
+        self.assertContains(response, "public_site/css/theme.min.css")
+        self.assertContains(response, "public_site/js/theme.min.js")
+        self.assertNotContains(response, "/static/assets/css/theme.min.css")
+        self.assertContains(response, "Smarter workflows for")
 
     def test_public_site_preview_uses_namespaced_template_and_assets(self):
         response = self.client.get(reverse("site_preview"), HTTP_HOST="localhost", secure=True)
@@ -1072,15 +1075,12 @@ class MotionmatePlanCatalogTests(TestCase):
         self.assertContains(response, "public_site/css/theme.min.css")
         self.assertContains(response, "public_site/js/theme.min.js")
         self.assertNotContains(response, "/static/assets/css/theme.min.css")
-        self.assertContains(response, "Task Management Assistant You Gonna Love")
+        self.assertContains(response, "Smarter workflows for")
 
     def test_public_site_templates_use_django_static_paths(self):
         template_names = [
             "public_site/base.html",
             "public_site/home.html",
-            "public_site/landing-saas-v1.html",
-            "public_site/landing-saas-v2.html",
-            "public_site/landing-saas-v3.html",
         ]
 
         for template_name in template_names:
@@ -1093,7 +1093,7 @@ class MotionmatePlanCatalogTests(TestCase):
                 self.assertNotIn("url(assets/", html)
                 self.assertNotIn("public_site/assets/", html)
 
-    def test_root_still_redirects_to_current_landing(self):
+    def test_root_redirects_to_home_landing(self):
         response = self.client.get("/", HTTP_HOST="localhost", secure=True)
 
         self.assertEqual(response.status_code, 302)
