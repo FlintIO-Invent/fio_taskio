@@ -13,9 +13,6 @@
         <h2 class="mb-2">{{ page_title|default:"Create a new client" }}</h2>
         <h5 class="text-body-tertiary fw-semibold"></h5>
       </div>
-      <div class="col-auto">
-        <button class="btn btn-primary mb-2 mb-sm-0" type="submit">{{ submit_label|default:"Create" }}</button>
-      </div>
     </div>
 
     {% if form.non_field_errors %}
@@ -458,6 +455,11 @@
       </div>
 
 
+    </div>
+
+    <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{% url 'staff_client_list' %}">Cancel</a>
+      <button class="btn btn-primary" type="submit">{{ submit_label|default:"Create" }}</button>
     </div>
   </form>
 

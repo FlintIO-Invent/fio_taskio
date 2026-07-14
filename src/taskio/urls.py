@@ -30,7 +30,7 @@ def motionmate_pricing_context():
 
 
 def landing(request):
-    return render(request, "main/landing.html", motionmate_pricing_context())
+    return render(request, "public_site/home.html", motionmate_pricing_context())
 
 
 def site_preview(request):
