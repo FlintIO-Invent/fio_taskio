@@ -613,16 +613,21 @@ def business_module_required(
 def create_default_trial_subscription(
     business: Business,
     *,
+    plan: ClarivoPlan | None = None,
     trial_days: int = 14,
 ) -> BusinessSubscription | None:
     existing_subscription = get_business_subscription(business)
     if existing_subscription is not None:
         return existing_subscription
 
-    plan = ClarivoPlan.objects.filter(
-        is_active=True,
-        slug="pro",
-    ).first()
+    if plan is not None and not plan.is_active:
+        plan = None
+
+    if plan is None:
+        plan = ClarivoPlan.objects.filter(
+            is_active=True,
+            slug="pro",
+        ).first()
     if plan is None:
         plan = (
             ClarivoPlan.objects.filter(is_active=True)
