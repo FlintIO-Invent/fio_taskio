@@ -176,6 +176,8 @@ EMAIL_USE_TLS = settings.email_use_tls
 EMAIL_USE_SSL = settings.email_use_ssl
 EMAIL_TIMEOUT = settings.email_timeout
 MOTIONMATE_PUBLIC_BASE_URL = settings.motionmate_public_base_url
+BETA_REGISTRATION_ENABLED = settings.beta_registration_enabled
+BETA_REGISTRATION_TOKEN = settings.beta_registration_token
 MOTIONMATE_SUPPORT_EMAIL = settings.motionmate_support_email
 
 LOGGING = {

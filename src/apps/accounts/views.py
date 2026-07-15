@@ -17,7 +17,7 @@ from django.views.decorators.http import require_http_methods
 from loguru import logger
 
 from apps.accounts.models import SaaSUserProfile, TaskIOUser
-from apps.businesses.models import BusinessInvitation, BusinessUser
+from apps.businesses.models import BusinessInvitation, BusinessUser, ClarivoPlan
 from apps.businesses.utils import (
     MULTI_WORKSPACE_EMAIL_MESSAGE,
     accept_business_invitation_for_user,
@@ -31,6 +31,7 @@ from apps.notifications.emails import (
     send_password_reset_complete_email,
 )
 
+from .beta_registration import BETA_PLAN_SLUG, is_valid_beta_registration_token
 from .forms import (
     BusinessLoginForm,
     BusinessRegistrationForm,
@@ -200,8 +201,39 @@ def register_business(request: HttpRequest) -> HttpResponse:
     """
     Register a new Motionmate business owner and create the initial workspace.
     """
+    return _register_business(request, beta_eligible=False)
+
+
+@require_http_methods(["GET", "POST"])
+def register_business_beta(request: HttpRequest, token: str) -> HttpResponse:
+    """
+    Register a new Motionmate business owner through the reusable Beta link.
+    """
+    if not _beta_registration_link_is_available(token):
+        messages.warning(
+            request,
+            "Beta registration is currently unavailable. You can still create a standard Motionmate workspace.",
+        )
+        return redirect("register_business")
+
+    return _register_business(request, beta_eligible=True)
+
+
+def _beta_registration_link_is_available(token: str) -> bool:
+    return bool(
+        getattr(settings, "BETA_REGISTRATION_ENABLED", False)
+        and is_valid_beta_registration_token(token)
+        and ClarivoPlan.objects.filter(slug=BETA_PLAN_SLUG, is_active=True).exists()
+    )
+
+
+def _register_business(
+    request: HttpRequest,
+    *,
+    beta_eligible: bool,
+) -> HttpResponse:
     if request.method == "POST":
-        form = BusinessRegistrationForm(request.POST)
+        form = BusinessRegistrationForm(request.POST, beta_eligible=beta_eligible)
 
         if form.is_valid():
             user, business, _membership, subscription = form.save()
@@ -213,10 +245,15 @@ def register_business(request: HttpRequest) -> HttpResponse:
                 user.email,
                 business.slug,
             )
-            if subscription is not None:
+            if subscription is not None and subscription.is_trialing:
                 messages.success(
                     request,
                     "Your Motionmate workspace has been created with a 14-day trial. You can now start from your dashboard.",
+                )
+            elif subscription is not None:
+                messages.success(
+                    request,
+                    "Your Motionmate workspace has been created with Beta early access. You can now start from your dashboard.",
                 )
             else:
                 logger.warning(
@@ -235,7 +272,10 @@ def register_business(request: HttpRequest) -> HttpResponse:
             form.errors.as_json(),
         )
     else:
-        form = BusinessRegistrationForm(selected_plan_slug=request.GET.get("plan"))
+        form = BusinessRegistrationForm(
+            selected_plan_slug=request.GET.get("plan"),
+            beta_eligible=beta_eligible,
+        )
 
     return render(request, "accounts/forms/business_registration.html", {"form": form})
 

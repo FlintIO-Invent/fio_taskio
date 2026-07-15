@@ -1,9 +1,15 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth import password_validation
 from django.contrib.auth.forms import PasswordChangeForm, PasswordResetForm, SetPasswordForm
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from apps.accounts.beta_registration import (
+    BETA_PLAN_DISPLAY_NAME,
+    BETA_PLAN_SLUG,
+    beta_registration_token_is_configured,
+)
 from apps.businesses.models import (
     Business,
     BusinessInvitation,
@@ -192,24 +198,60 @@ class BusinessRegistrationForm(forms.Form):
         ),
     )
 
-    def __init__(self, *args, selected_plan_slug: str | None = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        selected_plan_slug: str | None = None,
+        beta_eligible: bool = False,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
-        plans = ClarivoPlan.motionmate_plans()
+        self.beta_eligible = beta_eligible
+        plans = self._plan_queryset()
         self.fields["plan"].queryset = plans
         self.fields["plan"].label_from_instance = self._plan_label
-        self.fields["plan"].initial = self._default_plan(plans, selected_plan_slug)
+        self.fields["plan"].initial = self._default_plan(
+            plans,
+            selected_plan_slug,
+            beta_eligible=beta_eligible,
+        )
+
+    def _plan_queryset(self):
+        if (
+            not self.beta_eligible
+            or not getattr(settings, "BETA_REGISTRATION_ENABLED", False)
+            or not beta_registration_token_is_configured()
+        ):
+            return ClarivoPlan.motionmate_plans()
+
+        return ClarivoPlan.objects.filter(
+            is_active=True,
+            slug__in=(*ClarivoPlan.MOTIONMATE_PLAN_SLUGS, BETA_PLAN_SLUG),
+        ).order_by(ClarivoPlan.motionmate_plan_ordering(), "pk")
 
     @staticmethod
     def _plan_label(plan: ClarivoPlan) -> str:
+        if plan.slug == BETA_PLAN_SLUG:
+            return BETA_PLAN_DISPLAY_NAME
+
         label = plan.name
         if plan.is_recommended:
             label = f"{label} (Recommended)"
         return label
 
     @staticmethod
-    def _default_plan(plans, selected_plan_slug: str | None = None) -> ClarivoPlan | None:
+    def _default_plan(
+        plans,
+        selected_plan_slug: str | None = None,
+        *,
+        beta_eligible: bool = False,
+    ) -> ClarivoPlan | None:
         normalized_slug = (selected_plan_slug or "").strip().lower()
-        if normalized_slug in BusinessRegistrationForm.PLAN_QUERY_SLUGS:
+        allowed_slugs = set(BusinessRegistrationForm.PLAN_QUERY_SLUGS)
+        if beta_eligible:
+            allowed_slugs.add(BETA_PLAN_SLUG)
+
+        if normalized_slug in allowed_slugs:
             selected_plan = plans.filter(slug=normalized_slug).first()
             if selected_plan is not None:
                 return selected_plan
@@ -232,6 +274,26 @@ class BusinessRegistrationForm(forms.Form):
 
     def clean_business_email(self) -> str:
         return (self.cleaned_data.get("business_email") or "").strip().lower()
+
+    def clean_plan(self) -> ClarivoPlan | None:
+        plan = self.cleaned_data.get("plan")
+        if plan is None:
+            return None
+
+        if plan.slug == BETA_PLAN_SLUG:
+            if (
+                not self.beta_eligible
+                or not getattr(settings, "BETA_REGISTRATION_ENABLED", False)
+                or not beta_registration_token_is_configured()
+                or not plan.is_active
+            ):
+                raise ValidationError("Select a valid trial plan.")
+            return plan
+
+        if plan.slug not in self.PLAN_QUERY_SLUGS:
+            raise ValidationError("Select a valid trial plan.")
+
+        return plan
 
     def clean(self):
         cleaned_data = super().clean()
@@ -279,10 +341,18 @@ class BusinessRegistrationForm(forms.Form):
             business=business,
             role=BusinessUser.Role.OWNER,
         )
-        subscription = create_default_trial_subscription(
-            business,
-            plan=self.cleaned_data.get("plan"),
-        )
+        selected_plan = self.cleaned_data.get("plan")
+        if selected_plan is not None and selected_plan.slug == BETA_PLAN_SLUG:
+            subscription = BusinessSubscription.objects.create(
+                business=business,
+                plan=selected_plan,
+                status=BusinessSubscription.Status.ACTIVE,
+            )
+        else:
+            subscription = create_default_trial_subscription(
+                business,
+                plan=selected_plan,
+            )
 
         profile = SaaSUserProfile.get_or_create_for_user(user)
         profile.workspace_name = business.name
