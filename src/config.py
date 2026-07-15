@@ -158,6 +158,14 @@ class Settings(BaseSettings):
         default="",
         description="Canonical public application URL used when building links for emails.",
     )
+    beta_registration_enabled: bool = Field(
+        default=False,
+        description="Enable hidden Beta business registration links.",
+    )
+    beta_registration_token: str = Field(
+        default="",
+        description="Reusable private token for hidden Beta business registration links.",
+    )
     motionmate_support_email: str = Field(
         default="",
         description="Support email address shown in transactional emails.",
@@ -212,6 +220,13 @@ class Settings(BaseSettings):
     def normalize_public_base_url(cls, value: object) -> object:
         if isinstance(value, str):
             return value.strip().rstrip("/")
+        return value
+
+    @field_validator("beta_registration_token", mode="before")
+    @classmethod
+    def normalize_beta_registration_token(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
         return value
 
     @field_validator("log_level", mode="before")

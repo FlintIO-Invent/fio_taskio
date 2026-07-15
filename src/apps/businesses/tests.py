@@ -11,6 +11,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.accounts.beta_registration import BETA_PLAN_DISPLAY_NAME, BETA_PLAN_SLUG
 from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice
@@ -46,6 +47,7 @@ from .utils import (
     business_required,
     business_role_required,
     can_use_module,
+    create_default_trial_subscription,
     get_business_usage_count,
     get_current_business,
     get_current_business_membership,
@@ -753,6 +755,31 @@ class SubscriptionAccessTests(TestCase):
         self.assertFalse(business_has_active_subscription(self.business))
         self.assertFalse(can_use_module(self.business, "invoicing"))
 
+    @override_settings(BETA_REGISTRATION_ENABLED=False)
+    def test_disabled_beta_registration_does_not_change_existing_beta_subscription(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=beta_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        self.assertTrue(self.business.has_active_subscription)
+        self.assertTrue(business_has_active_subscription(self.business))
+        self.assertTrue(can_use_module(self.business, "appointments"))
+        self.assertTrue(can_use_module(self.business, "public_booking"))
+
+    def test_default_trial_subscription_does_not_fallback_to_beta(self):
+        ClarivoPlan.objects.filter(slug__in=ClarivoPlan.MOTIONMATE_PLAN_SLUGS).update(
+            is_active=False,
+        )
+        ClarivoPlan.objects.filter(slug=BETA_PLAN_SLUG).update(is_active=True)
+
+        subscription = create_default_trial_subscription(self.business)
+
+        self.assertIsNone(subscription)
+        self.assertFalse(BusinessSubscription.objects.filter(business=self.business).exists())
+
 
 class MotionmatePlanCatalogTests(TestCase):
     def test_default_motionmate_plans_have_agreed_prices_limits_and_modules(self):
@@ -842,6 +869,37 @@ class MotionmatePlanCatalogTests(TestCase):
         self.assertTrue(ClarivoPlan.objects.get(slug="pro").is_recommended)
         self.assertFalse(ClarivoPlan.objects.get(slug="starter").is_recommended)
         self.assertFalse(ClarivoPlan.objects.get(slug="business").is_recommended)
+
+    def test_internal_beta_plan_is_free_pro_equivalent_and_excluded_from_public_catalog(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+        pro_plan = ClarivoPlan.objects.get(slug="pro")
+        public_slugs = list(ClarivoPlan.motionmate_plans().values_list("slug", flat=True))
+
+        self.assertEqual(beta_plan.name, BETA_PLAN_DISPLAY_NAME)
+        self.assertEqual(beta_plan.price_monthly, Decimal("0.00"))
+        self.assertEqual(beta_plan.price_yearly, Decimal("0.00"))
+        self.assertTrue(beta_plan.is_active)
+        self.assertFalse(beta_plan.is_recommended)
+        self.assertNotIn(BETA_PLAN_SLUG, public_slugs)
+        for field_name in (
+            "max_users",
+            "max_clients",
+            "max_invoices_per_month",
+            "max_appointments_per_month",
+            "max_public_bookings_per_month",
+            "allow_invoicing",
+            "allow_appointments",
+            "allow_memberships",
+            "allow_public_booking",
+            "allow_public_request_form",
+        ):
+            with self.subTest(field=field_name):
+                self.assertEqual(getattr(beta_plan, field_name), getattr(pro_plan, field_name))
+
+        self.assertTrue(beta_plan.allows_module("invoicing"))
+        self.assertTrue(beta_plan.allows_module("appointments"))
+        self.assertTrue(beta_plan.allows_module("public_booking"))
+        self.assertTrue(beta_plan.allows_module("public_request_form"))
 
     def test_display_pricing_supports_usd_default_and_eur_business_context(self):
         plan = ClarivoPlan.objects.get(slug="business")

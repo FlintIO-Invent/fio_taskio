@@ -1,17 +1,25 @@
 from datetime import timedelta
+from io import StringIO
 from pathlib import Path
 from unittest import mock
+from urllib.parse import urlparse
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
+from apps.accounts.beta_registration import (
+    BETA_PLAN_DISPLAY_NAME,
+    BETA_PLAN_SLUG,
+)
 from apps.businesses.models import (
     Business,
     BusinessInvitation,
@@ -19,7 +27,11 @@ from apps.businesses.models import (
     BusinessUser,
     ClarivoPlan,
 )
-from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY, MULTI_WORKSPACE_EMAIL_MESSAGE
+from apps.businesses.utils import (
+    CURRENT_BUSINESS_SESSION_KEY,
+    MULTI_WORKSPACE_EMAIL_MESSAGE,
+    can_use_module,
+)
 
 from .models import SaaSUserProfile
 
@@ -87,6 +99,32 @@ class CustomerRegistrationViewTests(TestCase):
 
 
 class BusinessRegistrationViewTests(TestCase):
+    BETA_TOKEN = "shared-beta-token-for-tests-1234567890"
+
+    def _registration_payload(
+        self,
+        *,
+        email: str = "owner@example.com",
+        business_name: str = "Acme Freight",
+        plan: ClarivoPlan | None = None,
+    ) -> dict[str, str | int]:
+        payload: dict[str, str | int] = {
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "email": email,
+            "business_name": business_name,
+            "business_email": f"hello+{business_name.lower().replace(' ', '-')}@motionmate.test",
+            "country": "Sint Maarten",
+            "password1": "StrongPass123!",
+            "password2": "StrongPass123!",
+        }
+        if plan is not None:
+            payload["plan"] = plan.pk
+        return payload
+
+    def _beta_url(self, token: str | None = None) -> str:
+        return reverse("register_business_beta", args=[token or self.BETA_TOKEN])
+
     def test_get_renders_business_registration_page(self):
         response = self.client.get(reverse("register_business"))
 
@@ -102,6 +140,7 @@ class BusinessRegistrationViewTests(TestCase):
             response,
             "Use the public contact or billing email for the business. It can be different from the owner login email.",
         )
+        self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
 
     def test_get_defaults_trial_plan_dropdown_to_recommended_pro(self):
         pro_plan = ClarivoPlan.objects.get(slug="pro")
@@ -123,6 +162,304 @@ class BusinessRegistrationViewTests(TestCase):
         response = self.client.get(f"{reverse('register_business')}?plan=enterprise")
 
         self.assertEqual(response.context["form"]["plan"].value(), pro_plan.pk)
+
+    def test_public_registration_plan_queryset_excludes_beta(self):
+        response = self.client.get(f"{reverse('register_business')}?plan=beta")
+
+        plan_slugs = list(
+            response.context["form"].fields["plan"].queryset.values_list("slug", flat=True)
+        )
+
+        self.assertEqual(plan_slugs, ["starter", "pro", "business"])
+        self.assertNotIn(BETA_PLAN_SLUG, plan_slugs)
+        self.assertNotEqual(response.context["form"]["plan"].value(), BETA_PLAN_SLUG)
+        self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    def test_public_registration_rejects_manual_beta_plan_post(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+
+        response = self.client.post(
+            reverse("register_business"),
+            self._registration_payload(
+                email="manual-beta@example.com",
+                business_name="Manual Beta Workspace",
+                plan=beta_plan,
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertFalse(get_user_model().objects.filter(email="manual-beta@example.com").exists())
+        self.assertFalse(Business.objects.filter(name="Manual Beta Workspace").exists())
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_valid_shared_beta_link_displays_beta_plan(self):
+        response = self.client.get(self._beta_url())
+
+        plan_slugs = list(
+            response.context["form"].fields["plan"].queryset.values_list("slug", flat=True)
+        )
+
+        self.assertEqual(plan_slugs, ["starter", "pro", "business", BETA_PLAN_SLUG])
+        self.assertContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_wrong_and_modified_beta_tokens_redirect_without_beta_plan(self):
+        for token in ("wrong-token", f"{self.BETA_TOKEN}-modified"):
+            with self.subTest(token=token):
+                response = self.client.get(
+                    self._beta_url(token),
+                    follow=True,
+                )
+
+                self.assertRedirects(response, reverse("register_business"))
+                self.assertContains(response, "Beta registration is currently unavailable.")
+                self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_wrong_beta_token_does_not_assign_beta_plan(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+
+        response = self.client.post(
+            self._beta_url("wrong-token"),
+            self._registration_payload(
+                email="wrong-token@example.com",
+                business_name="Wrong Token Workspace",
+                plan=beta_plan,
+            ),
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("register_business"))
+        self.assertContains(response, "Beta registration is currently unavailable.")
+        self.assertFalse(get_user_model().objects.filter(email="wrong-token@example.com").exists())
+        self.assertFalse(Business.objects.filter(name="Wrong Token Workspace").exists())
+
+    @override_settings(BETA_REGISTRATION_ENABLED=False, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_disabled_beta_registration_link_redirects_without_beta_plan(self):
+        response = self.client.get(self._beta_url(), follow=True)
+
+        self.assertRedirects(response, reverse("register_business"))
+        self.assertContains(response, "Beta registration is currently unavailable.")
+        self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN="")
+    def test_missing_configured_beta_token_redirects_without_beta_plan(self):
+        response = self.client.get(self._beta_url(), follow=True)
+
+        self.assertRedirects(response, reverse("register_business"))
+        self.assertContains(response, "Beta registration is currently unavailable.")
+        self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_inactive_beta_plan_blocks_shared_link(self):
+        ClarivoPlan.objects.filter(slug=BETA_PLAN_SLUG).update(is_active=False)
+
+        response = self.client.get(self._beta_url(), follow=True)
+
+        self.assertRedirects(response, reverse("register_business"))
+        self.assertContains(response, "Beta registration is currently unavailable.")
+        self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_beta_route_rejects_other_internal_plan_post(self):
+        internal_plan = ClarivoPlan.objects.create(
+            name="Internal VIP",
+            slug="internal-vip",
+            is_active=True,
+            allow_invoicing=True,
+            allow_appointments=True,
+            allow_public_booking=True,
+        )
+
+        response = self.client.post(
+            self._beta_url(),
+            self._registration_payload(
+                email="internal-vip@example.com",
+                business_name="Internal VIP Workspace",
+                plan=internal_plan,
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertFalse(get_user_model().objects.filter(email="internal-vip@example.com").exists())
+        self.assertFalse(Business.objects.filter(name="Internal VIP Workspace").exists())
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_valid_beta_registration_creates_active_subscription_without_trial(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+
+        response = self.client.post(
+            self._beta_url(),
+            self._registration_payload(
+                email="beta-owner@example.com",
+                business_name="Beta Workspace",
+                plan=beta_plan,
+            ),
+            follow=True,
+        )
+
+        business = Business.objects.get(name="Beta Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertEqual(subscription.plan.slug, BETA_PLAN_SLUG)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertIsNone(subscription.trial_start)
+        self.assertIsNone(subscription.trial_end)
+        self.assertIsNone(subscription.current_period_start)
+        self.assertIsNone(subscription.current_period_end)
+        self.assertContains(response, "Beta early access")
+        self.assertEqual(int(self.client.session[CURRENT_BUSINESS_SESSION_KEY]), business.id)
+        self.assertTrue(can_use_module(business, "appointments"))
+        self.assertTrue(can_use_module(business, "public_booking"))
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_same_beta_link_can_register_more_than_one_business(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+
+        for index in (1, 2):
+            with self.subTest(index=index):
+                response = self.client.post(
+                    self._beta_url(),
+                    self._registration_payload(
+                        email=f"beta-owner-{index}@example.com",
+                        business_name=f"Reusable Beta Workspace {index}",
+                        plan=beta_plan,
+                    ),
+                    follow=True,
+                )
+                business = Business.objects.get(name=f"Reusable Beta Workspace {index}")
+                subscription = BusinessSubscription.objects.get(business=business)
+
+                self.assertRedirects(response, reverse("agent_dashboard"))
+                self.assertEqual(subscription.plan.slug, BETA_PLAN_SLUG)
+                self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+                self.assertIsNone(subscription.trial_end)
+                self.client.logout()
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_beta_link_does_not_expire_because_time_passes(self):
+        future = timezone.now() + timedelta(days=3650)
+
+        with mock.patch("django.utils.timezone.now", return_value=future):
+            response = self.client.get(self._beta_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN="new-beta-token")
+    def test_rotating_beta_token_invalidates_old_link_and_validates_new_link(self):
+        old_response = self.client.get(self._beta_url(), follow=True)
+        new_response = self.client.get(self._beta_url("new-beta-token"))
+
+        self.assertRedirects(old_response, reverse("register_business"))
+        self.assertContains(old_response, "Beta registration is currently unavailable.")
+        self.assertNotContains(old_response, BETA_PLAN_DISPLAY_NAME)
+        self.assertEqual(new_response.status_code, 200)
+        self.assertContains(new_response, BETA_PLAN_DISPLAY_NAME)
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_disabling_or_rotating_beta_link_does_not_modify_existing_beta_account(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+        self.client.post(
+            self._beta_url(),
+            self._registration_payload(
+                email="stable-beta-owner@example.com",
+                business_name="Stable Beta Workspace",
+                plan=beta_plan,
+            ),
+            follow=True,
+        )
+        business = Business.objects.get(name="Stable Beta Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        for enabled, token in ((False, self.BETA_TOKEN), (True, "rotated-beta-token")):
+            with self.subTest(enabled=enabled, token=token):
+                with override_settings(
+                    BETA_REGISTRATION_ENABLED=enabled,
+                    BETA_REGISTRATION_TOKEN=token,
+                ):
+                    self.client.get(self._beta_url(), follow=True)
+                business.refresh_from_db()
+                subscription.refresh_from_db()
+
+                self.assertTrue(business.is_active)
+                self.assertEqual(subscription.plan.slug, BETA_PLAN_SLUG)
+                self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+                self.assertTrue(can_use_module(business, "appointments"))
+
+    def test_public_plans_still_create_trial_subscriptions(self):
+        for slug in ClarivoPlan.MOTIONMATE_PLAN_SLUGS:
+            with self.subTest(plan=slug):
+                plan = ClarivoPlan.objects.get(slug=slug)
+                response = self.client.post(
+                    reverse("register_business"),
+                    self._registration_payload(
+                        email=f"{slug}-owner@example.com",
+                        business_name=f"{slug.title()} Trial Workspace",
+                        plan=plan,
+                    ),
+                    follow=True,
+                )
+                business = Business.objects.get(name=f"{slug.title()} Trial Workspace")
+                subscription = BusinessSubscription.objects.get(business=business)
+
+                self.assertRedirects(response, reverse("agent_dashboard"))
+                self.assertEqual(subscription.plan.slug, slug)
+                self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+                self.assertEqual(
+                    subscription.trial_end - subscription.trial_start, timedelta(days=14)
+                )
+                self.client.logout()
+
+    def test_default_trial_fallback_cannot_select_beta_when_public_plans_are_inactive(self):
+        ClarivoPlan.objects.filter(slug__in=ClarivoPlan.MOTIONMATE_PLAN_SLUGS).update(
+            is_active=False,
+        )
+        ClarivoPlan.objects.filter(slug=BETA_PLAN_SLUG).update(is_active=True)
+
+        response = self.client.post(
+            reverse("register_business"),
+            self._registration_payload(
+                email="fallback-beta@example.com",
+                business_name="Fallback Beta Workspace",
+            ),
+            follow=True,
+        )
+
+        business = Business.objects.get(name="Fallback Beta Workspace")
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertFalse(BusinessSubscription.objects.filter(business=business).exists())
+        self.assertContains(response, "Subscription setup is pending")
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_management_command_prints_configured_token_accepted_by_beta_route(self):
+        output = StringIO()
+
+        call_command(
+            "beta_registration_link",
+            "--base-url",
+            "https://www.motionmate.net",
+            stdout=output,
+        )
+
+        path = urlparse(output.getvalue().strip()).path
+        response = self.client.get(path)
+
+        self.assertEqual(
+            output.getvalue().strip(),
+            f"https://www.motionmate.net{self._beta_url()}",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    @override_settings(BETA_REGISTRATION_TOKEN="")
+    def test_management_command_reports_configuration_error_without_token(self):
+        with self.assertRaisesMessage(CommandError, "BETA_REGISTRATION_TOKEN is not configured."):
+            call_command("beta_registration_link", stdout=StringIO())
 
     def test_post_creates_user_business_membership_trial_subscription_and_logs_in(self):
         response = self.client.post(

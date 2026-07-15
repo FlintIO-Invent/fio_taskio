@@ -620,20 +620,15 @@ def create_default_trial_subscription(
     if existing_subscription is not None:
         return existing_subscription
 
-    if plan is not None and not plan.is_active:
+    if plan is not None and (
+        not plan.is_active or plan.slug not in ClarivoPlan.MOTIONMATE_PLAN_SLUGS
+    ):
         plan = None
 
     if plan is None:
-        plan = ClarivoPlan.objects.filter(
-            is_active=True,
-            slug="pro",
-        ).first()
+        plan = ClarivoPlan.motionmate_plans().filter(slug="pro").first()
     if plan is None:
-        plan = (
-            ClarivoPlan.objects.filter(is_active=True)
-            .order_by("created_at", "pk")
-            .first()
-        )
+        plan = ClarivoPlan.motionmate_plans().first()
 
     if plan is None:
         return None
