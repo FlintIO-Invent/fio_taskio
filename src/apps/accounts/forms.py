@@ -4,7 +4,13 @@ from django.contrib.auth.forms import PasswordChangeForm, PasswordResetForm, Set
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from apps.businesses.models import Business, BusinessInvitation, BusinessSubscription, BusinessUser
+from apps.businesses.models import (
+    Business,
+    BusinessInvitation,
+    BusinessSubscription,
+    BusinessUser,
+    ClarivoPlan,
+)
 from apps.businesses.utils import create_default_trial_subscription, generate_business_slug
 
 from .models import SaaSUserProfile, TaskIOUser
@@ -131,6 +137,8 @@ class CustomerRegistrationForm(forms.ModelForm):
 
 
 class BusinessRegistrationForm(forms.Form):
+    PLAN_QUERY_SLUGS = set(ClarivoPlan.MOTIONMATE_PLAN_SLUGS)
+
     first_name = forms.CharField(
         label="Owner first name",
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Jane"}),
@@ -160,6 +168,14 @@ class BusinessRegistrationForm(forms.Form):
     country = forms.CharField(
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Sint Maarten"}),
     )
+    plan = forms.ModelChoiceField(
+        label="Trial plan",
+        queryset=ClarivoPlan.objects.none(),
+        required=False,
+        empty_label=None,
+        help_text="Your workspace starts with the standard 14-day trial. You can change plans after signup.",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     password1 = forms.CharField(
         label="Password",
         strip=False,
@@ -175,6 +191,38 @@ class BusinessRegistrationForm(forms.Form):
             attrs={"class": "form-control", "placeholder": "Repeat your password"}
         ),
     )
+
+    def __init__(self, *args, selected_plan_slug: str | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        plans = ClarivoPlan.motionmate_plans()
+        self.fields["plan"].queryset = plans
+        self.fields["plan"].label_from_instance = self._plan_label
+        self.fields["plan"].initial = self._default_plan(plans, selected_plan_slug)
+
+    @staticmethod
+    def _plan_label(plan: ClarivoPlan) -> str:
+        label = plan.name
+        if plan.is_recommended:
+            label = f"{label} (Recommended)"
+        return label
+
+    @staticmethod
+    def _default_plan(plans, selected_plan_slug: str | None = None) -> ClarivoPlan | None:
+        normalized_slug = (selected_plan_slug or "").strip().lower()
+        if normalized_slug in BusinessRegistrationForm.PLAN_QUERY_SLUGS:
+            selected_plan = plans.filter(slug=normalized_slug).first()
+            if selected_plan is not None:
+                return selected_plan
+
+        recommended_plan = plans.filter(is_recommended=True).first()
+        if recommended_plan is not None:
+            return recommended_plan
+
+        pro_plan = plans.filter(slug="pro").first()
+        if pro_plan is not None:
+            return pro_plan
+
+        return plans.first()
 
     def clean_email(self) -> str:
         email = (self.cleaned_data.get("email") or "").strip().lower()
@@ -231,7 +279,10 @@ class BusinessRegistrationForm(forms.Form):
             business=business,
             role=BusinessUser.Role.OWNER,
         )
-        subscription = create_default_trial_subscription(business)
+        subscription = create_default_trial_subscription(
+            business,
+            plan=self.cleaned_data.get("plan"),
+        )
 
         profile = SaaSUserProfile.get_or_create_for_user(user)
         profile.workspace_name = business.name
