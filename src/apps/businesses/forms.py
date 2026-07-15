@@ -35,6 +35,12 @@ PLAN_ALLOWED_INVITATION_ROLES = {
         BusinessUser.Role.STAFF,
         BusinessUser.Role.ACCOUNTANT,
     ),
+    "beta": (
+        BusinessUser.Role.OWNER,
+        BusinessUser.Role.ADMIN,
+        BusinessUser.Role.STAFF,
+        BusinessUser.Role.ACCOUNTANT,
+    ),
     "business": (
         BusinessUser.Role.OWNER,
         BusinessUser.Role.ADMIN,
