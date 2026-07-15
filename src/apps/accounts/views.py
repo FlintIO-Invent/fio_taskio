@@ -235,7 +235,7 @@ def register_business(request: HttpRequest) -> HttpResponse:
             form.errors.as_json(),
         )
     else:
-        form = BusinessRegistrationForm()
+        form = BusinessRegistrationForm(selected_plan_slug=request.GET.get("plan"))
 
     return render(request, "accounts/forms/business_registration.html", {"form": form})
 

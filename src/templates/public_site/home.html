@@ -2566,7 +2566,7 @@
               </ul>
             </div>
             <div class="card-footer border-0 pt-0 pb-4 bg-transparent">
-              <a href="{% url 'register_business' %}" class="btn {% if plan.is_recommended %}btn-light{% else %}btn-outline-primary{% endif %} w-100">Start {{ plan.name }} trial</a>
+              <a href="{% url 'register_business' %}?plan={{ plan.slug|urlencode }}" class="btn {% if plan.is_recommended %}btn-light{% else %}btn-outline-primary{% endif %} w-100">Start {{ plan.name }} trial</a>
             </div>
           </div>
         </div>

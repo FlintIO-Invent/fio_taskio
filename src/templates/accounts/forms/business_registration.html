@@ -64,6 +64,11 @@
                 {{ form.country }}
                 {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
               </div>
+              <div class="col-12">
+                <label class="form-label" for="{{ form.plan.id_for_label }}">Trial plan{% include "includes/help_icon.html" with text=form.plan.help_text %}</label>
+                {{ form.plan }}
+                {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
+              </div>
               <div class="col-md-6">
                 <label class="form-label" for="{{ form.password1.id_for_label }}">Password{% include "includes/help_icon.html" with text=form.password1.help_text %}</label>
                 {{ form.password1 }}

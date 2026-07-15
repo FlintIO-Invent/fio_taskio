@@ -93,6 +93,7 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Register your business")
         self.assertContains(response, "Owner login email")
+        self.assertContains(response, "Trial plan")
         self.assertContains(
             response,
             "Use the email address you want to sign in with. This will become the workspace owner login for this business.",
@@ -101,6 +102,27 @@ class BusinessRegistrationViewTests(TestCase):
             response,
             "Use the public contact or billing email for the business. It can be different from the owner login email.",
         )
+
+    def test_get_defaults_trial_plan_dropdown_to_recommended_pro(self):
+        pro_plan = ClarivoPlan.objects.get(slug="pro")
+
+        response = self.client.get(reverse("register_business"))
+
+        self.assertEqual(response.context["form"]["plan"].value(), pro_plan.pk)
+
+    def test_get_selects_requested_trial_plan_from_pricing_link(self):
+        starter_plan = ClarivoPlan.objects.get(slug="starter")
+
+        response = self.client.get(f"{reverse('register_business')}?plan=starter")
+
+        self.assertEqual(response.context["form"]["plan"].value(), starter_plan.pk)
+
+    def test_get_ignores_unknown_trial_plan_and_defaults_to_pro(self):
+        pro_plan = ClarivoPlan.objects.get(slug="pro")
+
+        response = self.client.get(f"{reverse('register_business')}?plan=enterprise")
+
+        self.assertEqual(response.context["form"]["plan"].value(), pro_plan.pk)
 
     def test_post_creates_user_business_membership_trial_subscription_and_logs_in(self):
         response = self.client.post(
@@ -142,6 +164,40 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertContains(response, "14-day trial")
         self.assertContains(response, "Welcome to Motionmate")
         self.assertTrue(response.context["onboarding_status"]["should_auto_show_welcome"])
+
+    def test_post_creates_trial_subscription_for_selected_plan(self):
+        starter_plan = ClarivoPlan.objects.get(slug="starter")
+
+        response = self.client.post(
+            reverse("register_business"),
+            {
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email": "starter-owner@example.com",
+                "business_name": "Starter Workspace",
+                "business_email": "hello@starter.test",
+                "country": "Sint Maarten",
+                "plan": starter_plan.pk,
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+            follow=True,
+        )
+
+        business = Business.objects.get(name="Starter Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertEqual(subscription.plan.slug, "starter")
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(subscription.trial_end - subscription.trial_start, timedelta(days=14))
+
+    def test_home_pricing_links_pass_selected_trial_plan_to_registration(self):
+        response = self.client.get(reverse("home"))
+
+        self.assertContains(response, f"{reverse('register_business')}?plan=starter")
+        self.assertContains(response, f"{reverse('register_business')}?plan=pro")
+        self.assertContains(response, f"{reverse('register_business')}?plan=business")
 
     def test_post_generates_unique_slug_for_duplicate_business_names(self):
         existing_owner = get_user_model().objects.create_user(
