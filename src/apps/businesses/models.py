@@ -485,11 +485,24 @@ class ClarivoPlan(TimeStampedModel):
 
 class BusinessSubscription(TimeStampedModel):
     class Status(models.TextChoices):
+        PENDING_CHECKOUT = "pending_checkout", "Pending Checkout"
         TRIALING = "trialing", "Trialing"
         ACTIVE = "active", "Active"
         PAST_DUE = "past_due", "Past Due"
         CANCELLED = "cancelled", "Cancelled"
         SUSPENDED = "suspended", "Suspended"
+
+    class PaymentProvider(models.TextChoices):
+        LOCAL = "local", "Local"
+        STRIPE = "stripe", "Stripe"
+
+    class BillingInterval(models.TextChoices):
+        MONTHLY = "monthly", "Monthly"
+        YEARLY = "yearly", "Yearly"
+
+    class BillingCurrency(models.TextChoices):
+        USD = "usd", "USD"
+        EUR = "eur", "EUR"
 
     ACCESS_STATUSES = {
         Status.TRIALING,
@@ -516,6 +529,27 @@ class BusinessSubscription(TimeStampedModel):
     current_period_start = models.DateTimeField(null=True, blank=True)
     current_period_end = models.DateTimeField(null=True, blank=True)
     cancel_at_period_end = models.BooleanField(default=False)
+    payment_provider = models.CharField(
+        max_length=30,
+        choices=PaymentProvider.choices,
+        blank=True,
+        default="",
+    )
+    billing_interval = models.CharField(
+        max_length=20,
+        choices=BillingInterval.choices,
+        blank=True,
+        default="",
+    )
+    billing_currency = models.CharField(
+        max_length=3,
+        choices=BillingCurrency.choices,
+        blank=True,
+        default="",
+    )
+    provider_price_id = models.CharField(max_length=255, blank=True, default="")
+    provider_checkout_session_id = models.CharField(max_length=255, blank=True, default="")
+    checkout_session_expires_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["business__name"]
@@ -532,6 +566,10 @@ class BusinessSubscription(TimeStampedModel):
     @property
     def is_trialing(self) -> bool:
         return self.status == self.Status.TRIALING
+
+    @property
+    def is_pending_checkout(self) -> bool:
+        return self.status == self.Status.PENDING_CHECKOUT
 
     def can_use_module(self, module_name: str) -> bool:
         return self.has_access and self.plan.allows_module(module_name)

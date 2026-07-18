@@ -67,22 +67,24 @@
               <div class="col-12">
                 {% if show_paid_plan_summary and selected_plan %}
                   <input type="hidden" name="{{ form.plan.html_name }}" value="{{ selected_plan.slug }}">
+                  <input type="hidden" name="{{ form.billing_interval.html_name }}" value="{{ selected_billing_interval }}">
                   <div class="border rounded-3 p-3 bg-body-tertiary">
                     <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
                       <div>
                         <p class="text-body-tertiary fs-9 mb-1">Selected plan</p>
                         <h4 class="fs-7 mb-1">{{ selected_plan.name }}</h4>
-                        {% if selected_plan_pricing %}
-                          <p class="text-body-secondary mb-0">{{ selected_plan_pricing.monthly_display }} / month</p>
+                        {% if selected_plan_price_display %}
+                          <p class="text-body-secondary mb-0">{{ selected_plan_price_display }} / {{ selected_billing_interval_label }} after trial · {{ selected_billing_currency }}</p>
                         {% endif %}
                       </div>
                       <div class="text-sm-end">
                         <a class="fs-9" href="{% url 'home' %}#pricing">Choose another plan</a>
                       </div>
                     </div>
-                    <p class="text-body-secondary mb-0 mt-3">Your {{ standard_trial_days }}-day {{ selected_plan.name }} trial starts after registration. You will not be charged during this current setup.</p>
+                    <p class="text-body-secondary mb-0 mt-3">Your {{ standard_trial_days }}-day free trial starts with {{ selected_plan.name }} on {{ selected_billing_interval }} billing. A payment method is required, but there is no charge today. After the trial, this plan renews automatically at {{ selected_plan_price_display }} per {{ selected_billing_interval_label }} unless cancelled.</p>
                   </div>
                   {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
+                  {% if form.billing_interval.errors %}<div class="invalid-feedback d-block">{{ form.billing_interval.errors|striptags }}</div>{% endif %}
                 {% else %}
                   <label class="form-label" for="{{ form.plan.id_for_label }}">Trial plan{% include "includes/help_icon.html" with text=form.plan.help_text %}</label>
                   {{ form.plan }}

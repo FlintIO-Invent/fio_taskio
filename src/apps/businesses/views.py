@@ -21,10 +21,18 @@ from .forms import (
 from .models import (
     BusinessBookingSettings,
     BusinessInvitation,
+    BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
     WeeklyAvailability,
 )
+from .plan_catalog import normalize_public_paid_plan_slug
+from .stripe_checkout import (
+    StripeCheckoutAlreadyCompleted,
+    StripeCheckoutError,
+    resume_trial_checkout_session,
+)
+from .stripe_config import StripeConfigurationError
 from .utils import (
     BOOKING_AVAILABILITY_MANAGE_ROLES,
     MULTI_WORKSPACE_EMAIL_MESSAGE,
@@ -45,6 +53,76 @@ from .utils import (
     get_other_active_business_membership_for_email,
     get_public_booking_share_context,
 )
+
+
+def _checkout_status_context(
+    *,
+    request: HttpRequest,
+    status_kind: str,
+) -> dict:
+    business = request.current_business
+    subscription = get_business_subscription(business)
+    return {
+        "business": business,
+        "subscription": subscription,
+        "status_kind": status_kind,
+        "can_resume_checkout": bool(
+            subscription is not None
+            and subscription.status == BusinessSubscription.Status.PENDING_CHECKOUT
+        ),
+    }
+
+
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["GET"])
+def billing_checkout_success(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        "businesses/checkout_status.html",
+        _checkout_status_context(request=request, status_kind="success"),
+    )
+
+
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["GET"])
+def billing_checkout_cancelled(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        "businesses/checkout_status.html",
+        _checkout_status_context(request=request, status_kind="cancelled"),
+    )
+
+
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["POST"])
+def billing_checkout_resume(request: HttpRequest) -> HttpResponse:
+    business = request.current_business
+    subscription = get_business_subscription(business)
+
+    if subscription is None or subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT:
+        messages.info(request, "This workspace does not have payment setup waiting to resume.")
+        return redirect("agent_dashboard")
+
+    if normalize_public_paid_plan_slug(subscription.plan.slug) is None:
+        messages.error(request, "This workspace plan does not use payment setup.")
+        return redirect("agent_dashboard")
+
+    try:
+        checkout_url = resume_trial_checkout_session(
+            request=request,
+            subscription=subscription,
+            user=request.user,
+        )
+    except StripeCheckoutAlreadyCompleted:
+        return redirect("billing_checkout_success")
+    except (StripeConfigurationError, StripeCheckoutError):
+        messages.error(
+            request,
+            "Secure payment setup could not be resumed. No payment was taken.",
+        )
+        return redirect("billing_checkout_cancelled")
+
+    return redirect(checkout_url)
 
 
 @login_required(login_url="business_login")
@@ -297,7 +375,9 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
                         f"Review the limits before changing to {selected_plan.name}.",
                     )
                 else:
-                    updated_subscription = assign_business_subscription_plan(business, selected_plan)
+                    updated_subscription = assign_business_subscription_plan(
+                        business, selected_plan
+                    )
                     if updated_subscription.status == updated_subscription.Status.TRIALING:
                         messages.success(
                             request,

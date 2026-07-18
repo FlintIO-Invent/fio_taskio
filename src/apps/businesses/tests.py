@@ -1,5 +1,6 @@
 from datetime import time, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest import mock
 
 from django.core import mail
@@ -20,7 +21,7 @@ from apps.crm.models import BusinessService, Client, Lead
 from config import Settings
 from helpers import build_public_url
 
-from . import stripe_config
+from . import stripe_checkout, stripe_config
 from .checks import check_stripe_configuration
 from .localization import format_money_for_business, parse_localized_decimal
 from .models import (
@@ -41,16 +42,27 @@ from .onboarding import (
     user_can_view_onboarding,
 )
 from .plan_catalog import (
+    DEFAULT_PUBLIC_BILLING_INTERVAL,
     DEFAULT_PUBLIC_PAID_PLAN_SLUG,
     PUBLIC_BILLING_INTERVALS,
     PUBLIC_PAID_PLAN_ORDERING,
     PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
     STANDARD_TRIAL_DAYS,
+    is_public_billing_interval,
     is_public_paid_plan_slug,
     normalize_plan_slug,
+    normalize_public_billing_interval,
     normalize_public_paid_plan_slug,
+    public_billing_interval_or_default,
     public_paid_plan_slug_or_default,
+)
+from .stripe_checkout import (
+    StripeCheckoutAlreadyCompleted,
+    StripeCheckoutError,
+    create_trial_checkout_session,
+    ensure_pending_checkout_subscription,
+    resume_trial_checkout_session,
 )
 from .stripe_config import (
     STRIPE_CHECK_BETA_PLAN,
@@ -96,6 +108,7 @@ class PlanCatalogPolicyTests(SimpleTestCase):
         self.assertEqual(PUBLIC_PAID_PLAN_ORDERING, PUBLIC_PAID_PLAN_SLUGS)
         self.assertEqual(ClarivoPlan.MOTIONMATE_PLAN_SLUGS, PUBLIC_PAID_PLAN_SLUGS)
         self.assertEqual(DEFAULT_PUBLIC_PAID_PLAN_SLUG, "pro")
+        self.assertEqual(DEFAULT_PUBLIC_BILLING_INTERVAL, "monthly")
         self.assertEqual(STANDARD_TRIAL_DAYS, 14)
         self.assertEqual(PUBLIC_BILLING_INTERVALS, ("monthly", "yearly"))
         self.assertEqual(PUBLIC_PRICING_CURRENCIES, ("usd", "eur"))
@@ -116,6 +129,11 @@ class PlanCatalogPolicyTests(SimpleTestCase):
         self.assertIsNone(normalize_public_paid_plan_slug(BETA_PLAN_SLUG))
         self.assertIsNone(normalize_public_paid_plan_slug("enterprise"))
         self.assertIsNone(normalize_public_paid_plan_slug(None))
+        self.assertEqual(normalize_public_billing_interval(" YEARLY "), "yearly")
+        self.assertEqual(normalize_public_billing_interval("monthly"), "monthly")
+        self.assertIsNone(normalize_public_billing_interval("weekly"))
+        self.assertTrue(is_public_billing_interval("yearly"))
+        self.assertFalse(is_public_billing_interval("weekly"))
 
     def test_missing_or_invalid_submitted_slug_resolves_to_default_paid_plan(self):
         self.assertEqual(public_paid_plan_slug_or_default(None), DEFAULT_PUBLIC_PAID_PLAN_SLUG)
@@ -127,6 +145,11 @@ class PlanCatalogPolicyTests(SimpleTestCase):
             public_paid_plan_slug_or_default(BETA_PLAN_SLUG), DEFAULT_PUBLIC_PAID_PLAN_SLUG
         )
         self.assertEqual(public_paid_plan_slug_or_default("starter"), "starter")
+        self.assertEqual(public_billing_interval_or_default("yearly"), "yearly")
+        self.assertEqual(
+            public_billing_interval_or_default("weekly"),
+            DEFAULT_PUBLIC_BILLING_INTERVAL,
+        )
 
 
 class BusinessModelTests(TestCase):
@@ -356,9 +379,7 @@ class StripeConfigurationTests(SimpleTestCase):
         self.assertEqual(check_stripe_configuration(None), [])
 
         registered_stripe_errors = [
-            check
-            for check in run_checks()
-            if check.id.startswith("motionmate_stripe.")
+            check for check in run_checks() if check.id.startswith("motionmate_stripe.")
         ]
         self.assertEqual(registered_stripe_errors, [])
 
@@ -551,7 +572,9 @@ class StripeConfigurationTests(SimpleTestCase):
             }
         )
 
-        with override_settings(**self._valid_stripe_settings(STRIPE_PRICE_ID_MAP=invalid_price_map)):
+        with override_settings(
+            **self._valid_stripe_settings(STRIPE_PRICE_ID_MAP=invalid_price_map)
+        ):
             error_ids = {error.id for error in check_stripe_configuration(None)}
 
         self.assertTrue(
@@ -589,7 +612,7 @@ class StripeConfigurationTests(SimpleTestCase):
         finally:
             stripe_config.stripe.api_key = original_api_key
 
-    def test_no_stripe_checkout_webhook_or_customer_portal_routes_exist_yet(self):
+    def test_checkout_routes_exist_without_webhook_or_customer_portal_routes(self):
         def flatten_url_patterns(patterns):
             for pattern in patterns:
                 if isinstance(pattern, URLPattern):
@@ -602,15 +625,434 @@ class StripeConfigurationTests(SimpleTestCase):
             for pattern in flatten_url_patterns(get_resolver().url_patterns)
         )
 
+        self.assertIn("billing/checkout/success/", route_text)
+        self.assertIn("billing/checkout/cancelled/", route_text)
+        self.assertIn("billing/checkout/resume/", route_text)
+
         for forbidden_term in (
-            "stripe",
-            "checkout",
             "webhook",
             "customer_portal",
             "customer-portal",
         ):
             with self.subTest(forbidden_term=forbidden_term):
                 self.assertNotIn(forbidden_term, route_text)
+
+
+class StripeCheckoutServiceTests(TestCase):
+    @staticmethod
+    def _price_map() -> dict[tuple[str, str, str], str]:
+        return {
+            (plan_slug, interval, currency): f"price_{plan_slug}_{interval}_{currency}"
+            for plan_slug in PUBLIC_PAID_PLAN_SLUGS
+            for interval in PUBLIC_BILLING_INTERVALS
+            for currency in PUBLIC_PRICING_CURRENCIES
+        }
+
+    def _valid_stripe_settings(self, **overrides):
+        settings_overrides = {
+            "STRIPE_ENABLED": True,
+            "STRIPE_PUBLISHABLE_KEY": "pk_test_motionmate",
+            "STRIPE_SECRET_KEY": "sk_test_motionmate",
+            "STRIPE_WEBHOOK_SECRET": "whsec_motionmate",
+            "STRIPE_PRICE_ID_MAP": self._price_map(),
+        }
+        settings_overrides.update(overrides)
+        return settings_overrides
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.user = TaskIOUser.objects.create_user(
+            email="checkout-owner@example.com",
+            password="StrongPass123!",
+        )
+        self.business = Business.objects.create(
+            name="Checkout Workspace",
+            slug="checkout-workspace",
+            country="Netherlands",
+        )
+        BusinessUser.objects.create(
+            user=self.user,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+
+    def _request(self):
+        return self.factory.post(
+            reverse("billing_checkout_resume"),
+            secure=True,
+            HTTP_HOST="localhost",
+        )
+
+    def _stripe_client(
+        self,
+        *,
+        create_session: dict | None = None,
+        retrieve_session: dict | None = None,
+    ):
+        session_api = SimpleNamespace(
+            create=mock.Mock(return_value=create_session or self._session_payload()),
+            retrieve=mock.Mock(return_value=retrieve_session or self._session_payload()),
+            expire=mock.Mock(),
+        )
+        return SimpleNamespace(checkout=SimpleNamespace(Session=session_api)), session_api
+
+    def _session_payload(
+        self,
+        *,
+        session_id: str = "cs_test_checkout",
+        status: str = "open",
+        url: str = "https://checkout.stripe.test/session",
+        expires_at=None,
+        metadata: dict[str, str] | None = None,
+    ) -> dict:
+        if expires_at is None:
+            expires_at = int((timezone.now() + timedelta(hours=1)).timestamp())
+        return {
+            "id": session_id,
+            "status": status,
+            "url": url,
+            "expires_at": expires_at,
+            "client_reference_id": "",
+            "metadata": metadata or {},
+        }
+
+    def _pending_subscription(
+        self,
+        *,
+        billing_interval: str = "yearly",
+        billing_currency: str = "eur",
+    ) -> BusinessSubscription:
+        return BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.PENDING_CHECKOUT,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=billing_interval,
+            billing_currency=billing_currency,
+        )
+
+    def _metadata(self, subscription: BusinessSubscription) -> dict[str, str]:
+        return {
+            "motionmate_business_id": str(subscription.business_id),
+            "motionmate_subscription_id": str(subscription.pk),
+            "motionmate_user_id": str(self.user.pk),
+            "plan_slug": subscription.plan.slug,
+            "billing_interval": subscription.billing_interval,
+            "billing_currency": subscription.billing_currency,
+        }
+
+    @override_settings(STRIPE_ENABLED=False)
+    def test_pending_subscription_requires_stripe_enabled(self):
+        with self.assertRaisesMessage(
+            StripeConfigurationError,
+            "Stripe subscription billing is disabled.",
+        ):
+            ensure_pending_checkout_subscription(
+                business=self.business,
+                plan=self.plan,
+                billing_interval="monthly",
+                currency="eur",
+            )
+
+    def test_create_checkout_session_payload_records_session_without_granting_access(self):
+        expires_at = int((timezone.now() + timedelta(hours=1)).timestamp())
+        create_session = self._session_payload(
+            session_id="cs_test_created",
+            url="https://checkout.stripe.test/created",
+            expires_at=expires_at,
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            subscription = ensure_pending_checkout_subscription(
+                business=self.business,
+                plan=self.plan,
+                billing_interval="yearly",
+                currency="eur",
+            )
+            stripe_client, session_api = self._stripe_client(create_session=create_session)
+            with mock.patch.object(
+                stripe_checkout,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                checkout_url = create_trial_checkout_session(
+                    request=self._request(),
+                    subscription=subscription,
+                    user=self.user,
+                )
+
+        subscription.refresh_from_db()
+        create_kwargs = session_api.create.call_args.kwargs
+        metadata = create_kwargs["metadata"]
+
+        self.assertEqual(checkout_url, "https://checkout.stripe.test/created")
+        self.assertEqual(create_kwargs["mode"], "subscription")
+        self.assertEqual(
+            create_kwargs["line_items"],
+            [{"price": "price_pro_yearly_eur", "quantity": 1}],
+        )
+        self.assertEqual(create_kwargs["subscription_data"]["trial_period_days"], 14)
+        self.assertEqual(create_kwargs["subscription_data"]["metadata"], metadata)
+        self.assertEqual(create_kwargs["payment_method_collection"], "always")
+        self.assertEqual(create_kwargs["payment_method_types"], ["card"])
+        self.assertEqual(create_kwargs["customer_email"], self.user.email)
+        self.assertIn("{CHECKOUT_SESSION_ID}", create_kwargs["success_url"])
+        self.assertIn("/billing/checkout/success/", create_kwargs["success_url"])
+        self.assertTrue(create_kwargs["cancel_url"].endswith("/billing/checkout/cancelled/"))
+        self.assertEqual(metadata["motionmate_business_id"], str(self.business.pk))
+        self.assertEqual(metadata["motionmate_subscription_id"], str(subscription.pk))
+        self.assertEqual(metadata["motionmate_user_id"], str(self.user.pk))
+        self.assertEqual(metadata["plan_slug"], "pro")
+        self.assertEqual(metadata["billing_interval"], "yearly")
+        self.assertEqual(metadata["billing_currency"], "eur")
+        self.assertEqual(
+            create_kwargs["client_reference_id"],
+            f"business:{self.business.pk}:subscription:{subscription.pk}",
+        )
+        self.assertTrue(create_kwargs["idempotency_key"].startswith("motionmate-checkout-"))
+        self.assertEqual(subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertFalse(subscription.has_access)
+        self.assertFalse(subscription.can_use_module("invoicing"))
+        self.assertEqual(subscription.provider_price_id, "price_pro_yearly_eur")
+        self.assertEqual(subscription.provider_checkout_session_id, "cs_test_created")
+        self.assertIsNotNone(subscription.checkout_session_expires_at)
+        self.assertIsNone(subscription.trial_start)
+        self.assertIsNone(subscription.trial_end)
+
+    def test_resume_reuses_existing_open_session_for_same_subscription(self):
+        with override_settings(**self._valid_stripe_settings()):
+            subscription = self._pending_subscription()
+            subscription.provider_checkout_session_id = "cs_test_existing"
+            subscription.provider_price_id = "price_pro_yearly_eur"
+            subscription.save(
+                update_fields=[
+                    "provider_checkout_session_id",
+                    "provider_price_id",
+                    "updated_at",
+                ]
+            )
+            retrieve_session = self._session_payload(
+                session_id="cs_test_existing",
+                status="open",
+                url="https://checkout.stripe.test/existing",
+                metadata=self._metadata(subscription),
+            )
+            retrieve_session["client_reference_id"] = (
+                f"business:{self.business.pk}:subscription:{subscription.pk}"
+            )
+            stripe_client, session_api = self._stripe_client(retrieve_session=retrieve_session)
+
+            with mock.patch.object(
+                stripe_checkout,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                checkout_url = resume_trial_checkout_session(
+                    request=self._request(),
+                    subscription=subscription,
+                    user=self.user,
+                )
+
+        self.assertEqual(checkout_url, "https://checkout.stripe.test/existing")
+        session_api.retrieve.assert_called_once_with("cs_test_existing")
+        session_api.create.assert_not_called()
+        session_api.expire.assert_not_called()
+
+    def test_resume_replaces_expired_session_and_keeps_subscription_pending(self):
+        with override_settings(**self._valid_stripe_settings()):
+            subscription = self._pending_subscription()
+            subscription.provider_checkout_session_id = "cs_test_expired"
+            subscription.provider_price_id = "price_pro_yearly_eur"
+            subscription.save(
+                update_fields=[
+                    "provider_checkout_session_id",
+                    "provider_price_id",
+                    "updated_at",
+                ]
+            )
+            retrieve_session = self._session_payload(
+                session_id="cs_test_expired",
+                status="expired",
+                metadata=self._metadata(subscription),
+            )
+            create_session = self._session_payload(
+                session_id="cs_test_replacement",
+                status="open",
+                url="https://checkout.stripe.test/replacement",
+            )
+            stripe_client, session_api = self._stripe_client(
+                retrieve_session=retrieve_session,
+                create_session=create_session,
+            )
+
+            with mock.patch.object(
+                stripe_checkout,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                checkout_url = resume_trial_checkout_session(
+                    request=self._request(),
+                    subscription=subscription,
+                    user=self.user,
+                )
+
+        subscription.refresh_from_db()
+        self.assertEqual(checkout_url, "https://checkout.stripe.test/replacement")
+        session_api.retrieve.assert_called_once_with("cs_test_expired")
+        session_api.create.assert_called_once()
+        self.assertEqual(subscription.provider_checkout_session_id, "cs_test_replacement")
+        self.assertEqual(subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertFalse(subscription.has_access)
+
+    def test_resume_completed_session_waits_for_webhook_confirmation(self):
+        with override_settings(**self._valid_stripe_settings()):
+            subscription = self._pending_subscription()
+            subscription.provider_checkout_session_id = "cs_test_complete"
+            subscription.save(update_fields=["provider_checkout_session_id", "updated_at"])
+            retrieve_session = self._session_payload(
+                session_id="cs_test_complete",
+                status="complete",
+                metadata=self._metadata(subscription),
+            )
+            stripe_client, _session_api = self._stripe_client(retrieve_session=retrieve_session)
+
+            with mock.patch.object(
+                stripe_checkout,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                with self.assertRaises(StripeCheckoutAlreadyCompleted):
+                    resume_trial_checkout_session(
+                        request=self._request(),
+                        subscription=subscription,
+                        user=self.user,
+                    )
+
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertIsNone(subscription.trial_start)
+
+    def test_resume_rejects_session_metadata_for_another_workspace(self):
+        with override_settings(**self._valid_stripe_settings()):
+            subscription = self._pending_subscription()
+            subscription.provider_checkout_session_id = "cs_test_other"
+            subscription.save(update_fields=["provider_checkout_session_id", "updated_at"])
+            retrieve_session = self._session_payload(
+                session_id="cs_test_other",
+                status="open",
+                metadata={
+                    **self._metadata(subscription),
+                    "motionmate_business_id": "999999",
+                },
+            )
+            stripe_client, session_api = self._stripe_client(retrieve_session=retrieve_session)
+
+            with mock.patch.object(
+                stripe_checkout,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                with self.assertRaisesMessage(
+                    StripeCheckoutError,
+                    "Stored Checkout Session does not match this workspace.",
+                ):
+                    resume_trial_checkout_session(
+                        request=self._request(),
+                        subscription=subscription,
+                        user=self.user,
+                    )
+
+        session_api.create.assert_not_called()
+
+
+class CheckoutReturnViewTests(TestCase):
+    def setUp(self):
+        self.owner = TaskIOUser.objects.create_user(
+            email="checkout-view-owner@example.com",
+            password="StrongPass123!",
+        )
+        self.business = Business.objects.create(
+            name="Checkout View Workspace",
+            slug="checkout-view-workspace",
+        )
+        BusinessUser.objects.create(
+            user=self.owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+        self.subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.PENDING_CHECKOUT,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_checkout_session_id="cs_test_pending",
+        )
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.pk
+        session.save()
+
+    def test_success_page_does_not_activate_pending_subscription(self):
+        response = self.client.get(
+            f"{reverse('billing_checkout_success')}?session_id=cs_test_pending",
+        )
+
+        self.subscription.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Your payment method was received.")
+        self.assertContains(response, "Your 14-day trial will become available")
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertFalse(self.subscription.has_access)
+        self.assertIsNone(self.subscription.trial_start)
+
+    def test_cancelled_page_keeps_pending_subscription_and_allows_resume(self):
+        response = self.client.get(reverse("billing_checkout_cancelled"))
+
+        self.subscription.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No payment was taken.")
+        self.assertContains(response, "without creating another business")
+        self.assertContains(response, reverse("billing_checkout_resume"))
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertFalse(self.subscription.has_access)
+
+    def test_resume_requires_post_and_redirects_to_checkout_url(self):
+        get_response = self.client.get(reverse("billing_checkout_resume"))
+
+        self.assertEqual(get_response.status_code, 405)
+
+        with mock.patch(
+            "apps.businesses.views.resume_trial_checkout_session",
+            return_value="https://checkout.stripe.test/resume",
+        ) as resume_checkout:
+            post_response = self.client.post(reverse("billing_checkout_resume"))
+
+        self.assertEqual(post_response.status_code, 302)
+        self.assertEqual(post_response.url, "https://checkout.stripe.test/resume")
+        resume_checkout.assert_called_once()
+
+    def test_completed_resume_redirects_to_confirmation_without_activating(self):
+        with mock.patch(
+            "apps.businesses.views.resume_trial_checkout_session",
+            side_effect=StripeCheckoutAlreadyCompleted,
+        ):
+            response = self.client.post(reverse("billing_checkout_resume"))
+
+        self.subscription.refresh_from_db()
+        self.assertRedirects(response, reverse("billing_checkout_success"))
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertFalse(self.subscription.has_access)
+
+    def test_pending_owner_dashboard_redirects_to_checkout_setup(self):
+        response = self.client.get(reverse("agent_dashboard"), follow=True)
+
+        self.assertRedirects(response, reverse("billing_checkout_cancelled"))
+        self.assertContains(response, "Finish secure payment setup")
+        self.assertContains(response, "Payment setup paused")
 
 
 class BusinessUserModelTests(TestCase):
@@ -738,9 +1180,7 @@ class OnboardingStatusHelperTests(TestCase):
         self.assertEqual(status["progress_count"], 0)
         self.assertEqual(status["total_task_count"], 9)
         self.assertEqual(status["percent_complete"], 0)
-        self.assertTrue(
-            all(len(journey["tasks"]) == 3 for journey in status["available_journeys"])
-        )
+        self.assertTrue(all(len(journey["tasks"]) == 3 for journey in status["available_journeys"]))
         self.assertTrue(all(not task["completed"] for task in tasks.values()))
 
     def test_task_metadata_includes_spotlight_target_selectors(self):
@@ -968,7 +1408,9 @@ class OnboardingStatusHelperTests(TestCase):
         invoice_task = tasks["create_first_invoice"]
 
         self.assertTrue(invoice_task["has_missing_prerequisites"])
-        self.assertEqual(invoice_task["prerequisite_message"], "Invoices work best after you add a client.")
+        self.assertEqual(
+            invoice_task["prerequisite_message"], "Invoices work best after you add a client."
+        )
         self.assertEqual(invoice_task["recommended_previous_task_key"], "add_first_client")
         self.assertEqual(invoice_task["effective_cta_label"], "Add Client")
         self.assertEqual(invoice_task["effective_cta_url"], reverse("staff_client_create"))
@@ -1144,6 +1586,22 @@ class SubscriptionAccessTests(TestCase):
             status=BusinessSubscription.Status.CANCELLED,
         )
 
+        self.assertFalse(self.business.has_active_subscription)
+        self.assertFalse(business_has_active_subscription(self.business))
+        self.assertFalse(can_use_module(self.business, "invoicing"))
+
+    def test_pending_checkout_subscription_has_no_workspace_or_module_access(self):
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.PENDING_CHECKOUT,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+        )
+
+        self.assertTrue(subscription.is_pending_checkout)
+        self.assertFalse(subscription.has_access)
         self.assertFalse(self.business.has_active_subscription)
         self.assertFalse(business_has_active_subscription(self.business))
         self.assertFalse(can_use_module(self.business, "invoicing"))
@@ -2659,9 +3117,9 @@ class BusinessInvitationViewTests(TestCase):
         starter_response = self.client.get(reverse("business_team_members"))
         starter_roles = {
             role_value
-            for role_value, _role_label in starter_response.context[
-                "invite_form"
-            ].fields["role"].choices
+            for role_value, _role_label in starter_response.context["invite_form"]
+            .fields["role"]
+            .choices
         }
 
         self.assertIn(BusinessUser.Role.OWNER, starter_roles)
@@ -2676,9 +3134,9 @@ class BusinessInvitationViewTests(TestCase):
         business_response = self.client.get(reverse("business_team_members"))
         business_roles = {
             role_value
-            for role_value, _role_label in business_response.context[
-                "invite_form"
-            ].fields["role"].choices
+            for role_value, _role_label in business_response.context["invite_form"]
+            .fields["role"]
+            .choices
         }
 
         self.assertIn(BusinessUser.Role.ACCOUNTANT, business_roles)

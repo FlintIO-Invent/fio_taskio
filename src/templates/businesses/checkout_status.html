@@ -1,0 +1,63 @@
+{% extends 'inheritance/authentication_parent.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container">
+  <div class="row flex-center min-vh-100 py-5">
+    <div class="col-sm-11 col-md-8 col-lg-6 col-xl-5">
+      <a class="d-flex flex-center text-decoration-none mb-4" href="{% url 'home' %}">
+        {% include "includes/motionmate_logo.html" %}
+      </a>
+
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4 p-sm-5">
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags|default:'info' }}" role="alert">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+
+          {% if status_kind == "success" %}
+            <div class="text-center mb-4">
+              <span class="avatar avatar-xl bg-success-subtle rounded-circle mb-3">
+                <span class="fas fa-check text-success fs-6"></span>
+              </span>
+              <h3 class="text-body-highlight mb-2">Payment method received</h3>
+              <p class="text-body-secondary mb-0">Your payment method was received. Motionmate is confirming your subscription. Your 14-day trial will become available once confirmation is complete.</p>
+            </div>
+          {% else %}
+            <div class="text-center mb-4">
+              <span class="avatar avatar-xl bg-warning-subtle rounded-circle mb-3">
+                <span class="fas fa-credit-card text-warning fs-6"></span>
+              </span>
+              <h3 class="text-body-highlight mb-2">Payment setup paused</h3>
+              <p class="text-body-secondary mb-0">No payment was taken. Your account and workspace were saved, and you can resume payment setup for this workspace without creating another business.</p>
+            </div>
+          {% endif %}
+
+          {% if subscription %}
+            <div class="border rounded-3 p-3 bg-body-tertiary mb-4">
+              <p class="text-body-tertiary fs-9 mb-1">Workspace</p>
+              <h4 class="fs-7 mb-1">{{ business.name }}</h4>
+              <p class="text-body-secondary mb-0">{{ subscription.plan.name }}{% if subscription.billing_interval %} · {{ subscription.get_billing_interval_display }}{% endif %}{% if subscription.billing_currency %} · {{ subscription.billing_currency|upper }}{% endif %}</p>
+            </div>
+          {% endif %}
+
+          {% if can_resume_checkout %}
+            <form method="POST" action="{% url 'billing_checkout_resume' %}">
+              {% csrf_token %}
+              <button class="btn btn-primary w-100" type="submit">Resume payment setup</button>
+            </form>
+          {% endif %}
+
+          <div class="text-center mt-4">
+            <a class="text-body-tertiary" href="{% url 'logout' %}">Sign out</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

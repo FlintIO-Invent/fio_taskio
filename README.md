@@ -17,13 +17,14 @@ The internal Django package name remains `taskio` for now. That is expected.
 - Public request forms at `/crm/public_request/<business_slug>/`
 - Workspace subscription and plan enforcement
 - Stripe SDK dependency and local subscription configuration checks
+- Stripe-hosted Checkout setup for paid-plan signup when enabled
 
 ## Out of scope for this release
 
 - Appointments
 - Public booking
 - Memberships
-- Stripe Checkout, payment collection, customer portal, and webhooks
+- Customer portal, webhook-driven subscription activation, and in-app plan-change checkout
 - Major new product features
 
 Appointment release-candidate staging QA is tracked separately in [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md) and must pass before appointments move into private-tester scope.
@@ -185,7 +186,7 @@ Production notes:
 - When `DEBUG=False`, secure cookie and HTTPS settings default to safe private-testing behavior unless explicitly overridden.
 - WhiteNoise serves collected static files in production.
 - The literal placeholder `replace-with-real-secret` is only a documentation example and will still trigger `security.W009`. Use a long random secret for real deploy checks.
-- Stripe subscription configuration is documented in [docs/STRIPE_SUBSCRIPTION_CONFIG.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/STRIPE_SUBSCRIPTION_CONFIG.md). `STRIPE_ENABLED=false` keeps the SDK and checks dormant for normal local work.
+- Stripe subscription configuration is documented in [docs/STRIPE_SUBSCRIPTION_CONFIG.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/STRIPE_SUBSCRIPTION_CONFIG.md). `STRIPE_ENABLED=false` keeps Checkout dormant and preserves the local pilot trial flow for normal local work.
 
 ## Email Configuration
 

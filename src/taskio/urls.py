@@ -20,6 +20,11 @@ from django.urls import include, path
 from django.views.generic import RedirectView
 
 from apps.businesses.models import ClarivoPlan
+from apps.businesses.views import (
+    billing_checkout_cancelled,
+    billing_checkout_resume,
+    billing_checkout_success,
+)
 from apps.crm.views import public_booking, public_booking_thank_you
 
 
@@ -35,6 +40,7 @@ def landing(request):
 
 def site_preview(request):
     return render(request, "public_site/home.html", motionmate_pricing_context())
+
 
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="home", permanent=False)),
@@ -83,6 +89,13 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("home/", landing, name="home"),
     path("site-preview/", site_preview, name="site_preview"),
+    path("billing/checkout/success/", billing_checkout_success, name="billing_checkout_success"),
+    path(
+        "billing/checkout/cancelled/",
+        billing_checkout_cancelled,
+        name="billing_checkout_cancelled",
+    ),
+    path("billing/checkout/resume/", billing_checkout_resume, name="billing_checkout_resume"),
     path("book/<slug:business_slug>/", public_booking, name="public_booking"),
     path(
         "book/<slug:business_slug>/thanks/",
@@ -90,7 +103,7 @@ urlpatterns = [
         name="public_booking_thank_you",
     ),
     path("businesses/", include("apps.businesses.urls")),
-    path("crm/", include("apps.crm.urls")),         
+    path("crm/", include("apps.crm.urls")),
     path("appointments/", include("apps.appointments.urls")),
     path("accounts/", include("apps.accounts.urls")),
     path("billings/", include("apps.billings.urls")),

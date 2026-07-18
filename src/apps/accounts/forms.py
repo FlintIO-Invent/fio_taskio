@@ -18,13 +18,17 @@ from apps.businesses.models import (
     ClarivoPlan,
 )
 from apps.businesses.plan_catalog import (
+    DEFAULT_PUBLIC_BILLING_INTERVAL,
     DEFAULT_PUBLIC_PAID_PLAN_SLUG,
+    PUBLIC_BILLING_INTERVAL_LABELS,
     PUBLIC_PAID_PLAN_SLUG_SET,
     PUBLIC_PAID_PLAN_SLUGS,
     STANDARD_TRIAL_DAYS,
     is_public_paid_plan_slug,
     normalize_plan_slug,
+    normalize_public_billing_interval,
     normalize_public_paid_plan_slug,
+    public_billing_interval_or_default,
 )
 from apps.businesses.utils import create_default_trial_subscription, generate_business_slug
 
@@ -192,6 +196,16 @@ class BusinessRegistrationForm(forms.Form):
         help_text=f"Your workspace starts with the standard {STANDARD_TRIAL_DAYS}-day trial. You can change plans after signup.",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+    billing_interval = forms.ChoiceField(
+        label="Billing interval",
+        choices=[
+            (interval, interval_label.title())
+            for interval, interval_label in PUBLIC_BILLING_INTERVAL_LABELS.items()
+        ],
+        required=False,
+        initial=DEFAULT_PUBLIC_BILLING_INTERVAL,
+        widget=forms.HiddenInput(),
+    )
     password1 = forms.CharField(
         label="Password",
         strip=False,
@@ -212,6 +226,7 @@ class BusinessRegistrationForm(forms.Form):
         self,
         *args,
         selected_plan_slug: str | None = None,
+        selected_billing_interval: str | None = None,
         beta_eligible: bool = False,
         **kwargs,
     ):
@@ -226,9 +241,25 @@ class BusinessRegistrationForm(forms.Form):
             submitted_plan_slug,
             beta_eligible=beta_eligible,
         )
+        submitted_billing_interval = (
+            self.data.get(self.add_prefix("billing_interval"))
+            if self.is_bound
+            else selected_billing_interval
+        )
+        self.selected_billing_interval_for_display = public_billing_interval_or_default(
+            submitted_billing_interval,
+        )
+        self.selected_pricing_region_for_display = self._pricing_region_for_country(
+            self.data.get(self.add_prefix("country")) if self.is_bound else None,
+        )
+        self.selected_billing_currency_for_display = self._billing_currency_for_plan(
+            self.selected_plan_for_display,
+            region=self.selected_pricing_region_for_display,
+        )
         self.fields["plan"].queryset = plans
         self.fields["plan"].label_from_instance = self._plan_label
         self.fields["plan"].initial = self.selected_plan_for_display
+        self.fields["billing_interval"].initial = self.selected_billing_interval_for_display
         if not beta_eligible:
             self.fields["plan"].widget = forms.HiddenInput()
 
@@ -313,6 +344,16 @@ class BusinessRegistrationForm(forms.Form):
 
         return plan
 
+    def clean_billing_interval(self) -> str:
+        if self.beta_eligible:
+            return ""
+
+        interval = self.cleaned_data.get("billing_interval") or DEFAULT_PUBLIC_BILLING_INTERVAL
+        normalized_interval = normalize_public_billing_interval(interval)
+        if normalized_interval is None:
+            raise ValidationError("Select monthly or yearly billing.")
+        return normalized_interval
+
     def clean(self):
         cleaned_data = super().clean()
         password1 = cleaned_data.get("password1")
@@ -333,10 +374,26 @@ class BusinessRegistrationForm(forms.Form):
             except ValidationError as exc:
                 self.add_error("password1", exc)
 
+        if not self.beta_eligible:
+            self.selected_billing_interval_for_display = (
+                cleaned_data.get("billing_interval") or DEFAULT_PUBLIC_BILLING_INTERVAL
+            )
+            self.selected_pricing_region_for_display = self._pricing_region_for_country(
+                cleaned_data.get("country"),
+            )
+            self.selected_billing_currency_for_display = self._billing_currency_for_plan(
+                cleaned_data.get("plan") or self.selected_plan_for_display,
+                region=self.selected_pricing_region_for_display,
+            )
+
         return cleaned_data
 
     @transaction.atomic
-    def save(self) -> tuple[TaskIOUser, Business, BusinessUser, BusinessSubscription | None]:
+    def save(
+        self,
+        *,
+        create_subscription: bool = True,
+    ) -> tuple[TaskIOUser, Business, BusinessUser, BusinessSubscription | None]:
         user = TaskIOUser.objects.create_user(
             email=self.cleaned_data["email"],
             first_name=self.cleaned_data["first_name"],
@@ -360,17 +417,19 @@ class BusinessRegistrationForm(forms.Form):
             role=BusinessUser.Role.OWNER,
         )
         selected_plan = self.cleaned_data.get("plan")
-        if selected_plan is not None and selected_plan.slug == BETA_PLAN_SLUG:
-            subscription = BusinessSubscription.objects.create(
-                business=business,
-                plan=selected_plan,
-                status=BusinessSubscription.Status.ACTIVE,
-            )
-        else:
-            subscription = create_default_trial_subscription(
-                business,
-                plan=selected_plan,
-            )
+        subscription = None
+        if create_subscription:
+            if selected_plan is not None and selected_plan.slug == BETA_PLAN_SLUG:
+                subscription = BusinessSubscription.objects.create(
+                    business=business,
+                    plan=selected_plan,
+                    status=BusinessSubscription.Status.ACTIVE,
+                )
+            else:
+                subscription = create_default_trial_subscription(
+                    business,
+                    plan=selected_plan,
+                )
 
         profile = SaaSUserProfile.get_or_create_for_user(user)
         profile.workspace_name = business.name
@@ -378,6 +437,23 @@ class BusinessRegistrationForm(forms.Form):
         profile.save(update_fields=["workspace_name", "billing_email", "updated_at"])
 
         return user, business, membership, subscription
+
+    @staticmethod
+    def _pricing_region_for_country(country: object | None) -> str:
+        pricing_business = Business(country=str(country or ""))
+        return ClarivoPlan.pricing_region_for_business(pricing_business)
+
+    @staticmethod
+    def _billing_currency_for_plan(
+        plan: ClarivoPlan | None,
+        *,
+        region: str,
+    ) -> str:
+        if plan is None:
+            return region
+
+        pricing_data = plan.get_pricing_data(region=region)
+        return str(pricing_data.get("currency", region)).strip().lower()
 
 
 class BusinessLoginForm(forms.Form):

@@ -26,7 +26,13 @@ from apps.businesses.localization import (
     parse_localized_decimal,
     uses_sint_maarten_districts,
 )
-from apps.businesses.models import Business, BusinessBookingSettings, WeeklyAvailability
+from apps.businesses.models import (
+    Business,
+    BusinessBookingSettings,
+    BusinessSubscription,
+    BusinessUser,
+    WeeklyAvailability,
+)
 from apps.businesses.onboarding import (
     add_skipped_onboarding_step,
     get_onboarding_status,
@@ -48,6 +54,7 @@ from apps.businesses.utils import (
     can_use_module,
     get_business_limit_reached_message,
     get_business_module_unavailable_message,
+    get_business_subscription,
     get_current_business,
     get_current_business_membership,
     get_public_booking_share_context,
@@ -786,6 +793,19 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     """Render the agent dashboard."""
     current_business = request.current_business
     current_membership = get_current_business_membership(request)
+    subscription = get_business_subscription(current_business)
+    if (
+        subscription is not None
+        and subscription.status == BusinessSubscription.Status.PENDING_CHECKOUT
+        and current_membership is not None
+        and current_membership.role == BusinessUser.Role.OWNER
+    ):
+        messages.info(
+            request,
+            "Finish secure payment setup before opening the workspace dashboard.",
+        )
+        return redirect("billing_checkout_cancelled")
+
     onboarding_status = get_onboarding_status(user=request.user, business=current_business)
 
     if request.method == "POST":
@@ -1505,7 +1525,9 @@ def staff_client_archive(request: HttpRequest, client_id: int) -> HttpResponse:
     if client.client_status == Client.ClientStatus.ACTIVE:
         client.client_status = Client.ClientStatus.INACTIVE
     client.save(update_fields=["is_active", "client_status", "updated_at"])
-    messages.success(request, f"{client} was archived. Existing invoices and appointments were kept.")
+    messages.success(
+        request, f"{client} was archived. Existing invoices and appointments were kept."
+    )
     return redirect("staff_client_list")
 
 

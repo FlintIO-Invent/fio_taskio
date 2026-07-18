@@ -29,7 +29,13 @@ from apps.businesses.models import (
     BusinessUser,
     ClarivoPlan,
 )
-from apps.businesses.plan_catalog import PUBLIC_PAID_PLAN_SLUGS, STANDARD_TRIAL_DAYS
+from apps.businesses.plan_catalog import (
+    PUBLIC_BILLING_INTERVALS,
+    PUBLIC_PAID_PLAN_SLUGS,
+    PUBLIC_PRICING_CURRENCIES,
+    STANDARD_TRIAL_DAYS,
+)
+from apps.businesses.stripe_checkout import StripeCheckoutError
 from apps.businesses.utils import (
     CURRENT_BUSINESS_SESSION_KEY,
     MULTI_WORKSPACE_EMAIL_MESSAGE,
@@ -105,12 +111,39 @@ class CustomerRegistrationViewTests(TestCase):
 class BusinessRegistrationViewTests(TestCase):
     BETA_TOKEN = "shared-beta-token-for-tests-1234567890"
 
+    @staticmethod
+    def _price_map(
+        *,
+        missing: set[tuple[str, str, str]] | None = None,
+    ) -> dict[tuple[str, str, str], str]:
+        missing = missing or set()
+        return {
+            (plan_slug, interval, currency): f"price_{plan_slug}_{interval}_{currency}"
+            for plan_slug in PUBLIC_PAID_PLAN_SLUGS
+            for interval in PUBLIC_BILLING_INTERVALS
+            for currency in PUBLIC_PRICING_CURRENCIES
+            if (plan_slug, interval, currency) not in missing
+        }
+
+    def _valid_stripe_settings(self, **overrides):
+        settings_overrides = {
+            "STRIPE_ENABLED": True,
+            "STRIPE_PUBLISHABLE_KEY": "pk_test_motionmate",
+            "STRIPE_SECRET_KEY": "sk_test_motionmate",
+            "STRIPE_WEBHOOK_SECRET": "whsec_motionmate",
+            "STRIPE_PRICE_ID_MAP": self._price_map(),
+        }
+        settings_overrides.update(overrides)
+        return settings_overrides
+
     def _registration_payload(
         self,
         *,
         email: str = "owner@example.com",
         business_name: str = "Acme Freight",
         plan: ClarivoPlan | None = None,
+        billing_interval: str | None = None,
+        country: str = "Sint Maarten",
     ) -> dict[str, str | int]:
         payload: dict[str, str | int] = {
             "first_name": "Jane",
@@ -118,12 +151,14 @@ class BusinessRegistrationViewTests(TestCase):
             "email": email,
             "business_name": business_name,
             "business_email": f"hello+{business_name.lower().replace(' ', '-')}@motionmate.test",
-            "country": "Sint Maarten",
+            "country": country,
             "password1": "StrongPass123!",
             "password2": "StrongPass123!",
         }
         if plan is not None:
             payload["plan"] = plan.slug
+        if billing_interval is not None:
+            payload["billing_interval"] = billing_interval
         return payload
 
     def _beta_url(self, token: str | None = None) -> str:
@@ -155,10 +190,13 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(response.context["selected_plan"], pro_plan)
         self.assertContains(response, "Selected plan")
         self.assertContains(response, "Pro")
-        self.assertContains(response, "$79 / month")
-        self.assertContains(response, f"Your {STANDARD_TRIAL_DAYS}-day Pro trial starts")
-        self.assertContains(response, "You will not be charged during this current setup.")
+        self.assertContains(response, "$79 / month after trial")
+        self.assertContains(response, f"Your {STANDARD_TRIAL_DAYS}-day free trial")
+        self.assertContains(response, "A payment method is required")
+        self.assertContains(response, "there is no charge today")
+        self.assertContains(response, "renews automatically at $79 per month unless cancelled")
         self.assertContains(response, f'name="plan" value="{pro_plan.slug}"')
+        self.assertContains(response, 'name="billing_interval" value="monthly"')
 
     def test_get_selects_requested_trial_plan_from_pricing_link(self):
         for slug in PUBLIC_PAID_PLAN_SLUGS:
@@ -169,15 +207,36 @@ class BusinessRegistrationViewTests(TestCase):
                 response = self.client.get(f"{reverse('register_business')}?plan={slug}")
 
                 self.assertEqual(response.context["form"]["plan"].value(), plan.slug)
+                self.assertEqual(
+                    response.context["selected_billing_interval"],
+                    "monthly",
+                )
                 self.assertEqual(response.context["selected_plan"], plan)
                 self.assertContains(response, "Selected plan")
                 self.assertContains(response, plan.name)
-                self.assertContains(response, f"{display_price} / month")
+                self.assertContains(response, f"{display_price} / month after trial")
                 self.assertContains(
                     response,
-                    f"Your {STANDARD_TRIAL_DAYS}-day {plan.name} trial starts after registration.",
+                    f"Your {STANDARD_TRIAL_DAYS}-day free trial starts with {plan.name} on monthly billing.",
                 )
                 self.assertContains(response, f'name="plan" value="{plan.slug}"')
+                self.assertContains(response, 'name="billing_interval" value="monthly"')
+
+    def test_get_selects_requested_yearly_interval_from_pricing_link(self):
+        business_plan = ClarivoPlan.objects.get(slug="business")
+        display_price = business_plan.get_display_pricing()["yearly_display"]
+
+        response = self.client.get(
+            f"{reverse('register_business')}?plan=business&interval=yearly",
+        )
+
+        self.assertEqual(response.context["form"]["plan"].value(), business_plan.slug)
+        self.assertEqual(response.context["selected_plan"], business_plan)
+        self.assertEqual(response.context["selected_billing_interval"], "yearly")
+        self.assertContains(response, f"{display_price} / year after trial")
+        self.assertContains(response, "on yearly billing")
+        self.assertContains(response, f'name="plan" value="{business_plan.slug}"')
+        self.assertContains(response, 'name="billing_interval" value="yearly"')
 
     def test_get_ignores_unknown_trial_plan_and_defaults_to_pro(self):
         pro_plan = ClarivoPlan.objects.get(slug="pro")
@@ -379,6 +438,35 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertIsNone(subscription.trial_end)
 
     @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_beta_registration_does_not_start_checkout_when_stripe_enabled(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch("apps.accounts.views.create_trial_checkout_session") as create_checkout:
+                response = self.client.post(
+                    self._beta_url(),
+                    self._registration_payload(
+                        email="stripe-beta-owner@example.com",
+                        business_name="Stripe Beta Workspace",
+                        plan=beta_plan,
+                        billing_interval="yearly",
+                    ),
+                    follow=True,
+                )
+
+        business = Business.objects.get(name="Stripe Beta Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        create_checkout.assert_not_called()
+        self.assertEqual(subscription.plan.slug, BETA_PLAN_SLUG)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertEqual(subscription.payment_provider, "")
+        self.assertEqual(subscription.billing_interval, "")
+        self.assertEqual(subscription.provider_checkout_session_id, "")
+        self.assertTrue(subscription.has_access)
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
     def test_same_beta_link_can_register_more_than_one_business(self):
         beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
 
@@ -524,6 +612,26 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertFalse(get_user_model().objects.filter(email="unknown-plan@example.com").exists())
         self.assertFalse(Business.objects.filter(name="Unknown Plan Workspace").exists())
 
+    def test_public_registration_rejects_unknown_submitted_billing_interval(self):
+        pro_plan = ClarivoPlan.objects.get(slug="pro")
+
+        response = self.client.post(
+            reverse("register_business"),
+            self._registration_payload(
+                email="unknown-interval@example.com",
+                business_name="Unknown Interval Workspace",
+                plan=pro_plan,
+                billing_interval="weekly",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertFalse(
+            get_user_model().objects.filter(email="unknown-interval@example.com").exists()
+        )
+        self.assertFalse(Business.objects.filter(name="Unknown Interval Workspace").exists())
+
     def test_public_registration_rejects_inactive_submitted_plan_slug(self):
         ClarivoPlan.objects.filter(slug="starter").update(is_active=False)
 
@@ -666,12 +774,170 @@ class BusinessRegistrationViewTests(TestCase):
             timedelta(days=STANDARD_TRIAL_DAYS),
         )
 
+    @override_settings(STRIPE_ENABLED=False)
+    def test_stripe_disabled_registration_does_not_call_checkout_service(self):
+        starter_plan = ClarivoPlan.objects.get(slug="starter")
+
+        with mock.patch("apps.accounts.views.create_trial_checkout_session") as create_checkout:
+            response = self.client.post(
+                reverse("register_business"),
+                self._registration_payload(
+                    email="disabled-checkout@example.com",
+                    business_name="Disabled Checkout Workspace",
+                    plan=starter_plan,
+                    billing_interval="yearly",
+                ),
+                follow=True,
+            )
+
+        business = Business.objects.get(name="Disabled Checkout Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        create_checkout.assert_not_called()
+        self.assertEqual(subscription.plan, starter_plan)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(subscription.payment_provider, "")
+        self.assertEqual(subscription.billing_interval, "")
+        self.assertEqual(subscription.billing_currency, "")
+        self.assertContains(response, f"{STANDARD_TRIAL_DAYS}-day trial")
+
+    def test_stripe_enabled_registration_creates_pending_subscription_and_redirects_to_checkout(
+        self,
+    ):
+        starter_plan = ClarivoPlan.objects.get(slug="starter")
+
+        def fake_checkout(*, request, subscription, user):
+            subscription.provider_price_id = "price_starter_yearly_eur"
+            subscription.provider_checkout_session_id = "cs_test_registration"
+            subscription.checkout_session_expires_at = timezone.now() + timedelta(hours=1)
+            subscription.save(
+                update_fields=[
+                    "provider_price_id",
+                    "provider_checkout_session_id",
+                    "checkout_session_expires_at",
+                    "updated_at",
+                ]
+            )
+            return "https://checkout.stripe.test/registration"
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch(
+                "apps.accounts.views.create_trial_checkout_session",
+                side_effect=fake_checkout,
+            ) as create_checkout:
+                response = self.client.post(
+                    reverse("register_business"),
+                    self._registration_payload(
+                        email="stripe-enabled@example.com",
+                        business_name="Stripe Enabled Workspace",
+                        plan=starter_plan,
+                        billing_interval="yearly",
+                        country="Netherlands",
+                    ),
+                )
+
+        user = get_user_model().objects.get(email="stripe-enabled@example.com")
+        business = Business.objects.get(name="Stripe Enabled Workspace")
+        membership = BusinessUser.objects.get(user=user, business=business)
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "https://checkout.stripe.test/registration")
+        self.assertEqual(membership.role, BusinessUser.Role.OWNER)
+        self.assertEqual(int(self.client.session[CURRENT_BUSINESS_SESSION_KEY]), business.pk)
+        self.assertEqual(self.client.session.get("_auth_user_id"), str(user.pk))
+        self.assertEqual(subscription.plan, starter_plan)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertEqual(subscription.payment_provider, BusinessSubscription.PaymentProvider.STRIPE)
+        self.assertEqual(subscription.billing_interval, BusinessSubscription.BillingInterval.YEARLY)
+        self.assertEqual(subscription.billing_currency, BusinessSubscription.BillingCurrency.EUR)
+        self.assertEqual(subscription.provider_price_id, "price_starter_yearly_eur")
+        self.assertEqual(subscription.provider_checkout_session_id, "cs_test_registration")
+        self.assertFalse(subscription.has_access)
+        self.assertIsNone(subscription.trial_start)
+        self.assertIsNone(subscription.trial_end)
+        self.assertEqual(create_checkout.call_args.kwargs["subscription"], subscription)
+        self.assertEqual(create_checkout.call_args.kwargs["user"], user)
+
+    def test_stripe_enabled_checkout_failure_keeps_pending_subscription_for_resume(self):
+        pro_plan = ClarivoPlan.objects.get(slug="pro")
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch(
+                "apps.accounts.views.create_trial_checkout_session",
+                side_effect=StripeCheckoutError("Checkout unavailable"),
+            ):
+                response = self.client.post(
+                    reverse("register_business"),
+                    self._registration_payload(
+                        email="stripe-failure@example.com",
+                        business_name="Stripe Failure Workspace",
+                        plan=pro_plan,
+                    ),
+                    follow=True,
+                )
+
+        business = Business.objects.get(name="Stripe Failure Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        self.assertRedirects(response, reverse("billing_checkout_cancelled"))
+        self.assertContains(response, "secure payment setup could not be started")
+        self.assertContains(response, "No payment was taken")
+        self.assertEqual(subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertFalse(subscription.has_access)
+        self.assertIsNone(subscription.trial_start)
+        self.assertEqual(subscription.plan, pro_plan)
+
+    def test_stripe_enabled_missing_price_id_keeps_pending_without_network_call(self):
+        starter_plan = ClarivoPlan.objects.get(slug="starter")
+
+        with override_settings(
+            **self._valid_stripe_settings(
+                STRIPE_PRICE_ID_MAP=self._price_map(missing={("starter", "monthly", "usd")}),
+            )
+        ):
+            with mock.patch(
+                "apps.businesses.stripe_checkout.configure_stripe_sdk",
+            ) as configure_stripe:
+                response = self.client.post(
+                    reverse("register_business"),
+                    self._registration_payload(
+                        email="missing-price@example.com",
+                        business_name="Missing Price Workspace",
+                        plan=starter_plan,
+                        billing_interval="monthly",
+                    ),
+                    follow=True,
+                )
+
+        business = Business.objects.get(name="Missing Price Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        self.assertRedirects(response, reverse("billing_checkout_cancelled"))
+        configure_stripe.assert_not_called()
+        self.assertEqual(subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertEqual(subscription.provider_price_id, "")
+        self.assertEqual(subscription.provider_checkout_session_id, "")
+        self.assertFalse(subscription.has_access)
+
     def test_home_pricing_links_pass_selected_trial_plan_to_registration(self):
         response = self.client.get(reverse("home"))
 
-        self.assertContains(response, f"{reverse('register_business')}?plan=starter")
-        self.assertContains(response, f"{reverse('register_business')}?plan=pro")
-        self.assertContains(response, f"{reverse('register_business')}?plan=business")
+        self.assertContains(
+            response,
+            f"{reverse('register_business')}?plan=starter&amp;interval=monthly",
+        )
+        self.assertContains(
+            response,
+            f"{reverse('register_business')}?plan=pro&amp;interval=monthly",
+        )
+        self.assertContains(
+            response,
+            f"{reverse('register_business')}?plan=business&amp;interval=monthly",
+        )
+        self.assertContains(response, "data-yearly-registration-url")
+        self.assertContains(response, "interval=yearly")
         self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
 
     def test_post_generates_unique_slug_for_duplicate_business_names(self):

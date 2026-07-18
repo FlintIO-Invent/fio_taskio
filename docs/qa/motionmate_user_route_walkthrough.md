@@ -8,7 +8,7 @@ Repository refresh date: 2026-07-12
 
 This document records a role-based route walkthrough against the MotionMate Django app using an isolated SQLite database and local in-memory email backend. The walkthrough covered public visitor routes, workspace roles, tenant isolation, and the public booking request to appointment to invoice workflow.
 
-The capability notes have been refreshed to match the current repository state: appointments, public booking, booking settings, availability, invoice PDFs, invoice email, and service imports are active repository features. Memberships, Stripe checkout, payment collection, background jobs, and instant auto-confirmed bookings remain out of active scope.
+The capability notes have been refreshed to match the current repository state: appointments, public booking, booking settings, availability, invoice PDFs, invoice email, service imports, and signup payment setup are active repository features. Memberships, customer portal, webhook-driven subscription activation, background jobs, and instant auto-confirmed bookings remain out of active scope.
 
 Overall result: 118 of 118 route/workflow checks matched the expected status codes after disabling the test harness HTTPS redirect so requests reached the actual view logic.
 
@@ -46,7 +46,7 @@ MotionMate currently supports one active workspace in session on top of a multi-
 Current known non-capabilities or held areas:
 
 - Memberships are not active product scope.
-- Stripe checkout, SaaS billing, payments, and webhooks are not connected.
+- Customer portal, in-app plan-change checkout, SaaS billing automation, and webhooks are not connected.
 - Public booking is request-first/manual confirmation, not instant auto-confirmation.
 - The MVP still uses first active membership fallback when a user has multiple businesses; there is no exposed workspace switcher yet.
 
@@ -340,7 +340,7 @@ When that command is restored, expected safe behavior is:
 Resolved since the original walkthrough:
 
 - Navigation now links business settings, services, availability, subscription, invoices, clients, service requests, and appointments according to plan and role access.
-- Subscription copy now presents plan changes as manual pilot changes and clearly says checkout and payment collection are not connected.
+- Subscription copy now presents in-app plan changes as manual pilot changes and keeps signup payment setup separate from future webhook/customer-portal work.
 
 ## UX Notes
 

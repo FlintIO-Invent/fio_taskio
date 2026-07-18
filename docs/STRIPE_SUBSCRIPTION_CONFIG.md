@@ -1,6 +1,6 @@
 # Stripe Subscription Configuration
 
-Motionmate includes the official Stripe Python SDK and local configuration checks for future subscription Checkout work. This foundation does not activate Checkout, collect payment methods, redirect to Stripe, create Stripe customers, create Stripe subscriptions, or process webhooks.
+Motionmate includes the official Stripe Python SDK, local configuration checks, and Stripe-hosted Checkout setup for paid-plan registration. Checkout creates a local pending subscription and redirects the owner to Stripe when enabled. Return URLs are informational only; webhooks are still required before a workspace becomes trialing or active.
 
 ## Install Dependencies
 
@@ -20,7 +20,7 @@ Stripe subscription billing is disabled by default:
 STRIPE_ENABLED=false
 ```
 
-When disabled, missing Stripe credentials and Price IDs do not block local development, migrations, static collection, or unrelated tests. Future Stripe-specific actions should remain unavailable until `STRIPE_ENABLED=true` and configuration checks pass.
+When disabled, missing Stripe credentials and Price IDs do not block local development, migrations, static collection, or unrelated tests. Paid-plan registration keeps the local pilot flow: a local 14-day trial is created, the owner is logged in, and no Stripe API call is made.
 
 ## Credentials
 
@@ -98,3 +98,9 @@ uv run --no-sync python src/manage.py check
 ```
 
 Checks are local only. They do not contact Stripe or verify that a Price exists remotely.
+
+## Checkout Boundaries
+
+With `STRIPE_ENABLED=true`, normal paid-plan registration records a `pending_checkout` subscription and creates a Stripe Checkout Session outside the registration transaction. The Checkout Session uses subscription mode, a 14-day trial, the configured Price ID for the selected plan, interval, and regional currency, and metadata linking the Stripe session to the local business, subscription, and owner.
+
+The success and cancelled return pages do not activate access. Activation, trial dates, Stripe customer IDs, and remote subscription state belong to webhook processing in the next block. Beta registration remains internal and does not create a Stripe Checkout Session.
