@@ -7,10 +7,12 @@ from urllib.parse import urlparse
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
+from django.contrib.messages.storage.fallback import FallbackStorage
+from django.contrib.sessions.middleware import SessionMiddleware
 from django.core import mail
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.encoding import force_bytes
@@ -27,6 +29,7 @@ from apps.businesses.models import (
     BusinessUser,
     ClarivoPlan,
 )
+from apps.businesses.plan_catalog import PUBLIC_PAID_PLAN_SLUGS, STANDARD_TRIAL_DAYS
 from apps.businesses.utils import (
     CURRENT_BUSINESS_SESSION_KEY,
     MULTI_WORKSPACE_EMAIL_MESSAGE,
@@ -34,6 +37,7 @@ from apps.businesses.utils import (
 )
 
 from .models import SaaSUserProfile
+from .views import handle_successful_paid_plan_registration
 
 
 class CustomerRegistrationViewTests(TestCase):
@@ -119,7 +123,7 @@ class BusinessRegistrationViewTests(TestCase):
             "password2": "StrongPass123!",
         }
         if plan is not None:
-            payload["plan"] = plan.pk
+            payload["plan"] = plan.slug
         return payload
 
     def _beta_url(self, token: str | None = None) -> str:
@@ -131,7 +135,7 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Register your business")
         self.assertContains(response, "Owner login email")
-        self.assertContains(response, "Trial plan")
+        self.assertContains(response, "Selected plan")
         self.assertContains(
             response,
             "Use the email address you want to sign in with. This will become the workspace owner login for this business.",
@@ -142,26 +146,47 @@ class BusinessRegistrationViewTests(TestCase):
         )
         self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
 
-    def test_get_defaults_trial_plan_dropdown_to_recommended_pro(self):
+    def test_get_defaults_selected_plan_summary_to_recommended_pro(self):
         pro_plan = ClarivoPlan.objects.get(slug="pro")
 
         response = self.client.get(reverse("register_business"))
 
-        self.assertEqual(response.context["form"]["plan"].value(), pro_plan.pk)
+        self.assertEqual(response.context["form"]["plan"].value(), pro_plan.slug)
+        self.assertEqual(response.context["selected_plan"], pro_plan)
+        self.assertContains(response, "Selected plan")
+        self.assertContains(response, "Pro")
+        self.assertContains(response, "$79 / month")
+        self.assertContains(response, f"Your {STANDARD_TRIAL_DAYS}-day Pro trial starts")
+        self.assertContains(response, "You will not be charged during this current setup.")
+        self.assertContains(response, f'name="plan" value="{pro_plan.slug}"')
 
     def test_get_selects_requested_trial_plan_from_pricing_link(self):
-        starter_plan = ClarivoPlan.objects.get(slug="starter")
+        for slug in PUBLIC_PAID_PLAN_SLUGS:
+            with self.subTest(plan=slug):
+                plan = ClarivoPlan.objects.get(slug=slug)
+                display_price = plan.get_display_pricing()["monthly_display"]
 
-        response = self.client.get(f"{reverse('register_business')}?plan=starter")
+                response = self.client.get(f"{reverse('register_business')}?plan={slug}")
 
-        self.assertEqual(response.context["form"]["plan"].value(), starter_plan.pk)
+                self.assertEqual(response.context["form"]["plan"].value(), plan.slug)
+                self.assertEqual(response.context["selected_plan"], plan)
+                self.assertContains(response, "Selected plan")
+                self.assertContains(response, plan.name)
+                self.assertContains(response, f"{display_price} / month")
+                self.assertContains(
+                    response,
+                    f"Your {STANDARD_TRIAL_DAYS}-day {plan.name} trial starts after registration.",
+                )
+                self.assertContains(response, f'name="plan" value="{plan.slug}"')
 
     def test_get_ignores_unknown_trial_plan_and_defaults_to_pro(self):
         pro_plan = ClarivoPlan.objects.get(slug="pro")
 
         response = self.client.get(f"{reverse('register_business')}?plan=enterprise")
 
-        self.assertEqual(response.context["form"]["plan"].value(), pro_plan.pk)
+        self.assertEqual(response.context["form"]["plan"].value(), pro_plan.slug)
+        self.assertEqual(response.context["selected_plan"], pro_plan)
+        self.assertContains(response, f'name="plan" value="{pro_plan.slug}"')
 
     def test_public_registration_plan_queryset_excludes_beta(self):
         response = self.client.get(f"{reverse('register_business')}?plan=beta")
@@ -170,10 +195,24 @@ class BusinessRegistrationViewTests(TestCase):
             response.context["form"].fields["plan"].queryset.values_list("slug", flat=True)
         )
 
-        self.assertEqual(plan_slugs, ["starter", "pro", "business"])
+        self.assertEqual(plan_slugs, list(PUBLIC_PAID_PLAN_SLUGS))
         self.assertNotIn(BETA_PLAN_SLUG, plan_slugs)
-        self.assertNotEqual(response.context["form"]["plan"].value(), BETA_PLAN_SLUG)
+        self.assertEqual(
+            response.context["form"]["plan"].value(),
+            ClarivoPlan.objects.get(slug="pro").slug,
+        )
+        self.assertEqual(response.context["selected_plan"].slug, "pro")
         self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    def test_inactive_public_plan_query_defaults_to_pro(self):
+        ClarivoPlan.objects.filter(slug="starter").update(is_active=False)
+        pro_plan = ClarivoPlan.objects.get(slug="pro")
+
+        response = self.client.get(f"{reverse('register_business')}?plan=starter")
+
+        self.assertEqual(response.context["form"]["plan"].value(), pro_plan.slug)
+        self.assertEqual(response.context["selected_plan"], pro_plan)
+        self.assertContains(response, f'name="plan" value="{pro_plan.slug}"')
 
     def test_public_registration_rejects_manual_beta_plan_post(self):
         beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
@@ -200,7 +239,7 @@ class BusinessRegistrationViewTests(TestCase):
             response.context["form"].fields["plan"].queryset.values_list("slug", flat=True)
         )
 
-        self.assertEqual(plan_slugs, ["starter", "pro", "business", BETA_PLAN_SLUG])
+        self.assertEqual(plan_slugs, [*PUBLIC_PAID_PLAN_SLUGS, BETA_PLAN_SLUG])
         self.assertContains(response, BETA_PLAN_DISPLAY_NAME)
 
     @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
@@ -316,6 +355,30 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertTrue(can_use_module(business, "public_booking"))
 
     @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
+    def test_beta_registration_does_not_use_paid_plan_handoff(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+
+        with mock.patch("apps.accounts.views.handle_successful_paid_plan_registration") as handoff:
+            response = self.client.post(
+                self._beta_url(),
+                self._registration_payload(
+                    email="beta-handoff@example.com",
+                    business_name="Beta Handoff Workspace",
+                    plan=beta_plan,
+                ),
+                follow=True,
+            )
+
+        business = Business.objects.get(name="Beta Handoff Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        handoff.assert_not_called()
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertEqual(subscription.plan.slug, BETA_PLAN_SLUG)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertIsNone(subscription.trial_end)
+
+    @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
     def test_same_beta_link_can_register_more_than_one_business(self):
         beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
 
@@ -390,10 +453,16 @@ class BusinessRegistrationViewTests(TestCase):
                 self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
                 self.assertTrue(can_use_module(business, "appointments"))
 
-    def test_public_plans_still_create_trial_subscriptions(self):
-        for slug in ClarivoPlan.MOTIONMATE_PLAN_SLUGS:
+    def test_selected_public_pricing_plan_is_preserved_through_trial_signup(self):
+        pro_client_limit = ClarivoPlan.objects.get(slug="pro").max_clients
+
+        for slug in PUBLIC_PAID_PLAN_SLUGS:
             with self.subTest(plan=slug):
                 plan = ClarivoPlan.objects.get(slug=slug)
+                get_response = self.client.get(f"{reverse('register_business')}?plan={slug}")
+
+                self.assertEqual(get_response.context["form"]["plan"].value(), plan.slug)
+
                 response = self.client.post(
                     reverse("register_business"),
                     self._registration_payload(
@@ -407,12 +476,74 @@ class BusinessRegistrationViewTests(TestCase):
                 subscription = BusinessSubscription.objects.get(business=business)
 
                 self.assertRedirects(response, reverse("agent_dashboard"))
+                self.assertEqual(subscription.plan_id, plan.pk)
                 self.assertEqual(subscription.plan.slug, slug)
                 self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
                 self.assertEqual(
-                    subscription.trial_end - subscription.trial_start, timedelta(days=14)
+                    subscription.trial_end - subscription.trial_start,
+                    timedelta(days=STANDARD_TRIAL_DAYS),
                 )
+                self.assertEqual(subscription.plan.max_clients, plan.max_clients)
+                if slug != "pro":
+                    self.assertNotEqual(subscription.plan.max_clients, pro_client_limit)
                 self.client.logout()
+
+    def test_validation_errors_preserve_selected_public_plan_summary(self):
+        business_plan = ClarivoPlan.objects.get(slug="business")
+        payload = self._registration_payload(
+            email="bad-password@example.com",
+            business_name="Bad Password Workspace",
+            plan=business_plan,
+        )
+        payload["password2"] = "DifferentStrongPass123!"
+
+        response = self.client.post(reverse("register_business"), payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Passwords do not match.")
+        self.assertEqual(response.context["selected_plan"], business_plan)
+        self.assertContains(response, "Business")
+        self.assertContains(response, f'name="plan" value="{business_plan.slug}"')
+        self.assertFalse(get_user_model().objects.filter(email="bad-password@example.com").exists())
+        self.assertFalse(Business.objects.filter(name="Bad Password Workspace").exists())
+
+    def test_public_registration_rejects_unknown_submitted_plan_slug(self):
+        response = self.client.post(
+            reverse("register_business"),
+            {
+                **self._registration_payload(
+                    email="unknown-plan@example.com",
+                    business_name="Unknown Plan Workspace",
+                ),
+                "plan": "enterprise",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertFalse(get_user_model().objects.filter(email="unknown-plan@example.com").exists())
+        self.assertFalse(Business.objects.filter(name="Unknown Plan Workspace").exists())
+
+    def test_public_registration_rejects_inactive_submitted_plan_slug(self):
+        ClarivoPlan.objects.filter(slug="starter").update(is_active=False)
+
+        response = self.client.post(
+            reverse("register_business"),
+            {
+                **self._registration_payload(
+                    email="inactive-plan@example.com",
+                    business_name="Inactive Plan Workspace",
+                ),
+                "plan": "starter",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertFalse(
+            get_user_model().objects.filter(email="inactive-plan@example.com").exists()
+        )
+        self.assertFalse(Business.objects.filter(name="Inactive Plan Workspace").exists())
 
     def test_default_trial_fallback_cannot_select_beta_when_public_plans_are_inactive(self):
         ClarivoPlan.objects.filter(slug__in=ClarivoPlan.MOTIONMATE_PLAN_SLUGS).update(
@@ -493,12 +624,15 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
         self.assertIsNotNone(subscription.trial_start)
         self.assertIsNotNone(subscription.trial_end)
-        self.assertEqual(subscription.trial_end - subscription.trial_start, timedelta(days=14))
+        self.assertEqual(
+            subscription.trial_end - subscription.trial_start,
+            timedelta(days=STANDARD_TRIAL_DAYS),
+        )
         self.assertLessEqual(subscription.trial_start, timezone.now())
         self.assertEqual(profile.workspace_name, "Acme Freight")
         self.assertEqual(profile.billing_email, "hello@acmefreight.com")
         self.assertEqual(int(self.client.session[CURRENT_BUSINESS_SESSION_KEY]), business.id)
-        self.assertContains(response, "14-day trial")
+        self.assertContains(response, f"{STANDARD_TRIAL_DAYS}-day trial")
         self.assertContains(response, "Welcome to Motionmate")
         self.assertTrue(response.context["onboarding_status"]["should_auto_show_welcome"])
 
@@ -514,7 +648,7 @@ class BusinessRegistrationViewTests(TestCase):
                 "business_name": "Starter Workspace",
                 "business_email": "hello@starter.test",
                 "country": "Sint Maarten",
-                "plan": starter_plan.pk,
+                "plan": starter_plan.slug,
                 "password1": "StrongPass123!",
                 "password2": "StrongPass123!",
             },
@@ -527,7 +661,10 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertEqual(subscription.plan.slug, "starter")
         self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
-        self.assertEqual(subscription.trial_end - subscription.trial_start, timedelta(days=14))
+        self.assertEqual(
+            subscription.trial_end - subscription.trial_start,
+            timedelta(days=STANDARD_TRIAL_DAYS),
+        )
 
     def test_home_pricing_links_pass_selected_trial_plan_to_registration(self):
         response = self.client.get(reverse("home"))
@@ -535,6 +672,7 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertContains(response, f"{reverse('register_business')}?plan=starter")
         self.assertContains(response, f"{reverse('register_business')}?plan=pro")
         self.assertContains(response, f"{reverse('register_business')}?plan=business")
+        self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
 
     def test_post_generates_unique_slug_for_duplicate_business_names(self):
         existing_owner = get_user_model().objects.create_user(
@@ -620,6 +758,78 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertFalse(BusinessSubscription.objects.filter(business=business).exists())
         self.assertContains(response, "Subscription setup is pending")
+
+
+class PaidPlanRegistrationHandoffTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.user = get_user_model().objects.create_user(
+            email="handoff-owner@example.com",
+            password="StrongPass123!",
+        )
+        self.business = Business.objects.create(
+            name="Handoff Workspace",
+            slug="handoff-workspace",
+        )
+        BusinessUser.objects.create(
+            user=self.user,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+
+    def _request(self):
+        request = self.factory.post(reverse("register_business"))
+        SessionMiddleware(lambda request: None).process_request(request)
+        request.session.save()
+        request._messages = FallbackStorage(request)
+        return request
+
+    def test_handoff_creates_trial_subscription_logs_in_and_redirects(self):
+        request = self._request()
+
+        response = handle_successful_paid_plan_registration(
+            request,
+            user=self.user,
+            business=self.business,
+            selected_plan=self.plan,
+        )
+
+        subscription = BusinessSubscription.objects.get(business=self.business)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("agent_dashboard"))
+        self.assertEqual(subscription.plan, self.plan)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(
+            subscription.trial_end - subscription.trial_start,
+            timedelta(days=STANDARD_TRIAL_DAYS),
+        )
+        self.assertEqual(request.session.get("_auth_user_id"), str(self.user.pk))
+        self.assertEqual(int(request.session[CURRENT_BUSINESS_SESSION_KEY]), self.business.id)
+
+    def test_handoff_does_not_create_duplicate_subscription(self):
+        existing_subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=timezone.now(),
+            trial_end=timezone.now() + timedelta(days=STANDARD_TRIAL_DAYS),
+        )
+        request = self._request()
+
+        response = handle_successful_paid_plan_registration(
+            request,
+            user=self.user,
+            business=self.business,
+            selected_plan=self.plan,
+            subscription=existing_subscription,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(BusinessSubscription.objects.filter(business=self.business).count(), 1)
+        self.assertEqual(
+            BusinessSubscription.objects.get(business=self.business), existing_subscription
+        )
 
 
 class BusinessLoginViewTests(TestCase):
@@ -808,9 +1018,7 @@ class PasswordManagementViewTests(TestCase):
             message.body,
         )
         self.assertIn("support@motionmate.test", message.body)
-        self.assertTrue(
-            any(alternative[1] == "text/html" for alternative in message.alternatives)
-        )
+        self.assertTrue(any(alternative[1] == "text/html" for alternative in message.alternatives))
         self.assertNotIn(reset_password, rendered_message)
         self.assertNotIn(token, rendered_message)
 
@@ -905,9 +1113,7 @@ class PasswordManagementViewTests(TestCase):
             message.body,
         )
         self.assertIn("support@motionmate.test", message.body)
-        self.assertTrue(
-            any(alternative[1] == "text/html" for alternative in message.alternatives)
-        )
+        self.assertTrue(any(alternative[1] == "text/html" for alternative in message.alternatives))
         self.assertNotIn(old_password, rendered_message)
         self.assertNotIn(new_password, rendered_message)
         self.assertNotIn("token", rendered_message.lower())

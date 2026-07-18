@@ -11,6 +11,7 @@ from django.db import models
 from django.utils import timezone
 
 from .localization import format_business_address_lines, uses_netherlands_address_format
+from .plan_catalog import PUBLIC_PAID_PLAN_ORDERING, PUBLIC_PAID_PLAN_SLUGS
 
 
 def default_business_invitation_expiry():
@@ -270,7 +271,7 @@ class WeeklyAvailability(TimeStampedModel):
 
 
 class ClarivoPlan(TimeStampedModel):
-    MOTIONMATE_PLAN_SLUGS = ("starter", "pro", "business")
+    MOTIONMATE_PLAN_SLUGS = PUBLIC_PAID_PLAN_SLUGS
     USD_PRICING_REGION = "usd"
     EUR_PRICING_REGION = "eur"
     DEFAULT_PRICING_REGION = USD_PRICING_REGION
@@ -338,9 +339,9 @@ class ClarivoPlan(TimeStampedModel):
         return models.Case(
             *[
                 models.When(slug=slug, then=models.Value(position))
-                for position, slug in enumerate(cls.MOTIONMATE_PLAN_SLUGS)
+                for position, slug in enumerate(PUBLIC_PAID_PLAN_ORDERING)
             ],
-            default=models.Value(len(cls.MOTIONMATE_PLAN_SLUGS)),
+            default=models.Value(len(PUBLIC_PAID_PLAN_ORDERING)),
             output_field=models.IntegerField(),
         )
 
@@ -348,7 +349,7 @@ class ClarivoPlan(TimeStampedModel):
     def motionmate_plans(cls):
         return cls.objects.filter(
             is_active=True,
-            slug__in=cls.MOTIONMATE_PLAN_SLUGS,
+            slug__in=PUBLIC_PAID_PLAN_SLUGS,
         ).order_by(cls.motionmate_plan_ordering(), "pk")
 
     @classmethod

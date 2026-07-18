@@ -26,6 +26,11 @@ from .models import (
     BusinessUser,
     ClarivoPlan,
 )
+from .plan_catalog import (
+    DEFAULT_PUBLIC_PAID_PLAN_SLUG,
+    STANDARD_TRIAL_DAYS,
+    is_public_paid_plan_slug,
+)
 
 CURRENT_BUSINESS_SESSION_KEY = "current_business_id"
 _CURRENT_BUSINESS_RESOLVED_ATTR = "_current_business_resolved"
@@ -614,19 +619,17 @@ def create_default_trial_subscription(
     business: Business,
     *,
     plan: ClarivoPlan | None = None,
-    trial_days: int = 14,
+    trial_days: int = STANDARD_TRIAL_DAYS,
 ) -> BusinessSubscription | None:
     existing_subscription = get_business_subscription(business)
     if existing_subscription is not None:
         return existing_subscription
 
-    if plan is not None and (
-        not plan.is_active or plan.slug not in ClarivoPlan.MOTIONMATE_PLAN_SLUGS
-    ):
+    if plan is not None and (not plan.is_active or not is_public_paid_plan_slug(plan.slug)):
         plan = None
 
     if plan is None:
-        plan = ClarivoPlan.motionmate_plans().filter(slug="pro").first()
+        plan = ClarivoPlan.motionmate_plans().filter(slug=DEFAULT_PUBLIC_PAID_PLAN_SLUG).first()
     if plan is None:
         plan = ClarivoPlan.motionmate_plans().first()
 
@@ -693,7 +696,7 @@ def assign_business_subscription_plan(
     business: Business,
     plan: ClarivoPlan,
     *,
-    trial_days: int = 14,
+    trial_days: int = STANDARD_TRIAL_DAYS,
 ) -> BusinessSubscription:
     subscription = get_business_subscription(business)
     now = timezone.now()

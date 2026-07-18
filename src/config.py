@@ -170,6 +170,34 @@ class Settings(BaseSettings):
         default="",
         description="Support email address shown in transactional emails.",
     )
+    stripe_enabled: bool = Field(
+        default=False,
+        description="Enable Stripe subscription billing configuration validation.",
+    )
+    stripe_publishable_key: str = Field(
+        default="",
+        description="Stripe publishable key from the deployment environment.",
+    )
+    stripe_secret_key: str = Field(
+        default="",
+        description="Stripe secret key from the deployment environment.",
+    )
+    stripe_webhook_secret: str = Field(
+        default="",
+        description="Stripe webhook signing secret from the deployment environment.",
+    )
+    stripe_price_starter_monthly_usd: str = Field(default="")
+    stripe_price_starter_yearly_usd: str = Field(default="")
+    stripe_price_starter_monthly_eur: str = Field(default="")
+    stripe_price_starter_yearly_eur: str = Field(default="")
+    stripe_price_pro_monthly_usd: str = Field(default="")
+    stripe_price_pro_yearly_usd: str = Field(default="")
+    stripe_price_pro_monthly_eur: str = Field(default="")
+    stripe_price_pro_yearly_eur: str = Field(default="")
+    stripe_price_business_monthly_usd: str = Field(default="")
+    stripe_price_business_yearly_usd: str = Field(default="")
+    stripe_price_business_monthly_eur: str = Field(default="")
+    stripe_price_business_yearly_eur: str = Field(default="")
     log_level: str = Field(
         default="INFO",
         description="Application log level.",
@@ -225,6 +253,32 @@ class Settings(BaseSettings):
     @field_validator("beta_registration_token", mode="before")
     @classmethod
     def normalize_beta_registration_token(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @field_validator(
+        "stripe_publishable_key",
+        "stripe_secret_key",
+        "stripe_webhook_secret",
+        "stripe_price_starter_monthly_usd",
+        "stripe_price_starter_yearly_usd",
+        "stripe_price_starter_monthly_eur",
+        "stripe_price_starter_yearly_eur",
+        "stripe_price_pro_monthly_usd",
+        "stripe_price_pro_yearly_usd",
+        "stripe_price_pro_monthly_eur",
+        "stripe_price_pro_yearly_eur",
+        "stripe_price_business_monthly_usd",
+        "stripe_price_business_yearly_usd",
+        "stripe_price_business_monthly_eur",
+        "stripe_price_business_yearly_eur",
+        mode="before",
+    )
+    @classmethod
+    def normalize_stripe_secret_setting(cls, value: object) -> object:
+        if value is None:
+            return ""
         if isinstance(value, str):
             return value.strip()
         return value

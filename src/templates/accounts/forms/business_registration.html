@@ -65,9 +65,29 @@
                 {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">
-                <label class="form-label" for="{{ form.plan.id_for_label }}">Trial plan{% include "includes/help_icon.html" with text=form.plan.help_text %}</label>
-                {{ form.plan }}
-                {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
+                {% if show_paid_plan_summary and selected_plan %}
+                  <input type="hidden" name="{{ form.plan.html_name }}" value="{{ selected_plan.slug }}">
+                  <div class="border rounded-3 p-3 bg-body-tertiary">
+                    <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
+                      <div>
+                        <p class="text-body-tertiary fs-9 mb-1">Selected plan</p>
+                        <h4 class="fs-7 mb-1">{{ selected_plan.name }}</h4>
+                        {% if selected_plan_pricing %}
+                          <p class="text-body-secondary mb-0">{{ selected_plan_pricing.monthly_display }} / month</p>
+                        {% endif %}
+                      </div>
+                      <div class="text-sm-end">
+                        <a class="fs-9" href="{% url 'home' %}#pricing">Choose another plan</a>
+                      </div>
+                    </div>
+                    <p class="text-body-secondary mb-0 mt-3">Your {{ standard_trial_days }}-day {{ selected_plan.name }} trial starts after registration. You will not be charged during this current setup.</p>
+                  </div>
+                  {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
+                {% else %}
+                  <label class="form-label" for="{{ form.plan.id_for_label }}">Trial plan{% include "includes/help_icon.html" with text=form.plan.help_text %}</label>
+                  {{ form.plan }}
+                  {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
+                {% endif %}
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="{{ form.password1.id_for_label }}">Password{% include "includes/help_icon.html" with text=form.password1.help_text %}</label>

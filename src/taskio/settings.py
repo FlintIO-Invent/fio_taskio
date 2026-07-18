@@ -18,6 +18,11 @@ try:
 except ImportError:
     from config import settings
 
+from apps.businesses.plan_catalog import (
+    PUBLIC_BILLING_INTERVALS,
+    PUBLIC_PAID_PLAN_SLUGS,
+    PUBLIC_PRICING_CURRENCIES,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNNING_TESTS = "test" in sys.argv or "pytest" in Path(sys.argv[0]).name or bool(
@@ -179,6 +184,19 @@ MOTIONMATE_PUBLIC_BASE_URL = settings.motionmate_public_base_url
 BETA_REGISTRATION_ENABLED = settings.beta_registration_enabled
 BETA_REGISTRATION_TOKEN = settings.beta_registration_token
 MOTIONMATE_SUPPORT_EMAIL = settings.motionmate_support_email
+STRIPE_ENABLED = settings.stripe_enabled
+STRIPE_PUBLISHABLE_KEY = settings.stripe_publishable_key
+STRIPE_SECRET_KEY = settings.stripe_secret_key
+STRIPE_WEBHOOK_SECRET = settings.stripe_webhook_secret
+STRIPE_PRICE_ID_MAP = {
+    (plan_slug, billing_interval, currency): getattr(
+        settings,
+        f"stripe_price_{plan_slug}_{billing_interval}_{currency}",
+    )
+    for plan_slug in PUBLIC_PAID_PLAN_SLUGS
+    for billing_interval in PUBLIC_BILLING_INTERVALS
+    for currency in PUBLIC_PRICING_CURRENCIES
+}
 
 LOGGING = {
     "version": 1,

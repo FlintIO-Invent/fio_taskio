@@ -16,13 +16,14 @@ The internal Django package name remains `taskio` for now. That is expected.
 - Business-specific services and prices
 - Public request forms at `/crm/public_request/<business_slug>/`
 - Workspace subscription and plan enforcement
+- Stripe SDK dependency and local subscription configuration checks
 
 ## Out of scope for this release
 
 - Appointments
 - Public booking
 - Memberships
-- Stripe billing
+- Stripe Checkout, payment collection, customer portal, and webhooks
 - Major new product features
 
 Appointment release-candidate staging QA is tracked separately in [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md) and must pass before appointments move into private-tester scope.
@@ -158,6 +159,22 @@ Important settings for local and production use:
 - `EMAIL_TIMEOUT`
 - `MOTIONMATE_PUBLIC_BASE_URL`
 - `MOTIONMATE_SUPPORT_EMAIL`
+- `STRIPE_ENABLED`
+- `STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_STARTER_MONTHLY_USD`
+- `STRIPE_PRICE_STARTER_YEARLY_USD`
+- `STRIPE_PRICE_STARTER_MONTHLY_EUR`
+- `STRIPE_PRICE_STARTER_YEARLY_EUR`
+- `STRIPE_PRICE_PRO_MONTHLY_USD`
+- `STRIPE_PRICE_PRO_YEARLY_USD`
+- `STRIPE_PRICE_PRO_MONTHLY_EUR`
+- `STRIPE_PRICE_PRO_YEARLY_EUR`
+- `STRIPE_PRICE_BUSINESS_MONTHLY_USD`
+- `STRIPE_PRICE_BUSINESS_YEARLY_USD`
+- `STRIPE_PRICE_BUSINESS_MONTHLY_EUR`
+- `STRIPE_PRICE_BUSINESS_YEARLY_EUR`
 - `LOG_LEVEL`
 
 Production notes:
@@ -168,6 +185,7 @@ Production notes:
 - When `DEBUG=False`, secure cookie and HTTPS settings default to safe private-testing behavior unless explicitly overridden.
 - WhiteNoise serves collected static files in production.
 - The literal placeholder `replace-with-real-secret` is only a documentation example and will still trigger `security.W009`. Use a long random secret for real deploy checks.
+- Stripe subscription configuration is documented in [docs/STRIPE_SUBSCRIPTION_CONFIG.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/STRIPE_SUBSCRIPTION_CONFIG.md). `STRIPE_ENABLED=false` keeps the SDK and checks dormant for normal local work.
 
 ## Email Configuration
 

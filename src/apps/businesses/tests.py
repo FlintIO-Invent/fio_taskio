@@ -3,12 +3,13 @@ from decimal import Decimal
 from unittest import mock
 
 from django.core import mail
+from django.core.checks import run_checks
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from django.test import RequestFactory, TestCase, override_settings
-from django.urls import reverse
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
+from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.utils import timezone
 
 from apps.accounts.beta_registration import BETA_PLAN_DISPLAY_NAME, BETA_PLAN_SLUG
@@ -19,6 +20,8 @@ from apps.crm.models import BusinessService, Client, Lead
 from config import Settings
 from helpers import build_public_url
 
+from . import stripe_config
+from .checks import check_stripe_configuration
 from .localization import format_money_for_business, parse_localized_decimal
 from .models import (
     Business,
@@ -37,10 +40,43 @@ from .onboarding import (
     get_task_definitions,
     user_can_view_onboarding,
 )
+from .plan_catalog import (
+    DEFAULT_PUBLIC_PAID_PLAN_SLUG,
+    PUBLIC_BILLING_INTERVALS,
+    PUBLIC_PAID_PLAN_ORDERING,
+    PUBLIC_PAID_PLAN_SLUGS,
+    PUBLIC_PRICING_CURRENCIES,
+    STANDARD_TRIAL_DAYS,
+    is_public_paid_plan_slug,
+    normalize_plan_slug,
+    normalize_public_paid_plan_slug,
+    public_paid_plan_slug_or_default,
+)
+from .stripe_config import (
+    STRIPE_CHECK_BETA_PLAN,
+    STRIPE_CHECK_INVALID_PRICE_ID,
+    STRIPE_CHECK_INVALID_PUBLISHABLE_KEY,
+    STRIPE_CHECK_INVALID_SECRET_KEY,
+    STRIPE_CHECK_MISSING_PRICE_ID,
+    STRIPE_CHECK_MISSING_PUBLISHABLE_KEY,
+    STRIPE_CHECK_MISSING_SECRET_KEY,
+    STRIPE_CHECK_MISSING_WEBHOOK_SECRET,
+    STRIPE_CHECK_MIXED_KEY_MODES,
+    STRIPE_CHECK_UNKNOWN_PLAN,
+    STRIPE_CHECK_UNSUPPORTED_CURRENCY,
+    STRIPE_CHECK_UNSUPPORTED_INTERVAL,
+    StripeConfigurationError,
+    configure_stripe_sdk,
+    get_stripe_mode,
+    get_stripe_price_id,
+    is_stripe_enabled,
+    validate_stripe_configuration,
+)
 from .utils import (
     CURRENT_BUSINESS_SESSION_KEY,
     MULTI_WORKSPACE_EMAIL_MESSAGE,
     SAME_WORKSPACE_EMAIL_MESSAGE,
+    assign_business_subscription_plan,
     business_has_active_subscription,
     business_is_trialing,
     business_limit_reached,
@@ -52,6 +88,45 @@ from .utils import (
     get_current_business,
     get_current_business_membership,
 )
+
+
+class PlanCatalogPolicyTests(SimpleTestCase):
+    def test_public_paid_plan_policy_is_canonical_and_ordered(self):
+        self.assertEqual(PUBLIC_PAID_PLAN_SLUGS, ("starter", "pro", "business"))
+        self.assertEqual(PUBLIC_PAID_PLAN_ORDERING, PUBLIC_PAID_PLAN_SLUGS)
+        self.assertEqual(ClarivoPlan.MOTIONMATE_PLAN_SLUGS, PUBLIC_PAID_PLAN_SLUGS)
+        self.assertEqual(DEFAULT_PUBLIC_PAID_PLAN_SLUG, "pro")
+        self.assertEqual(STANDARD_TRIAL_DAYS, 14)
+        self.assertEqual(PUBLIC_BILLING_INTERVALS, ("monthly", "yearly"))
+        self.assertEqual(PUBLIC_PRICING_CURRENCIES, ("usd", "eur"))
+
+    def test_public_paid_plan_validation_excludes_internal_and_unknown_slugs(self):
+        for slug in PUBLIC_PAID_PLAN_SLUGS:
+            with self.subTest(slug=slug):
+                self.assertTrue(is_public_paid_plan_slug(slug))
+
+        for slug in (BETA_PLAN_SLUG, "enterprise", "", None):
+            with self.subTest(slug=slug):
+                self.assertFalse(is_public_paid_plan_slug(slug))
+
+    def test_submitted_plan_slugs_are_normalized_safely(self):
+        self.assertEqual(normalize_plan_slug(" Pro "), "pro")
+        self.assertEqual(normalize_public_paid_plan_slug(" BUSINESS "), "business")
+        self.assertEqual(normalize_public_paid_plan_slug("starter"), "starter")
+        self.assertIsNone(normalize_public_paid_plan_slug(BETA_PLAN_SLUG))
+        self.assertIsNone(normalize_public_paid_plan_slug("enterprise"))
+        self.assertIsNone(normalize_public_paid_plan_slug(None))
+
+    def test_missing_or_invalid_submitted_slug_resolves_to_default_paid_plan(self):
+        self.assertEqual(public_paid_plan_slug_or_default(None), DEFAULT_PUBLIC_PAID_PLAN_SLUG)
+        self.assertEqual(public_paid_plan_slug_or_default(""), DEFAULT_PUBLIC_PAID_PLAN_SLUG)
+        self.assertEqual(
+            public_paid_plan_slug_or_default("enterprise"), DEFAULT_PUBLIC_PAID_PLAN_SLUG
+        )
+        self.assertEqual(
+            public_paid_plan_slug_or_default(BETA_PLAN_SLUG), DEFAULT_PUBLIC_PAID_PLAN_SLUG
+        )
+        self.assertEqual(public_paid_plan_slug_or_default("starter"), "starter")
 
 
 class BusinessModelTests(TestCase):
@@ -218,6 +293,324 @@ class EmailConfigurationTests(TestCase):
     @override_settings(MOTIONMATE_PUBLIC_BASE_URL="")
     def test_build_public_url_returns_path_without_public_base_url_or_request(self):
         self.assertEqual(build_public_url("/relative/path/"), "/relative/path/")
+
+
+class StripeConfigurationTests(SimpleTestCase):
+    @staticmethod
+    def _price_map(
+        *,
+        missing: set[tuple[str, str, str]] | None = None,
+        overrides: dict[tuple[str, str, str], str] | None = None,
+    ) -> dict[tuple[str, str, str], str]:
+        missing = missing or set()
+        prices = {
+            (plan_slug, interval, currency): f"price_{plan_slug}_{interval}_{currency}"
+            for plan_slug in PUBLIC_PAID_PLAN_SLUGS
+            for interval in PUBLIC_BILLING_INTERVALS
+            for currency in PUBLIC_PRICING_CURRENCIES
+            if (plan_slug, interval, currency) not in missing
+        }
+        if overrides:
+            prices.update(overrides)
+        return prices
+
+    def _valid_stripe_settings(self, **overrides):
+        settings_overrides = {
+            "STRIPE_ENABLED": True,
+            "STRIPE_PUBLISHABLE_KEY": "pk_test_motionmate",
+            "STRIPE_SECRET_KEY": "sk_test_motionmate",
+            "STRIPE_WEBHOOK_SECRET": "whsec_motionmate",
+            "STRIPE_PRICE_ID_MAP": self._price_map(),
+        }
+        settings_overrides.update(overrides)
+        return settings_overrides
+
+    def _stripe_check_ids(self) -> set[str]:
+        return {issue.id for issue in validate_stripe_configuration()}
+
+    def test_settings_trim_stripe_values_without_logging_or_defaults(self):
+        app_settings = Settings(
+            _env_file=None,
+            stripe_publishable_key=" pk_test_replace_me ",
+            stripe_secret_key=" ",
+            stripe_webhook_secret=" whsec_replace_me ",
+            stripe_price_pro_monthly_usd=" price_pro_monthly_usd ",
+        )
+
+        self.assertEqual(app_settings.stripe_publishable_key, "pk_test_replace_me")
+        self.assertEqual(app_settings.stripe_secret_key, "")
+        self.assertEqual(app_settings.stripe_webhook_secret, "whsec_replace_me")
+        self.assertEqual(app_settings.stripe_price_pro_monthly_usd, "price_pro_monthly_usd")
+
+    @override_settings(
+        STRIPE_ENABLED=False,
+        STRIPE_PUBLISHABLE_KEY="",
+        STRIPE_SECRET_KEY="",
+        STRIPE_WEBHOOK_SECRET="",
+        STRIPE_PRICE_ID_MAP={},
+    )
+    def test_stripe_defaults_disabled_without_requiring_credentials(self):
+        self.assertFalse(is_stripe_enabled())
+        self.assertEqual(get_stripe_mode(), "disabled")
+        self.assertEqual(validate_stripe_configuration(), [])
+        self.assertEqual(check_stripe_configuration(None), [])
+
+        registered_stripe_errors = [
+            check
+            for check in run_checks()
+            if check.id.startswith("motionmate_stripe.")
+        ]
+        self.assertEqual(registered_stripe_errors, [])
+
+    def test_stripe_enabled_requires_credentials_and_treats_blank_values_as_missing(self):
+        with override_settings(
+            STRIPE_ENABLED=True,
+            STRIPE_PUBLISHABLE_KEY=" ",
+            STRIPE_SECRET_KEY="",
+            STRIPE_WEBHOOK_SECRET=" ",
+            STRIPE_PRICE_ID_MAP=self._price_map(),
+        ):
+            self.assertEqual(
+                {
+                    STRIPE_CHECK_MISSING_PUBLISHABLE_KEY,
+                    STRIPE_CHECK_MISSING_SECRET_KEY,
+                    STRIPE_CHECK_MISSING_WEBHOOK_SECRET,
+                },
+                self._stripe_check_ids()
+                & {
+                    STRIPE_CHECK_MISSING_PUBLISHABLE_KEY,
+                    STRIPE_CHECK_MISSING_SECRET_KEY,
+                    STRIPE_CHECK_MISSING_WEBHOOK_SECRET,
+                },
+            )
+
+    def test_stripe_mode_resolves_test_and_live_keys(self):
+        with override_settings(**self._valid_stripe_settings()):
+            self.assertEqual(get_stripe_mode(), "test")
+
+        with override_settings(
+            **self._valid_stripe_settings(
+                STRIPE_PUBLISHABLE_KEY="pk_live_motionmate",
+                STRIPE_SECRET_KEY="sk_live_motionmate",
+            )
+        ):
+            self.assertEqual(get_stripe_mode(), "live")
+
+    def test_mixed_and_malformed_key_modes_are_rejected_without_exposing_secrets(self):
+        sensitive_secret = "sk_live_super_secret_value"
+        with override_settings(
+            **self._valid_stripe_settings(
+                STRIPE_PUBLISHABLE_KEY="pk_test_motionmate",
+                STRIPE_SECRET_KEY=sensitive_secret,
+            )
+        ):
+            issues = validate_stripe_configuration()
+
+        self.assertIn(STRIPE_CHECK_MIXED_KEY_MODES, {issue.id for issue in issues})
+        self.assertNotIn(sensitive_secret, " ".join(issue.message for issue in issues))
+
+        with override_settings(
+            **self._valid_stripe_settings(
+                STRIPE_PUBLISHABLE_KEY="pub_test_motionmate",
+                STRIPE_SECRET_KEY="secret_test_motionmate",
+            )
+        ):
+            self.assertEqual(
+                {
+                    STRIPE_CHECK_INVALID_PUBLISHABLE_KEY,
+                    STRIPE_CHECK_INVALID_SECRET_KEY,
+                },
+                self._stripe_check_ids()
+                & {
+                    STRIPE_CHECK_INVALID_PUBLISHABLE_KEY,
+                    STRIPE_CHECK_INVALID_SECRET_KEY,
+                },
+            )
+
+    def test_price_mapping_resolves_supported_public_plan_interval_and_currency(self):
+        with override_settings(STRIPE_PRICE_ID_MAP=self._price_map()):
+            self.assertEqual(
+                get_stripe_price_id(
+                    plan_slug=" Starter ",
+                    billing_interval=" monthly ",
+                    currency=" USD ",
+                ),
+                "price_starter_monthly_usd",
+            )
+            self.assertEqual(
+                get_stripe_price_id(
+                    plan_slug="pro",
+                    billing_interval="yearly",
+                    currency="eur",
+                ),
+                "price_pro_yearly_eur",
+            )
+            self.assertEqual(
+                get_stripe_price_id(
+                    plan_slug="BUSINESS",
+                    billing_interval="YEARLY",
+                    currency="EUR",
+                ),
+                "price_business_yearly_eur",
+            )
+
+    def test_price_mapping_rejects_beta_unknown_interval_and_currency(self):
+        with override_settings(STRIPE_PRICE_ID_MAP=self._price_map()):
+            invalid_requests = (
+                (
+                    {"plan_slug": "beta", "billing_interval": "monthly", "currency": "usd"},
+                    "Beta is not a public Stripe subscription plan.",
+                ),
+                (
+                    {"plan_slug": "enterprise", "billing_interval": "monthly", "currency": "usd"},
+                    "Unsupported Motionmate public plan",
+                ),
+                (
+                    {"plan_slug": "pro", "billing_interval": "weekly", "currency": "usd"},
+                    "Unsupported Stripe billing interval.",
+                ),
+                (
+                    {"plan_slug": "pro", "billing_interval": "monthly", "currency": "cad"},
+                    "Unsupported Stripe Price currency.",
+                ),
+            )
+            for kwargs, message in invalid_requests:
+                with self.subTest(kwargs=kwargs):
+                    with self.assertRaisesMessage(StripeConfigurationError, message):
+                        get_stripe_price_id(**kwargs)
+
+    def test_price_mapping_missing_or_malformed_price_ids_raise_clear_errors_without_fallback(self):
+        missing_starter = {("starter", "monthly", "usd")}
+        with override_settings(STRIPE_PRICE_ID_MAP=self._price_map(missing=missing_starter)):
+            with self.assertRaisesMessage(
+                StripeConfigurationError,
+                "Stripe Price ID is not configured for starter monthly usd.",
+            ):
+                get_stripe_price_id(
+                    plan_slug="starter",
+                    billing_interval="monthly",
+                    currency="usd",
+                )
+
+        with override_settings(
+            STRIPE_PRICE_ID_MAP=self._price_map(
+                overrides={("starter", "monthly", "usd"): "pro_monthly_usd"}
+            )
+        ):
+            with self.assertRaisesMessage(
+                StripeConfigurationError,
+                "Configured Stripe Price ID must start with price_.",
+            ):
+                get_stripe_price_id(
+                    plan_slug="starter",
+                    billing_interval="monthly",
+                    currency="usd",
+                )
+
+        with override_settings(
+            STRIPE_PRICE_ID_MAP={
+                ("pro", "monthly", "usd"): "price_pro_monthly_usd",
+            }
+        ):
+            with self.assertRaisesMessage(
+                StripeConfigurationError,
+                "Stripe Price ID is not configured for starter monthly usd.",
+            ):
+                get_stripe_price_id(
+                    plan_slug="starter",
+                    billing_interval="monthly",
+                    currency="usd",
+                )
+
+    def test_system_checks_report_enabled_configuration_errors(self):
+        with override_settings(STRIPE_ENABLED=False, STRIPE_PRICE_ID_MAP={}):
+            self.assertEqual(check_stripe_configuration(None), [])
+
+        with override_settings(
+            STRIPE_ENABLED=True,
+            STRIPE_PUBLISHABLE_KEY="",
+            STRIPE_SECRET_KEY="",
+            STRIPE_WEBHOOK_SECRET="",
+            STRIPE_PRICE_ID_MAP={},
+        ):
+            error_ids = {error.id for error in check_stripe_configuration(None)}
+
+        self.assertIn(STRIPE_CHECK_MISSING_PUBLISHABLE_KEY, error_ids)
+        self.assertIn(STRIPE_CHECK_MISSING_SECRET_KEY, error_ids)
+        self.assertIn(STRIPE_CHECK_MISSING_WEBHOOK_SECRET, error_ids)
+        self.assertIn(STRIPE_CHECK_MISSING_PRICE_ID, error_ids)
+
+    def test_system_checks_report_invalid_price_ids_and_dimensions(self):
+        invalid_price_map = self._price_map(
+            overrides={
+                ("starter", "monthly", "usd"): "not_a_price",
+                ("beta", "monthly", "usd"): "price_beta_monthly_usd",
+                ("enterprise", "monthly", "usd"): "price_enterprise_monthly_usd",
+                ("pro", "weekly", "usd"): "price_pro_weekly_usd",
+                ("pro", "monthly", "cad"): "price_pro_monthly_cad",
+            }
+        )
+
+        with override_settings(**self._valid_stripe_settings(STRIPE_PRICE_ID_MAP=invalid_price_map)):
+            error_ids = {error.id for error in check_stripe_configuration(None)}
+
+        self.assertTrue(
+            {
+                STRIPE_CHECK_INVALID_PRICE_ID,
+                STRIPE_CHECK_BETA_PLAN,
+                STRIPE_CHECK_UNKNOWN_PLAN,
+                STRIPE_CHECK_UNSUPPORTED_INTERVAL,
+                STRIPE_CHECK_UNSUPPORTED_CURRENCY,
+            }.issubset(error_ids)
+        )
+
+    def test_system_checks_do_not_make_stripe_api_calls(self):
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(stripe_config.stripe.Customer, "create") as create_customer:
+                self.assertEqual(check_stripe_configuration(None), [])
+
+        create_customer.assert_not_called()
+
+    def test_configure_stripe_sdk_is_lazy_and_requires_enabled_valid_configuration(self):
+        with override_settings(STRIPE_ENABLED=False):
+            with self.assertRaisesMessage(
+                StripeConfigurationError,
+                "Stripe subscription billing is disabled.",
+            ):
+                configure_stripe_sdk()
+
+        original_api_key = stripe_config.stripe.api_key
+        try:
+            with override_settings(**self._valid_stripe_settings()):
+                configured_stripe = configure_stripe_sdk()
+
+            self.assertIs(configured_stripe, stripe_config.stripe)
+            self.assertEqual(stripe_config.stripe.api_key, "sk_test_motionmate")
+        finally:
+            stripe_config.stripe.api_key = original_api_key
+
+    def test_no_stripe_checkout_webhook_or_customer_portal_routes_exist_yet(self):
+        def flatten_url_patterns(patterns):
+            for pattern in patterns:
+                if isinstance(pattern, URLPattern):
+                    yield pattern
+                elif isinstance(pattern, URLResolver):
+                    yield from flatten_url_patterns(pattern.url_patterns)
+
+        route_text = " ".join(
+            f"{pattern.pattern} {pattern.name or ''}".lower()
+            for pattern in flatten_url_patterns(get_resolver().url_patterns)
+        )
+
+        for forbidden_term in (
+            "stripe",
+            "checkout",
+            "webhook",
+            "customer_portal",
+            "customer-portal",
+        ):
+            with self.subTest(forbidden_term=forbidden_term):
+                self.assertNotIn(forbidden_term, route_text)
 
 
 class BusinessUserModelTests(TestCase):
@@ -780,6 +1173,57 @@ class SubscriptionAccessTests(TestCase):
         self.assertIsNone(subscription)
         self.assertFalse(BusinessSubscription.objects.filter(business=self.business).exists())
 
+    def test_default_trial_subscription_uses_catalog_trial_duration(self):
+        plan = ClarivoPlan.objects.get(slug=DEFAULT_PUBLIC_PAID_PLAN_SLUG)
+
+        subscription = create_default_trial_subscription(self.business, plan=plan)
+
+        self.assertIsNotNone(subscription)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(
+            subscription.trial_end - subscription.trial_start,
+            timedelta(days=STANDARD_TRIAL_DAYS),
+        )
+        self.assertEqual(subscription.current_period_start, subscription.trial_start)
+        self.assertEqual(subscription.current_period_end, subscription.trial_end)
+
+    def test_default_trial_subscription_preserves_explicit_trial_day_override(self):
+        plan = ClarivoPlan.objects.get(slug="starter")
+
+        subscription = create_default_trial_subscription(self.business, plan=plan, trial_days=5)
+
+        self.assertIsNotNone(subscription)
+        self.assertEqual(subscription.trial_end - subscription.trial_start, timedelta(days=5))
+        self.assertEqual(subscription.current_period_start, subscription.trial_start)
+        self.assertEqual(subscription.current_period_end, subscription.trial_end)
+
+    def test_assign_subscription_plan_uses_catalog_default_trial_and_preserves_override(self):
+        default_business = Business.objects.create(
+            name="Default Trial Assignment",
+            slug="default-trial-assignment",
+        )
+        override_business = Business.objects.create(
+            name="Override Trial Assignment",
+            slug="override-trial-assignment",
+        )
+        plan = ClarivoPlan.objects.get(slug="business")
+
+        default_subscription = assign_business_subscription_plan(default_business, plan)
+        override_subscription = assign_business_subscription_plan(
+            override_business,
+            plan,
+            trial_days=3,
+        )
+
+        self.assertEqual(
+            default_subscription.trial_end - default_subscription.trial_start,
+            timedelta(days=STANDARD_TRIAL_DAYS),
+        )
+        self.assertEqual(
+            override_subscription.trial_end - override_subscription.trial_start,
+            timedelta(days=3),
+        )
+
 
 class MotionmatePlanCatalogTests(TestCase):
     def test_default_motionmate_plans_have_agreed_prices_limits_and_modules(self):
@@ -869,6 +1313,15 @@ class MotionmatePlanCatalogTests(TestCase):
         self.assertTrue(ClarivoPlan.objects.get(slug="pro").is_recommended)
         self.assertFalse(ClarivoPlan.objects.get(slug="starter").is_recommended)
         self.assertFalse(ClarivoPlan.objects.get(slug="business").is_recommended)
+
+    def test_motionmate_plans_exclude_inactive_public_plans(self):
+        ClarivoPlan.objects.filter(slug="pro").update(is_active=False)
+
+        public_slugs = list(ClarivoPlan.motionmate_plans().values_list("slug", flat=True))
+
+        self.assertEqual(public_slugs, ["starter", "business"])
+        self.assertNotIn("pro", public_slugs)
+        self.assertNotIn(BETA_PLAN_SLUG, public_slugs)
 
     def test_internal_beta_plan_is_free_pro_equivalent_and_excluded_from_public_catalog(self):
         beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
@@ -1102,13 +1555,13 @@ class MotionmatePlanCatalogTests(TestCase):
         self.assertContains(response, "$159")
         self.assertContains(response, "€149")
         self.assertContains(response, "$1,590 yearly USD")
-        self.assertContains(response, "€1,490 yearly EUR")
+        self.assertContains(response, "EUR: €1,490 / year")
         self.assertContains(response, "Recommended")
         self.assertContains(response, "Client CRM")
         self.assertContains(response, "Online Booking")
         self.assertContains(response, "2 total users: owner + 1 staff account")
         self.assertNotContains(response, "$0.00")
-        self.assertNotContains(response, "Free")
+        self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
         self.assertNotContains(response, "Growth")
         self.assertNotContains(response, "Public Request Form")
         self.assertNotContains(response, "Public Booking")

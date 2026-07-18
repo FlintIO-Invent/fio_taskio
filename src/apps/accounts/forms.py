@@ -17,6 +17,15 @@ from apps.businesses.models import (
     BusinessUser,
     ClarivoPlan,
 )
+from apps.businesses.plan_catalog import (
+    DEFAULT_PUBLIC_PAID_PLAN_SLUG,
+    PUBLIC_PAID_PLAN_SLUG_SET,
+    PUBLIC_PAID_PLAN_SLUGS,
+    STANDARD_TRIAL_DAYS,
+    is_public_paid_plan_slug,
+    normalize_plan_slug,
+    normalize_public_paid_plan_slug,
+)
 from apps.businesses.utils import create_default_trial_subscription, generate_business_slug
 
 from .models import SaaSUserProfile, TaskIOUser
@@ -143,7 +152,7 @@ class CustomerRegistrationForm(forms.ModelForm):
 
 
 class BusinessRegistrationForm(forms.Form):
-    PLAN_QUERY_SLUGS = set(ClarivoPlan.MOTIONMATE_PLAN_SLUGS)
+    PLAN_QUERY_SLUGS = PUBLIC_PAID_PLAN_SLUG_SET
 
     first_name = forms.CharField(
         label="Owner first name",
@@ -179,7 +188,8 @@ class BusinessRegistrationForm(forms.Form):
         queryset=ClarivoPlan.objects.none(),
         required=False,
         empty_label=None,
-        help_text="Your workspace starts with the standard 14-day trial. You can change plans after signup.",
+        to_field_name="slug",
+        help_text=f"Your workspace starts with the standard {STANDARD_TRIAL_DAYS}-day trial. You can change plans after signup.",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     password1 = forms.CharField(
@@ -208,13 +218,19 @@ class BusinessRegistrationForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.beta_eligible = beta_eligible
         plans = self._plan_queryset()
-        self.fields["plan"].queryset = plans
-        self.fields["plan"].label_from_instance = self._plan_label
-        self.fields["plan"].initial = self._default_plan(
+        submitted_plan_slug = (
+            self.data.get(self.add_prefix("plan")) if self.is_bound else selected_plan_slug
+        )
+        self.selected_plan_for_display = self._default_plan(
             plans,
-            selected_plan_slug,
+            submitted_plan_slug,
             beta_eligible=beta_eligible,
         )
+        self.fields["plan"].queryset = plans
+        self.fields["plan"].label_from_instance = self._plan_label
+        self.fields["plan"].initial = self.selected_plan_for_display
+        if not beta_eligible:
+            self.fields["plan"].widget = forms.HiddenInput()
 
     def _plan_queryset(self):
         if (
@@ -226,7 +242,7 @@ class BusinessRegistrationForm(forms.Form):
 
         return ClarivoPlan.objects.filter(
             is_active=True,
-            slug__in=(*ClarivoPlan.MOTIONMATE_PLAN_SLUGS, BETA_PLAN_SLUG),
+            slug__in=(*PUBLIC_PAID_PLAN_SLUGS, BETA_PLAN_SLUG),
         ).order_by(ClarivoPlan.motionmate_plan_ordering(), "pk")
 
     @staticmethod
@@ -246,23 +262,25 @@ class BusinessRegistrationForm(forms.Form):
         *,
         beta_eligible: bool = False,
     ) -> ClarivoPlan | None:
-        normalized_slug = (selected_plan_slug or "").strip().lower()
-        allowed_slugs = set(BusinessRegistrationForm.PLAN_QUERY_SLUGS)
-        if beta_eligible:
-            allowed_slugs.add(BETA_PLAN_SLUG)
-
-        if normalized_slug in allowed_slugs:
-            selected_plan = plans.filter(slug=normalized_slug).first()
+        normalized_slug = normalize_plan_slug(selected_plan_slug)
+        if beta_eligible and normalized_slug == BETA_PLAN_SLUG:
+            selected_plan = plans.filter(slug=BETA_PLAN_SLUG).first()
             if selected_plan is not None:
                 return selected_plan
+
+        public_plan_slug = normalize_public_paid_plan_slug(selected_plan_slug)
+        if public_plan_slug is not None:
+            selected_plan = plans.filter(slug=public_plan_slug).first()
+            if selected_plan is not None:
+                return selected_plan
+
+        default_plan = plans.filter(slug=DEFAULT_PUBLIC_PAID_PLAN_SLUG).first()
+        if default_plan is not None:
+            return default_plan
 
         recommended_plan = plans.filter(is_recommended=True).first()
         if recommended_plan is not None:
             return recommended_plan
-
-        pro_plan = plans.filter(slug="pro").first()
-        if pro_plan is not None:
-            return pro_plan
 
         return plans.first()
 
@@ -290,7 +308,7 @@ class BusinessRegistrationForm(forms.Form):
                 raise ValidationError("Select a valid trial plan.")
             return plan
 
-        if plan.slug not in self.PLAN_QUERY_SLUGS:
+        if not is_public_paid_plan_slug(plan.slug):
             raise ValidationError("Select a valid trial plan.")
 
         return plan

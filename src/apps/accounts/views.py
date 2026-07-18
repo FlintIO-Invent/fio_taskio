@@ -17,10 +17,18 @@ from django.views.decorators.http import require_http_methods
 from loguru import logger
 
 from apps.accounts.models import SaaSUserProfile, TaskIOUser
-from apps.businesses.models import BusinessInvitation, BusinessUser, ClarivoPlan
+from apps.businesses.models import (
+    Business,
+    BusinessInvitation,
+    BusinessSubscription,
+    BusinessUser,
+    ClarivoPlan,
+)
+from apps.businesses.plan_catalog import STANDARD_TRIAL_DAYS
 from apps.businesses.utils import (
     MULTI_WORKSPACE_EMAIL_MESSAGE,
     accept_business_invitation_for_user,
+    create_default_trial_subscription,
     expire_business_invitation_if_needed,
     get_current_business,
     get_other_active_business_membership_for_user,
@@ -227,6 +235,47 @@ def _beta_registration_link_is_available(token: str) -> bool:
     )
 
 
+def handle_successful_paid_plan_registration(
+    request: HttpRequest,
+    *,
+    user: TaskIOUser,
+    business: Business,
+    selected_plan: ClarivoPlan | None,
+    subscription: BusinessSubscription | None = None,
+) -> HttpResponse:
+    """
+    Complete the current local paid-plan signup flow.
+
+    A later checkout block can replace this seam with checkout initiation without
+    spreading payment logic through the registration form.
+    """
+    subscription = create_default_trial_subscription(business, plan=selected_plan) or subscription
+
+    login(request, user)
+    set_current_business(request, business)
+    logger.info(
+        "New Motionmate business registered with owner_email={} and business_slug={}",
+        user.email,
+        business.slug,
+    )
+
+    if subscription is not None and subscription.is_trialing:
+        messages.success(
+            request,
+            f"Your Motionmate workspace has been created with a {STANDARD_TRIAL_DAYS}-day trial. You can now start from your dashboard.",
+        )
+    else:
+        logger.warning(
+            "Business {} created without a default trial subscription because no active Motionmate plan is configured.",
+            business.slug,
+        )
+        messages.success(
+            request,
+            "Your Motionmate workspace has been created. Subscription setup is pending because no active trial plan is configured yet.",
+        )
+    return redirect("agent_dashboard")
+
+
 def _register_business(
     request: HttpRequest,
     *,
@@ -238,33 +287,27 @@ def _register_business(
         if form.is_valid():
             user, business, _membership, subscription = form.save()
 
-            login(request, user)
-            set_current_business(request, business)
-            logger.info(
-                "New Motionmate business registered with owner_email={} and business_slug={}",
-                user.email,
-                business.slug,
-            )
-            if subscription is not None and subscription.is_trialing:
-                messages.success(
-                    request,
-                    "Your Motionmate workspace has been created with a 14-day trial. You can now start from your dashboard.",
-                )
-            elif subscription is not None:
-                messages.success(
-                    request,
-                    "Your Motionmate workspace has been created with Beta early access. You can now start from your dashboard.",
-                )
-            else:
-                logger.warning(
-                    "Business {} created without a default trial subscription because no active Motionmate plan is configured.",
+            if subscription is not None and subscription.plan.slug == BETA_PLAN_SLUG:
+                login(request, user)
+                set_current_business(request, business)
+                logger.info(
+                    "New Motionmate beta business registered with owner_email={} and business_slug={}",
+                    user.email,
                     business.slug,
                 )
                 messages.success(
                     request,
-                    "Your Motionmate workspace has been created. Subscription setup is pending because no active trial plan is configured yet.",
+                    "Your Motionmate workspace has been created with Beta early access. You can now start from your dashboard.",
                 )
-            return redirect("agent_dashboard")
+                return redirect("agent_dashboard")
+
+            return handle_successful_paid_plan_registration(
+                request,
+                user=user,
+                business=business,
+                selected_plan=form.cleaned_data.get("plan") or form.selected_plan_for_display,
+                subscription=subscription,
+            )
 
         logger.warning(
             "Business registration failed for email={}: {}",
@@ -277,7 +320,21 @@ def _register_business(
             beta_eligible=beta_eligible,
         )
 
-    return render(request, "accounts/forms/business_registration.html", {"form": form})
+    selected_plan = None if beta_eligible else form.selected_plan_for_display
+    selected_plan_pricing = (
+        selected_plan.get_display_pricing() if selected_plan is not None else None
+    )
+    return render(
+        request,
+        "accounts/forms/business_registration.html",
+        {
+            "form": form,
+            "selected_plan": selected_plan,
+            "selected_plan_pricing": selected_plan_pricing,
+            "show_paid_plan_summary": not beta_eligible,
+            "standard_trial_days": STANDARD_TRIAL_DAYS,
+        },
+    )
 
 
 @require_http_methods(["GET", "POST"])
