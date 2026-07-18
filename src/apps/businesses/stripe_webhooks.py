@@ -17,6 +17,7 @@ from .stripe_config import (
     configure_stripe_sdk,
     resolve_stripe_price_id,
 )
+from .subscription_grace import get_subscription_payment_grace_duration
 
 logger = logging.getLogger(__name__)
 
@@ -329,7 +330,7 @@ def _process_invoice_event(
         raise StripeWebhookIgnored("Invoice subscription is not known locally.")
 
     provider_subscription = _retrieve_stripe_subscription(provider_subscription_id)
-    failure_context = _invoice_failure_context(invoice) if payment_failed else {}
+    failure_context = _invoice_failure_context(invoice, provider_event_at) if payment_failed else {}
     return _sync_subscription_object(
         provider_subscription=provider_subscription,
         provider_event_at=provider_event_at,
@@ -612,11 +613,35 @@ def _update_subscription_state_fields(
         **date_values,
     }
     if failure_context:
-        desired_values["last_payment_failure_at"] = failure_context.get(
-            "failure_at",
-            provider_event_at,
+        failure_at = failure_context.get("failure_at", provider_event_at)
+    else:
+        failure_at = provider_event_at
+
+    if local_status == BusinessSubscription.Status.PAST_DUE:
+        past_due_since = local_subscription.past_due_since or failure_at
+        desired_values["past_due_since"] = past_due_since
+        desired_values["grace_period_ends_at"] = (
+            local_subscription.grace_period_ends_at
+            or past_due_since + get_subscription_payment_grace_duration()
         )
-        desired_values["last_payment_failure_reason"] = failure_context.get("failure_reason", "")
+        if failure_context and (
+            local_subscription.last_payment_failure_at is None
+            or failure_at > local_subscription.last_payment_failure_at
+        ):
+            desired_values["last_payment_failure_at"] = failure_at
+            desired_values["last_payment_failure_reason"] = failure_context.get(
+                "failure_reason",
+                "",
+            )
+    elif local_status in (
+        BusinessSubscription.Status.TRIALING,
+        BusinessSubscription.Status.ACTIVE,
+        BusinessSubscription.Status.PENDING_CHECKOUT,
+        BusinessSubscription.Status.CANCELLED,
+        BusinessSubscription.Status.EXPIRED,
+    ):
+        desired_values["past_due_since"] = None
+        desired_values["grace_period_ends_at"] = None
 
     for field_name, value in desired_values.items():
         if getattr(local_subscription, field_name) != value:
@@ -725,15 +750,10 @@ def _invoice_subscription_id(invoice: Any) -> str:
     return str(subscription or "")
 
 
-def _invoice_failure_context(invoice: Any) -> dict[str, Any]:
-    failure_reason = str(
-        _stripe_value(invoice, "last_finalization_error")
-        or _stripe_value(invoice, "status")
-        or "payment_failed"
-    )[:255]
+def _invoice_failure_context(invoice: Any, provider_event_at: datetime) -> dict[str, Any]:
     return {
-        "failure_at": timezone.now(),
-        "failure_reason": failure_reason,
+        "failure_at": provider_event_at,
+        "failure_reason": "payment_failed",
     }
 
 

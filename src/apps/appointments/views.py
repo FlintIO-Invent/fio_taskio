@@ -15,7 +15,7 @@ from apps.businesses.utils import (
     business_limit_reached,
     business_module_required,
     business_role_required,
-    can_use_module,
+    can_view_module,
     get_business_limit_reached_message,
 )
 from apps.crm.models import BusinessService, Client, Lead
@@ -237,7 +237,7 @@ def _prepare_client_for_request_scheduling(lead: Lead):
     permission_message="You do not have permission to view appointments.",
     raise_exception=False,
 )
-@business_module_required("appointments")
+@business_module_required("appointments", access="read")
 @require_http_methods(["GET"])
 def appointment_list(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -273,7 +273,7 @@ def appointment_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to view appointments.",
     raise_exception=False,
 )
-@business_module_required("appointments")
+@business_module_required("appointments", access="read")
 @require_http_methods(["GET"])
 def appointment_detail(request: HttpRequest, appointment_id: int) -> HttpResponse:
     appointment = get_object_or_404(
@@ -281,7 +281,7 @@ def appointment_detail(request: HttpRequest, appointment_id: int) -> HttpRespons
         pk=appointment_id,
     )
     linked_invoice = None
-    if can_use_module(request.current_business, "invoicing"):
+    if can_view_module(request.current_business, "invoicing"):
         linked_invoice = (
             _invoice_queryset_for_business(request.current_business)
             .filter(appointment=appointment)

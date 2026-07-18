@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from apps.businesses.models import BusinessSubscription
+from apps.businesses.models import BusinessSubscription, SubscriptionAccessMode
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,14 @@ class Command(BaseCommand):
 
         queryset = BusinessSubscription.objects.select_related("business", "plan").order_by("pk")
         for subscription in queryset.iterator(chunk_size=500):
+            access_state = subscription.effective_access_state_at(now)
+            if access_state.mode == SubscriptionAccessMode.FULL:
+                counts["access_mode_full"] += 1
+            elif access_state.mode == SubscriptionAccessMode.RESTRICTED:
+                counts["access_mode_restricted"] += 1
+            else:
+                counts["access_mode_none"] += 1
+
             self._reconcile_subscription(
                 subscription=subscription,
                 now=now,
@@ -40,6 +48,9 @@ class Command(BaseCommand):
             self.stdout.write("Dry run only; no subscription records were changed.")
 
         summary = (
+            ("Full access", "access_mode_full"),
+            ("Restricted after grace", "access_mode_restricted"),
+            ("No access", "access_mode_none"),
             ("Expired local trials", "expired_local_trials"),
             ("Completed scheduled cancellations", "completed_scheduled_cancellations"),
             (
@@ -50,6 +61,9 @@ class Command(BaseCommand):
                 "Stale provider subscriptions requiring reconciliation",
                 "stale_provider_subscriptions_requiring_reconciliation",
             ),
+            ("Past due within grace", "past_due_within_grace"),
+            ("Past due grace expired", "past_due_grace_expired"),
+            ("Past due missing grace fields", "past_due_missing_grace_fields"),
             ("Past-due subscriptions unchanged", "past_due_subscriptions_unchanged"),
             ("Beta subscriptions unchanged", "beta_subscriptions_unchanged"),
             ("Future trials unchanged", "future_trials_unchanged"),
@@ -71,6 +85,16 @@ class Command(BaseCommand):
             return
 
         if subscription.status == BusinessSubscription.Status.PAST_DUE:
+            access_state = subscription.effective_access_state_at(now)
+            if access_state.code == BusinessSubscription.AccessCode.PAST_DUE_GRACE:
+                counts["past_due_within_grace"] += 1
+                return
+            if access_state.code == BusinessSubscription.AccessCode.PAST_DUE_GRACE_EXPIRED:
+                counts["past_due_grace_expired"] += 1
+                return
+            if access_state.code == BusinessSubscription.AccessCode.PAST_DUE_MISSING_GRACE_STATE:
+                counts["past_due_missing_grace_fields"] += 1
+                return
             counts["past_due_subscriptions_unchanged"] += 1
             return
 

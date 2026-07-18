@@ -38,6 +38,7 @@ from apps.businesses.stripe_config import StripeConfigurationError, is_stripe_en
 from apps.businesses.utils import (
     MULTI_WORKSPACE_EMAIL_MESSAGE,
     accept_business_invitation_for_user,
+    business_can_modify_workspace,
     create_default_trial_subscription,
     expire_business_invitation_if_needed,
     get_current_business,
@@ -441,6 +442,9 @@ def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse
         messages.error(request, "This invitation has been cancelled.")
 
     invitation_is_available = invitation.status == BusinessInvitation.Status.PENDING
+    invitation_blocked_by_subscription = invitation_is_available and not business_can_modify_workspace(
+        invitation.business
+    )
     wrong_authenticated_user = (
         request.user.is_authenticated and request.user.email.lower() != invitation.email.lower()
     )
@@ -464,6 +468,13 @@ def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse
     signup_form = None
 
     if invitation_is_available and request.method == "POST":
+        if invitation_blocked_by_subscription:
+            messages.error(
+                request,
+                "This workspace is temporarily read-only. Ask the account owner to update the subscription before accepting new teammates.",
+            )
+            return redirect("accept_business_invitation", token=invitation.token)
+
         if wrong_authenticated_user:
             messages.error(
                 request,
@@ -573,6 +584,7 @@ def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse
         "invitation": invitation,
         "existing_user": existing_user,
         "invitation_is_available": invitation_is_available,
+        "invitation_blocked_by_subscription": invitation_blocked_by_subscription,
         "wrong_authenticated_user": wrong_authenticated_user,
         "multi_workspace_membership_conflict": multi_workspace_membership_conflict,
         "login_form": login_form,

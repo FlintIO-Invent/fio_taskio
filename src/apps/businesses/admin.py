@@ -95,6 +95,8 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
         "current_period_start",
         "current_period_end",
         "cancel_at_period_end",
+        "past_due_since",
+        "grace_period_ends_at",
         "updated_at",
     )
     list_filter = ("status", "payment_provider", "billing_interval", "cancel_at_period_end", "plan")

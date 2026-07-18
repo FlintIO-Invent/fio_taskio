@@ -27,7 +27,7 @@
     </div>
     <div class="col-auto">
       <div class="d-flex gap-3">
-        {% if role_access.can_manage_invoices %}
+        {% if role_access.can_manage_invoices and workspace_can_modify %}
           <a class="btn btn-phoenix-primary" href="{% url 'invoice_create' %}">
             <span class="fa-solid fa-plus me-2"></span>Create Invoice
           </a>
@@ -100,12 +100,12 @@
                           <a href="{% url 'invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary">
                             <span class="fa-solid fa-eye"></span>
                           </a>
-	                          {% if role_access.can_manage_invoices and invoice.status == 'DRAFT' %}
+	                          {% if role_access.can_manage_invoices and workspace_can_modify and invoice.status == 'DRAFT' %}
 	                          <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-sm btn-outline-warning">
 	                            <span class="fa-solid fa-edit"></span>
 	                          </a>
 	                          {% endif %}
-                            {% if role_access.can_delete_invoices %}
+                            {% if role_access.can_delete_invoices and workspace_can_modify %}
                               <form method="post" action="{% url 'invoice_delete' invoice.pk %}">
                                 {% csrf_token %}
                                 <button
@@ -140,7 +140,7 @@
                 No invoices have been created yet.
               {% endif %}
             </p>
-            {% if role_access.can_manage_invoices %}
+            {% if role_access.can_manage_invoices and workspace_can_modify %}
               <a href="{% url 'invoice_create' %}" class="btn btn-phoenix-primary">
                 <span class="fa-solid fa-plus me-2"></span>Create Your First Invoice
               </a>

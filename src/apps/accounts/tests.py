@@ -1497,6 +1497,15 @@ class BusinessInvitationAcceptanceTests(TestCase):
             business=self.business,
             role=BusinessUser.Role.OWNER,
         )
+        invitation_access_plan = ClarivoPlan.objects.create(
+            name="Invitation Access",
+            slug="invitation-access-plan",
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=invitation_access_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
 
     def test_accept_invitation_creates_employee_account_and_membership(self):
         invitation = BusinessInvitation.objects.create(

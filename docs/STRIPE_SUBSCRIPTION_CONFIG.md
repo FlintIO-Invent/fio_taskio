@@ -32,6 +32,7 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
 STRIPE_SECRET_KEY=sk_test_replace_me
 STRIPE_WEBHOOK_SECRET=whsec_replace_me
 STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID=bpc_replace_me
+SUBSCRIPTION_PAYMENT_GRACE_DAYS=7
 ```
 
 Production must use live keys:
@@ -65,6 +66,58 @@ Initial portal configuration:
 Do not enable switching between Starter, Pro, Business, monthly, yearly, EUR, or USD in this portal configuration. Future plan-change behavior must be implemented deliberately through Motionmate's local Price mapping and webhook architecture.
 
 The portal route is owner-only and creates a new Stripe Portal Session on POST. Motionmate uses the local subscription's stored Stripe customer ID and a server-generated return URL; it never accepts customer IDs, configuration IDs, or return URLs from browser input.
+
+## Payment Failure Grace
+
+Motionmate uses a provider-neutral access grace period when Stripe confirms a subscription is `past_due`:
+
+```env
+SUBSCRIPTION_PAYMENT_GRACE_DAYS=7
+```
+
+The value defaults to 7 days and must be a whole number from 0 to 30. `0` means no grace access. Starter, Pro, and Business use the same policy.
+
+The first verified `invoice.payment_failed` webhook, or a verified `customer.subscription.updated` webhook that reports `past_due`, starts the current delinquency episode from the Stripe event timestamp. Motionmate stores `past_due_since` and `grace_period_ends_at` on the subscription. Additional failed-payment webhooks update only the latest operational failure timestamp; they do not extend grace.
+
+During grace, the selected plan continues to control access and limits. After `evaluation_time >= grace_period_ends_at`, a valid Stripe-backed public paid subscription enters restricted read-only access until a verified Stripe recovery webhook arrives.
+
+Owners can use the hosted Stripe Customer Portal recovery action to update payment information during or after grace expiry. Returning from the Portal is informational only and does not recover access. Motionmate clears the current delinquency only after `invoice.paid` or a newer valid subscription webhook confirms `active` or `trialing` state. Cancellation and terminal provider states clear the current grace fields and follow the existing no-access rules.
+
+Stripe retry timing is configured separately in the Stripe Dashboard. Motionmate's grace period does not guarantee Stripe will retry payment on a specific date, is not a new free trial, and does not send dunning emails in this block.
+
+## Workspace Access Modes
+
+Subscription access is derived locally and has three explicit modes:
+
+- `full`: the workspace can be viewed and modified according to the selected plan, role permissions, and module gates.
+- `restricted`: the workspace can be viewed, but operational writes are blocked.
+- `none`: the workspace is unavailable except for owner subscription recovery routes.
+
+Restricted mode is available only for provider-backed Stripe subscriptions on public paid plans with valid local Stripe identity fields and valid past-due grace timestamps. Beta subscriptions, manual/internal subscriptions, missing grace state, malformed grace state, cancelled subscriptions, unpaid public subscriptions without Stripe identity, and plan/provider mismatches fail closed to `none` or follow their pre-existing access behavior.
+
+Access evaluation must not call Stripe, update database rows, send notifications, create sessions, or mutate local state. Browser return URLs from Checkout or the Customer Portal remain informational; only signed Stripe webhooks can restore full access after payment recovery.
+
+Use the central guards for new business routes:
+
+```python
+@business_module_required("client_management", access="read")
+@business_module_required("client_management")
+@business_workspace_access_required(access="read")
+@business_workspace_access_required()
+```
+
+`read` allows restricted workspaces to view plan-included data. `write` is the default and requires full access. Every new route that reads or mutates business data should declare the intended access level explicitly, then continue to enforce role permissions and object ownership as usual.
+
+Restricted access behavior:
+
+| Area | Restricted mode |
+| --- | --- |
+| Dashboard and existing CRM data | View allowed |
+| Existing clients, service requests, appointments, invoices, invoice PDFs, services, and team list | View allowed when plan and role allow |
+| Create, edit, archive, delete, convert, import, upload, email/send, status changes, onboarding writes, invitation acceptance, team mutations, settings mutations, and plan changes | Blocked |
+| Public request and public booking forms | Neutral unavailable page; no records are created |
+| Owner subscription and payment recovery | Allowed |
+| Non-owner recovery messaging | Neutral read-only messaging without payment controls |
 
 ## Price IDs
 
@@ -107,6 +160,7 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_me \
 STRIPE_SECRET_KEY=sk_test_replace_me \
 STRIPE_WEBHOOK_SECRET=whsec_replace_me \
 STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID=bpc_replace_me \
+SUBSCRIPTION_PAYMENT_GRACE_DAYS=7 \
 STRIPE_PRICE_STARTER_MONTHLY_USD=price_starter_monthly_usd \
 STRIPE_PRICE_STARTER_YEARLY_USD=price_starter_yearly_usd \
 STRIPE_PRICE_STARTER_MONTHLY_EUR=price_starter_monthly_eur \

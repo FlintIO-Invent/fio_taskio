@@ -95,15 +95,17 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Team Members</span></div>
                                                 </a>
                                             {% endif %}
-                                            {% if role_access.can_manage_business_settings %}
+                                            {% if role_access.can_manage_business_settings and workspace_can_modify %}
                                                 <a class="nav-link" href="{% url 'business_settings' %}" data-onboarding-target="business-settings">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                                 </a>
+                                            {% endif %}
+                                            {% if role_access.can_manage_services %}
                                                 <a class="nav-link" href="{% url 'business_service_list' %}" data-onboarding-target="services">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Services</span></div>
                                                 </a>
                                             {% endif %}
-                                            {% if role_access.can_manage_booking_availability %}
+                                            {% if role_access.can_manage_booking_availability and workspace_can_modify %}
                                                 <a class="nav-link" href="{% url 'business_booking_settings' %}" data-onboarding-target="availability">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Availability</span></div>
                                                 </a>
@@ -180,7 +182,7 @@
 	                                            <a class="nav-link" href="{% url 'staff_client_list' %}">
 	                                                <div class="d-flex align-items-center"><span class="nav-link-text">View All Clients</span></div>
 	                                            </a>
-	                                            {% if role_access.can_manage_clients %}
+	                                            {% if role_access.can_manage_clients and workspace_can_modify %}
 	                                                <a class="nav-link" href="{% url 'staff_client_create' %}">
 	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Client</span></div>
 	                                                </a>
@@ -205,7 +207,7 @@
 	                                            <a class="nav-link" href="{% url 'staff_lead_list' %}">
 	                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
 	                                            </a>
-	                                            {% if role_access.can_manage_leads %}
+	                                            {% if role_access.can_manage_leads and workspace_can_modify %}
 	                                                <a class="nav-link" href="{% url 'staff_lead_create' %}">
 	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Service Request</span></div>
 	                                                </a>
@@ -239,7 +241,7 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">View All Appointments</span></div>
                                                 </a>
                                             </li>
-                                            {% if role_access.can_manage_appointments %}
+                                            {% if role_access.can_manage_appointments and workspace_can_modify %}
                                                 <li class="nav-item">
                                                     <a class="nav-link" href="{% url 'appointment_create' %}">
                                                         <div class="d-flex align-items-center"><span class="nav-link-text">Create Appointment</span></div>
@@ -327,7 +329,7 @@
                                     <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'agent_dashboard' %}">
                                         <span data-feather="grid" style="width: 16px; height: 16px;"></span>Dashboard
                                     </a>
-                                    {% if role_access.can_manage_business_settings %}
+                                    {% if role_access.can_manage_business_settings and workspace_can_modify %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_settings' %}">
                                           <span data-feather="settings" style="width: 16px; height: 16px;"></span>Business Settings
                                       </a>
@@ -337,7 +339,7 @@
                                           <span data-feather="layers" style="width: 16px; height: 16px;"></span>Subscription
                                       </a>
                                     {% endif %}
-                                    {% if role_access.can_manage_booking_availability %}
+                                    {% if role_access.can_manage_booking_availability and workspace_can_modify %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_booking_settings' %}">
                                           <span data-feather="calendar" style="width: 16px; height: 16px;"></span>{% if role_access.can_manage_business_settings %}Booking Settings{% else %}Availability{% endif %}
                                       </a>
@@ -363,7 +365,46 @@
           </div>
       </nav>
 
-      {% block content %} {% endblock %}
+	      {% if subscription_access_state and subscription_access_state.code == "past_due_grace" %}
+	        <div class="content pt-3 pb-0">
+	          <div class="alert alert-warning d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-0" role="alert">
+	            <div>
+	              {% if role_access.can_manage_subscription %}
+	                <div class="fw-semibold">We could not process your latest Motionmate payment.</div>
+	                <div>Your account will remain available until {{ subscription_access_state.access_ends_at|date:"M j, Y, g:i a" }}. Update your payment method to prevent an interruption.</div>
+	              {% else %}
+	                <div class="fw-semibold">Your business subscription requires attention from the account owner.</div>
+	                <div>Your workspace remains available temporarily.</div>
+	              {% endif %}
+	            </div>
+	            {% if role_access.can_manage_subscription %}
+	              <a class="btn btn-sm btn-warning" href="{% url 'business_subscription' %}">Fix payment</a>
+	            {% endif %}
+	          </div>
+	        </div>
+	      {% elif workspace_is_restricted and request.resolver_match.url_name != "business_subscription" %}
+	        <div class="content pt-3 pb-0">
+	          <div class="alert alert-danger d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-0" role="alert">
+	            <div>
+	            {% if role_access.can_manage_subscription %}
+	              <div class="fw-semibold">Your Motionmate workspace is temporarily read-only because the payment grace period has ended.</div>
+	              <div>Update your payment method to restore full access.</div>
+	            {% else %}
+	              <div class="fw-semibold">This Motionmate workspace is temporarily read-only.</div>
+	              <div>The account owner needs to update the subscription to restore full access.</div>
+	            {% endif %}
+	            </div>
+	            {% if role_access.can_manage_subscription %}
+	              <form method="post" action="{% url 'billing_payment_recovery' %}" class="mb-0">
+	                {% csrf_token %}
+	                <button class="btn btn-sm btn-danger" type="submit">Fix payment</button>
+	              </form>
+	            {% endif %}
+	          </div>
+	        </div>
+	      {% endif %}
+
+	      {% block content %} {% endblock %}
       
       <script>
           var navbarTopStyle = window.config.config.phoenixNavbarTopStyle;

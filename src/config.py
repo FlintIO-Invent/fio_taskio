@@ -190,6 +190,10 @@ class Settings(BaseSettings):
         default="",
         description="Stripe Customer Portal configuration ID from the deployment environment.",
     )
+    subscription_payment_grace_days: str = Field(
+        default="7",
+        description="Motionmate payment-failure access grace period in days.",
+    )
     stripe_price_starter_monthly_usd: str = Field(default="")
     stripe_price_starter_yearly_usd: str = Field(default="")
     stripe_price_starter_monthly_eur: str = Field(default="")
@@ -262,6 +266,7 @@ class Settings(BaseSettings):
         return value
 
     @field_validator(
+        "subscription_payment_grace_days",
         "stripe_publishable_key",
         "stripe_secret_key",
         "stripe_webhook_secret",

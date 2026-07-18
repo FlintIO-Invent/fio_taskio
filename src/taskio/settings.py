@@ -193,6 +193,7 @@ STRIPE_PUBLISHABLE_KEY = settings.stripe_publishable_key
 STRIPE_SECRET_KEY = settings.stripe_secret_key
 STRIPE_WEBHOOK_SECRET = settings.stripe_webhook_secret
 STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID = settings.stripe_customer_portal_configuration_id
+SUBSCRIPTION_PAYMENT_GRACE_DAYS = settings.subscription_payment_grace_days
 STRIPE_PRICE_ID_MAP = {
     (plan_slug, billing_interval, currency): getattr(
         settings,

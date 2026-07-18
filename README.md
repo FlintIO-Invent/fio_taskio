@@ -20,6 +20,7 @@ The internal Django package name remains `taskio` for now. That is expected.
 - Stripe-hosted Checkout setup for paid-plan signup when enabled
 - Signed Stripe webhook subscription activation and local time-aware access checks
 - Owner-only Stripe Customer Portal entry point for eligible subscriptions
+- Seven-day payment-failure grace period and owner recovery Portal flow
 
 ## Out of scope for this release
 
@@ -27,6 +28,7 @@ The internal Django package name remains `taskio` for now. That is expected.
 - Public booking
 - Memberships
 - In-app plan-change checkout
+- Restricted/read-only mode after payment-failure grace expiry
 - Major new product features
 
 Appointment release-candidate staging QA is tracked separately in [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md) and must pass before appointments move into private-tester scope.

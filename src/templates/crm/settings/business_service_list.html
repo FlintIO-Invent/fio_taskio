@@ -6,7 +6,11 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'business_settings' %}">Business Settings</a></li>
+      {% if workspace_can_modify %}
+        <li class="breadcrumb-item"><a href="{% url 'business_settings' %}">Business Settings</a></li>
+      {% else %}
+        <li class="breadcrumb-item">Business Settings</li>
+      {% endif %}
       <li class="breadcrumb-item active">Services</li>
     </ol>
   </nav>
@@ -14,14 +18,18 @@
   <div class="row g-3 mb-4 justify-content-between align-items-center">
     <div class="col-lg-8">
       <h2 class="mb-2 text-body-emphasis">Services & Categories</h2>
-      <p class="text-body-tertiary mb-0">Manage priced services and the categories they use in one place for {{ business.name }}.</p>
+      <p class="text-body-tertiary mb-0">Review priced services and the categories they use in one place for {{ business.name }}.</p>
     </div>
     <div class="col-auto d-flex gap-2">
-      <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Back to settings</a>
+      {% if workspace_can_modify %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Back to settings</a>
+      {% endif %}
       <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Sample CSV</a>
-      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Import CSV</a>
-      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_category_create' %}">Create category</a>
-      <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create service</a>
+      {% if workspace_can_modify %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Import CSV</a>
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_category_create' %}">Create category</a>
+        <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create service</a>
+      {% endif %}
     </div>
   </div>
 
@@ -132,15 +140,19 @@
                   </td>
                   <td class="text-body-tertiary">{{ service.updated_at|date:"M d, Y" }}</td>
                   <td class="text-end pe-4">
-                    <div class="d-inline-flex gap-2">
-                      <a class="btn btn-sm btn-phoenix-secondary" href="{% url 'business_service_update' service.id %}">Edit</a>
-                      {% if service.is_active %}
-                        <form method="post" action="{% url 'business_service_archive' service.id %}">
-                          {% csrf_token %}
-                          <button class="btn btn-sm btn-outline-danger" type="submit">Archive</button>
-                        </form>
-                      {% endif %}
-                    </div>
+                    {% if workspace_can_modify %}
+                      <div class="d-inline-flex gap-2">
+                        <a class="btn btn-sm btn-phoenix-secondary" href="{% url 'business_service_update' service.id %}">Edit</a>
+                        {% if service.is_active %}
+                          <form method="post" action="{% url 'business_service_archive' service.id %}">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-outline-danger" type="submit">Archive</button>
+                          </form>
+                        {% endif %}
+                      </div>
+                    {% else %}
+                      <span class="text-body-tertiary">Read-only</span>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}
@@ -150,11 +162,13 @@
       {% else %}
         <div class="p-4 p-lg-5 text-center">
           <h4 class="mb-2">No services yet</h4>
-          <p class="text-body-tertiary mb-4">Create a service and add a category in the same form, or import a CSV price list for this workspace.</p>
-          <div class="d-flex justify-content-center gap-2">
-            <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Import CSV</a>
-            <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create first service</a>
-          </div>
+          <p class="text-body-tertiary mb-4">No service records are available for this workspace yet.</p>
+          {% if workspace_can_modify %}
+            <div class="d-flex justify-content-center gap-2">
+              <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Import CSV</a>
+              <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create first service</a>
+            </div>
+          {% endif %}
         </div>
       {% endif %}
     </div>
@@ -168,7 +182,9 @@
             <h4 class="mb-1">Service Categories</h4>
             <p class="text-body-tertiary mb-0">Categories organize services on staff and online booking forms.</p>
           </div>
-          <a class="btn btn-primary" href="{% url 'business_service_category_create' %}">Create category</a>
+          {% if workspace_can_modify %}
+            <a class="btn btn-primary" href="{% url 'business_service_category_create' %}">Create category</a>
+          {% endif %}
         </div>
       </div>
 
@@ -200,15 +216,19 @@
                     {% endif %}
                   </td>
                   <td class="text-end pe-4">
-                    <div class="d-inline-flex gap-2">
-                      <a class="btn btn-sm btn-phoenix-secondary" href="{% url 'business_service_category_update' category.id %}">Edit</a>
-                      {% if category.is_active %}
-                        <form method="post" action="{% url 'business_service_category_archive' category.id %}">
-                          {% csrf_token %}
-                          <button class="btn btn-sm btn-outline-danger" type="submit">Archive</button>
-                        </form>
-                      {% endif %}
-                    </div>
+                    {% if workspace_can_modify %}
+                      <div class="d-inline-flex gap-2">
+                        <a class="btn btn-sm btn-phoenix-secondary" href="{% url 'business_service_category_update' category.id %}">Edit</a>
+                        {% if category.is_active %}
+                          <form method="post" action="{% url 'business_service_category_archive' category.id %}">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-outline-danger" type="submit">Archive</button>
+                          </form>
+                        {% endif %}
+                      </div>
+                    {% else %}
+                      <span class="text-body-tertiary">Read-only</span>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}
@@ -218,8 +238,10 @@
       {% else %}
         <div class="p-4 p-lg-5 text-center">
           <h4 class="mb-2">No categories yet</h4>
-          <p class="text-body-tertiary mb-4">Create the service categories this workspace should use for service requests.</p>
-          <a class="btn btn-primary" href="{% url 'business_service_category_create' %}">Create first category</a>
+          <p class="text-body-tertiary mb-4">No service categories are available for this workspace yet.</p>
+          {% if workspace_can_modify %}
+            <a class="btn btn-primary" href="{% url 'business_service_category_create' %}">Create first category</a>
+          {% endif %}
         </div>
       {% endif %}
     </div>

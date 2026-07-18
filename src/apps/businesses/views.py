@@ -40,7 +40,9 @@ from .stripe_config import StripeConfigurationError, get_stripe_webhook_secret
 from .stripe_portal import (
     StripeCustomerPortalError,
     create_customer_portal_session,
+    create_payment_recovery_portal_session,
     get_customer_portal_availability,
+    get_payment_recovery_portal_availability,
 )
 from .stripe_webhooks import (
     StripeWebhookIgnored,
@@ -58,6 +60,7 @@ from .utils import (
     assign_business_subscription_plan,
     business_limit_reached,
     business_role_required,
+    business_workspace_access_required,
     can_assign_business_role,
     can_use_module,
     create_or_refresh_business_invitation,
@@ -71,6 +74,7 @@ from .utils import (
     get_other_active_business_membership_for_email,
     get_public_booking_share_context,
     redirect_for_unavailable_business_module,
+    redirect_for_unavailable_workspace_access,
 )
 
 logger = logging.getLogger(__name__)
@@ -193,6 +197,36 @@ def billing_customer_portal(request: HttpRequest) -> HttpResponse:
     return redirect(portal_url)
 
 
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["POST"])
+def billing_payment_recovery(request: HttpRequest) -> HttpResponse:
+    business = request.current_business
+    subscription = get_business_subscription(business)
+    if subscription is None:
+        messages.error(request, "Payment recovery is not available for this workspace yet.")
+        return redirect("business_subscription")
+
+    try:
+        portal_url = create_payment_recovery_portal_session(
+            request=request,
+            business=business,
+            user=request.user,
+            subscription=subscription,
+        )
+    except (StripeConfigurationError, StripeCustomerPortalError) as exc:
+        messages.error(
+            request,
+            getattr(
+                exc,
+                "user_message",
+                "We could not open the secure billing page. Please try again shortly.",
+            ),
+        )
+        return redirect("business_subscription")
+
+    return redirect(portal_url)
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def stripe_billing_webhook(request: HttpRequest) -> HttpResponse:
@@ -296,6 +330,7 @@ def business_setup(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_workspace_access_required()
 @require_http_methods(["GET", "POST"])
 def business_settings(request: HttpRequest) -> HttpResponse:
     business = request.current_business
@@ -324,6 +359,7 @@ def business_settings(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
+@business_workspace_access_required()
 @require_http_methods(["GET", "POST"])
 def business_booking_settings(request: HttpRequest) -> HttpResponse:
     business = request.current_business
@@ -482,6 +518,7 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
+@business_workspace_access_required()
 @require_http_methods(["POST"])
 def business_weekly_availability_deactivate(
     request: HttpRequest,
@@ -516,6 +553,13 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
     pending_plan_change = None
 
     if request.method == "POST":
+        if subscription is not None and not subscription.can_modify_workspace:
+            messages.warning(
+                request,
+                "Plan changes are unavailable while this workspace is read-only. Update the subscription to restore full access.",
+            )
+            return redirect("business_subscription")
+
         form = BusinessSubscriptionPlanForm(request.POST, plans=available_plan_queryset)
         if form.is_valid():
             selected_plan = form.cleaned_data["plan"]
@@ -581,6 +625,11 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
         user=request.user,
         subscription=subscription,
     )
+    payment_recovery_portal_availability = get_payment_recovery_portal_availability(
+        business=business,
+        user=request.user,
+        subscription=subscription,
+    )
     if subscription is not None:
         current_usage_summary = get_business_plan_usage_summary(
             business,
@@ -618,6 +667,7 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
         "subscription": subscription,
         "access_state": access_state,
         "customer_portal_availability": customer_portal_availability,
+        "payment_recovery_portal_availability": payment_recovery_portal_availability,
         "billing_portal_returned": request.GET.get("billing_return") == "1",
         "available_plans": available_plans,
         "plan_form": form,
@@ -641,6 +691,10 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
     ).update(status=BusinessInvitation.Status.EXPIRED, updated_at=timezone.now())
 
     if request.method == "POST":
+        subscription = get_business_subscription(business)
+        if subscription is not None and not subscription.can_modify_workspace:
+            return redirect_for_unavailable_workspace_access(request)
+
         if not can_use_module(business, "workspace"):
             return redirect_for_unavailable_business_module(request, "workspace")
 
@@ -740,6 +794,7 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_workspace_access_required()
 @require_http_methods(["POST"])
 def business_team_member_deactivate(request: HttpRequest, membership_id: int) -> HttpResponse:
     business = request.current_business
