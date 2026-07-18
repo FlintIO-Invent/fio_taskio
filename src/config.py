@@ -186,6 +186,10 @@ class Settings(BaseSettings):
         default="",
         description="Stripe webhook signing secret from the deployment environment.",
     )
+    stripe_customer_portal_configuration_id: str = Field(
+        default="",
+        description="Stripe Customer Portal configuration ID from the deployment environment.",
+    )
     stripe_price_starter_monthly_usd: str = Field(default="")
     stripe_price_starter_yearly_usd: str = Field(default="")
     stripe_price_starter_monthly_eur: str = Field(default="")
@@ -261,6 +265,7 @@ class Settings(BaseSettings):
         "stripe_publishable_key",
         "stripe_secret_key",
         "stripe_webhook_secret",
+        "stripe_customer_portal_configuration_id",
         "stripe_price_starter_monthly_usd",
         "stripe_price_starter_yearly_usd",
         "stripe_price_starter_monthly_eur",

@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    BillingProviderWebhookEvent,
     Business,
     BusinessBookingSettings,
     BusinessInvitation,
@@ -88,15 +89,56 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
         "business",
         "plan",
         "status",
+        "payment_provider",
+        "billing_interval",
+        "billing_currency",
         "current_period_start",
         "current_period_end",
         "cancel_at_period_end",
         "updated_at",
     )
-    list_filter = ("status", "cancel_at_period_end", "plan")
-    search_fields = ("business__name", "business__slug", "plan__name")
+    list_filter = ("status", "payment_provider", "billing_interval", "cancel_at_period_end", "plan")
+    search_fields = (
+        "business__name",
+        "business__slug",
+        "plan__name",
+        "provider_customer_id",
+        "provider_subscription_id",
+        "provider_checkout_session_id",
+    )
     autocomplete_fields = ("business", "plan")
     list_select_related = ("business", "plan")
+
+
+@admin.register(BillingProviderWebhookEvent)
+class BillingProviderWebhookEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "provider",
+        "event_id",
+        "event_type",
+        "object_id",
+        "status",
+        "attempt_count",
+        "received_at",
+        "processed_at",
+    )
+    list_filter = ("provider", "status", "event_type", "livemode")
+    search_fields = ("event_id", "event_type", "object_id", "last_error")
+    readonly_fields = (
+        "provider",
+        "event_id",
+        "event_type",
+        "object_id",
+        "api_version",
+        "livemode",
+        "attempt_count",
+        "received_at",
+        "processed_at",
+        "payload_summary",
+        "last_error",
+        "created_at",
+        "updated_at",
+    )
 
 
 @admin.register(BusinessBookingSettings)

@@ -21,11 +21,31 @@
 
           {% if status_kind == "success" %}
             <div class="text-center mb-4">
-              <span class="avatar avatar-xl bg-success-subtle rounded-circle mb-3">
-                <span class="fas fa-check text-success fs-6"></span>
-              </span>
-              <h3 class="text-body-highlight mb-2">Payment method received</h3>
-              <p class="text-body-secondary mb-0">Your payment method was received. Motionmate is confirming your subscription. Your 14-day trial will become available once confirmation is complete.</p>
+              {% if success_state == "trialing" %}
+                <span class="avatar avatar-xl bg-success-subtle rounded-circle mb-3">
+                  <span class="fas fa-check text-success fs-6"></span>
+                </span>
+                <h3 class="text-body-highlight mb-2">Your 14-day trial is active</h3>
+                <p class="text-body-secondary mb-0">Motionmate confirmed your subscription and your trial access is available.</p>
+              {% elif success_state == "active" %}
+                <span class="avatar avatar-xl bg-success-subtle rounded-circle mb-3">
+                  <span class="fas fa-check text-success fs-6"></span>
+                </span>
+                <h3 class="text-body-highlight mb-2">Your subscription is active</h3>
+                <p class="text-body-secondary mb-0">Motionmate confirmed your subscription and your workspace access is available.</p>
+              {% elif success_state == "attention" %}
+                <span class="avatar avatar-xl bg-warning-subtle rounded-circle mb-3">
+                  <span class="fas fa-credit-card text-warning fs-6"></span>
+                </span>
+                <h3 class="text-body-highlight mb-2">We need your attention</h3>
+                <p class="text-body-secondary mb-0">Motionmate has not confirmed active subscription access for this workspace yet.</p>
+              {% else %}
+                <span class="avatar avatar-xl bg-info-subtle rounded-circle mb-3">
+                  <span class="fas fa-clock text-info fs-6"></span>
+                </span>
+                <h3 class="text-body-highlight mb-2">Confirming your subscription</h3>
+                <p class="text-body-secondary mb-0">Your payment method was received. Motionmate is confirming your subscription. Your 14-day trial will become available once confirmation is complete.</p>
+              {% endif %}
             </div>
           {% else %}
             <div class="text-center mb-4">
@@ -50,6 +70,8 @@
               {% csrf_token %}
               <button class="btn btn-primary w-100" type="submit">Resume payment setup</button>
             </form>
+          {% elif can_enter_dashboard %}
+            <a class="btn btn-primary w-100" href="{% url 'agent_dashboard' %}">Open dashboard</a>
           {% endif %}
 
           <div class="text-center mt-4">

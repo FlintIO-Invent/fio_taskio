@@ -33,15 +33,26 @@ STRIPE_CHECK_UNSUPPORTED_INTERVAL = "motionmate_stripe.E011"
 STRIPE_CHECK_UNSUPPORTED_CURRENCY = "motionmate_stripe.E012"
 STRIPE_CHECK_BETA_PLAN = "motionmate_stripe.E013"
 STRIPE_CHECK_INVALID_PRICE_MAPPING_KEY = "motionmate_stripe.E014"
+STRIPE_CHECK_MISSING_CUSTOMER_PORTAL_CONFIGURATION_ID = "motionmate_stripe.E015"
+STRIPE_CHECK_INVALID_CUSTOMER_PORTAL_CONFIGURATION_ID = "motionmate_stripe.E016"
 
 _BETA_PLAN_SLUG = "beta"
 _PRICE_ID_PREFIX = "price_"
+_CUSTOMER_PORTAL_CONFIGURATION_ID_PREFIX = "bpc_"
 
 
 @dataclass(frozen=True)
 class StripeConfigurationIssue:
     id: str
     message: str
+
+
+@dataclass(frozen=True)
+class StripePriceMetadata:
+    price_id: str
+    plan_slug: str
+    billing_interval: str
+    currency: str
 
 
 class StripeConfigurationError(ImproperlyConfigured):
@@ -69,6 +80,10 @@ def get_stripe_secret_key() -> str | None:
 
 def get_stripe_webhook_secret() -> str | None:
     return _clean_setting(getattr(settings, "STRIPE_WEBHOOK_SECRET", ""))
+
+
+def get_stripe_customer_portal_configuration_id() -> str | None:
+    return _clean_setting(getattr(settings, "STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID", ""))
 
 
 def _mode_for_publishable_key(value: str) -> Literal["test", "live"] | None:
@@ -100,7 +115,9 @@ def get_stripe_mode() -> StripeMode:
 
     publishable_mode = _mode_for_publishable_key(publishable_key)
     if publishable_mode is None:
-        raise StripeConfigurationError("Stripe publishable key must start with pk_test_ or pk_live_.")
+        raise StripeConfigurationError(
+            "Stripe publishable key must start with pk_test_ or pk_live_."
+        )
 
     secret_mode = _mode_for_secret_key(secret_key)
     if secret_mode is None:
@@ -145,7 +162,9 @@ def _normalize_price_dimensions(
 
     public_plan = normalize_public_paid_plan_slug(normalized_plan)
     if public_plan is None:
-        raise StripeConfigurationError("Unsupported Motionmate public plan for Stripe Price mapping.")
+        raise StripeConfigurationError(
+            "Unsupported Motionmate public plan for Stripe Price mapping."
+        )
 
     normalized_interval = _normalize_interval(billing_interval)
     if normalized_interval not in PUBLIC_BILLING_INTERVALS:
@@ -184,6 +203,23 @@ def _is_valid_price_id(value: str) -> bool:
     return value.startswith(_PRICE_ID_PREFIX)
 
 
+def _is_valid_customer_portal_configuration_id(value: str) -> bool:
+    return value.startswith(_CUSTOMER_PORTAL_CONFIGURATION_ID_PREFIX)
+
+
+def get_stripe_customer_portal_configuration_id_or_raise() -> str:
+    configuration_id = get_stripe_customer_portal_configuration_id()
+    if configuration_id is None:
+        raise StripeConfigurationError(
+            "STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID is required when Stripe is enabled."
+        )
+    if not _is_valid_customer_portal_configuration_id(configuration_id):
+        raise StripeConfigurationError(
+            "Stripe Customer Portal configuration ID must start with bpc_."
+        )
+    return configuration_id
+
+
 def get_stripe_price_id(
     *,
     plan_slug: object,
@@ -204,6 +240,30 @@ def get_stripe_price_id(
     if not _is_valid_price_id(price_id):
         raise StripeConfigurationError("Configured Stripe Price ID must start with price_.")
     return price_id
+
+
+def resolve_stripe_price_id(price_id: object) -> StripePriceMetadata:
+    normalized_price_id = _clean_setting(price_id)
+    if normalized_price_id is None or not _is_valid_price_id(normalized_price_id):
+        raise StripeConfigurationError("Stripe Price ID must start with price_.")
+
+    matches = [
+        price_key
+        for price_key, configured_price_id in _configured_price_lookup().items()
+        if configured_price_id == normalized_price_id
+    ]
+    if not matches:
+        raise StripeConfigurationError("Stripe Price ID is not configured for Motionmate.")
+    if len(matches) > 1:
+        raise StripeConfigurationError("Stripe Price ID maps to more than one Motionmate plan.")
+
+    plan_slug, billing_interval, currency = matches[0]
+    return StripePriceMetadata(
+        price_id=normalized_price_id,
+        plan_slug=plan_slug,
+        billing_interval=billing_interval,
+        currency=currency,
+    )
 
 
 def _iter_supported_price_keys() -> tuple[StripePriceKey, ...]:
@@ -291,7 +351,9 @@ def _validate_price_mapping(*, require_all_supported: bool) -> list[StripeConfig
             key_is_supported = False
 
         if key_is_supported and price_id is not None:
-            valid_price_lookup[(normalized_plan, normalized_interval, normalized_currency)] = price_id
+            valid_price_lookup[(normalized_plan, normalized_interval, normalized_currency)] = (
+                price_id
+            )
 
     if require_all_supported:
         for plan_slug, billing_interval, currency in _iter_supported_price_keys():
@@ -314,6 +376,7 @@ def validate_stripe_configuration() -> list[StripeConfigurationIssue]:
     publishable_key = get_stripe_publishable_key()
     secret_key = get_stripe_secret_key()
     webhook_secret = get_stripe_webhook_secret()
+    portal_configuration_id = get_stripe_customer_portal_configuration_id()
     publishable_mode = None
     secret_mode = None
 
@@ -371,6 +434,21 @@ def validate_stripe_configuration() -> list[StripeConfigurationIssue]:
             StripeConfigurationIssue(
                 STRIPE_CHECK_INVALID_WEBHOOK_SECRET,
                 "Stripe webhook secret must start with whsec_.",
+            )
+        )
+
+    if portal_configuration_id is None:
+        issues.append(
+            StripeConfigurationIssue(
+                STRIPE_CHECK_MISSING_CUSTOMER_PORTAL_CONFIGURATION_ID,
+                "STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID is required when Stripe is enabled.",
+            )
+        )
+    elif not _is_valid_customer_portal_configuration_id(portal_configuration_id):
+        issues.append(
+            StripeConfigurationIssue(
+                STRIPE_CHECK_INVALID_CUSTOMER_PORTAL_CONFIGURATION_ID,
+                "Stripe Customer Portal configuration ID must start with bpc_.",
             )
         )
 

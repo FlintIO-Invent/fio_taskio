@@ -18,13 +18,15 @@ The internal Django package name remains `taskio` for now. That is expected.
 - Workspace subscription and plan enforcement
 - Stripe SDK dependency and local subscription configuration checks
 - Stripe-hosted Checkout setup for paid-plan signup when enabled
+- Signed Stripe webhook subscription activation and local time-aware access checks
+- Owner-only Stripe Customer Portal entry point for eligible subscriptions
 
 ## Out of scope for this release
 
 - Appointments
 - Public booking
 - Memberships
-- Customer portal, webhook-driven subscription activation, and in-app plan-change checkout
+- In-app plan-change checkout
 - Major new product features
 
 Appointment release-candidate staging QA is tracked separately in [docs/APPOINTMENT_STAGING_QA.md](/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio/docs/APPOINTMENT_STAGING_QA.md) and must pass before appointments move into private-tester scope.

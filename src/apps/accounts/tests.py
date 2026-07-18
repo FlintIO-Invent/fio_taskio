@@ -131,6 +131,7 @@ class BusinessRegistrationViewTests(TestCase):
             "STRIPE_PUBLISHABLE_KEY": "pk_test_motionmate",
             "STRIPE_SECRET_KEY": "sk_test_motionmate",
             "STRIPE_WEBHOOK_SECRET": "whsec_motionmate",
+            "STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID": "bpc_test_motionmate",
             "STRIPE_PRICE_ID_MAP": self._price_map(),
         }
         settings_overrides.update(overrides)

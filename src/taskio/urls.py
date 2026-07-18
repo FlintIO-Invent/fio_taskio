@@ -24,6 +24,8 @@ from apps.businesses.views import (
     billing_checkout_cancelled,
     billing_checkout_resume,
     billing_checkout_success,
+    billing_customer_portal,
+    stripe_billing_webhook,
 )
 from apps.crm.views import public_booking, public_booking_thank_you
 
@@ -90,12 +92,14 @@ urlpatterns = [
     path("home/", landing, name="home"),
     path("site-preview/", site_preview, name="site_preview"),
     path("billing/checkout/success/", billing_checkout_success, name="billing_checkout_success"),
+    path("billing/webhooks/stripe/", stripe_billing_webhook, name="stripe_billing_webhook"),
     path(
         "billing/checkout/cancelled/",
         billing_checkout_cancelled,
         name="billing_checkout_cancelled",
     ),
     path("billing/checkout/resume/", billing_checkout_resume, name="billing_checkout_resume"),
+    path("billing/customer-portal/", billing_customer_portal, name="billing_customer_portal"),
     path("book/<slug:business_slug>/", public_booking, name="public_booking"),
     path(
         "book/<slug:business_slug>/thanks/",

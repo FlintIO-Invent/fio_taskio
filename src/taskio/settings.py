@@ -25,8 +25,10 @@ from apps.businesses.plan_catalog import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-RUNNING_TESTS = "test" in sys.argv or "pytest" in Path(sys.argv[0]).name or bool(
-    os.environ.get("PYTEST_CURRENT_TEST")
+RUNNING_TESTS = (
+    "test" in sys.argv
+    or "pytest" in Path(sys.argv[0]).name
+    or bool(os.environ.get("PYTEST_CURRENT_TEST"))
 )
 
 AUTH_USER_MODEL = "accounts.TaskIOUser"
@@ -174,7 +176,9 @@ DEFAULT_FROM_EMAIL = settings.default_from_email
 SERVER_EMAIL = settings.server_email or DEFAULT_FROM_EMAIL
 EMAIL_BACKEND = settings.email_backend
 EMAIL_HOST = settings.email_host
-EMAIL_PORT = settings.email_port or (465 if settings.email_use_ssl else 587 if settings.email_use_tls else 25)
+EMAIL_PORT = settings.email_port or (
+    465 if settings.email_use_ssl else 587 if settings.email_use_tls else 25
+)
 EMAIL_HOST_USER = settings.email_host_user
 EMAIL_HOST_PASSWORD = settings.email_host_password
 EMAIL_USE_TLS = settings.email_use_tls
@@ -188,6 +192,7 @@ STRIPE_ENABLED = settings.stripe_enabled
 STRIPE_PUBLISHABLE_KEY = settings.stripe_publishable_key
 STRIPE_SECRET_KEY = settings.stripe_secret_key
 STRIPE_WEBHOOK_SECRET = settings.stripe_webhook_secret
+STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID = settings.stripe_customer_portal_configuration_id
 STRIPE_PRICE_ID_MAP = {
     (plan_slug, billing_interval, currency): getattr(
         settings,

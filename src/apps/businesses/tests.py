@@ -1,14 +1,18 @@
-from datetime import time, timedelta
+import json
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
+from io import StringIO
 from types import SimpleNamespace
 from unittest import mock
 
 from django.core import mail
 from django.core.checks import run_checks
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from django.template.loader import render_to_string
+from django.test import Client as DjangoClient
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.utils import timezone
@@ -21,10 +25,11 @@ from apps.crm.models import BusinessService, Client, Lead
 from config import Settings
 from helpers import build_public_url
 
-from . import stripe_checkout, stripe_config
+from . import stripe_checkout, stripe_config, stripe_portal, stripe_webhooks
 from .checks import check_stripe_configuration
 from .localization import format_money_for_business, parse_localized_decimal
 from .models import (
+    BillingProviderWebhookEvent,
     Business,
     BusinessBookingSettings,
     BusinessInvitation,
@@ -66,9 +71,11 @@ from .stripe_checkout import (
 )
 from .stripe_config import (
     STRIPE_CHECK_BETA_PLAN,
+    STRIPE_CHECK_INVALID_CUSTOMER_PORTAL_CONFIGURATION_ID,
     STRIPE_CHECK_INVALID_PRICE_ID,
     STRIPE_CHECK_INVALID_PUBLISHABLE_KEY,
     STRIPE_CHECK_INVALID_SECRET_KEY,
+    STRIPE_CHECK_MISSING_CUSTOMER_PORTAL_CONFIGURATION_ID,
     STRIPE_CHECK_MISSING_PRICE_ID,
     STRIPE_CHECK_MISSING_PUBLISHABLE_KEY,
     STRIPE_CHECK_MISSING_SECRET_KEY,
@@ -79,10 +86,19 @@ from .stripe_config import (
     STRIPE_CHECK_UNSUPPORTED_INTERVAL,
     StripeConfigurationError,
     configure_stripe_sdk,
+    get_stripe_customer_portal_configuration_id,
     get_stripe_mode,
     get_stripe_price_id,
     is_stripe_enabled,
+    resolve_stripe_price_id,
     validate_stripe_configuration,
+)
+from .stripe_portal import (
+    PORTAL_OPEN_FAILED_MESSAGE,
+    PORTAL_TEMPORARILY_UNAVAILABLE_MESSAGE,
+    StripeCustomerPortalError,
+    create_customer_portal_session,
+    get_customer_portal_availability,
 )
 from .utils import (
     CURRENT_BUSINESS_SESSION_KEY,
@@ -343,6 +359,7 @@ class StripeConfigurationTests(SimpleTestCase):
             "STRIPE_PUBLISHABLE_KEY": "pk_test_motionmate",
             "STRIPE_SECRET_KEY": "sk_test_motionmate",
             "STRIPE_WEBHOOK_SECRET": "whsec_motionmate",
+            "STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID": "bpc_test_motionmate",
             "STRIPE_PRICE_ID_MAP": self._price_map(),
         }
         settings_overrides.update(overrides)
@@ -357,12 +374,14 @@ class StripeConfigurationTests(SimpleTestCase):
             stripe_publishable_key=" pk_test_replace_me ",
             stripe_secret_key=" ",
             stripe_webhook_secret=" whsec_replace_me ",
+            stripe_customer_portal_configuration_id=" bpc_replace_me ",
             stripe_price_pro_monthly_usd=" price_pro_monthly_usd ",
         )
 
         self.assertEqual(app_settings.stripe_publishable_key, "pk_test_replace_me")
         self.assertEqual(app_settings.stripe_secret_key, "")
         self.assertEqual(app_settings.stripe_webhook_secret, "whsec_replace_me")
+        self.assertEqual(app_settings.stripe_customer_portal_configuration_id, "bpc_replace_me")
         self.assertEqual(app_settings.stripe_price_pro_monthly_usd, "price_pro_monthly_usd")
 
     @override_settings(
@@ -370,6 +389,7 @@ class StripeConfigurationTests(SimpleTestCase):
         STRIPE_PUBLISHABLE_KEY="",
         STRIPE_SECRET_KEY="",
         STRIPE_WEBHOOK_SECRET="",
+        STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID="",
         STRIPE_PRICE_ID_MAP={},
     )
     def test_stripe_defaults_disabled_without_requiring_credentials(self):
@@ -389,6 +409,7 @@ class StripeConfigurationTests(SimpleTestCase):
             STRIPE_PUBLISHABLE_KEY=" ",
             STRIPE_SECRET_KEY="",
             STRIPE_WEBHOOK_SECRET=" ",
+            STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID="bpc_test_motionmate",
             STRIPE_PRICE_ID_MAP=self._price_map(),
         ):
             self.assertEqual(
@@ -403,6 +424,35 @@ class StripeConfigurationTests(SimpleTestCase):
                     STRIPE_CHECK_MISSING_SECRET_KEY,
                     STRIPE_CHECK_MISSING_WEBHOOK_SECRET,
                 },
+            )
+
+    def test_customer_portal_configuration_id_is_required_and_shape_validated(self):
+        with override_settings(**self._valid_stripe_settings()):
+            self.assertEqual(
+                get_stripe_customer_portal_configuration_id(),
+                "bpc_test_motionmate",
+            )
+            self.assertNotIn(
+                STRIPE_CHECK_MISSING_CUSTOMER_PORTAL_CONFIGURATION_ID,
+                self._stripe_check_ids(),
+            )
+
+        with override_settings(
+            **self._valid_stripe_settings(STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID=" ")
+        ):
+            self.assertIn(
+                STRIPE_CHECK_MISSING_CUSTOMER_PORTAL_CONFIGURATION_ID,
+                self._stripe_check_ids(),
+            )
+
+        with override_settings(
+            **self._valid_stripe_settings(
+                STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID="pcfg_test_motionmate"
+            )
+        ):
+            self.assertIn(
+                STRIPE_CHECK_INVALID_CUSTOMER_PORTAL_CONFIGURATION_ID,
+                self._stripe_check_ids(),
             )
 
     def test_stripe_mode_resolves_test_and_live_keys(self):
@@ -474,6 +524,37 @@ class StripeConfigurationTests(SimpleTestCase):
                 ),
                 "price_business_yearly_eur",
             )
+
+    def test_price_id_reverse_mapping_resolves_exact_public_plan_dimensions(self):
+        with override_settings(STRIPE_PRICE_ID_MAP=self._price_map()):
+            price_metadata = resolve_stripe_price_id(" price_pro_yearly_eur ")
+
+        self.assertEqual(price_metadata.price_id, "price_pro_yearly_eur")
+        self.assertEqual(price_metadata.plan_slug, "pro")
+        self.assertEqual(price_metadata.billing_interval, "yearly")
+        self.assertEqual(price_metadata.currency, "eur")
+
+    def test_price_id_reverse_mapping_rejects_unknown_or_ambiguous_price_ids(self):
+        with override_settings(STRIPE_PRICE_ID_MAP=self._price_map()):
+            with self.assertRaisesMessage(
+                StripeConfigurationError,
+                "Stripe Price ID is not configured for Motionmate.",
+            ):
+                resolve_stripe_price_id("price_unknown")
+
+        with override_settings(
+            STRIPE_PRICE_ID_MAP=self._price_map(
+                overrides={
+                    ("starter", "monthly", "usd"): "price_shared",
+                    ("pro", "monthly", "usd"): "price_shared",
+                }
+            )
+        ):
+            with self.assertRaisesMessage(
+                StripeConfigurationError,
+                "Stripe Price ID maps to more than one Motionmate plan.",
+            ):
+                resolve_stripe_price_id("price_shared")
 
     def test_price_mapping_rejects_beta_unknown_interval_and_currency(self):
         with override_settings(STRIPE_PRICE_ID_MAP=self._price_map()):
@@ -552,6 +633,7 @@ class StripeConfigurationTests(SimpleTestCase):
             STRIPE_PUBLISHABLE_KEY="",
             STRIPE_SECRET_KEY="",
             STRIPE_WEBHOOK_SECRET="",
+            STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID="",
             STRIPE_PRICE_ID_MAP={},
         ):
             error_ids = {error.id for error in check_stripe_configuration(None)}
@@ -559,6 +641,7 @@ class StripeConfigurationTests(SimpleTestCase):
         self.assertIn(STRIPE_CHECK_MISSING_PUBLISHABLE_KEY, error_ids)
         self.assertIn(STRIPE_CHECK_MISSING_SECRET_KEY, error_ids)
         self.assertIn(STRIPE_CHECK_MISSING_WEBHOOK_SECRET, error_ids)
+        self.assertIn(STRIPE_CHECK_MISSING_CUSTOMER_PORTAL_CONFIGURATION_ID, error_ids)
         self.assertIn(STRIPE_CHECK_MISSING_PRICE_ID, error_ids)
 
     def test_system_checks_report_invalid_price_ids_and_dimensions(self):
@@ -590,9 +673,14 @@ class StripeConfigurationTests(SimpleTestCase):
     def test_system_checks_do_not_make_stripe_api_calls(self):
         with override_settings(**self._valid_stripe_settings()):
             with mock.patch.object(stripe_config.stripe.Customer, "create") as create_customer:
-                self.assertEqual(check_stripe_configuration(None), [])
+                with mock.patch.object(
+                    stripe_config.stripe.billing_portal.Session,
+                    "create",
+                ) as create_portal_session:
+                    self.assertEqual(check_stripe_configuration(None), [])
 
         create_customer.assert_not_called()
+        create_portal_session.assert_not_called()
 
     def test_configure_stripe_sdk_is_lazy_and_requires_enabled_valid_configuration(self):
         with override_settings(STRIPE_ENABLED=False):
@@ -612,7 +700,7 @@ class StripeConfigurationTests(SimpleTestCase):
         finally:
             stripe_config.stripe.api_key = original_api_key
 
-    def test_checkout_routes_exist_without_webhook_or_customer_portal_routes(self):
+    def test_checkout_webhook_and_customer_portal_routes_exist(self):
         def flatten_url_patterns(patterns):
             for pattern in patterns:
                 if isinstance(pattern, URLPattern):
@@ -628,14 +716,9 @@ class StripeConfigurationTests(SimpleTestCase):
         self.assertIn("billing/checkout/success/", route_text)
         self.assertIn("billing/checkout/cancelled/", route_text)
         self.assertIn("billing/checkout/resume/", route_text)
-
-        for forbidden_term in (
-            "webhook",
-            "customer_portal",
-            "customer-portal",
-        ):
-            with self.subTest(forbidden_term=forbidden_term):
-                self.assertNotIn(forbidden_term, route_text)
+        self.assertIn("billing/webhooks/stripe/", route_text)
+        self.assertIn("billing/customer-portal/", route_text)
+        self.assertIn("billing_customer_portal", route_text)
 
 
 class StripeCheckoutServiceTests(TestCase):
@@ -654,6 +737,7 @@ class StripeCheckoutServiceTests(TestCase):
             "STRIPE_PUBLISHABLE_KEY": "pk_test_motionmate",
             "STRIPE_SECRET_KEY": "sk_test_motionmate",
             "STRIPE_WEBHOOK_SECRET": "whsec_motionmate",
+            "STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID": "bpc_test_motionmate",
             "STRIPE_PRICE_ID_MAP": self._price_map(),
         }
         settings_overrides.update(overrides)
@@ -966,6 +1050,363 @@ class StripeCheckoutServiceTests(TestCase):
         session_api.create.assert_not_called()
 
 
+class StripeCustomerPortalServiceTests(TestCase):
+    @staticmethod
+    def _price_map() -> dict[tuple[str, str, str], str]:
+        return {
+            (plan_slug, interval, currency): f"price_{plan_slug}_{interval}_{currency}"
+            for plan_slug in PUBLIC_PAID_PLAN_SLUGS
+            for interval in PUBLIC_BILLING_INTERVALS
+            for currency in PUBLIC_PRICING_CURRENCIES
+        }
+
+    def _valid_stripe_settings(self, **overrides):
+        settings_overrides = {
+            "STRIPE_ENABLED": True,
+            "STRIPE_PUBLISHABLE_KEY": "pk_test_motionmate",
+            "STRIPE_SECRET_KEY": "sk_test_motionmate",
+            "STRIPE_WEBHOOK_SECRET": "whsec_motionmate",
+            "STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID": "bpc_test_motionmate",
+            "STRIPE_PRICE_ID_MAP": self._price_map(),
+        }
+        settings_overrides.update(overrides)
+        return settings_overrides
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.owner = TaskIOUser.objects.create_user(
+            email="portal-owner@example.com",
+            password="StrongPass123!",
+        )
+        self.staff = TaskIOUser.objects.create_user(
+            email="portal-staff@example.com",
+            password="StrongPass123!",
+        )
+        self.business = Business.objects.create(
+            name="Portal Workspace",
+            slug="portal-workspace",
+        )
+        BusinessUser.objects.create(
+            user=self.owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        BusinessUser.objects.create(
+            user=self.staff,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+
+    def _request(self):
+        return self.factory.post(
+            reverse("billing_customer_portal"),
+            {
+                "customer": "cus_browser_tamper",
+                "return_url": "https://evil.example/return",
+                "configuration": "bpc_browser_tamper",
+            },
+            secure=True,
+            HTTP_HOST="testserver",
+        )
+
+    def _subscription(self, **overrides):
+        now = timezone.now()
+        defaults = {
+            "business": self.business,
+            "plan": self.plan,
+            "status": BusinessSubscription.Status.ACTIVE,
+            "payment_provider": BusinessSubscription.PaymentProvider.STRIPE,
+            "billing_interval": BusinessSubscription.BillingInterval.MONTHLY,
+            "billing_currency": BusinessSubscription.BillingCurrency.USD,
+            "provider_customer_id": "cus_portal_workspace",
+            "provider_subscription_id": "sub_portal_workspace",
+            "provider_price_id": "price_pro_monthly_usd",
+            "current_period_start": now - timedelta(days=1),
+            "current_period_end": now + timedelta(days=29),
+        }
+        defaults.update(overrides)
+        return BusinessSubscription.objects.create(**defaults)
+
+    def _stripe_client(self, *, create_result=None, create_side_effect=None):
+        session_api = SimpleNamespace(
+            create=mock.Mock(
+                return_value=create_result
+                if create_result is not None
+                else {
+                    "id": "bps_test_portal",
+                    "url": "https://billing.stripe.test/session",
+                },
+                side_effect=create_side_effect,
+            )
+        )
+        return SimpleNamespace(billing_portal=SimpleNamespace(Session=session_api)), session_api
+
+    def test_portal_eligibility_allows_accessible_stripe_trial_active_and_scheduled_cancel(self):
+        now = timezone.now()
+        cases = (
+            {
+                "status": BusinessSubscription.Status.TRIALING,
+                "trial_start": now - timedelta(days=1),
+                "trial_end": now + timedelta(days=13),
+                "current_period_start": now - timedelta(days=1),
+                "current_period_end": now + timedelta(days=13),
+            },
+            {"status": BusinessSubscription.Status.ACTIVE},
+            {
+                "status": BusinessSubscription.Status.TRIALING,
+                "cancel_at_period_end": True,
+                "trial_start": now - timedelta(days=1),
+                "trial_end": now + timedelta(days=1),
+                "current_period_start": now - timedelta(days=1),
+                "current_period_end": now + timedelta(days=29),
+            },
+            {
+                "status": BusinessSubscription.Status.ACTIVE,
+                "cancel_at_period_end": True,
+            },
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            for fields in cases:
+                with self.subTest(
+                    status=fields["status"], cancel=fields.get("cancel_at_period_end")
+                ):
+                    BusinessSubscription.objects.filter(business=self.business).delete()
+                    subscription = self._subscription(**fields)
+
+                    availability = get_customer_portal_availability(
+                        business=self.business,
+                        user=self.owner,
+                        subscription=subscription,
+                        at_time=now,
+                    )
+
+                    self.assertTrue(availability.can_open)
+                    self.assertEqual(availability.reason, "eligible")
+
+    def test_portal_eligibility_denies_ineligible_statuses_and_invalid_local_state(self):
+        now = timezone.now()
+        inactive_plan = ClarivoPlan.objects.create(
+            name="Inactive Portal Plan",
+            slug="inactive-portal-plan",
+            is_active=False,
+        )
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+        inactive_business = Business.objects.create(
+            name="Inactive Portal Workspace",
+            slug="inactive-portal-workspace",
+            is_active=False,
+        )
+        BusinessUser.objects.create(
+            user=self.owner,
+            business=inactive_business,
+            role=BusinessUser.Role.OWNER,
+        )
+        cases = (
+            (
+                {"status": BusinessSubscription.Status.PENDING_CHECKOUT},
+                "status_not_allowed",
+            ),
+            (
+                {
+                    "status": BusinessSubscription.Status.TRIALING,
+                    "trial_start": now - timedelta(days=15),
+                    "trial_end": now - timedelta(days=1),
+                    "current_period_start": now - timedelta(days=15),
+                    "current_period_end": now - timedelta(days=1),
+                },
+                BusinessSubscription.AccessCode.TRIAL_EXPIRED,
+            ),
+            (
+                {
+                    "status": BusinessSubscription.Status.ACTIVE,
+                    "current_period_start": now - timedelta(days=40),
+                    "current_period_end": now - timedelta(days=1),
+                },
+                BusinessSubscription.AccessCode.PROVIDER_STATE_STALE,
+            ),
+            ({"status": BusinessSubscription.Status.EXPIRED}, "status_not_allowed"),
+            ({"status": BusinessSubscription.Status.CANCELLED}, "status_not_allowed"),
+            ({"status": BusinessSubscription.Status.PAST_DUE}, "status_not_allowed"),
+            ({"status": "surprise"}, "status_not_allowed"),
+            ({"plan": beta_plan}, "non_public_plan"),
+            ({"plan": inactive_plan}, BusinessSubscription.AccessCode.PLAN_INACTIVE),
+            (
+                {
+                    "business": inactive_business,
+                    "provider_customer_id": "cus_inactive_business",
+                    "provider_subscription_id": "sub_inactive_business",
+                },
+                BusinessSubscription.AccessCode.BUSINESS_INACTIVE,
+            ),
+            (
+                {"payment_provider": BusinessSubscription.PaymentProvider.LOCAL},
+                "non_stripe_provider",
+            ),
+            ({"provider_customer_id": ""}, "invalid_provider_customer_id"),
+            ({"provider_subscription_id": ""}, "invalid_provider_subscription_id"),
+            ({"provider_customer_id": "customer_bad"}, "invalid_provider_customer_id"),
+            ({"provider_subscription_id": "subscription_bad"}, "invalid_provider_subscription_id"),
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            for fields, expected_reason in cases:
+                with self.subTest(expected_reason=expected_reason):
+                    BusinessSubscription.objects.filter(
+                        business__in=[self.business, inactive_business]
+                    ).delete()
+                    subscription = self._subscription(**fields)
+                    business = fields.get("business", self.business)
+
+                    availability = get_customer_portal_availability(
+                        business=business,
+                        user=self.owner,
+                        subscription=subscription,
+                        at_time=now,
+                    )
+
+                    self.assertFalse(availability.can_open)
+                    self.assertEqual(availability.reason, expected_reason)
+
+    def test_portal_eligibility_requires_owner_and_enabled_stripe_configuration(self):
+        subscription = self._subscription()
+
+        with override_settings(**self._valid_stripe_settings()):
+            staff_availability = get_customer_portal_availability(
+                business=self.business,
+                user=self.staff,
+                subscription=subscription,
+            )
+        self.assertFalse(staff_availability.can_open)
+        self.assertEqual(staff_availability.reason, "owner_required")
+
+        with override_settings(STRIPE_ENABLED=False):
+            disabled_availability = get_customer_portal_availability(
+                business=self.business,
+                user=self.owner,
+                subscription=subscription,
+            )
+        self.assertFalse(disabled_availability.can_open)
+        self.assertEqual(disabled_availability.reason, "stripe_disabled")
+
+        with override_settings(
+            **self._valid_stripe_settings(STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID="")
+        ):
+            missing_config_availability = get_customer_portal_availability(
+                business=self.business,
+                user=self.owner,
+                subscription=subscription,
+            )
+        self.assertFalse(missing_config_availability.can_open)
+        self.assertEqual(
+            missing_config_availability.reason,
+            "portal_configuration_unavailable",
+        )
+
+    def test_create_portal_session_uses_local_provider_ids_and_trusted_return_url(self):
+        subscription = self._subscription()
+        original_values = (
+            subscription.status,
+            subscription.provider_customer_id,
+            subscription.provider_subscription_id,
+            subscription.current_period_end,
+        )
+        stripe_client, session_api = self._stripe_client()
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_portal,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                portal_url = create_customer_portal_session(
+                    request=self._request(),
+                    business=self.business,
+                    user=self.owner,
+                    subscription=subscription,
+                )
+
+        subscription.refresh_from_db()
+        create_kwargs = session_api.create.call_args.kwargs
+
+        self.assertEqual(portal_url, "https://billing.stripe.test/session")
+        self.assertEqual(create_kwargs["customer"], "cus_portal_workspace")
+        self.assertEqual(create_kwargs["configuration"], "bpc_test_motionmate")
+        self.assertTrue(
+            create_kwargs["return_url"].endswith("/businesses/subscription/?billing_return=1")
+        )
+        self.assertNotIn("cus_browser_tamper", create_kwargs.values())
+        self.assertNotIn("https://evil.example/return", create_kwargs.values())
+        self.assertNotIn("bpc_browser_tamper", create_kwargs.values())
+        self.assertEqual(
+            (
+                subscription.status,
+                subscription.provider_customer_id,
+                subscription.provider_subscription_id,
+                subscription.current_period_end,
+            ),
+            original_values,
+        )
+
+    def test_portal_creation_failures_do_not_mutate_local_subscription(self):
+        subscription = self._subscription()
+        original_updated_at = subscription.updated_at
+        stripe_client, _session_api = self._stripe_client(
+            create_side_effect=Exception("stripe exploded")
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_portal,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                with self.assertRaises(StripeCustomerPortalError) as error:
+                    create_customer_portal_session(
+                        request=self._request(),
+                        business=self.business,
+                        user=self.owner,
+                        subscription=subscription,
+                    )
+
+        subscription.refresh_from_db()
+        self.assertEqual(error.exception.user_message, PORTAL_OPEN_FAILED_MESSAGE)
+        self.assertNotIn("stripe exploded", error.exception.user_message)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertEqual(subscription.updated_at, original_updated_at)
+        self.assertEqual(subscription.provider_customer_id, "cus_portal_workspace")
+        self.assertEqual(subscription.provider_subscription_id, "sub_portal_workspace")
+
+    def test_missing_or_invalid_portal_url_fails_safely_without_storing_url(self):
+        for create_result in ({"id": "bps_missing_url"}, {"url": "http://evil.example"}):
+            with self.subTest(create_result=create_result):
+                BusinessSubscription.objects.filter(business=self.business).delete()
+                subscription = self._subscription()
+                stripe_client, _session_api = self._stripe_client(create_result=create_result)
+
+                with override_settings(**self._valid_stripe_settings()):
+                    with mock.patch.object(
+                        stripe_portal,
+                        "configure_stripe_sdk",
+                        return_value=stripe_client,
+                    ):
+                        with self.assertRaisesMessage(
+                            StripeCustomerPortalError,
+                            "Stripe Customer Portal Session did not return a usable URL.",
+                        ):
+                            create_customer_portal_session(
+                                request=self._request(),
+                                business=self.business,
+                                user=self.owner,
+                                subscription=subscription,
+                            )
+
+                subscription.refresh_from_db()
+                self.assertEqual(subscription.provider_checkout_session_id, "")
+                self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+
+
 class CheckoutReturnViewTests(TestCase):
     def setUp(self):
         self.owner = TaskIOUser.objects.create_user(
@@ -1003,11 +1444,24 @@ class CheckoutReturnViewTests(TestCase):
 
         self.subscription.refresh_from_db()
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Confirming your subscription")
         self.assertContains(response, "Your payment method was received.")
         self.assertContains(response, "Your 14-day trial will become available")
+        self.assertNotContains(response, reverse("agent_dashboard"))
         self.assertEqual(self.subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
         self.assertFalse(self.subscription.has_access)
         self.assertIsNone(self.subscription.trial_start)
+
+    def test_success_page_links_dashboard_only_after_local_access_is_active(self):
+        self.subscription.status = BusinessSubscription.Status.TRIALING
+        self.subscription.trial_start = timezone.now()
+        self.subscription.trial_end = timezone.now() + timedelta(days=14)
+        self.subscription.save(update_fields=["status", "trial_start", "trial_end", "updated_at"])
+
+        response = self.client.get(reverse("billing_checkout_success"))
+
+        self.assertContains(response, "Your 14-day trial is active")
+        self.assertContains(response, reverse("agent_dashboard"))
 
     def test_cancelled_page_keeps_pending_subscription_and_allows_resume(self):
         response = self.client.get(reverse("billing_checkout_cancelled"))
@@ -1053,6 +1507,671 @@ class CheckoutReturnViewTests(TestCase):
         self.assertRedirects(response, reverse("billing_checkout_cancelled"))
         self.assertContains(response, "Finish secure payment setup")
         self.assertContains(response, "Payment setup paused")
+
+
+class StripeWebhookProcessingTests(TestCase):
+    @staticmethod
+    def _price_map() -> dict[tuple[str, str, str], str]:
+        return {
+            (plan_slug, interval, currency): f"price_{plan_slug}_{interval}_{currency}"
+            for plan_slug in PUBLIC_PAID_PLAN_SLUGS
+            for interval in PUBLIC_BILLING_INTERVALS
+            for currency in PUBLIC_PRICING_CURRENCIES
+        }
+
+    def _valid_stripe_settings(self, **overrides):
+        settings_overrides = {
+            "STRIPE_ENABLED": True,
+            "STRIPE_PUBLISHABLE_KEY": "pk_test_motionmate",
+            "STRIPE_SECRET_KEY": "sk_test_motionmate",
+            "STRIPE_WEBHOOK_SECRET": "whsec_motionmate",
+            "STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID": "bpc_test_motionmate",
+            "STRIPE_PRICE_ID_MAP": self._price_map(),
+        }
+        settings_overrides.update(overrides)
+        return settings_overrides
+
+    def setUp(self):
+        self.user = TaskIOUser.objects.create_user(
+            email="webhook-owner@example.com",
+            password="StrongPass123!",
+        )
+        self.business = Business.objects.create(
+            name="Webhook Workspace",
+            slug="webhook-workspace",
+            country="Sint Maarten",
+        )
+        BusinessUser.objects.create(
+            user=self.user,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+        self.subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.PENDING_CHECKOUT,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_price_id="price_pro_monthly_usd",
+            provider_checkout_session_id="cs_test_pending",
+        )
+
+    @staticmethod
+    def _timestamp(year: int, month: int, day: int, hour: int = 12) -> int:
+        return int(datetime(year, month, day, hour, tzinfo=UTC).timestamp())
+
+    @staticmethod
+    def _datetime(value: int) -> datetime:
+        return datetime.fromtimestamp(value, tz=UTC)
+
+    def _signature_header(self, body: str, *, secret: str = "whsec_motionmate") -> str:
+        timestamp = int(timezone.now().timestamp())
+        signature = stripe_config.stripe.WebhookSignature._compute_signature(
+            f"{timestamp}.{body}",
+            secret,
+        )
+        return f"t={timestamp},v1={signature}"
+
+    def _signed_post(
+        self,
+        payload: dict,
+        *,
+        secret: str = "whsec_motionmate",
+    ):
+        body = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+        return self.client.post(
+            reverse("stripe_billing_webhook"),
+            data=body,
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE=self._signature_header(body, secret=secret),
+        )
+
+    def _event(
+        self,
+        *,
+        event_id: str,
+        event_type: str,
+        event_object: dict,
+        created: int | None = None,
+    ) -> dict:
+        return {
+            "id": event_id,
+            "object": "event",
+            "api_version": "2025-06-30.basil",
+            "created": created or self._timestamp(2026, 7, 1),
+            "livemode": False,
+            "type": event_type,
+            "data": {"object": event_object},
+        }
+
+    def _metadata(self, subscription: BusinessSubscription | None = None) -> dict[str, str]:
+        subscription = subscription or self.subscription
+        return {
+            "motionmate_business_id": str(subscription.business_id),
+            "motionmate_subscription_id": str(subscription.pk),
+            "motionmate_user_id": str(self.user.pk),
+            "plan_slug": subscription.plan.slug,
+            "billing_interval": subscription.billing_interval,
+            "billing_currency": subscription.billing_currency,
+        }
+
+    def _checkout_session(
+        self,
+        *,
+        subscription: BusinessSubscription | None = None,
+        session_id: str = "cs_test_pending",
+        provider_subscription_id: str = "sub_test_motionmate",
+        provider_customer_id: str = "cus_test_motionmate",
+        metadata: dict[str, str] | None = None,
+    ) -> dict:
+        subscription = subscription or self.subscription
+        return {
+            "id": session_id,
+            "object": "checkout.session",
+            "mode": "subscription",
+            "status": "complete",
+            "customer": provider_customer_id,
+            "subscription": provider_subscription_id,
+            "client_reference_id": (
+                f"business:{subscription.business_id}:subscription:{subscription.pk}"
+            ),
+            "metadata": metadata or self._metadata(subscription),
+        }
+
+    def _remote_subscription(
+        self,
+        *,
+        local_subscription: BusinessSubscription | None = None,
+        provider_subscription_id: str = "sub_test_motionmate",
+        provider_customer_id: str = "cus_test_motionmate",
+        status: str = "trialing",
+        price_id: str | None = None,
+        trial_start: int | None = None,
+        trial_end: int | None = None,
+        current_period_start: int | None = None,
+        current_period_end: int | None = None,
+        cancel_at_period_end: bool = False,
+        canceled_at: int | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> dict:
+        local_subscription = local_subscription or self.subscription
+        interval = local_subscription.billing_interval
+        currency = local_subscription.billing_currency
+        price_id = price_id or f"price_{local_subscription.plan.slug}_{interval}_{currency}"
+        stripe_interval = (
+            "year" if interval == BusinessSubscription.BillingInterval.YEARLY else "month"
+        )
+        trial_start = trial_start if trial_start is not None else self._timestamp(2026, 7, 1)
+        trial_end = trial_end if trial_end is not None else self._timestamp(2026, 7, 15)
+        current_period_start = (
+            current_period_start
+            if current_period_start is not None
+            else self._timestamp(2026, 7, 1)
+        )
+        current_period_end = (
+            current_period_end if current_period_end is not None else self._timestamp(2026, 8, 1)
+        )
+        if canceled_at is None and status in {"canceled", "incomplete_expired"}:
+            canceled_at = self._timestamp(2026, 7, 10)
+
+        return {
+            "id": provider_subscription_id,
+            "object": "subscription",
+            "customer": provider_customer_id,
+            "status": status,
+            "trial_start": trial_start,
+            "trial_end": trial_end,
+            "current_period_start": current_period_start,
+            "current_period_end": current_period_end,
+            "cancel_at_period_end": cancel_at_period_end,
+            "canceled_at": canceled_at,
+            "metadata": metadata if metadata is not None else self._metadata(local_subscription),
+            "items": {
+                "object": "list",
+                "data": [
+                    {
+                        "id": "si_test_motionmate",
+                        "object": "subscription_item",
+                        "price": {
+                            "id": price_id,
+                            "object": "price",
+                            "currency": currency,
+                            "recurring": {"interval": stripe_interval},
+                        },
+                    }
+                ],
+            },
+        }
+
+    def _stripe_client(self, *, retrieved_subscription: dict):
+        subscription_api = SimpleNamespace(
+            retrieve=mock.Mock(return_value=retrieved_subscription),
+        )
+        return SimpleNamespace(Subscription=subscription_api), subscription_api
+
+    @override_settings(
+        STRIPE_ENABLED=True,
+        STRIPE_PUBLISHABLE_KEY="pk_test_motionmate",
+        STRIPE_SECRET_KEY="sk_test_motionmate",
+        STRIPE_WEBHOOK_SECRET="whsec_motionmate",
+        STRIPE_PRICE_ID_MAP={},
+    )
+    def test_invalid_signature_payloads_do_not_create_event_or_mutate_subscription(self):
+        payload = self._event(
+            event_id="evt_signature",
+            event_type="checkout.session.expired",
+            event_object={"id": "cs_test_expired", "object": "checkout.session"},
+        )
+        body = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+        missing_signature = self.client.post(
+            reverse("stripe_billing_webhook"),
+            data=body,
+            content_type="application/json",
+        )
+        bad_signature = self.client.post(
+            reverse("stripe_billing_webhook"),
+            data=body,
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="t=1,v1=bad",
+        )
+        wrong_secret = self.client.post(
+            reverse("stripe_billing_webhook"),
+            data=body,
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE=self._signature_header(body, secret="whsec_wrong"),
+        )
+        malformed_body = "{not json"
+        malformed_json = self.client.post(
+            reverse("stripe_billing_webhook"),
+            data=malformed_body,
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE=self._signature_header(malformed_body),
+        )
+
+        self.assertEqual(missing_signature.status_code, 400)
+        self.assertEqual(bad_signature.status_code, 400)
+        self.assertEqual(wrong_secret.status_code, 400)
+        self.assertEqual(malformed_json.status_code, 400)
+        self.assertFalse(BillingProviderWebhookEvent.objects.exists())
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertEqual(self.subscription.provider_subscription_id, "")
+
+    def test_valid_ignored_event_is_recorded_without_login(self):
+        payload = self._event(
+            event_id="evt_ignored",
+            event_type="checkout.session.expired",
+            event_object={"id": "cs_test_expired", "object": "checkout.session"},
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            response = self._signed_post(payload)
+
+        event_record = BillingProviderWebhookEvent.objects.get(event_id="evt_ignored")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.IGNORED)
+        self.assertEqual(event_record.attempt_count, 1)
+
+    def test_unrelated_subscription_event_is_ignored_before_price_validation(self):
+        provider_object = self._remote_subscription(
+            provider_subscription_id="sub_unrelated",
+            provider_customer_id="cus_unrelated",
+            price_id="price_external",
+            metadata={},
+        )
+        payload = self._event(
+            event_id="evt_unrelated_subscription",
+            event_type="customer.subscription.updated",
+            event_object=provider_object,
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            response = self._signed_post(payload)
+
+        self.subscription.refresh_from_db()
+        event_record = BillingProviderWebhookEvent.objects.get(
+            event_id="evt_unrelated_subscription"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.IGNORED)
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertEqual(self.subscription.provider_subscription_id, "")
+
+    def test_checkout_completed_reconciles_trialing_subscription_and_dates(self):
+        event_created = int(timezone.now().timestamp())
+        trial_start = int((timezone.now() - timedelta(days=1)).timestamp())
+        trial_end = int((timezone.now() + timedelta(days=13)).timestamp())
+        current_period_end = trial_end
+        remote_subscription = self._remote_subscription(
+            status="trialing",
+            trial_start=trial_start,
+            trial_end=trial_end,
+            current_period_start=trial_start,
+            current_period_end=current_period_end,
+        )
+        stripe_client, subscription_api = self._stripe_client(
+            retrieved_subscription=remote_subscription,
+        )
+        payload = self._event(
+            event_id="evt_checkout_trialing",
+            event_type="checkout.session.completed",
+            event_object=self._checkout_session(),
+            created=event_created,
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_webhooks,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                response = self._signed_post(payload)
+
+        self.subscription.refresh_from_db()
+        event_record = BillingProviderWebhookEvent.objects.get(event_id="evt_checkout_trialing")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.PROCESSED)
+        subscription_api.retrieve.assert_called_once_with(
+            "sub_test_motionmate",
+            expand=["items.data.price"],
+        )
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertTrue(self.subscription.has_access)
+        self.assertEqual(self.subscription.provider_customer_id, "cus_test_motionmate")
+        self.assertEqual(self.subscription.provider_subscription_id, "sub_test_motionmate")
+        self.assertEqual(self.subscription.provider_checkout_session_id, "cs_test_pending")
+        self.assertEqual(self.subscription.provider_price_id, "price_pro_monthly_usd")
+        self.assertEqual(self.subscription.trial_start, self._datetime(trial_start))
+        self.assertEqual(self.subscription.trial_end, self._datetime(trial_end))
+        self.assertEqual(self.subscription.current_period_end, self._datetime(current_period_end))
+        self.assertEqual(self.subscription.provider_updated_at, self._datetime(event_created))
+
+    def test_duplicate_processed_event_does_not_apply_twice(self):
+        remote_subscription = self._remote_subscription(status="active")
+        stripe_client, subscription_api = self._stripe_client(
+            retrieved_subscription=remote_subscription,
+        )
+        payload = self._event(
+            event_id="evt_duplicate_checkout",
+            event_type="checkout.session.completed",
+            event_object=self._checkout_session(),
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_webhooks,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                first_response = self._signed_post(payload)
+                second_response = self._signed_post(payload)
+
+        event_record = BillingProviderWebhookEvent.objects.get(event_id="evt_duplicate_checkout")
+        self.subscription.refresh_from_db()
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.PROCESSED)
+        self.assertEqual(event_record.attempt_count, 1)
+        subscription_api.retrieve.assert_called_once()
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.ACTIVE)
+
+    def test_checkout_completed_keeps_pending_when_stripe_subscription_cannot_be_retrieved(self):
+        subscription_api = SimpleNamespace(retrieve=mock.Mock(side_effect=Exception("timeout")))
+        stripe_client = SimpleNamespace(Subscription=subscription_api)
+        payload = self._event(
+            event_id="evt_checkout_retry",
+            event_type="checkout.session.completed",
+            event_object=self._checkout_session(),
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_webhooks,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                response = self._signed_post(payload)
+
+        self.subscription.refresh_from_db()
+        event_record = BillingProviderWebhookEvent.objects.get(event_id="evt_checkout_retry")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.FAILED)
+        self.assertEqual(event_record.attempt_count, 1)
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertEqual(self.subscription.provider_customer_id, "")
+        self.assertEqual(self.subscription.provider_subscription_id, "")
+
+    def test_checkout_completed_price_mismatch_fails_without_granting_access(self):
+        remote_subscription = self._remote_subscription(
+            status="trialing",
+            price_id="price_business_monthly_usd",
+        )
+        stripe_client, _subscription_api = self._stripe_client(
+            retrieved_subscription=remote_subscription,
+        )
+        payload = self._event(
+            event_id="evt_checkout_price_mismatch",
+            event_type="checkout.session.completed",
+            event_object=self._checkout_session(),
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_webhooks,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                response = self._signed_post(payload)
+
+        self.subscription.refresh_from_db()
+        event_record = BillingProviderWebhookEvent.objects.get(
+            event_id="evt_checkout_price_mismatch"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.FAILED)
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
+        self.assertFalse(self.subscription.has_access)
+        self.assertEqual(self.subscription.provider_subscription_id, "")
+
+    def test_subscription_events_map_statuses_and_sync_cancellation_dates(self):
+        cases = (
+            ("trialing", BusinessSubscription.Status.TRIALING),
+            ("active", BusinessSubscription.Status.ACTIVE),
+            ("past_due", BusinessSubscription.Status.PAST_DUE),
+            ("unpaid", BusinessSubscription.Status.PAST_DUE),
+            ("canceled", BusinessSubscription.Status.CANCELLED),
+            ("incomplete", BusinessSubscription.Status.PENDING_CHECKOUT),
+            ("incomplete_expired", BusinessSubscription.Status.CANCELLED),
+            ("paused", BusinessSubscription.Status.PAST_DUE),
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            for index, (provider_status, local_status) in enumerate(cases, start=1):
+                with self.subTest(provider_status=provider_status):
+                    business = Business.objects.create(
+                        name=f"Webhook Status {index}",
+                        slug=f"webhook-status-{index}",
+                    )
+                    local_subscription = BusinessSubscription.objects.create(
+                        business=business,
+                        plan=self.plan,
+                        status=BusinessSubscription.Status.PENDING_CHECKOUT,
+                        payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+                        billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+                        billing_currency=BusinessSubscription.BillingCurrency.USD,
+                        provider_price_id="price_pro_monthly_usd",
+                        provider_customer_id=f"cus_status_{index}",
+                        provider_subscription_id=f"sub_status_{index}",
+                    )
+                    event_created = self._timestamp(2026, 7, index)
+                    provider_object = self._remote_subscription(
+                        local_subscription=local_subscription,
+                        provider_subscription_id=f"sub_status_{index}",
+                        provider_customer_id=f"cus_status_{index}",
+                        status=provider_status,
+                    )
+                    payload = self._event(
+                        event_id=f"evt_subscription_{provider_status}",
+                        event_type="customer.subscription.updated",
+                        event_object=provider_object,
+                        created=event_created,
+                    )
+
+                    response = self._signed_post(payload)
+
+                    local_subscription.refresh_from_db()
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(local_subscription.status, local_status)
+                    self.assertEqual(
+                        local_subscription.provider_updated_at,
+                        self._datetime(event_created),
+                    )
+                    if local_status == BusinessSubscription.Status.CANCELLED:
+                        self.assertIsNotNone(local_subscription.cancelled_at)
+
+    def test_invoice_paid_syncs_known_subscription_without_touching_customer_invoices(self):
+        self.subscription.provider_customer_id = "cus_test_motionmate"
+        self.subscription.provider_subscription_id = "sub_test_motionmate"
+        self.subscription.status = BusinessSubscription.Status.PAST_DUE
+        self.subscription.save(
+            update_fields=[
+                "provider_customer_id",
+                "provider_subscription_id",
+                "status",
+                "updated_at",
+            ]
+        )
+        remote_subscription = self._remote_subscription(status="active")
+        stripe_client, subscription_api = self._stripe_client(
+            retrieved_subscription=remote_subscription,
+        )
+        payload = self._event(
+            event_id="evt_invoice_paid",
+            event_type="invoice.paid",
+            event_object={
+                "id": "in_test_paid",
+                "object": "invoice",
+                "subscription": "sub_test_motionmate",
+                "status": "paid",
+            },
+            created=self._timestamp(2026, 7, 3),
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_webhooks,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                response = self._signed_post(payload)
+
+        self.subscription.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        subscription_api.retrieve.assert_called_once()
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertEqual(Invoice.objects.count(), 0)
+
+    def test_invoice_payment_failed_only_marks_past_due_when_stripe_status_does(self):
+        self.subscription.provider_customer_id = "cus_test_motionmate"
+        self.subscription.provider_subscription_id = "sub_test_motionmate"
+        self.subscription.status = BusinessSubscription.Status.ACTIVE
+        self.subscription.save(
+            update_fields=[
+                "provider_customer_id",
+                "provider_subscription_id",
+                "status",
+                "updated_at",
+            ]
+        )
+        active_subscription = self._remote_subscription(status="active")
+        past_due_subscription = self._remote_subscription(status="past_due")
+        subscription_api = SimpleNamespace(
+            retrieve=mock.Mock(side_effect=[active_subscription, past_due_subscription]),
+        )
+        stripe_client = SimpleNamespace(Subscription=subscription_api)
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_webhooks,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                active_response = self._signed_post(
+                    self._event(
+                        event_id="evt_invoice_failed_active",
+                        event_type="invoice.payment_failed",
+                        event_object={
+                            "id": "in_test_failed_active",
+                            "object": "invoice",
+                            "subscription": "sub_test_motionmate",
+                            "status": "open",
+                        },
+                        created=self._timestamp(2026, 7, 4),
+                    )
+                )
+                past_due_response = self._signed_post(
+                    self._event(
+                        event_id="evt_invoice_failed_past_due",
+                        event_type="invoice.payment_failed",
+                        event_object={
+                            "id": "in_test_failed_past_due",
+                            "object": "invoice",
+                            "subscription": "sub_test_motionmate",
+                            "status": "open",
+                        },
+                        created=self._timestamp(2026, 7, 5),
+                    )
+                )
+
+        self.subscription.refresh_from_db()
+        self.assertEqual(active_response.status_code, 200)
+        self.assertEqual(past_due_response.status_code, 200)
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.PAST_DUE)
+        self.assertIsNotNone(self.subscription.last_payment_failure_at)
+        self.assertEqual(self.subscription.last_payment_failure_reason, "open")
+
+    def test_stale_subscription_event_does_not_overwrite_newer_cancelled_state(self):
+        newer_timestamp = self._timestamp(2026, 7, 10)
+        older_timestamp = self._timestamp(2026, 7, 5)
+        self.subscription.provider_customer_id = "cus_test_motionmate"
+        self.subscription.provider_subscription_id = "sub_test_motionmate"
+        self.subscription.status = BusinessSubscription.Status.CANCELLED
+        self.subscription.provider_updated_at = self._datetime(newer_timestamp)
+        self.subscription.cancelled_at = self._datetime(newer_timestamp)
+        self.subscription.save(
+            update_fields=[
+                "provider_customer_id",
+                "provider_subscription_id",
+                "status",
+                "provider_updated_at",
+                "cancelled_at",
+                "updated_at",
+            ]
+        )
+        payload = self._event(
+            event_id="evt_stale_active",
+            event_type="customer.subscription.updated",
+            event_object=self._remote_subscription(status="active"),
+            created=older_timestamp,
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            response = self._signed_post(payload)
+
+        self.subscription.refresh_from_db()
+        event_record = BillingProviderWebhookEvent.objects.get(event_id="evt_stale_active")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.PROCESSED)
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.CANCELLED)
+        self.assertEqual(self.subscription.provider_updated_at, self._datetime(newer_timestamp))
+        self.assertEqual(self.subscription.cancelled_at, self._datetime(newer_timestamp))
+
+    def test_beta_subscription_metadata_is_ignored_without_adding_provider_ids(self):
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+        beta_business = Business.objects.create(name="Webhook Beta", slug="webhook-beta")
+        beta_subscription = BusinessSubscription.objects.create(
+            business=beta_business,
+            plan=beta_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+            payment_provider=BusinessSubscription.PaymentProvider.LOCAL,
+            billing_interval="",
+            billing_currency="",
+        )
+        metadata = {
+            "motionmate_business_id": str(beta_business.pk),
+            "motionmate_subscription_id": str(beta_subscription.pk),
+            "plan_slug": beta_plan.slug,
+            "billing_interval": "",
+            "billing_currency": "",
+        }
+        provider_object = self._remote_subscription(
+            local_subscription=beta_subscription,
+            provider_subscription_id="sub_test_beta",
+            provider_customer_id="cus_test_beta",
+            metadata=metadata,
+        )
+        provider_object["items"]["data"][0]["price"]["id"] = "price_pro_monthly_usd"
+        provider_object["items"]["data"][0]["price"]["currency"] = "usd"
+        provider_object["items"]["data"][0]["price"]["recurring"] = {"interval": "month"}
+        payload = self._event(
+            event_id="evt_beta_ignored",
+            event_type="customer.subscription.created",
+            event_object=provider_object,
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            response = self._signed_post(payload)
+
+        beta_subscription.refresh_from_db()
+        event_record = BillingProviderWebhookEvent.objects.get(event_id="evt_beta_ignored")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.IGNORED)
+        self.assertEqual(beta_subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertEqual(beta_subscription.provider_customer_id, "")
+        self.assertEqual(beta_subscription.provider_subscription_id, "")
 
 
 class BusinessUserModelTests(TestCase):
@@ -1568,10 +2687,15 @@ class SubscriptionAccessTests(TestCase):
         self.assertFalse(can_use_module(self.business, "appointments"))
 
     def test_trialing_subscription_keeps_enabled_modules_available(self):
+        trial_start = timezone.now()
         BusinessSubscription.objects.create(
             business=self.business,
             plan=self.plan,
             status=BusinessSubscription.Status.TRIALING,
+            trial_start=trial_start,
+            trial_end=trial_start + timedelta(days=14),
+            current_period_start=trial_start,
+            current_period_end=trial_start + timedelta(days=14),
         )
 
         self.assertTrue(self.business.is_trialing)
@@ -1681,6 +2805,403 @@ class SubscriptionAccessTests(TestCase):
             override_subscription.trial_end - override_subscription.trial_start,
             timedelta(days=3),
         )
+
+
+class SubscriptionEffectiveAccessPolicyTests(TestCase):
+    @staticmethod
+    def _at(day: int, hour: int = 12) -> datetime:
+        return datetime(2026, 7, day, hour, tzinfo=UTC)
+
+    def setUp(self):
+        self.counter = 0
+        self.starter_plan = ClarivoPlan.objects.get(slug="starter")
+        self.pro_plan = ClarivoPlan.objects.get(slug="pro")
+        self.business_plan = ClarivoPlan.objects.get(slug="business")
+        self.beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+
+    def _business(self, *, is_active: bool = True) -> Business:
+        self.counter += 1
+        return Business.objects.create(
+            name=f"Access Policy {self.counter}",
+            slug=f"access-policy-{self.counter}",
+            is_active=is_active,
+        )
+
+    def _subscription(
+        self,
+        *,
+        status: str,
+        plan: ClarivoPlan | None = None,
+        business: Business | None = None,
+        **overrides,
+    ) -> BusinessSubscription:
+        return BusinessSubscription.objects.create(
+            business=business or self._business(),
+            plan=plan or self.pro_plan,
+            status=status,
+            **overrides,
+        )
+
+    def test_public_trials_keep_selected_plan_entitlements_before_trial_end(self):
+        now = self._at(1)
+        for plan in (self.starter_plan, self.pro_plan, self.business_plan):
+            with self.subTest(plan=plan.slug):
+                subscription = self._subscription(
+                    status=BusinessSubscription.Status.TRIALING,
+                    plan=plan,
+                    trial_start=now - timedelta(days=1),
+                    trial_end=now + timedelta(days=1),
+                    current_period_start=now - timedelta(days=1),
+                    current_period_end=now + timedelta(days=1),
+                )
+
+                self.assertTrue(subscription.has_access_at(now))
+                self.assertTrue(subscription.can_use_module_at("client_management", now))
+                self.assertEqual(subscription.plan, plan)
+                self.assertEqual(
+                    subscription.can_use_module_at("appointments", now),
+                    plan.allows_module("appointments"),
+                )
+                self.assertEqual(
+                    subscription.can_use_module_at("public_booking", now),
+                    plan.allows_module("public_booking"),
+                )
+
+    def test_trial_access_uses_exact_trial_end_boundary_without_mutating_status(self):
+        end_at = self._at(4)
+        subscription = self._subscription(
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=end_at - timedelta(days=14),
+            trial_end=end_at,
+            current_period_start=end_at - timedelta(days=14),
+            current_period_end=end_at,
+        )
+        original_updated_at = subscription.updated_at
+
+        self.assertTrue(subscription.has_access_at(end_at - timedelta(seconds=1)))
+        self.assertFalse(subscription.has_access_at(end_at))
+        self.assertFalse(subscription.has_access_at(end_at + timedelta(seconds=1)))
+        self.assertEqual(
+            subscription.effective_access_status_at(end_at),
+            BusinessSubscription.AccessCode.TRIAL_EXPIRED,
+        )
+
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(subscription.updated_at, original_updated_at)
+
+    def test_trial_missing_end_fails_closed(self):
+        now = self._at(5)
+        subscription = self._subscription(status=BusinessSubscription.Status.TRIALING)
+
+        state = subscription.effective_access_state_at(now)
+
+        self.assertFalse(state.has_access)
+        self.assertEqual(state.code, BusinessSubscription.AccessCode.TRIAL_MISSING_END)
+        self.assertTrue(state.billing_attention_required)
+        self.assertFalse(subscription.can_use_module_at("invoicing", now))
+
+    def test_stripe_active_period_uses_exact_current_period_boundary(self):
+        end_at = self._at(8)
+        subscription = self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_customer_id="cus_access_policy",
+            provider_subscription_id="sub_access_policy",
+            provider_price_id="price_pro_monthly_usd",
+            current_period_start=end_at - timedelta(days=30),
+            current_period_end=end_at,
+        )
+
+        self.assertTrue(subscription.has_access_at(end_at - timedelta(seconds=1)))
+        self.assertFalse(subscription.has_access_at(end_at))
+        self.assertFalse(subscription.has_access_at(end_at + timedelta(seconds=1)))
+        self.assertEqual(
+            subscription.effective_access_status_at(end_at),
+            BusinessSubscription.AccessCode.PROVIDER_STATE_STALE,
+        )
+
+    def test_stripe_active_missing_period_fails_closed_but_manual_active_and_beta_remain_valid(
+        self,
+    ):
+        now = self._at(9)
+        stripe_subscription = self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_customer_id="cus_missing_period",
+            provider_subscription_id="sub_missing_period",
+            provider_price_id="price_pro_monthly_usd",
+        )
+        manual_subscription = self._subscription(status=BusinessSubscription.Status.ACTIVE)
+        beta_subscription = self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            plan=self.beta_plan,
+        )
+
+        self.assertFalse(stripe_subscription.has_access_at(now))
+        self.assertEqual(
+            stripe_subscription.effective_access_status_at(now),
+            BusinessSubscription.AccessCode.PROVIDER_PERIOD_MISSING,
+        )
+        self.assertTrue(manual_subscription.has_access_at(now))
+        self.assertTrue(beta_subscription.has_access_at(now))
+        self.assertTrue(beta_subscription.can_use_module_at("appointments", now))
+
+    def test_scheduled_cancellation_allows_access_only_until_effective_end(self):
+        end_at = self._at(12)
+        active_subscription = self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            cancel_at_period_end=True,
+            current_period_start=end_at - timedelta(days=30),
+            current_period_end=end_at,
+        )
+        trial_subscription = self._subscription(
+            status=BusinessSubscription.Status.TRIALING,
+            cancel_at_period_end=True,
+            trial_start=end_at - timedelta(days=14),
+            trial_end=end_at,
+            current_period_start=end_at - timedelta(days=14),
+            current_period_end=end_at + timedelta(days=16),
+        )
+
+        for subscription in (active_subscription, trial_subscription):
+            with self.subTest(subscription=subscription.pk):
+                before_state = subscription.effective_access_state_at(end_at - timedelta(seconds=1))
+                boundary_state = subscription.effective_access_state_at(end_at)
+
+                self.assertTrue(before_state.has_access)
+                self.assertEqual(
+                    before_state.code,
+                    BusinessSubscription.AccessCode.CANCELS_AT_PERIOD_END,
+                )
+                self.assertEqual(before_state.access_ends_at, end_at)
+                self.assertFalse(boundary_state.has_access)
+
+    def test_fail_closed_statuses_inactive_records_and_unknown_statuses(self):
+        now = self._at(14)
+        inactive_business_subscription = self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            business=self._business(is_active=False),
+        )
+        inactive_plan = ClarivoPlan.objects.create(
+            name="Inactive Plan",
+            slug="inactive-plan-access",
+            is_active=False,
+        )
+        inactive_plan_subscription = self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            plan=inactive_plan,
+        )
+        cases = (
+            (
+                self._subscription(status=BusinessSubscription.Status.PENDING_CHECKOUT),
+                BusinessSubscription.AccessCode.PENDING_CHECKOUT,
+            ),
+            (
+                self._subscription(status=BusinessSubscription.Status.PAST_DUE),
+                BusinessSubscription.AccessCode.BILLING_PAST_DUE,
+            ),
+            (
+                self._subscription(status=BusinessSubscription.Status.CANCELLED),
+                BusinessSubscription.AccessCode.SUBSCRIPTION_CANCELLED,
+            ),
+            (
+                self._subscription(status=BusinessSubscription.Status.EXPIRED),
+                BusinessSubscription.AccessCode.SUBSCRIPTION_EXPIRED,
+            ),
+            (
+                self._subscription(status="surprise"),
+                BusinessSubscription.AccessCode.UNSUPPORTED_STATUS,
+            ),
+            (
+                inactive_business_subscription,
+                BusinessSubscription.AccessCode.BUSINESS_INACTIVE,
+            ),
+            (
+                inactive_plan_subscription,
+                BusinessSubscription.AccessCode.PLAN_INACTIVE,
+            ),
+        )
+
+        for subscription, code in cases:
+            with self.subTest(code=code):
+                state = subscription.effective_access_state_at(now)
+
+                self.assertFalse(state.has_access)
+                self.assertEqual(state.code, code)
+                self.assertTrue(state.billing_attention_required)
+                self.assertFalse(subscription.can_use_module_at("invoicing", now))
+
+    def test_expired_subscription_does_not_apply_limits_or_change_plan(self):
+        business = self._business()
+        subscription = self._subscription(
+            business=business,
+            plan=self.business_plan,
+            status=BusinessSubscription.Status.EXPIRED,
+        )
+
+        self.assertFalse(business_limit_reached(business, "users"))
+        self.assertFalse(can_use_module(business, "appointments"))
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.plan, self.business_plan)
+
+
+class ReconcileSubscriptionAccessCommandTests(TestCase):
+    @staticmethod
+    def _now() -> datetime:
+        return datetime(2026, 7, 20, 12, tzinfo=UTC)
+
+    def setUp(self):
+        self.counter = 0
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+        self.beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+
+    def _business(self) -> Business:
+        self.counter += 1
+        return Business.objects.create(
+            name=f"Reconcile Workspace {self.counter}",
+            slug=f"reconcile-workspace-{self.counter}",
+        )
+
+    def _subscription(self, *, plan: ClarivoPlan | None = None, **overrides):
+        defaults = {
+            "business": self._business(),
+            "plan": plan or self.plan,
+            "status": BusinessSubscription.Status.ACTIVE,
+        }
+        defaults.update(overrides)
+        return BusinessSubscription.objects.create(**defaults)
+
+    def _call_command(self, *, dry_run: bool = False) -> str:
+        output = StringIO()
+        with mock.patch("django.utils.timezone.now", return_value=self._now()):
+            call_command(
+                "reconcile_subscription_access",
+                dry_run=dry_run,
+                stdout=output,
+            )
+        return output.getvalue()
+
+    def test_dry_run_reports_expired_local_trials_without_database_or_email_side_effects(self):
+        subscription = self._subscription(
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=self._now() - timedelta(days=20),
+            trial_end=self._now() - timedelta(days=1),
+            current_period_start=self._now() - timedelta(days=20),
+            current_period_end=self._now() - timedelta(days=1),
+        )
+
+        with mock.patch("apps.businesses.stripe_config.configure_stripe_sdk") as stripe_sdk:
+            output = self._call_command(dry_run=True)
+
+        subscription.refresh_from_db()
+        self.assertIn("Dry run only; no subscription records were changed.", output)
+        self.assertIn("Expired local trials: 1", output)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(mail.outbox, [])
+        stripe_sdk.assert_not_called()
+
+    def test_expired_local_trials_transition_to_expired_idempotently(self):
+        subscription = self._subscription(
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=self._now() - timedelta(days=20),
+            trial_end=self._now(),
+            current_period_start=self._now() - timedelta(days=20),
+            current_period_end=self._now(),
+        )
+
+        first_output = self._call_command()
+        second_output = self._call_command()
+
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.status, BusinessSubscription.Status.EXPIRED)
+        self.assertIn("Expired local trials: 1", first_output)
+        self.assertIn("Expired local trials: 0", second_output)
+
+    def test_future_trials_past_due_and_beta_remain_unchanged(self):
+        future_trial = self._subscription(
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=self._now() - timedelta(days=1),
+            trial_end=self._now() + timedelta(days=1),
+            current_period_start=self._now() - timedelta(days=1),
+            current_period_end=self._now() + timedelta(days=1),
+        )
+        past_due = self._subscription(status=BusinessSubscription.Status.PAST_DUE)
+        beta = self._subscription(
+            plan=self.beta_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
+        output = self._call_command()
+
+        future_trial.refresh_from_db()
+        past_due.refresh_from_db()
+        beta.refresh_from_db()
+        self.assertEqual(future_trial.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(past_due.status, BusinessSubscription.Status.PAST_DUE)
+        self.assertEqual(beta.status, BusinessSubscription.Status.ACTIVE)
+        self.assertIn("Future trials unchanged: 1", output)
+        self.assertIn("Past-due subscriptions unchanged: 1", output)
+        self.assertIn("Beta subscriptions unchanged: 1", output)
+
+    def test_completed_scheduled_cancellations_transition_only_at_boundary(self):
+        completed = self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            cancel_at_period_end=True,
+            current_period_start=self._now() - timedelta(days=30),
+            current_period_end=self._now(),
+        )
+        future = self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            cancel_at_period_end=True,
+            current_period_start=self._now() - timedelta(days=29),
+            current_period_end=self._now() + timedelta(seconds=1),
+        )
+
+        output = self._call_command()
+
+        completed.refresh_from_db()
+        future.refresh_from_db()
+        self.assertEqual(completed.status, BusinessSubscription.Status.CANCELLED)
+        self.assertEqual(future.status, BusinessSubscription.Status.ACTIVE)
+        self.assertIn("Completed scheduled cancellations: 1", output)
+
+    def test_provider_states_are_reported_without_inventing_statuses(self):
+        expired_provider_trial = self._subscription(
+            status=BusinessSubscription.Status.TRIALING,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            trial_start=self._now() - timedelta(days=20),
+            trial_end=self._now(),
+            current_period_start=self._now() - timedelta(days=20),
+            current_period_end=self._now(),
+            provider_customer_id="cus_provider_trial",
+            provider_subscription_id="sub_provider_trial",
+        )
+        stale_active = self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            current_period_start=self._now() - timedelta(days=30),
+            current_period_end=self._now(),
+            provider_customer_id="cus_provider_active",
+            provider_subscription_id="sub_provider_active",
+        )
+
+        output = self._call_command()
+
+        expired_provider_trial.refresh_from_db()
+        stale_active.refresh_from_db()
+        self.assertEqual(expired_provider_trial.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(stale_active.status, BusinessSubscription.Status.ACTIVE)
+        self.assertIn("Expired provider trials requiring reconciliation: 1", output)
+        self.assertIn("Stale provider subscriptions requiring reconciliation: 1", output)
 
 
 class MotionmatePlanCatalogTests(TestCase):
@@ -2913,6 +4434,49 @@ class BusinessSubscriptionViewTests(TestCase):
             role=role,
         )
 
+    @staticmethod
+    def _price_map() -> dict[tuple[str, str, str], str]:
+        return {
+            (plan_slug, interval, currency): f"price_{plan_slug}_{interval}_{currency}"
+            for plan_slug in PUBLIC_PAID_PLAN_SLUGS
+            for interval in PUBLIC_BILLING_INTERVALS
+            for currency in PUBLIC_PRICING_CURRENCIES
+        }
+
+    def _valid_stripe_settings(self, **overrides):
+        settings_overrides = {
+            "STRIPE_ENABLED": True,
+            "STRIPE_PUBLISHABLE_KEY": "pk_test_motionmate",
+            "STRIPE_SECRET_KEY": "sk_test_motionmate",
+            "STRIPE_WEBHOOK_SECRET": "whsec_motionmate",
+            "STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID": "bpc_test_motionmate",
+            "STRIPE_PRICE_ID_MAP": self._price_map(),
+        }
+        settings_overrides.update(overrides)
+        return settings_overrides
+
+    def _stripe_subscription(self, **overrides):
+        now = timezone.now()
+        defaults = {
+            "business": self.business,
+            "plan": self.pro_plan,
+            "status": BusinessSubscription.Status.ACTIVE,
+            "payment_provider": BusinessSubscription.PaymentProvider.STRIPE,
+            "billing_interval": BusinessSubscription.BillingInterval.MONTHLY,
+            "billing_currency": BusinessSubscription.BillingCurrency.USD,
+            "provider_customer_id": "cus_subscription_view",
+            "provider_subscription_id": "sub_subscription_view",
+            "provider_price_id": "price_pro_monthly_usd",
+            "current_period_start": now - timedelta(days=1),
+            "current_period_end": now + timedelta(days=29),
+        }
+        defaults.update(overrides)
+        return BusinessSubscription.objects.create(**defaults)
+
+    def _stripe_portal_client(self, *, url: str = "https://billing.stripe.test/session"):
+        session_api = SimpleNamespace(create=mock.Mock(return_value={"id": "bps_view", "url": url}))
+        return SimpleNamespace(billing_portal=SimpleNamespace(Session=session_api)), session_api
+
     def test_owner_can_view_subscription_page(self):
         self._login_with_role(BusinessUser.Role.OWNER)
         BusinessSubscription.objects.create(
@@ -2956,12 +4520,444 @@ class BusinessSubscriptionViewTests(TestCase):
         self.assertContains(response, "Current Plan")
         self.assertContains(response, "Recommended")
 
+    def test_subscription_page_shows_owner_safe_effective_access_messages(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        now = timezone.now()
+        inactive_plan = ClarivoPlan.objects.create(
+            name="Inactive Owner State",
+            slug="inactive-owner-state",
+            is_active=False,
+        )
+        states = (
+            (
+                {
+                    "plan": self.pro_plan,
+                    "status": BusinessSubscription.Status.PENDING_CHECKOUT,
+                    "payment_provider": BusinessSubscription.PaymentProvider.STRIPE,
+                    "billing_interval": BusinessSubscription.BillingInterval.MONTHLY,
+                    "billing_currency": BusinessSubscription.BillingCurrency.USD,
+                    "provider_checkout_session_id": "cs_owner_state",
+                },
+                "Complete your payment setup to start your 14-day trial.",
+            ),
+            (
+                {
+                    "plan": self.pro_plan,
+                    "status": BusinessSubscription.Status.TRIALING,
+                    "trial_start": now - timedelta(days=1),
+                    "trial_end": now + timedelta(days=1),
+                    "current_period_start": now - timedelta(days=1),
+                    "current_period_end": now + timedelta(days=1),
+                },
+                "Your Pro trial ends on",
+            ),
+            (
+                {
+                    "plan": self.pro_plan,
+                    "status": BusinessSubscription.Status.TRIALING,
+                    "trial_start": now - timedelta(days=15),
+                    "trial_end": now - timedelta(days=1),
+                    "current_period_start": now - timedelta(days=15),
+                    "current_period_end": now - timedelta(days=1),
+                },
+                "Your free trial has ended.",
+            ),
+            (
+                {
+                    "plan": self.pro_plan,
+                    "status": BusinessSubscription.Status.ACTIVE,
+                },
+                "Your Pro subscription is active.",
+            ),
+            (
+                {
+                    "plan": self.pro_plan,
+                    "status": BusinessSubscription.Status.ACTIVE,
+                    "cancel_at_period_end": True,
+                    "current_period_start": now - timedelta(days=10),
+                    "current_period_end": now + timedelta(days=1),
+                },
+                "Your Pro subscription will remain available until",
+            ),
+            (
+                {
+                    "plan": self.pro_plan,
+                    "status": BusinessSubscription.Status.PAST_DUE,
+                },
+                "There is a payment issue with your subscription.",
+            ),
+            (
+                {
+                    "plan": self.pro_plan,
+                    "status": BusinessSubscription.Status.CANCELLED,
+                },
+                "Your subscription is no longer active.",
+            ),
+            (
+                {
+                    "plan": self.pro_plan,
+                    "status": BusinessSubscription.Status.ACTIVE,
+                    "payment_provider": BusinessSubscription.PaymentProvider.STRIPE,
+                    "billing_interval": BusinessSubscription.BillingInterval.MONTHLY,
+                    "billing_currency": BusinessSubscription.BillingCurrency.USD,
+                    "provider_customer_id": "cus_hidden_owner_state",
+                    "provider_subscription_id": "sub_hidden_owner_state",
+                    "provider_price_id": "price_pro_monthly_usd",
+                    "current_period_start": now - timedelta(days=40),
+                    "current_period_end": now - timedelta(days=1),
+                },
+                "We could not confirm your latest subscription period.",
+            ),
+            (
+                {
+                    "plan": inactive_plan,
+                    "status": BusinessSubscription.Status.ACTIVE,
+                },
+                "This workspace plan is inactive.",
+            ),
+        )
+
+        for fields, expected_copy in states:
+            with self.subTest(expected_copy=expected_copy):
+                BusinessSubscription.objects.filter(business=self.business).delete()
+                BusinessSubscription.objects.create(business=self.business, **fields)
+
+                response = self.client.get(reverse("business_subscription"))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, expected_copy)
+                self.assertNotContains(response, "cus_hidden_owner_state")
+                self.assertNotContains(response, "sub_hidden_owner_state")
+                self.assertNotContains(response, "Customer Portal")
+
+    def test_eligible_owner_can_post_to_customer_portal_route(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        subscription = self._stripe_subscription()
+        stripe_client, session_api = self._stripe_portal_client()
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_portal,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                response = self.client.post(
+                    reverse("billing_customer_portal"),
+                    {
+                        "customer": "cus_browser_tamper",
+                        "return_url": "https://evil.example/return",
+                        "configuration": "bpc_browser_tamper",
+                    },
+                )
+
+        subscription.refresh_from_db()
+        create_kwargs = session_api.create.call_args.kwargs
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "https://billing.stripe.test/session")
+        self.assertEqual(create_kwargs["customer"], "cus_subscription_view")
+        self.assertEqual(create_kwargs["configuration"], "bpc_test_motionmate")
+        self.assertTrue(
+            create_kwargs["return_url"].endswith(
+                reverse("business_subscription") + "?billing_return=1"
+            )
+        )
+        self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertEqual(subscription.provider_customer_id, "cus_subscription_view")
+        self.assertEqual(subscription.provider_subscription_id, "sub_subscription_view")
+
+    def test_customer_portal_route_rejects_get_staff_unauthenticated_and_missing_csrf(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        self._stripe_subscription()
+        stripe_client, session_api = self._stripe_portal_client()
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_portal,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                get_response = self.client.get(reverse("billing_customer_portal"))
+
+        self.assertEqual(get_response.status_code, 405)
+        session_api.create.assert_not_called()
+
+        self.client.logout()
+        self.client.force_login(self.user)
+        BusinessUser.objects.filter(user=self.user, business=self.business).update(
+            role=BusinessUser.Role.STAFF
+        )
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(stripe_portal, "configure_stripe_sdk") as configure_sdk:
+                staff_response = self.client.post(reverse("billing_customer_portal"))
+        self.assertEqual(staff_response.status_code, 403)
+        configure_sdk.assert_not_called()
+
+        self.client.logout()
+        unauthenticated_response = self.client.post(reverse("billing_customer_portal"))
+        self.assertEqual(unauthenticated_response.status_code, 302)
+        self.assertIn(reverse("business_login"), unauthenticated_response.url)
+
+        csrf_client = DjangoClient(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+        csrf_session = csrf_client.session
+        csrf_session[CURRENT_BUSINESS_SESSION_KEY] = self.business.id
+        csrf_session.save()
+        BusinessUser.objects.filter(user=self.user, business=self.business).update(
+            role=BusinessUser.Role.OWNER
+        )
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(stripe_portal, "configure_stripe_sdk") as configure_sdk:
+                csrf_response = csrf_client.post(reverse("billing_customer_portal"))
+        self.assertEqual(csrf_response.status_code, 403)
+        configure_sdk.assert_not_called()
+
+    def test_customer_portal_missing_provider_ids_and_stripe_failures_show_safe_messages(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        self._stripe_subscription(provider_customer_id="")
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(stripe_portal, "configure_stripe_sdk") as configure_sdk:
+                missing_id_response = self.client.post(
+                    reverse("billing_customer_portal"),
+                    follow=True,
+                )
+
+        self.assertRedirects(missing_id_response, reverse("business_subscription"))
+        self.assertContains(missing_id_response, PORTAL_TEMPORARILY_UNAVAILABLE_MESSAGE)
+        configure_sdk.assert_not_called()
+
+        BusinessSubscription.objects.filter(business=self.business).delete()
+        subscription = self._stripe_subscription()
+        stripe_client, _session_api = self._stripe_portal_client()
+        stripe_client.billing_portal.Session.create.side_effect = Exception("raw stripe outage")
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_portal,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                failure_response = self.client.post(
+                    reverse("billing_customer_portal"),
+                    follow=True,
+                )
+
+        subscription.refresh_from_db()
+        self.assertRedirects(failure_response, reverse("business_subscription"))
+        self.assertContains(failure_response, PORTAL_OPEN_FAILED_MESSAGE)
+        self.assertNotContains(failure_response, "raw stripe outage")
+        self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertEqual(subscription.provider_customer_id, "cus_subscription_view")
+
+    def test_subscription_page_renders_portal_controls_without_calling_stripe(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        now = timezone.now()
+        self._stripe_subscription(
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=now - timedelta(days=1),
+            trial_end=now + timedelta(days=13),
+            current_period_start=now - timedelta(days=1),
+            current_period_end=now + timedelta(days=13),
+            provider_customer_id="cus_hidden_template",
+            provider_subscription_id="sub_hidden_template",
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(stripe_portal, "configure_stripe_sdk") as configure_sdk:
+                response = self.client.get(reverse("business_subscription"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Manage billing")
+        self.assertContains(response, "Your 14-day trial is active")
+        self.assertContains(response, "Billing management is securely hosted by Stripe")
+        self.assertNotContains(response, "cus_hidden_template")
+        self.assertNotContains(response, "sub_hidden_template")
+        configure_sdk.assert_not_called()
+
+    def test_subscription_page_hides_portal_for_pending_past_due_cancelled_and_beta(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
+        cases = (
+            (
+                {
+                    "plan": self.pro_plan,
+                    "status": BusinessSubscription.Status.PENDING_CHECKOUT,
+                    "payment_provider": BusinessSubscription.PaymentProvider.STRIPE,
+                    "billing_interval": BusinessSubscription.BillingInterval.MONTHLY,
+                    "billing_currency": BusinessSubscription.BillingCurrency.USD,
+                },
+                "Complete payment setup",
+            ),
+            (
+                {"plan": self.pro_plan, "status": BusinessSubscription.Status.PAST_DUE},
+                "There is a payment issue",
+            ),
+            (
+                {"plan": self.pro_plan, "status": BusinessSubscription.Status.CANCELLED},
+                "Your subscription is no longer active",
+            ),
+            (
+                {"plan": beta_plan, "status": BusinessSubscription.Status.ACTIVE},
+                "Beta",
+            ),
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            for fields, expected_copy in cases:
+                with self.subTest(expected_copy=expected_copy):
+                    BusinessSubscription.objects.filter(business=self.business).delete()
+                    BusinessSubscription.objects.create(business=self.business, **fields)
+
+                    response = self.client.get(reverse("business_subscription"))
+
+                    self.assertEqual(response.status_code, 200)
+                    self.assertContains(response, expected_copy)
+                    self.assertNotContains(response, "Manage billing")
+                    self.assertNotContains(response, "Stripe Customer Portal")
+
+    def test_customer_portal_return_page_is_non_authoritative(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        subscription = self._stripe_subscription(
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=timezone.now() - timedelta(days=1),
+            trial_end=timezone.now() + timedelta(days=13),
+            current_period_start=timezone.now() - timedelta(days=1),
+            current_period_end=timezone.now() + timedelta(days=13),
+        )
+        original_values = (
+            subscription.status,
+            subscription.plan_id,
+            subscription.trial_end,
+            subscription.current_period_end,
+            subscription.provider_customer_id,
+            subscription.provider_subscription_id,
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(stripe_portal, "configure_stripe_sdk") as configure_sdk:
+                response = self.client.get(
+                    reverse("business_subscription"),
+                    {
+                        "billing_return": "1",
+                        "status": "active",
+                        "provider_customer_id": "cus_browser_tamper",
+                        "plan": self.business_plan.pk,
+                    },
+                )
+
+        subscription.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Your billing changes are being confirmed.")
+        self.assertContains(
+            response,
+            "Motionmate will update your subscription automatically after Stripe confirms the change.",
+        )
+        self.assertEqual(
+            (
+                subscription.status,
+                subscription.plan_id,
+                subscription.trial_end,
+                subscription.current_period_end,
+                subscription.provider_customer_id,
+                subscription.provider_subscription_id,
+            ),
+            original_values,
+        )
+        configure_sdk.assert_not_called()
+
+    def test_direct_paid_module_routes_require_effective_subscription_access(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        now = timezone.now()
+        states = (
+            {
+                "status": BusinessSubscription.Status.PENDING_CHECKOUT,
+                "payment_provider": BusinessSubscription.PaymentProvider.STRIPE,
+                "billing_interval": BusinessSubscription.BillingInterval.MONTHLY,
+                "billing_currency": BusinessSubscription.BillingCurrency.USD,
+            },
+            {
+                "status": BusinessSubscription.Status.TRIALING,
+                "trial_start": now - timedelta(days=15),
+                "trial_end": now - timedelta(days=1),
+                "current_period_start": now - timedelta(days=15),
+                "current_period_end": now - timedelta(days=1),
+            },
+            {"status": BusinessSubscription.Status.PAST_DUE},
+            {"status": BusinessSubscription.Status.EXPIRED},
+        )
+
+        for fields in states:
+            with self.subTest(status=fields["status"]):
+                BusinessSubscription.objects.filter(business=self.business).delete()
+                BusinessSubscription.objects.create(
+                    business=self.business,
+                    plan=self.pro_plan,
+                    **fields,
+                )
+
+                response = self.client.get(reverse("invoice_list"), follow=True)
+
+                self.assertRedirects(response, reverse("business_subscription"))
+                self.assertContains(response, "Invoicing is not available")
+
+    def test_direct_core_crm_routes_require_effective_subscription_access(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.pro_plan,
+            status=BusinessSubscription.Status.EXPIRED,
+        )
+
+        response = self.client.get(reverse("staff_client_list"), follow=True)
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertContains(response, "Client Management is not available")
+
+    def test_team_invitation_post_requires_effective_subscription_access(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.business_plan,
+            status=BusinessSubscription.Status.EXPIRED,
+        )
+
+        response = self.client.post(
+            reverse("business_team_members"),
+            {"email": "blocked-staff@example.com", "role": BusinessUser.Role.STAFF},
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertContains(response, "Workspace is not available")
+        self.assertFalse(
+            BusinessInvitation.objects.filter(email="blocked-staff@example.com").exists()
+        )
+
+    def test_owner_dashboard_redirects_billing_attention_states_without_looping(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.pro_plan,
+            status=BusinessSubscription.Status.EXPIRED,
+        )
+
+        response = self.client.get(reverse("agent_dashboard"), follow=True)
+
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertContains(response, "Review your Motionmate subscription")
+
     def test_owner_can_change_subscription_plan_and_keep_trialing_status(self):
         self._login_with_role(BusinessUser.Role.OWNER)
+        trial_start = timezone.now()
         subscription = BusinessSubscription.objects.create(
             business=self.business,
             plan=self.starter_plan,
             status=BusinessSubscription.Status.TRIALING,
+            trial_start=trial_start,
+            trial_end=trial_start + timedelta(days=14),
+            current_period_start=trial_start,
+            current_period_end=trial_start + timedelta(days=14),
         )
 
         response = self.client.post(
@@ -3106,6 +5102,13 @@ class BusinessInvitationViewTests(TestCase):
         session.save()
         self.client.force_login(user)
 
+    def _enable_team_subscription(self):
+        return BusinessSubscription.objects.create(
+            business=self.business,
+            plan=ClarivoPlan.objects.get(slug="business"),
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+
     def test_invitation_role_choices_follow_plan_packaging(self):
         subscription = BusinessSubscription.objects.create(
             business=self.business,
@@ -3209,6 +5212,7 @@ class BusinessInvitationViewTests(TestCase):
     )
     def test_owner_can_create_workspace_invitation(self):
         mail.outbox.clear()
+        self._enable_team_subscription()
         self._login(self.owner, BusinessUser.Role.OWNER)
 
         response = self.client.post(
@@ -3240,6 +5244,7 @@ class BusinessInvitationViewTests(TestCase):
         self.assertNotIn("https://www.motionmate.net//", mail.outbox[0].body)
 
     def test_invite_still_exists_if_email_send_fails(self):
+        self._enable_team_subscription()
         self._login(self.owner, BusinessUser.Role.OWNER)
 
         with mock.patch(
@@ -3266,6 +5271,7 @@ class BusinessInvitationViewTests(TestCase):
         )
 
     def test_admin_cannot_invite_owner_role(self):
+        self._enable_team_subscription()
         self._login(self.admin, BusinessUser.Role.ADMIN)
 
         response = self.client.post(
@@ -3281,6 +5287,7 @@ class BusinessInvitationViewTests(TestCase):
         self.assertContains(response, "Select a valid choice")
 
     def test_invite_is_blocked_when_email_already_belongs_to_current_workspace(self):
+        self._enable_team_subscription()
         existing_user = TaskIOUser.objects.create_user(
             email="employee@example.com",
             password="StrongPass123!",
@@ -3314,6 +5321,7 @@ class BusinessInvitationViewTests(TestCase):
         self.assertContains(response, SAME_WORKSPACE_EMAIL_MESSAGE)
 
     def test_invite_is_blocked_when_email_has_active_membership_in_other_workspace(self):
+        self._enable_team_subscription()
         other_workspace_user = TaskIOUser.objects.create_user(
             email="shared.employee@example.com",
             password="StrongPass123!",

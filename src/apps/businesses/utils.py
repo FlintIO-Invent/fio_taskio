@@ -186,13 +186,13 @@ def generate_business_slug(name: str) -> str:
     return candidate
 
 
-def business_required(
-    view_func: ViewFunc | None = None,
+def business_required[T: Callable[..., HttpResponse]](
+    view_func: T | None = None,
     *,
     login_url: str = "business_login",
     setup_url_name: str = "business_setup",
-) -> ViewFunc | Callable[[ViewFunc], ViewFunc]:
-    def decorator(func: ViewFunc) -> ViewFunc:
+) -> T | Callable[[T], T]:
+    def decorator(func: T) -> T:
         @wraps(func)
         def wrapped(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
             business = get_current_business(request)
@@ -491,6 +491,8 @@ def get_business_limit_reached_message(business: Business | None, limit_name: st
 def get_module_display_name(module_name: str) -> str:
     normalized_name = module_name.strip().lower().replace("-", "_")
     display_names = {
+        "crm": "Client Management",
+        "workspace": "Workspace",
         "client_management": "Client Management",
         "invoicing": "Invoicing",
         "public_request_form": "Online Booking",
@@ -521,10 +523,7 @@ def get_business_module_unavailable_message(
         )
 
     if not subscription.has_access:
-        return (
-            f"{module_label} is not available because this workspace subscription "
-            "is not active."
-        )
+        return f"{module_label} is not available because this workspace subscription is not active."
 
     return f"{module_label} is not included in the current workspace plan."
 

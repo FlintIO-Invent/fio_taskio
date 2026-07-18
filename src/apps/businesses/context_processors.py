@@ -22,6 +22,9 @@ def current_business(request):
     membership = get_current_business_membership(request)
     subscription = get_business_subscription(business)
     current_plan = subscription.plan if subscription is not None else None
+    subscription_access_state = (
+        subscription.effective_access_state if subscription is not None else None
+    )
 
     module_access = {
         "invoicing": can_use_module(business, "invoicing"),
@@ -53,6 +56,7 @@ def current_business(request):
         "current_business": business,
         "current_business_membership": membership,
         "current_subscription": subscription,
+        "subscription_access_state": subscription_access_state,
         "current_plan": current_plan,
         "subscription_has_access": business_has_active_subscription(business),
         "subscription_is_trialing": business_is_trialing(business),
