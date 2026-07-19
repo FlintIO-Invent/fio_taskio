@@ -85,6 +85,15 @@
                   </div>
                   {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
                   {% if form.billing_interval.errors %}<div class="invalid-feedback d-block">{{ form.billing_interval.errors|striptags }}</div>{% endif %}
+                {% elif show_paid_plan_summary %}
+                  {{ form.plan }}
+                  {{ form.billing_interval }}
+                  <div class="alert alert-warning mb-0" role="alert">
+                    Choose Starter, Pro, or Business from pricing before registering.
+                    <a href="{% url 'home' %}#pricing">View pricing</a>.
+                  </div>
+                  {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
+                  {% if form.billing_interval.errors %}<div class="invalid-feedback d-block">{{ form.billing_interval.errors|striptags }}</div>{% endif %}
                 {% else %}
                   <label class="form-label" for="{{ form.plan.id_for_label }}">Trial plan{% include "includes/help_icon.html" with text=form.plan.help_text %}</label>
                   {{ form.plan }}

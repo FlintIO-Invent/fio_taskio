@@ -236,11 +236,17 @@ class BusinessRegistrationForm(forms.Form):
         submitted_plan_slug = (
             self.data.get(self.add_prefix("plan")) if self.is_bound else selected_plan_slug
         )
-        self.selected_plan_for_display = self._default_plan(
-            plans,
-            submitted_plan_slug,
-            beta_eligible=beta_eligible,
-        )
+        if self.is_bound and not beta_eligible:
+            self.selected_plan_for_display = self._submitted_public_plan(
+                plans,
+                submitted_plan_slug,
+            )
+        else:
+            self.selected_plan_for_display = self._default_plan(
+                plans,
+                submitted_plan_slug,
+                beta_eligible=beta_eligible,
+            )
         submitted_billing_interval = (
             self.data.get(self.add_prefix("billing_interval"))
             if self.is_bound
@@ -287,6 +293,16 @@ class BusinessRegistrationForm(forms.Form):
         return label
 
     @staticmethod
+    def _submitted_public_plan(
+        plans,
+        selected_plan_slug: str | None = None,
+    ) -> ClarivoPlan | None:
+        public_plan_slug = normalize_public_paid_plan_slug(selected_plan_slug)
+        if public_plan_slug is None:
+            return None
+        return plans.filter(slug=public_plan_slug).first()
+
+    @staticmethod
     def _default_plan(
         plans,
         selected_plan_slug: str | None = None,
@@ -327,6 +343,10 @@ class BusinessRegistrationForm(forms.Form):
     def clean_plan(self) -> ClarivoPlan | None:
         plan = self.cleaned_data.get("plan")
         if plan is None:
+            if not self.beta_eligible:
+                raise ValidationError(
+                    "Select Starter, Pro, or Business from pricing before registering."
+                )
             return None
 
         if plan.slug == BETA_PLAN_SLUG:
