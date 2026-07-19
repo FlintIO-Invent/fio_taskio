@@ -1022,6 +1022,78 @@ class BillingProviderWebhookEvent(TimeStampedModel):
         return f"{self.provider}:{self.event_id} ({self.status})"
 
 
+class SubscriptionNotification(TimeStampedModel):
+    class NotificationType(models.TextChoices):
+        TRIAL_STARTED = "trial_started", "Trial Started"
+        SUBSCRIPTION_ACTIVATED = "subscription_activated", "Subscription Activated"
+        PAYMENT_GRACE_STARTED = "payment_grace_started", "Payment Grace Started"
+        PAYMENT_RECOVERED = "payment_recovered", "Payment Recovered"
+        CANCELLATION_SCHEDULED = "cancellation_scheduled", "Cancellation Scheduled"
+        SUBSCRIPTION_CANCELLED = "subscription_cancelled", "Subscription Cancelled"
+        TRIAL_ENDING_3_DAYS = "trial_ending_3_days", "Trial Ending in 3 Days"
+        TRIAL_ENDING_1_DAY = "trial_ending_1_day", "Trial Ending in 1 Day"
+        PAYMENT_GRACE_ENDING_1_DAY = (
+            "payment_grace_ending_1_day",
+            "Payment Grace Ending in 1 Day",
+        )
+        RESTRICTED_MODE_STARTED = "restricted_mode_started", "Restricted Mode Started"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="subscription_notifications",
+    )
+    subscription = models.ForeignKey(
+        BusinessSubscription,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+    )
+    recipient_email = models.EmailField(blank=True)
+    recipient_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subscription_notifications",
+    )
+    notification_type = models.CharField(
+        max_length=40,
+        choices=NotificationType.choices,
+    )
+    deduplication_key = models.CharField(max_length=255, unique=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    available_at = models.DateTimeField(default=timezone.now, db_index=True)
+    attempt_count = models.PositiveIntegerField(default=0)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True, default="")
+    source_provider_event_id = models.CharField(max_length=255, blank=True, default="")
+    context_summary = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["available_at", "pk"]
+        indexes = [
+            models.Index(fields=["status", "available_at"]),
+            models.Index(fields=["business", "notification_type", "status"]),
+            models.Index(fields=["subscription", "notification_type"]),
+        ]
+
+    def __str__(self) -> str:
+        recipient = self.recipient_email or "missing recipient"
+        return f"{self.get_notification_type_display()} to {recipient} ({self.status})"
+
+
 class BusinessUser(TimeStampedModel):
     class Role(models.TextChoices):
         OWNER = "owner", "Owner"

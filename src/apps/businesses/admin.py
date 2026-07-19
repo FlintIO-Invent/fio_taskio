@@ -8,6 +8,7 @@ from .models import (
     BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
+    SubscriptionNotification,
     UserOnboardingState,
     WeeklyAvailability,
 )
@@ -138,6 +139,50 @@ class BillingProviderWebhookEventAdmin(admin.ModelAdmin):
         "processed_at",
         "payload_summary",
         "last_error",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(SubscriptionNotification)
+class SubscriptionNotificationAdmin(admin.ModelAdmin):
+    list_display = (
+        "notification_type",
+        "business",
+        "subscription",
+        "recipient_email",
+        "status",
+        "attempt_count",
+        "available_at",
+        "sent_at",
+        "source_provider_event_id",
+    )
+    list_filter = ("notification_type", "status", "available_at", "sent_at")
+    search_fields = (
+        "business__name",
+        "business__slug",
+        "recipient_email",
+        "deduplication_key",
+        "source_provider_event_id",
+        "last_error",
+    )
+    autocomplete_fields = ("business", "subscription", "recipient_user")
+    list_select_related = ("business", "subscription", "recipient_user")
+    readonly_fields = (
+        "business",
+        "subscription",
+        "recipient_email",
+        "recipient_user",
+        "notification_type",
+        "deduplication_key",
+        "status",
+        "available_at",
+        "attempt_count",
+        "last_attempt_at",
+        "sent_at",
+        "last_error",
+        "source_provider_event_id",
+        "context_summary",
         "created_at",
         "updated_at",
     )

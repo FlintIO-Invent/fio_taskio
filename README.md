@@ -21,6 +21,8 @@ The internal Django package name remains `taskio` for now. That is expected.
 - Signed Stripe webhook subscription activation and local time-aware access checks
 - Owner-only Stripe Customer Portal entry point for eligible subscriptions
 - Seven-day payment-failure grace period and owner recovery Portal flow
+- Durable subscription notification outbox with manual delivery command
+- Manual subscription reminder discovery command for trial, grace, and restricted-mode outbox rows
 
 ## Out of scope for this release
 
@@ -247,8 +249,9 @@ Provider-specific notes:
 
 Staging email smoke test:
 
-- Trigger password reset, team invitation, customer request confirmation, internal business alert, appointment confirmation if in scope, and invoice PDF email flows.
+- Trigger password reset, team invitation, customer request confirmation, internal business alert, appointment confirmation if in scope, invoice PDF email, and subscription notification outbox delivery flows.
 - Confirm password reset and invitation links point to the intended MotionMate app URL.
+- Confirm subscription notification links point to the MotionMate subscription page, not to transient Stripe Portal URLs.
 - Confirm the invoice PDF opens.
 - Confirm failed sends are logged safely and logs do not expose passwords, reset tokens, SMTP credentials, API keys, or private DNS values.
 

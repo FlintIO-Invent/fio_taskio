@@ -119,6 +119,124 @@ Restricted access behavior:
 | Owner subscription and payment recovery | Allowed |
 | Non-owner recovery messaging | Neutral read-only messaging without payment controls |
 
+## Subscription Notification Outbox
+
+Motionmate stores owner-facing SaaS billing email intent in `SubscriptionNotification` rows. Stripe webhook processing only synchronizes local subscription state and creates deduplicated outbox records; it does not send email. SMTP or email-backend failure cannot roll back Stripe webhook state, extend grace, clear grace, restore access, or make the webhook fail solely because delivery failed.
+
+The outbox fields include the local business, local subscription, recipient owner email/user, notification type, unique deterministic deduplication key, status, availability time, attempt counters, delivery timestamps, safe last-error summary, source provider event ID, and a minimal safe `context_summary`. It does not store raw webhook payloads, card details, bank details, Stripe payment-method objects, transient Portal URLs, or provider customer/subscription/price IDs in renderable context.
+
+Supported notification types:
+
+- `trial_started`
+- `subscription_activated`
+- `payment_grace_started`
+- `payment_recovered`
+- `cancellation_scheduled`
+- `subscription_cancelled`
+- `trial_ending_3_days`
+- `trial_ending_1_day`
+- `payment_grace_ending_1_day`
+- `restricted_mode_started`
+
+Supported statuses:
+
+- `pending`
+- `processing`
+- `sent`
+- `failed`
+- `cancelled`
+
+Deduplication keys are server-generated from the local subscription, notification type, relevant billing episode or provider transition date, and a deterministic recipient key. Duplicate Stripe event delivery and repeated provider updates for the same transition reuse the existing row instead of resetting delivery history.
+
+Recipient selection uses active local `BusinessUser` owner memberships only. Staff, admins, accountants, viewers, inactive users, inactive memberships, other workspaces, Stripe customer email, browser input, and customer invoice recipients are not used as fallbacks. If no active owner recipient exists, Motionmate creates a failed operationally visible outbox row with a safe error summary and still lets webhook processing succeed.
+
+Webhook transitions that enqueue notification intent:
+
+| Local transition | Notification |
+| --- | --- |
+| `pending_checkout` to `trialing` | `trial_started` |
+| `pending_checkout` or `trialing` to `active` | `subscription_activated` |
+| first current-episode transition into `past_due` with newly initialized `past_due_since` | `payment_grace_started` |
+| `past_due` to `active` or `trialing` | `payment_recovered` |
+| `cancel_at_period_end` changes from false to true on an active/trialing subscription | `cancellation_scheduled` |
+| `trialing`, `active`, or `past_due` to `cancelled` | `subscription_cancelled` |
+
+Time-based reminder discovery is separate from delivery and uses only local, timezone-aware subscription data. It makes no Stripe API calls, sends no email, and does not mutate subscription status, trial dates, grace dates, or access mode.
+
+Reminder windows:
+
+| Local state | Reminder | Due window |
+| --- | --- | --- |
+| Stripe-backed public paid `trialing` subscription | `trial_ending_3_days` | `24 hours < trial_end - evaluation_time <= 72 hours` |
+| Stripe-backed public paid `trialing` subscription | `trial_ending_1_day` | `0 < trial_end - evaluation_time <= 24 hours` |
+| Stripe-backed public paid `past_due` subscription with full grace access | `payment_grace_ending_1_day` | `0 < grace_period_ends_at - evaluation_time <= 24 hours` |
+| Stripe-backed public paid `past_due` subscription with central access mode `restricted` | `restricted_mode_started` | `evaluation_time >= grace_period_ends_at` |
+
+Boundary and catch-up policy:
+
+- At exactly `evaluation_time == trial_end`, trial-ending reminders are stale and are not enqueued.
+- At exactly `evaluation_time == grace_period_ends_at`, the grace-ending reminder is stale; restricted-mode entry is evaluated instead.
+- Missed three-day trial reminders are not backfilled during the one-day window.
+- Missed trial reminders are not enqueued after the trial ends.
+- Missed grace-ending reminders are not enqueued after grace ends.
+- Restricted-mode notifications may be caught up later while the subscription remains `past_due` and the central derived access mode remains `restricted`.
+- Trial reminders are skipped when local Stripe-synchronised state says cancellation at period end prevents the first paid renewal; Motionmate does not send automatic-renewal wording in that state.
+
+Reminder deduplication uses the existing outbox key architecture. The relevant deterministic contexts are:
+
+- `trial_ending_3_days:{trial_end}`
+- `trial_ending_1_day:{trial_end}`
+- `payment_grace_ending_1_day:{past_due_since}:{grace_period_ends_at}`
+- `restricted_mode_started:{past_due_since}:{grace_period_ends_at}`
+
+The recipient identity remains part of the final deduplication key, so different owner recipients can receive separate rows while repeated command runs, execution-time changes, sent rows, and failed rows do not create duplicates for the same milestone.
+
+Discover due reminders manually:
+
+```bash
+uv run --no-sync python src/manage.py enqueue_subscription_reminders
+```
+
+Useful options:
+
+```bash
+uv run --no-sync python src/manage.py enqueue_subscription_reminders --dry-run
+uv run --no-sync python src/manage.py enqueue_subscription_reminders --limit 100
+uv run --no-sync python src/manage.py enqueue_subscription_reminders --at 2026-08-01T12:00:00+00:00
+uv run --no-sync python src/manage.py enqueue_subscription_reminders --type trial_ending_1_day
+```
+
+`--at` must be an aware ISO-8601 datetime. `--limit` bounds candidate subscriptions evaluated in deterministic primary-key order. `--dry-run` evaluates candidates and reports what would be created without creating rows, changing status, incrementing counters, sending email, or calling Stripe.
+
+Deliver pending notifications manually:
+
+```bash
+uv run --no-sync python src/manage.py send_subscription_notifications
+```
+
+Useful options:
+
+```bash
+uv run --no-sync python src/manage.py send_subscription_notifications --limit 25
+uv run --no-sync python src/manage.py send_subscription_notifications --dry-run
+uv run --no-sync python src/manage.py send_subscription_notifications --retry-failed
+```
+
+The command processes eligible `pending` rows with `available_at <= now` in deterministic order. `--retry-failed` explicitly includes failed rows. `--dry-run` reports work without sending email or changing rows. Reminder delivery performs a relevance check before sending: obsolete trial, grace-ending, and restricted-mode reminder rows are marked `cancelled` with a safe reason instead of being delivered after activation, recovery, effective cancellation, changed milestones, invalid provider identity, or changed access mode.
+
+Intended future operational sequence:
+
+```text
+1. Run enqueue_subscription_reminders
+2. Run send_subscription_notifications
+```
+
+Production scheduling is not configured in this block. There is no Celery worker, Celery Beat schedule, cron entry, Heroku Scheduler configuration, platform scheduler, Stripe polling, customer invoice reminder, appointment reminder, SMS, push notification, or marketing campaign.
+
+Recipient-facing dates are displayed in the business timezone when `Business.timezone` is valid. If it is not valid, Motionmate falls back to the project `TIME_ZONE`, then UTC. Email dates include both time and a timezone label. The timezone is never inferred from Stripe metadata, email domains, IP addresses, browser state, or webhook headers.
+
+Beta remains excluded from reminder candidate queries and creates no reminder outbox rows. Customer invoice emails and appointment emails remain separate flows and are not affected by subscription reminder discovery.
+
 ## Price IDs
 
 Motionmate plan names, displayed prices, regional pricing, features, and limits remain database-backed. Stripe Price IDs are deployment configuration that connect each public Motionmate plan and billing option to a separately created Stripe Price.

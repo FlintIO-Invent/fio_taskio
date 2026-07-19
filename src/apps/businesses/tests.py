@@ -9,6 +9,7 @@ from django.core import mail
 from django.core.checks import run_checks
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from django.template.loader import render_to_string
@@ -37,6 +38,7 @@ from .models import (
     BusinessUser,
     ClarivoPlan,
     SubscriptionAccessMode,
+    SubscriptionNotification,
     UserOnboardingState,
     WeeklyAvailability,
 )
@@ -109,6 +111,13 @@ from .subscription_grace import (
     get_subscription_payment_grace_days,
     validate_subscription_grace_configuration,
 )
+from .subscription_notifications import (
+    build_subscription_notification_email_context,
+    deliver_subscription_notification,
+    enqueue_subscription_notification,
+    get_subscription_notification_recipients,
+)
+from .subscription_reminders import enqueue_due_subscription_reminders
 from .utils import (
     CURRENT_BUSINESS_SESSION_KEY,
     MULTI_WORKSPACE_EMAIL_MESSAGE,
@@ -1726,6 +1735,902 @@ class CheckoutReturnViewTests(TestCase):
         self.assertContains(response, "Payment setup paused")
 
 
+class SubscriptionNotificationOutboxTests(TestCase):
+    def setUp(self):
+        self.owner = TaskIOUser.objects.create_user(
+            email="owner@example.com",
+            password="StrongPass123!",
+        )
+        self.staff = TaskIOUser.objects.create_user(
+            email="staff@example.com",
+            password="StrongPass123!",
+        )
+        self.inactive_owner = TaskIOUser.objects.create_user(
+            email="inactive-owner@example.com",
+            password="StrongPass123!",
+        )
+        self.inactive_owner.is_active = False
+        self.inactive_owner.save(update_fields=["is_active"])
+        self.business = Business.objects.create(
+            name="Notification Workspace",
+            slug="notification-workspace",
+        )
+        BusinessUser.objects.create(
+            user=self.owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        BusinessUser.objects.create(
+            user=self.staff,
+            business=self.business,
+            role=BusinessUser.Role.STAFF,
+        )
+        BusinessUser.objects.create(
+            user=self.inactive_owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        other_business = Business.objects.create(
+            name="Other Notification Workspace",
+            slug="other-notification-workspace",
+        )
+        BusinessUser.objects.create(
+            user=TaskIOUser.objects.create_user(
+                email="other-owner@example.com",
+                password="StrongPass123!",
+            ),
+            business=other_business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+        self.subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.ACTIVE,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_customer_id="cus_notification",
+            provider_subscription_id="sub_notification",
+            provider_price_id="price_pro_monthly_usd",
+            current_period_start=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=30),
+        )
+
+    def test_recipient_selection_uses_active_business_owners_only(self):
+        recipients = get_subscription_notification_recipients(self.business)
+
+        self.assertEqual([recipient["email"] for recipient in recipients], ["owner@example.com"])
+        self.assertEqual(recipients[0]["user"], self.owner)
+
+    def test_enqueue_creates_deduplicated_pending_notification_without_email(self):
+        context = {"trial_start": datetime(2026, 7, 1, tzinfo=UTC)}
+
+        first = enqueue_subscription_notification(
+            subscription=self.subscription,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+            deduplication_context=context,
+            source_provider_event_id="evt_trial",
+            context_summary={
+                "trial_end": datetime(2026, 7, 15, tzinfo=UTC),
+                "provider_subscription_id": self.subscription.provider_subscription_id,
+            },
+        )
+        second = enqueue_subscription_notification(
+            subscription=self.subscription,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+            deduplication_context=context,
+            source_provider_event_id="evt_trial_duplicate",
+            context_summary={"trial_end": datetime(2026, 7, 15, tzinfo=UTC)},
+        )
+
+        notification = SubscriptionNotification.objects.get()
+        self.assertEqual(first, [notification])
+        self.assertEqual(second, [notification])
+        self.assertEqual(notification.status, SubscriptionNotification.Status.PENDING)
+        self.assertEqual(notification.recipient_email, "owner@example.com")
+        self.assertTrue(notification.deduplication_key.startswith("subscription:"))
+        self.assertEqual(notification.source_provider_event_id, "evt_trial")
+        self.assertEqual(mail.outbox, [])
+        self.assertNotIn(
+            self.subscription.provider_subscription_id,
+            json.dumps(notification.context_summary),
+        )
+
+    def test_existing_sent_notification_is_not_reset_by_duplicate_enqueue(self):
+        notification = enqueue_subscription_notification(
+            subscription=self.subscription,
+            notification_type=SubscriptionNotification.NotificationType.SUBSCRIPTION_ACTIVATED,
+            deduplication_context={"period_start": datetime(2026, 7, 15, tzinfo=UTC)},
+            source_provider_event_id="evt_activation",
+        )[0]
+        notification.status = SubscriptionNotification.Status.SENT
+        notification.attempt_count = 3
+        notification.sent_at = timezone.now()
+        notification.save(update_fields=["status", "attempt_count", "sent_at", "updated_at"])
+
+        duplicate = enqueue_subscription_notification(
+            subscription=self.subscription,
+            notification_type=SubscriptionNotification.NotificationType.SUBSCRIPTION_ACTIVATED,
+            deduplication_context={"period_start": datetime(2026, 7, 15, tzinfo=UTC)},
+            source_provider_event_id="evt_activation_duplicate",
+        )[0]
+
+        duplicate.refresh_from_db()
+        self.assertEqual(duplicate.pk, notification.pk)
+        self.assertEqual(duplicate.status, SubscriptionNotification.Status.SENT)
+        self.assertEqual(duplicate.attempt_count, 3)
+        self.assertEqual(SubscriptionNotification.objects.count(), 1)
+
+    def test_missing_owner_email_creates_visible_failed_notification_without_fallback(self):
+        BusinessUser.objects.filter(business=self.business, role=BusinessUser.Role.OWNER).update(
+            is_active=False,
+        )
+
+        notifications = enqueue_subscription_notification(
+            subscription=self.subscription,
+            notification_type=SubscriptionNotification.NotificationType.PAYMENT_GRACE_STARTED,
+            deduplication_context={"past_due_since": datetime(2026, 7, 5, tzinfo=UTC)},
+            source_provider_event_id="evt_missing_owner",
+        )
+
+        notification = notifications[0]
+        self.assertEqual(notification.status, SubscriptionNotification.Status.FAILED)
+        self.assertEqual(notification.recipient_email, "")
+        self.assertIn("No active owner", notification.last_error)
+        self.assertNotIn("cus_notification", notification.last_error)
+
+    def test_beta_and_unknown_notification_types_are_rejected_without_rows(self):
+        beta_subscription = BusinessSubscription.objects.create(
+            business=Business.objects.create(name="Beta Notify", slug="beta-notify"),
+            plan=ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG),
+            status=BusinessSubscription.Status.ACTIVE,
+            payment_provider=BusinessSubscription.PaymentProvider.LOCAL,
+        )
+
+        self.assertEqual(
+            enqueue_subscription_notification(
+                subscription=beta_subscription,
+                notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+                deduplication_context={"trial_start": datetime(2026, 7, 1, tzinfo=UTC)},
+            ),
+            [],
+        )
+        with self.assertRaises(ValueError):
+            enqueue_subscription_notification(
+                subscription=self.subscription,
+                notification_type="trial_ending_soon",
+                deduplication_context={"trial_end": datetime(2026, 7, 15, tzinfo=UTC)},
+            )
+        self.assertFalse(SubscriptionNotification.objects.exists())
+
+
+class SubscriptionNotificationDeliveryTests(TestCase):
+    def setUp(self):
+        self.owner = TaskIOUser.objects.create_user(
+            email="delivery-owner@example.com",
+            password="StrongPass123!",
+        )
+        self.business = Business.objects.create(
+            name="Delivery <Workspace>",
+            slug="delivery-workspace",
+        )
+        BusinessUser.objects.create(
+            user=self.owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+        self.subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.TRIALING,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_customer_id="cus_delivery",
+            provider_subscription_id="sub_delivery",
+            provider_price_id="price_pro_monthly_usd",
+            trial_start=datetime(2026, 7, 1, tzinfo=UTC),
+            trial_end=datetime(2026, 7, 15, tzinfo=UTC),
+        )
+        self.notification = enqueue_subscription_notification(
+            subscription=self.subscription,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+            deduplication_context={"trial_start": self.subscription.trial_start},
+            source_provider_event_id="evt_delivery_trial",
+            context_summary={"trial_end": self.subscription.trial_end},
+        )[0]
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net",
+        MOTIONMATE_SUPPORT_EMAIL="support@motionmate.net",
+    )
+    def test_pending_notification_delivers_plain_text_and_html_then_marks_sent(self):
+        result = deliver_subscription_notification(self.notification)
+
+        self.notification.refresh_from_db()
+        self.assertEqual(result.status, "sent")
+        self.assertEqual(self.notification.status, SubscriptionNotification.Status.SENT)
+        self.assertEqual(self.notification.attempt_count, 1)
+        self.assertIsNotNone(self.notification.sent_at)
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["delivery-owner@example.com"])
+        self.assertIn("Your Motionmate Pro trial has started", message.subject)
+        self.assertIn("July 15, 2026", message.body)
+        self.assertIn("https://www.motionmate.net/businesses/subscription/", message.body)
+        self.assertNotIn("sub_delivery", message.body)
+        self.assertEqual(len(message.alternatives), 1)
+        self.assertIn("Delivery &lt;Workspace&gt;", message.alternatives[0][0])
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net",
+    )
+    def test_sent_notification_is_skipped_and_not_delivered_twice(self):
+        first = deliver_subscription_notification(self.notification)
+        second = deliver_subscription_notification(self.notification)
+
+        self.notification.refresh_from_db()
+        self.assertEqual(first.status, "sent")
+        self.assertEqual(second.status, "skipped")
+        self.assertEqual(self.notification.attempt_count, 1)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_missing_recipient_fails_safely_and_remains_retryable(self):
+        notification = SubscriptionNotification.objects.create(
+            business=self.business,
+            subscription=self.subscription,
+            notification_type=SubscriptionNotification.NotificationType.PAYMENT_GRACE_STARTED,
+            recipient_email="",
+            deduplication_key="subscription:missing-recipient",
+            context_summary={"grace_period_ends_at": datetime(2026, 7, 12, tzinfo=UTC).isoformat()},
+        )
+
+        result = deliver_subscription_notification(notification)
+        notification.refresh_from_db()
+
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(notification.status, SubscriptionNotification.Status.FAILED)
+        self.assertEqual(notification.attempt_count, 1)
+        self.assertIn("Recipient email", notification.last_error)
+        self.assertEqual(mail.outbox, [])
+
+    def test_email_backend_failure_marks_failed_without_changing_subscription_state(self):
+        original_status = self.subscription.status
+        original_trial_end = self.subscription.trial_end
+
+        with mock.patch(
+            "apps.businesses.subscription_notifications.send_templated_email",
+            side_effect=RuntimeError("smtp password leaked? no"),
+        ):
+            result = deliver_subscription_notification(self.notification)
+
+        self.notification.refresh_from_db()
+        self.subscription.refresh_from_db()
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(self.notification.status, SubscriptionNotification.Status.FAILED)
+        self.assertEqual(self.notification.attempt_count, 1)
+        self.assertEqual(self.notification.last_error, "RuntimeError: email delivery failed")
+        self.assertEqual(self.subscription.status, original_status)
+        self.assertEqual(self.subscription.trial_end, original_trial_end)
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net")
+    def test_email_context_uses_trusted_motionmate_link_only(self):
+        context = build_subscription_notification_email_context(self.notification)
+
+        self.assertEqual(
+            context["action_url"],
+            "https://www.motionmate.net/businesses/subscription/",
+        )
+        self.assertNotIn("stripe", context["action_url"].lower())
+        body = render_to_string("emails/subscription_notification_body.txt", context)
+        self.assertNotIn("sub_delivery", body)
+
+
+class SendSubscriptionNotificationsCommandTests(TestCase):
+    def setUp(self):
+        owner = TaskIOUser.objects.create_user(
+            email="command-owner@example.com",
+            password="StrongPass123!",
+        )
+        self.business = Business.objects.create(
+            name="Command Workspace",
+            slug="command-workspace",
+        )
+        BusinessUser.objects.create(
+            user=owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self.subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=ClarivoPlan.objects.get(slug="pro"),
+            status=BusinessSubscription.Status.ACTIVE,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_customer_id="cus_command",
+            provider_subscription_id="sub_command",
+            provider_price_id="price_pro_monthly_usd",
+            current_period_start=datetime(2026, 7, 15, tzinfo=UTC),
+            current_period_end=datetime(2026, 8, 15, tzinfo=UTC),
+        )
+
+    def _notification(self, key: str, **overrides):
+        defaults = {
+            "business": self.business,
+            "subscription": self.subscription,
+            "notification_type": SubscriptionNotification.NotificationType.SUBSCRIPTION_ACTIVATED,
+            "recipient_email": "command-owner@example.com",
+            "deduplication_key": key,
+            "context_summary": {
+                "current_period_end": datetime(2026, 8, 15, tzinfo=UTC).isoformat(),
+            },
+        }
+        defaults.update(overrides)
+        return SubscriptionNotification.objects.create(**defaults)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net",
+    )
+    def test_command_sends_pending_notifications_with_limit_and_reports_remaining(self):
+        first = self._notification("subscription:command:first")
+        second = self._notification("subscription:command:second")
+        output = StringIO()
+
+        call_command("send_subscription_notifications", limit=1, stdout=output)
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, SubscriptionNotification.Status.SENT)
+        self.assertEqual(second.status, SubscriptionNotification.Status.PENDING)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Eligible: 2", output.getvalue())
+        self.assertIn("Sent: 1", output.getvalue())
+        self.assertIn("Remaining eligible: 1", output.getvalue())
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_dry_run_sends_nothing_and_changes_nothing(self):
+        notification = self._notification("subscription:command:dry-run")
+        output = StringIO()
+
+        call_command("send_subscription_notifications", dry_run=True, stdout=output)
+
+        notification.refresh_from_db()
+        self.assertEqual(notification.status, SubscriptionNotification.Status.PENDING)
+        self.assertEqual(notification.attempt_count, 0)
+        self.assertEqual(mail.outbox, [])
+        self.assertIn("Dry run only", output.getvalue())
+        self.assertIn("Skipped: 1", output.getvalue())
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net",
+    )
+    def test_retry_failed_includes_failed_notifications_without_creating_duplicates(self):
+        notification = self._notification(
+            "subscription:command:retry",
+            status=SubscriptionNotification.Status.FAILED,
+            attempt_count=1,
+            last_error="temporary delivery failure",
+        )
+        output = StringIO()
+
+        call_command("send_subscription_notifications", retry_failed=True, stdout=output)
+
+        notification.refresh_from_db()
+        self.assertEqual(notification.status, SubscriptionNotification.Status.SENT)
+        self.assertEqual(notification.attempt_count, 2)
+        self.assertEqual(SubscriptionNotification.objects.count(), 1)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_one_failed_delivery_does_not_stop_batch(self):
+        first = self._notification("subscription:command:fail-first")
+        second = self._notification("subscription:command:send-second")
+        output = StringIO()
+        errors = StringIO()
+
+        with mock.patch(
+            "apps.businesses.subscription_notifications.send_templated_email",
+            side_effect=[RuntimeError("smtp outage"), True],
+        ):
+            call_command(
+                "send_subscription_notifications",
+                stdout=output,
+                stderr=errors,
+            )
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, SubscriptionNotification.Status.FAILED)
+        self.assertEqual(second.status, SubscriptionNotification.Status.SENT)
+        self.assertIn("Failed: 1", output.getvalue())
+        self.assertIn("Sent: 1", output.getvalue())
+
+
+class SubscriptionReminderDiscoveryTests(TestCase):
+    def setUp(self):
+        self.now = datetime(2026, 8, 1, 12, tzinfo=UTC)
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+        self.sequence = 0
+
+    def _subscription(
+        self,
+        *,
+        status=BusinessSubscription.Status.TRIALING,
+        trial_end=None,
+        past_due_since=None,
+        grace_period_ends_at=None,
+        payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+        plan=None,
+        cancel_at_period_end=False,
+        current_period_end=None,
+        owner=True,
+        business_name=None,
+    ):
+        self.sequence += 1
+        suffix = self.sequence
+        business = Business.objects.create(
+            name=business_name or f"Reminder Workspace {suffix}",
+            slug=f"reminder-workspace-{suffix}",
+            timezone="Europe/Amsterdam",
+        )
+        if owner:
+            owner_user = TaskIOUser.objects.create_user(
+                email=f"reminder-owner-{suffix}@example.com",
+                password="StrongPass123!",
+            )
+            BusinessUser.objects.create(
+                user=owner_user,
+                business=business,
+                role=BusinessUser.Role.OWNER,
+            )
+        plan = plan or self.plan
+        return BusinessSubscription.objects.create(
+            business=business,
+            plan=plan,
+            status=status,
+            payment_provider=payment_provider,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_customer_id="cus_reminder" if payment_provider == BusinessSubscription.PaymentProvider.STRIPE else "",
+            provider_subscription_id=f"sub_reminder_{suffix}"
+            if payment_provider == BusinessSubscription.PaymentProvider.STRIPE
+            else "",
+            provider_price_id="price_pro_monthly_usd"
+            if payment_provider == BusinessSubscription.PaymentProvider.STRIPE
+            else "",
+            trial_start=self.now - timedelta(days=11),
+            trial_end=trial_end,
+            current_period_end=current_period_end or trial_end,
+            cancel_at_period_end=cancel_at_period_end,
+            past_due_since=past_due_since,
+            grace_period_ends_at=grace_period_ends_at,
+        )
+
+    def _run(self, **kwargs):
+        return enqueue_due_subscription_reminders(evaluation_time=self.now, **kwargs)
+
+    def test_new_reminder_types_are_valid_and_beta_is_excluded(self):
+        valid_types = {choice.value for choice in SubscriptionNotification.NotificationType}
+
+        self.assertIn("trial_ending_3_days", valid_types)
+        self.assertIn("trial_ending_1_day", valid_types)
+        self.assertIn("payment_grace_ending_1_day", valid_types)
+        self.assertIn("restricted_mode_started", valid_types)
+
+        beta_subscription = self._subscription(
+            plan=ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG),
+            payment_provider=BusinessSubscription.PaymentProvider.LOCAL,
+            trial_end=self.now + timedelta(days=3),
+        )
+        result = enqueue_subscription_notification(
+            subscription=beta_subscription,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_ENDING_3_DAYS,
+            deduplication_context={"trial_end": beta_subscription.trial_end},
+        )
+
+        self.assertEqual(result, [])
+        self.assertFalse(SubscriptionNotification.objects.exists())
+        with self.assertRaises(ValueError):
+            self._run(notification_type="subscription_warning")
+
+    def test_trial_three_day_window_uses_exact_boundaries(self):
+        self._subscription(trial_end=self.now + timedelta(hours=72))
+        summary = self._run(notification_type=SubscriptionNotification.NotificationType.TRIAL_ENDING_3_DAYS)
+        self.assertEqual(
+            summary.created_counts[SubscriptionNotification.NotificationType.TRIAL_ENDING_3_DAYS],
+            1,
+        )
+
+        SubscriptionNotification.objects.all().delete()
+        BusinessSubscription.objects.all().delete()
+        self._subscription(trial_end=self.now + timedelta(hours=72, seconds=1))
+        self._subscription(trial_end=self.now + timedelta(hours=24, seconds=1))
+        self._subscription(trial_end=self.now + timedelta(hours=24))
+        summary = self._run(notification_type=SubscriptionNotification.NotificationType.TRIAL_ENDING_3_DAYS)
+        self.assertEqual(
+            summary.created_counts[SubscriptionNotification.NotificationType.TRIAL_ENDING_3_DAYS],
+            1,
+        )
+        notification = SubscriptionNotification.objects.get()
+        self.assertEqual(
+            notification.context_summary["trial_end"],
+            (self.now + timedelta(hours=24, seconds=1)).isoformat(),
+        )
+
+    def test_trial_one_day_window_does_not_backfill_three_day_reminder(self):
+        self._subscription(trial_end=self.now + timedelta(hours=24))
+        self._subscription(trial_end=self.now + timedelta(seconds=1))
+        self._subscription(trial_end=self.now)
+        self._subscription(trial_end=self.now - timedelta(seconds=1))
+
+        summary = self._run()
+
+        self.assertEqual(
+            summary.created_counts[SubscriptionNotification.NotificationType.TRIAL_ENDING_1_DAY],
+            2,
+        )
+        self.assertEqual(
+            summary.created_counts[SubscriptionNotification.NotificationType.TRIAL_ENDING_3_DAYS],
+            0,
+        )
+        self.assertEqual(SubscriptionNotification.objects.count(), 2)
+
+    def test_trial_reminders_skip_non_trial_pending_and_scheduled_cancellation(self):
+        self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            trial_end=self.now + timedelta(days=3),
+        )
+        self._subscription(
+            status=BusinessSubscription.Status.PENDING_CHECKOUT,
+            trial_end=self.now + timedelta(days=3),
+        )
+        self._subscription(
+            trial_end=self.now + timedelta(days=3),
+            cancel_at_period_end=True,
+            current_period_end=self.now + timedelta(days=3),
+        )
+
+        summary = self._run()
+
+        self.assertEqual(summary.created_total, 0)
+        self.assertFalse(SubscriptionNotification.objects.exists())
+
+    def test_repeated_trial_runs_are_idempotent_per_recipient(self):
+        self._subscription(trial_end=self.now + timedelta(days=3))
+
+        first = self._run()
+        second = self._run()
+
+        self.assertEqual(first.created_total, 1)
+        self.assertEqual(second.created_total, 0)
+        self.assertEqual(second.duplicate_count, 1)
+        self.assertEqual(SubscriptionNotification.objects.count(), 1)
+
+    def test_grace_one_day_and_restricted_windows_use_exact_boundaries(self):
+        past_due_since = self.now - timedelta(days=6)
+        self._subscription(
+            status=BusinessSubscription.Status.PAST_DUE,
+            past_due_since=past_due_since,
+            grace_period_ends_at=self.now + timedelta(hours=24),
+        )
+        self._subscription(
+            status=BusinessSubscription.Status.PAST_DUE,
+            past_due_since=past_due_since,
+            grace_period_ends_at=self.now + timedelta(seconds=1),
+        )
+        self._subscription(
+            status=BusinessSubscription.Status.PAST_DUE,
+            past_due_since=past_due_since,
+            grace_period_ends_at=self.now,
+        )
+
+        summary = self._run()
+
+        self.assertEqual(
+            summary.created_counts[
+                SubscriptionNotification.NotificationType.PAYMENT_GRACE_ENDING_1_DAY
+            ],
+            2,
+        )
+        self.assertEqual(
+            summary.created_counts[SubscriptionNotification.NotificationType.RESTRICTED_MODE_STARTED],
+            1,
+        )
+
+    def test_grace_reminders_skip_recovered_cancelled_missing_and_non_stripe_states(self):
+        self._subscription(
+            status=BusinessSubscription.Status.ACTIVE,
+            past_due_since=self.now - timedelta(days=1),
+            grace_period_ends_at=self.now + timedelta(hours=12),
+        )
+        self._subscription(
+            status=BusinessSubscription.Status.CANCELLED,
+            past_due_since=self.now - timedelta(days=1),
+            grace_period_ends_at=self.now + timedelta(hours=12),
+        )
+        self._subscription(
+            status=BusinessSubscription.Status.PAST_DUE,
+            past_due_since=None,
+            grace_period_ends_at=self.now + timedelta(hours=12),
+        )
+        self._subscription(
+            status=BusinessSubscription.Status.PAST_DUE,
+            payment_provider=BusinessSubscription.PaymentProvider.LOCAL,
+            past_due_since=self.now - timedelta(days=1),
+            grace_period_ends_at=self.now + timedelta(hours=12),
+        )
+
+        summary = self._run()
+
+        self.assertEqual(summary.created_total, 0)
+        self.assertFalse(SubscriptionNotification.objects.exists())
+
+    def test_restricted_mode_catches_up_and_second_episode_creates_new_row(self):
+        subscription = self._subscription(
+            status=BusinessSubscription.Status.PAST_DUE,
+            past_due_since=self.now - timedelta(days=8),
+            grace_period_ends_at=self.now - timedelta(days=1),
+        )
+
+        first = self._run()
+        duplicate = self._run()
+        subscription.past_due_since = self.now + timedelta(days=1)
+        subscription.grace_period_ends_at = self.now + timedelta(days=8)
+        subscription.save(update_fields=["past_due_since", "grace_period_ends_at", "updated_at"])
+        later = self.now + timedelta(days=9)
+        second_episode = enqueue_due_subscription_reminders(evaluation_time=later)
+
+        self.assertEqual(
+            first.created_counts[SubscriptionNotification.NotificationType.RESTRICTED_MODE_STARTED],
+            1,
+        )
+        self.assertEqual(duplicate.duplicate_count, 1)
+        self.assertEqual(
+            second_episode.created_counts[
+                SubscriptionNotification.NotificationType.RESTRICTED_MODE_STARTED
+            ],
+            1,
+        )
+        self.assertEqual(SubscriptionNotification.objects.count(), 2)
+
+    def test_dry_run_limit_and_command_at_do_not_send_email(self):
+        first = self._subscription(trial_end=self.now + timedelta(days=3))
+        self._subscription(trial_end=self.now + timedelta(days=3))
+        output = StringIO()
+
+        call_command(
+            "enqueue_subscription_reminders",
+            at=self.now.isoformat(),
+            limit=1,
+            stdout=output,
+        )
+
+        self.assertEqual(SubscriptionNotification.objects.count(), 1)
+        notification = SubscriptionNotification.objects.get()
+        self.assertEqual(notification.subscription, first)
+        self.assertEqual(mail.outbox, [])
+        self.assertIn("Eligible subscriptions evaluated: 1", output.getvalue())
+
+        dry_output = StringIO()
+        SubscriptionNotification.objects.all().delete()
+        call_command(
+            "enqueue_subscription_reminders",
+            at=self.now.isoformat(),
+            dry_run=True,
+            stdout=dry_output,
+        )
+        self.assertEqual(SubscriptionNotification.objects.count(), 0)
+        self.assertEqual(mail.outbox, [])
+        self.assertIn("Dry run only", dry_output.getvalue())
+
+    def test_command_rejects_naive_and_malformed_at_values(self):
+        with self.assertRaises(CommandError):
+            call_command("enqueue_subscription_reminders", at="2026-08-01T12:00:00")
+        with self.assertRaises(CommandError):
+            call_command("enqueue_subscription_reminders", at="not-a-datetime")
+
+
+class SubscriptionReminderDeliveryRelevanceTests(TestCase):
+    def setUp(self):
+        self.now = datetime(2026, 8, 1, 12, tzinfo=UTC)
+        owner = TaskIOUser.objects.create_user(
+            email="reminder-delivery-owner@example.com",
+            password="StrongPass123!",
+        )
+        self.business = Business.objects.create(
+            name="Reminder Delivery <Workspace>",
+            slug="reminder-delivery-workspace",
+            timezone="Europe/Amsterdam",
+        )
+        BusinessUser.objects.create(
+            user=owner,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+        self.subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=ClarivoPlan.objects.get(slug="pro"),
+            status=BusinessSubscription.Status.TRIALING,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_customer_id="cus_reminder_delivery",
+            provider_subscription_id="sub_reminder_delivery",
+            provider_price_id="price_pro_monthly_usd",
+            trial_start=self.now - timedelta(days=11),
+            trial_end=self.now + timedelta(days=3),
+            current_period_end=self.now + timedelta(days=3),
+        )
+
+    def _enqueue_trial_reminder(self):
+        enqueue_due_subscription_reminders(evaluation_time=self.now)
+        return SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_ENDING_3_DAYS
+        )
+
+    def _set_past_due(self, *, grace_period_ends_at):
+        self.subscription.status = BusinessSubscription.Status.PAST_DUE
+        self.subscription.past_due_since = self.now - timedelta(days=6)
+        self.subscription.grace_period_ends_at = grace_period_ends_at
+        self.subscription.trial_end = None
+        self.subscription.current_period_end = grace_period_ends_at
+        self.subscription.save(
+            update_fields=[
+                "status",
+                "past_due_since",
+                "grace_period_ends_at",
+                "trial_end",
+                "current_period_end",
+                "updated_at",
+            ]
+        )
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net",
+    )
+    def test_relevant_trial_reminder_sends_normally(self):
+        notification = self._enqueue_trial_reminder()
+
+        with mock.patch(
+            "apps.businesses.subscription_notifications.timezone.now",
+            return_value=self.now,
+        ):
+            result = deliver_subscription_notification(notification)
+
+        notification.refresh_from_db()
+        self.assertEqual(result.status, "sent")
+        self.assertEqual(notification.status, SubscriptionNotification.Status.SENT)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_obsolete_trial_reminder_is_cancelled_after_activation_or_cancellation(self):
+        notification = self._enqueue_trial_reminder()
+        self.subscription.status = BusinessSubscription.Status.ACTIVE
+        self.subscription.current_period_end = self.now + timedelta(days=30)
+        self.subscription.save(update_fields=["status", "current_period_end", "updated_at"])
+
+        with mock.patch(
+            "apps.businesses.subscription_notifications.timezone.now",
+            return_value=self.now,
+        ):
+            result = deliver_subscription_notification(notification)
+        notification.refresh_from_db()
+
+        self.assertEqual(result.status, "cancelled")
+        self.assertEqual(notification.status, SubscriptionNotification.Status.CANCELLED)
+        self.assertEqual(mail.outbox, [])
+
+    def test_grace_reminder_is_cancelled_after_recovery_or_grace_expiry(self):
+        self._set_past_due(grace_period_ends_at=self.now + timedelta(hours=12))
+        enqueue_due_subscription_reminders(evaluation_time=self.now)
+        notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.PAYMENT_GRACE_ENDING_1_DAY
+        )
+        self.subscription.status = BusinessSubscription.Status.ACTIVE
+        self.subscription.past_due_since = None
+        self.subscription.grace_period_ends_at = None
+        self.subscription.current_period_end = self.now + timedelta(days=30)
+        self.subscription.save(
+            update_fields=[
+                "status",
+                "past_due_since",
+                "grace_period_ends_at",
+                "current_period_end",
+                "updated_at",
+            ]
+        )
+
+        with mock.patch(
+            "apps.businesses.subscription_notifications.timezone.now",
+            return_value=self.now,
+        ):
+            result = deliver_subscription_notification(notification)
+        notification.refresh_from_db()
+
+        self.assertEqual(result.status, "cancelled")
+        self.assertEqual(notification.status, SubscriptionNotification.Status.CANCELLED)
+        self.assertEqual(mail.outbox, [])
+
+    def test_restricted_notification_is_cancelled_after_recovery(self):
+        self._set_past_due(grace_period_ends_at=self.now - timedelta(hours=1))
+        enqueue_due_subscription_reminders(evaluation_time=self.now)
+        notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.RESTRICTED_MODE_STARTED
+        )
+        self.subscription.status = BusinessSubscription.Status.ACTIVE
+        self.subscription.past_due_since = None
+        self.subscription.grace_period_ends_at = None
+        self.subscription.current_period_end = self.now + timedelta(days=30)
+        self.subscription.save(
+            update_fields=[
+                "status",
+                "past_due_since",
+                "grace_period_ends_at",
+                "current_period_end",
+                "updated_at",
+            ]
+        )
+
+        with mock.patch(
+            "apps.businesses.subscription_notifications.timezone.now",
+            return_value=self.now,
+        ):
+            result = deliver_subscription_notification(notification)
+        notification.refresh_from_db()
+
+        self.assertEqual(result.status, "cancelled")
+        self.assertEqual(notification.status, SubscriptionNotification.Status.CANCELLED)
+        self.assertEqual(mail.outbox, [])
+
+    @override_settings(MOTIONMATE_PUBLIC_BASE_URL="https://www.motionmate.net")
+    def test_reminder_templates_use_exact_timezone_dates_and_safe_content(self):
+        notification = self._enqueue_trial_reminder()
+
+        context = build_subscription_notification_email_context(notification)
+        body = render_to_string("emails/subscription_notification_body.txt", context)
+        html_body = render_to_string("emails/subscription_notification_body.html", context)
+
+        self.assertIn("Your Motionmate trial ends in 3 days", context["email_subject"])
+        self.assertIn("Pro", body)
+        self.assertIn("August 4, 2026 at 2:00 PM CEST", body)
+        self.assertIn("$", body)
+        self.assertIn("monthly", body)
+        self.assertIn("https://www.motionmate.net/businesses/subscription/", body)
+        self.assertNotIn("sub_reminder_delivery", body)
+        self.assertIn("Reminder Delivery &lt;Workspace&gt;", html_body)
+
+        self._set_past_due(grace_period_ends_at=self.now + timedelta(hours=12))
+        enqueue_due_subscription_reminders(evaluation_time=self.now)
+        grace_notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.PAYMENT_GRACE_ENDING_1_DAY
+        )
+        grace_body = render_to_string(
+            "emails/subscription_notification_body.txt",
+            build_subscription_notification_email_context(grace_notification),
+        )
+        self.assertIn("workspace becomes read-only", grace_body)
+        self.assertIn("Stripe confirms successful payment", grace_body)
+
+        SubscriptionNotification.objects.all().delete()
+        self._set_past_due(grace_period_ends_at=self.now - timedelta(hours=1))
+        enqueue_due_subscription_reminders(evaluation_time=self.now)
+        restricted_notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.RESTRICTED_MODE_STARTED
+        )
+        restricted_body = render_to_string(
+            "emails/subscription_notification_body.txt",
+            build_subscription_notification_email_context(restricted_notification),
+        )
+        self.assertIn("Existing plan-permitted business data remains available for viewing", restricted_body)
+        self.assertNotIn("deleted", restricted_body.lower())
+
+
 class StripeWebhookProcessingTests(TestCase):
     @staticmethod
     def _price_map() -> dict[tuple[str, str, str], str]:
@@ -1991,6 +2896,7 @@ class StripeWebhookProcessingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.IGNORED)
         self.assertEqual(event_record.attempt_count, 1)
+        self.assertFalse(SubscriptionNotification.objects.exists())
 
     def test_unrelated_subscription_event_is_ignored_before_price_validation(self):
         provider_object = self._remote_subscription(
@@ -2016,6 +2922,7 @@ class StripeWebhookProcessingTests(TestCase):
         self.assertEqual(event_record.status, BillingProviderWebhookEvent.Status.IGNORED)
         self.assertEqual(self.subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
         self.assertEqual(self.subscription.provider_subscription_id, "")
+        self.assertFalse(SubscriptionNotification.objects.exists())
 
     def test_checkout_completed_reconciles_trialing_subscription_and_dates(self):
         event_created = int(timezone.now().timestamp())
@@ -2065,6 +2972,51 @@ class StripeWebhookProcessingTests(TestCase):
         self.assertEqual(self.subscription.trial_end, self._datetime(trial_end))
         self.assertEqual(self.subscription.current_period_end, self._datetime(current_period_end))
         self.assertEqual(self.subscription.provider_updated_at, self._datetime(event_created))
+        notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED
+        )
+        self.assertEqual(notification.recipient_email, "webhook-owner@example.com")
+        self.assertEqual(notification.source_provider_event_id, "evt_checkout_trialing")
+        self.assertEqual(mail.outbox, [])
+
+    def test_trialing_to_active_enqueues_activation_notification_once(self):
+        self.subscription.status = BusinessSubscription.Status.TRIALING
+        self.subscription.provider_customer_id = "cus_test_motionmate"
+        self.subscription.provider_subscription_id = "sub_test_motionmate"
+        self.subscription.trial_start = self._datetime(self._timestamp(2026, 7, 1))
+        self.subscription.trial_end = self._datetime(self._timestamp(2026, 7, 15))
+        self.subscription.save(
+            update_fields=[
+                "status",
+                "provider_customer_id",
+                "provider_subscription_id",
+                "trial_start",
+                "trial_end",
+                "updated_at",
+            ]
+        )
+        payload = self._event(
+            event_id="evt_subscription_activated_once",
+            event_type="customer.subscription.updated",
+            event_object=self._remote_subscription(status="active"),
+            created=self._timestamp(2026, 7, 15),
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            first_response = self._signed_post(payload)
+            duplicate_response = self._signed_post(payload)
+
+        self.subscription.refresh_from_db()
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(duplicate_response.status_code, 200)
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertEqual(
+            SubscriptionNotification.objects.filter(
+                notification_type=SubscriptionNotification.NotificationType.SUBSCRIPTION_ACTIVATED
+            ).count(),
+            1,
+        )
+        self.assertEqual(mail.outbox, [])
 
     def test_duplicate_processed_event_does_not_apply_twice(self):
         remote_subscription = self._remote_subscription(status="active")
@@ -2332,6 +3284,12 @@ class StripeWebhookProcessingTests(TestCase):
             self._datetime(self._timestamp(2026, 7, 5)),
         )
         self.assertEqual(self.subscription.last_payment_failure_reason, "payment_failed")
+        notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.PAYMENT_GRACE_STARTED
+        )
+        self.assertEqual(notification.source_provider_event_id, "evt_invoice_failed_past_due")
+        self.assertEqual(notification.recipient_email, "webhook-owner@example.com")
+        self.assertEqual(mail.outbox, [])
 
     def test_repeated_payment_failures_do_not_extend_grace(self):
         self.subscription.provider_customer_id = "cus_test_motionmate"
@@ -2399,6 +3357,12 @@ class StripeWebhookProcessingTests(TestCase):
             self.subscription.last_payment_failure_at,
             self._datetime(self._timestamp(2026, 7, 8)),
         )
+        self.assertEqual(
+            SubscriptionNotification.objects.filter(
+                notification_type=SubscriptionNotification.NotificationType.PAYMENT_GRACE_STARTED
+            ).count(),
+            1,
+        )
 
     def test_duplicate_payment_failure_event_does_not_change_grace_twice(self):
         self.subscription.provider_customer_id = "cus_test_motionmate"
@@ -2452,6 +3416,12 @@ class StripeWebhookProcessingTests(TestCase):
             self.subscription.grace_period_ends_at,
             self._datetime(self._timestamp(2026, 7, 12)),
         )
+        self.assertEqual(
+            SubscriptionNotification.objects.filter(
+                notification_type=SubscriptionNotification.NotificationType.PAYMENT_GRACE_STARTED
+            ).count(),
+            1,
+        )
 
     def test_subscription_past_due_event_initializes_missing_grace_state(self):
         self.subscription.provider_customer_id = "cus_test_motionmate"
@@ -2483,6 +3453,13 @@ class StripeWebhookProcessingTests(TestCase):
         self.assertEqual(
             self.subscription.grace_period_ends_at,
             self._datetime(event_created) + timedelta(days=7),
+        )
+        notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.PAYMENT_GRACE_STARTED
+        )
+        self.assertEqual(
+            notification.context_summary["grace_period_ends_at"],
+            (self._datetime(event_created) + timedelta(days=7)).isoformat(),
         )
 
     def test_recovery_subscription_events_clear_current_grace_state(self):
@@ -2523,6 +3500,63 @@ class StripeWebhookProcessingTests(TestCase):
         self.assertEqual(
             self.subscription.last_payment_failure_at,
             self._datetime(self._timestamp(2026, 7, 5)),
+        )
+        notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.PAYMENT_RECOVERED
+        )
+        self.assertEqual(
+            notification.source_provider_event_id,
+            "evt_subscription_active_clears_grace",
+        )
+        self.assertEqual(
+            notification.context_summary["past_due_since"],
+            self._datetime(self._timestamp(2026, 7, 5)).isoformat(),
+        )
+
+    def test_scheduled_cancellation_enqueues_once_for_current_period(self):
+        self.subscription.provider_customer_id = "cus_test_motionmate"
+        self.subscription.provider_subscription_id = "sub_test_motionmate"
+        self.subscription.status = BusinessSubscription.Status.ACTIVE
+        self.subscription.current_period_start = self._datetime(self._timestamp(2026, 7, 1))
+        self.subscription.current_period_end = self._datetime(self._timestamp(2026, 8, 1))
+        self.subscription.save(
+            update_fields=[
+                "provider_customer_id",
+                "provider_subscription_id",
+                "status",
+                "current_period_start",
+                "current_period_end",
+                "updated_at",
+            ]
+        )
+        first_payload = self._event(
+            event_id="evt_cancel_scheduled_first",
+            event_type="customer.subscription.updated",
+            event_object=self._remote_subscription(status="active", cancel_at_period_end=True),
+            created=self._timestamp(2026, 7, 10),
+        )
+        second_payload = self._event(
+            event_id="evt_cancel_scheduled_second",
+            event_type="customer.subscription.updated",
+            event_object=self._remote_subscription(status="active", cancel_at_period_end=True),
+            created=self._timestamp(2026, 7, 11),
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            first_response = self._signed_post(first_payload)
+            second_response = self._signed_post(second_payload)
+
+        self.subscription.refresh_from_db()
+        notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.CANCELLATION_SCHEDULED
+        )
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertTrue(self.subscription.cancel_at_period_end)
+        self.assertEqual(notification.source_provider_event_id, "evt_cancel_scheduled_first")
+        self.assertEqual(
+            notification.context_summary["cancel_effective_at"],
+            self._datetime(self._timestamp(2026, 8, 1)).isoformat(),
         )
 
     def test_newer_cancellation_is_not_overwritten_by_older_paid_invoice(self):
@@ -2570,6 +3604,7 @@ class StripeWebhookProcessingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.subscription.status, BusinessSubscription.Status.CANCELLED)
         self.assertEqual(self.subscription.provider_updated_at, self._datetime(newer_timestamp))
+        self.assertFalse(SubscriptionNotification.objects.exists())
 
     def test_cancellation_event_clears_current_grace_state(self):
         self.subscription.provider_customer_id = "cus_test_motionmate"
@@ -2609,6 +3644,13 @@ class StripeWebhookProcessingTests(TestCase):
             self.subscription.last_payment_failure_at,
             self._datetime(self._timestamp(2026, 7, 5)),
         )
+        notification = SubscriptionNotification.objects.get(
+            notification_type=SubscriptionNotification.NotificationType.SUBSCRIPTION_CANCELLED
+        )
+        self.assertEqual(
+            notification.context_summary["cancelled_at"],
+            self._datetime(event_created).isoformat(),
+        )
 
     def test_stale_subscription_event_does_not_overwrite_newer_cancelled_state(self):
         newer_timestamp = self._timestamp(2026, 7, 10)
@@ -2645,6 +3687,7 @@ class StripeWebhookProcessingTests(TestCase):
         self.assertEqual(self.subscription.status, BusinessSubscription.Status.CANCELLED)
         self.assertEqual(self.subscription.provider_updated_at, self._datetime(newer_timestamp))
         self.assertEqual(self.subscription.cancelled_at, self._datetime(newer_timestamp))
+        self.assertFalse(SubscriptionNotification.objects.exists())
 
     def test_beta_subscription_metadata_is_ignored_without_adding_provider_ids(self):
         beta_plan = ClarivoPlan.objects.get(slug=BETA_PLAN_SLUG)
@@ -2689,6 +3732,7 @@ class StripeWebhookProcessingTests(TestCase):
         self.assertEqual(beta_subscription.status, BusinessSubscription.Status.ACTIVE)
         self.assertEqual(beta_subscription.provider_customer_id, "")
         self.assertEqual(beta_subscription.provider_subscription_id, "")
+        self.assertFalse(SubscriptionNotification.objects.exists())
 
 
 class BusinessUserModelTests(TestCase):

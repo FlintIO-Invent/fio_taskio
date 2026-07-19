@@ -9,7 +9,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.utils import timezone
 
-from .models import BillingProviderWebhookEvent, BusinessSubscription
+from .models import BillingProviderWebhookEvent, BusinessSubscription, SubscriptionNotification
 from .plan_catalog import normalize_public_paid_plan_slug
 from .stripe_config import (
     StripeConfigurationError,
@@ -18,6 +18,7 @@ from .stripe_config import (
     resolve_stripe_price_id,
 )
 from .subscription_grace import get_subscription_payment_grace_duration
+from .subscription_notifications import enqueue_subscription_notification
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +247,7 @@ def process_stripe_webhook_event(
         return _process_checkout_session_completed(
             session=event_object,
             provider_event_at=provider_event_at,
+            source_provider_event_id=event_record.event_id,
         )
 
     if event_type in SUBSCRIPTION_EVENT_TYPES:
@@ -253,6 +255,7 @@ def process_stripe_webhook_event(
             provider_subscription=event_object,
             provider_event_at=provider_event_at,
             source=event_type,
+            source_provider_event_id=event_record.event_id,
         )
 
     if event_type == "invoice.paid":
@@ -261,6 +264,7 @@ def process_stripe_webhook_event(
             provider_event_at=provider_event_at,
             source=event_type,
             payment_failed=False,
+            source_provider_event_id=event_record.event_id,
         )
 
     if event_type == "invoice.payment_failed":
@@ -269,6 +273,7 @@ def process_stripe_webhook_event(
             provider_event_at=provider_event_at,
             source=event_type,
             payment_failed=True,
+            source_provider_event_id=event_record.event_id,
         )
 
     raise StripeWebhookIgnored("Stripe event type ignored.")
@@ -278,6 +283,7 @@ def _process_checkout_session_completed(
     *,
     session: Any,
     provider_event_at: datetime,
+    source_provider_event_id: str,
 ) -> StripeWebhookProcessResult:
     session_id = _required_string(
         _stripe_value(session, "id"),
@@ -309,6 +315,7 @@ def _process_checkout_session_completed(
         session_id=session_id,
         customer_id=provider_customer_id,
         client_reference_id=str(_stripe_value(session, "client_reference_id") or ""),
+        source_provider_event_id=source_provider_event_id,
     )
 
 
@@ -318,6 +325,7 @@ def _process_invoice_event(
     provider_event_at: datetime,
     source: str,
     payment_failed: bool,
+    source_provider_event_id: str,
 ) -> StripeWebhookProcessResult:
     provider_subscription_id = _invoice_subscription_id(invoice)
     if not provider_subscription_id:
@@ -336,6 +344,7 @@ def _process_invoice_event(
         provider_event_at=provider_event_at,
         source=source,
         failure_context=failure_context,
+        source_provider_event_id=source_provider_event_id,
     )
 
 
@@ -349,6 +358,7 @@ def _sync_subscription_object(
     customer_id: str = "",
     client_reference_id: str = "",
     failure_context: dict[str, Any] | None = None,
+    source_provider_event_id: str = "",
 ) -> StripeWebhookProcessResult:
     provider_subscription_id = _required_string(
         _stripe_value(provider_subscription, "id"),
@@ -423,6 +433,7 @@ def _sync_subscription_object(
                 f"{source} ignored because a newer Stripe event was already applied."
             )
 
+        previous_state = _subscription_transition_snapshot(local_subscription)
         update_fields.extend(
             _update_subscription_state_fields(
                 local_subscription=local_subscription,
@@ -435,6 +446,13 @@ def _sync_subscription_object(
 
         if update_fields:
             local_subscription.save(update_fields=[*sorted(set(update_fields)), "updated_at"])
+
+        _enqueue_subscription_transition_notifications(
+            local_subscription=local_subscription,
+            previous_state=previous_state,
+            provider_event_at=provider_event_at,
+            source_provider_event_id=source_provider_event_id,
+        )
 
     return StripeWebhookProcessResult(f"{source} synchronized local subscription.")
 
@@ -649,6 +667,163 @@ def _update_subscription_state_fields(
             update_fields.append(field_name)
 
     return update_fields
+
+
+def _subscription_transition_snapshot(local_subscription: BusinessSubscription) -> dict[str, Any]:
+    return {
+        "status": local_subscription.status,
+        "cancel_at_period_end": local_subscription.cancel_at_period_end,
+        "past_due_since": local_subscription.past_due_since,
+        "grace_period_ends_at": local_subscription.grace_period_ends_at,
+        "trial_start": local_subscription.trial_start,
+        "trial_end": local_subscription.trial_end,
+        "current_period_start": local_subscription.current_period_start,
+        "current_period_end": local_subscription.current_period_end,
+        "cancelled_at": local_subscription.cancelled_at,
+    }
+
+
+def _enqueue_subscription_transition_notifications(
+    *,
+    local_subscription: BusinessSubscription,
+    previous_state: dict[str, Any],
+    provider_event_at: datetime,
+    source_provider_event_id: str,
+) -> None:
+    notification_type = SubscriptionNotification.NotificationType
+    previous_status = previous_state["status"]
+
+    if (
+        previous_status == BusinessSubscription.Status.PENDING_CHECKOUT
+        and local_subscription.status == BusinessSubscription.Status.TRIALING
+    ):
+        enqueue_subscription_notification(
+            subscription=local_subscription,
+            notification_type=notification_type.TRIAL_STARTED,
+            deduplication_context={
+                "trial_start": local_subscription.trial_start or provider_event_at,
+            },
+            source_provider_event_id=source_provider_event_id,
+            context_summary={
+                "trial_start": local_subscription.trial_start,
+                "trial_end": local_subscription.trial_end,
+                "provider_event_at": provider_event_at,
+            },
+        )
+
+    if (
+        local_subscription.status == BusinessSubscription.Status.ACTIVE
+        and previous_status
+        in (
+            BusinessSubscription.Status.PENDING_CHECKOUT,
+            BusinessSubscription.Status.TRIALING,
+        )
+    ):
+        enqueue_subscription_notification(
+            subscription=local_subscription,
+            notification_type=notification_type.SUBSCRIPTION_ACTIVATED,
+            deduplication_context={
+                "period_start": local_subscription.current_period_start or provider_event_at,
+            },
+            source_provider_event_id=source_provider_event_id,
+            context_summary={
+                "activated_at": provider_event_at,
+                "current_period_start": local_subscription.current_period_start,
+                "current_period_end": local_subscription.current_period_end,
+            },
+        )
+
+    if (
+        local_subscription.status == BusinessSubscription.Status.PAST_DUE
+        and previous_state["past_due_since"] is None
+        and local_subscription.past_due_since is not None
+    ):
+        enqueue_subscription_notification(
+            subscription=local_subscription,
+            notification_type=notification_type.PAYMENT_GRACE_STARTED,
+            deduplication_context={
+                "past_due_since": local_subscription.past_due_since,
+            },
+            source_provider_event_id=source_provider_event_id,
+            context_summary={
+                "past_due_since": local_subscription.past_due_since,
+                "grace_period_ends_at": local_subscription.grace_period_ends_at,
+            },
+        )
+
+    if (
+        previous_status == BusinessSubscription.Status.PAST_DUE
+        and local_subscription.status
+        in (
+            BusinessSubscription.Status.ACTIVE,
+            BusinessSubscription.Status.TRIALING,
+        )
+        and previous_state["past_due_since"] is not None
+    ):
+        enqueue_subscription_notification(
+            subscription=local_subscription,
+            notification_type=notification_type.PAYMENT_RECOVERED,
+            deduplication_context={
+                "past_due_since": previous_state["past_due_since"],
+            },
+            source_provider_event_id=source_provider_event_id,
+            context_summary={
+                "past_due_since": previous_state["past_due_since"],
+                "recovered_at": provider_event_at,
+                "current_period_start": local_subscription.current_period_start,
+                "current_period_end": local_subscription.current_period_end,
+            },
+        )
+
+    if (
+        not previous_state["cancel_at_period_end"]
+        and local_subscription.cancel_at_period_end
+        and local_subscription.status
+        in (
+            BusinessSubscription.Status.ACTIVE,
+            BusinessSubscription.Status.TRIALING,
+        )
+    ):
+        cancel_effective_at = (
+            local_subscription.current_period_end
+            or local_subscription.trial_end
+            or provider_event_at
+        )
+        enqueue_subscription_notification(
+            subscription=local_subscription,
+            notification_type=notification_type.CANCELLATION_SCHEDULED,
+            deduplication_context={
+                "cancel_effective_at": cancel_effective_at,
+            },
+            source_provider_event_id=source_provider_event_id,
+            context_summary={
+                "cancel_effective_at": cancel_effective_at,
+                "provider_event_at": provider_event_at,
+            },
+        )
+
+    if (
+        previous_status
+        in (
+            BusinessSubscription.Status.TRIALING,
+            BusinessSubscription.Status.ACTIVE,
+            BusinessSubscription.Status.PAST_DUE,
+        )
+        and local_subscription.status == BusinessSubscription.Status.CANCELLED
+    ):
+        cancelled_at = local_subscription.cancelled_at or provider_event_at
+        enqueue_subscription_notification(
+            subscription=local_subscription,
+            notification_type=notification_type.SUBSCRIPTION_CANCELLED,
+            deduplication_context={
+                "cancelled_at": cancelled_at,
+            },
+            source_provider_event_id=source_provider_event_id,
+            context_summary={
+                "cancelled_at": cancelled_at,
+                "provider_event_at": provider_event_at,
+            },
+        )
 
 
 def _incoming_event_is_stale(
