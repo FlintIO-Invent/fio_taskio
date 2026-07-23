@@ -11,7 +11,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from .localization import format_business_address_lines, uses_netherlands_address_format
+from .localization import format_business_address_lines, uses_europe_pricing_region
 from .plan_catalog import (
     PUBLIC_BILLING_INTERVALS,
     PUBLIC_PAID_PLAN_ORDERING,
@@ -324,7 +324,7 @@ class ClarivoPlan(TimeStampedModel):
         USD_PRICING_REGION: "USD",
         EUR_PRICING_REGION: "EUR",
         CARIBBEAN_INTERNATIONAL_PRICING_REGION: "Caribbean / International",
-        NETHERLANDS_PRICING_REGION: "Netherlands",
+        NETHERLANDS_PRICING_REGION: "Europe",
     }
     MODULE_FLAG_MAP = {
         "invoicing": "allow_invoicing",
@@ -411,7 +411,7 @@ class ClarivoPlan(TimeStampedModel):
 
     @classmethod
     def pricing_region_for_business(cls, business: Business | None = None) -> str:
-        if business is not None and uses_netherlands_address_format(business.country):
+        if business is not None and uses_europe_pricing_region(business.country):
             return cls.EUR_PRICING_REGION
         return cls.DEFAULT_PRICING_REGION
 

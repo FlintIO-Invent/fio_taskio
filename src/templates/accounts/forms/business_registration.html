@@ -68,11 +68,15 @@
                 {% if show_paid_plan_summary and selected_plan %}
                   <input type="hidden" name="{{ form.plan.html_name }}" value="{{ selected_plan.slug }}">
                   <input type="hidden" name="{{ form.billing_interval.html_name }}" value="{{ selected_billing_interval }}">
+                  <input type="hidden" name="{{ form.pricing_currency.html_name }}" value="{{ selected_pricing_currency }}">
                   <div class="border rounded-3 p-3 bg-body-tertiary">
                     <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
                       <div>
                         <p class="text-body-tertiary fs-9 mb-1">Selected plan</p>
                         <h4 class="fs-7 mb-1">{{ selected_plan.name }}</h4>
+                        {% if selected_pricing_currency_display %}
+                          <p class="text-body-tertiary fs-9 mb-1">{{ selected_pricing_currency_display }} pricing</p>
+                        {% endif %}
                         {% if selected_plan_price_display %}
                           <p class="text-body-secondary mb-0">{{ selected_plan_price_display }} / {{ selected_billing_interval_label }} after trial · {{ selected_billing_currency }}</p>
                         {% endif %}
@@ -85,15 +89,18 @@
                   </div>
                   {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
                   {% if form.billing_interval.errors %}<div class="invalid-feedback d-block">{{ form.billing_interval.errors|striptags }}</div>{% endif %}
+                  {% if form.pricing_currency.errors %}<div class="invalid-feedback d-block">{{ form.pricing_currency.errors|striptags }}</div>{% endif %}
                 {% elif show_paid_plan_summary %}
                   {{ form.plan }}
                   {{ form.billing_interval }}
+                  {{ form.pricing_currency }}
                   <div class="alert alert-warning mb-0" role="alert">
                     Choose Starter, Pro, or Business from pricing before registering.
                     <a href="{% url 'home' %}#pricing">View pricing</a>.
                   </div>
                   {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
                   {% if form.billing_interval.errors %}<div class="invalid-feedback d-block">{{ form.billing_interval.errors|striptags }}</div>{% endif %}
+                  {% if form.pricing_currency.errors %}<div class="invalid-feedback d-block">{{ form.pricing_currency.errors|striptags }}</div>{% endif %}
                 {% else %}
                   <label class="form-label" for="{{ form.plan.id_for_label }}">Trial plan{% include "includes/help_icon.html" with text=form.plan.help_text %}</label>
                   {{ form.plan }}

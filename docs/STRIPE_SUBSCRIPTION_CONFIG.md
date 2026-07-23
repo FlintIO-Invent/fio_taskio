@@ -260,6 +260,19 @@ STRIPE_PRICE_BUSINESS_MONTHLY_EUR=price_replace_business_monthly_eur
 STRIPE_PRICE_BUSINESS_YEARLY_EUR=price_replace_business_yearly_eur
 ```
 
+## Public Pricing Regions
+
+Public pricing has two explicit regions:
+
+- International/USD for businesses outside Europe.
+- Europe/EUR for businesses registered in Europe, including country names such as `Netherlands`, `Germany`, and `France`, plus common country codes such as `NL`, `DE`, and `FR`.
+
+The pricing page selector stores only the safe session value `motionmate_pricing_currency`, with allowed values `usd` and `eur`. Pricing links carry the same value as `currency=usd` or `currency=eur` into registration, and valid links override an older session value. Invalid currency values are ignored on GET and rejected on POST.
+
+Motionmate does not infer public pricing from IP address, VPN location, browser locale, timezone, language, Accept-Language headers, email domain, Stripe metadata, or webhook headers.
+
+Registration remains server-authoritative. A Europe business must submit Europe/EUR pricing, and a non-Europe business must submit International/USD pricing before any user, business, or subscription is created. After signup, `BusinessSubscription.billing_currency` is authoritative for Checkout, webhook processing, and billing state; the pre-signup session key must not be used to change an existing subscription.
+
 Beta is an internal non-trial plan and is not part of the public Stripe Price mapping.
 
 ## Validation
@@ -299,6 +312,8 @@ Checks are local only. They do not contact Stripe or verify that a Price exists 
 ## Checkout Boundaries
 
 With `STRIPE_ENABLED=true`, normal paid-plan registration records a `pending_checkout` subscription and creates a Stripe Checkout Session outside the registration transaction. The Checkout Session uses subscription mode, a 14-day trial, the configured Price ID for the selected plan, interval, and regional currency, and metadata linking the Stripe session to the local business, subscription, and owner.
+
+Checkout never trusts browser-submitted Price IDs, amounts, trial settings, customer IDs, subscription IDs, tax settings, coupons, or provider metadata. The Price ID is resolved from the local `BusinessSubscription` plan, interval, and `billing_currency` against the configured `STRIPE_PRICE_*` matrix.
 
 The Checkout success and cancelled return pages do not activate access. Customer Portal returns also do not update local state. Activation, trial dates, Stripe customer IDs, cancellation, and remote subscription state belong to signed Stripe webhook processing. Beta registration remains internal and does not create a Stripe Checkout Session or Customer Portal Session.
 

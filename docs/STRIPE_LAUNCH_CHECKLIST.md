@@ -62,6 +62,18 @@ Every public plan, interval, and currency combination needs a configured Stripe 
 | `STRIPE_PRICE_BUSINESS_MONTHLY_EUR` | Required when Stripe is enabled |
 | `STRIPE_PRICE_BUSINESS_YEARLY_EUR` | Required when Stripe is enabled |
 
+## Public Pricing Regions
+
+- [ ] NOT TESTED - Pricing defaults to International/USD with USD prices as the only active card prices.
+- [ ] NOT TESTED - Selecting Europe/EUR shows EUR prices as the only active card prices.
+- [ ] NOT TESTED - Pricing links carry `currency=usd` or `currency=eur` into registration.
+- [ ] NOT TESTED - Registration preserves the selected region through validation errors.
+- [ ] NOT TESTED - Europe registrations reject International/USD before account, business, or subscription creation.
+- [ ] NOT TESTED - Non-Europe registrations reject Europe/EUR before account, business, or subscription creation.
+- [ ] NOT TESTED - Invalid currency values are ignored safely on links and rejected safely on form submit.
+- [ ] NOT TESTED - Pricing is not inferred from IP address, VPN location, browser locale, timezone, or language headers.
+- [ ] NOT TESTED - Existing subscriptions use `BusinessSubscription.billing_currency`, not the pre-signup pricing session, as the billing authority.
+
 ## Stripe Account Setup
 
 - [ ] EXTERNAL ACTION REQUIRED - Test account configured.

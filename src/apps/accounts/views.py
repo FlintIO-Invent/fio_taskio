@@ -26,7 +26,14 @@ from apps.businesses.models import (
 )
 from apps.businesses.plan_catalog import (
     PUBLIC_BILLING_INTERVAL_LABELS,
+    PUBLIC_PRICING_CURRENCY_FORM_FIELD,
+    PUBLIC_PRICING_CURRENCY_QUERY_PARAM,
+    PUBLIC_PRICING_CURRENCY_SESSION_KEY,
     STANDARD_TRIAL_DAYS,
+    normalize_public_pricing_currency,
+    public_pricing_currency_display,
+    public_pricing_currency_label,
+    public_pricing_currency_or_default,
 )
 from apps.businesses.stripe_checkout import (
     StripeCheckoutAlreadyCompleted,
@@ -246,6 +253,29 @@ def _beta_registration_link_is_available(token: str) -> bool:
     )
 
 
+def _selected_registration_pricing_currency(
+    request: HttpRequest,
+    *,
+    beta_eligible: bool,
+) -> str:
+    if beta_eligible:
+        return ""
+
+    raw_currency = (
+        request.GET.get(PUBLIC_PRICING_CURRENCY_QUERY_PARAM)
+        if request.method == "GET"
+        else request.POST.get(PUBLIC_PRICING_CURRENCY_FORM_FIELD)
+    )
+    normalized_currency = normalize_public_pricing_currency(raw_currency)
+    if normalized_currency is not None:
+        request.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY] = normalized_currency
+        return normalized_currency
+
+    return public_pricing_currency_or_default(
+        request.session.get(PUBLIC_PRICING_CURRENCY_SESSION_KEY),
+    )
+
+
 def handle_successful_paid_plan_registration(
     request: HttpRequest,
     *,
@@ -340,10 +370,22 @@ def _register_business(
     *,
     beta_eligible: bool,
 ) -> HttpResponse:
+    selected_pricing_currency = _selected_registration_pricing_currency(
+        request,
+        beta_eligible=beta_eligible,
+    )
     if request.method == "POST":
-        form = BusinessRegistrationForm(request.POST, beta_eligible=beta_eligible)
+        form = BusinessRegistrationForm(
+            request.POST,
+            selected_pricing_currency=selected_pricing_currency,
+            beta_eligible=beta_eligible,
+        )
 
         if form.is_valid():
+            if not beta_eligible:
+                request.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY] = (
+                    form.selected_billing_currency_for_display
+                )
             user, business, _membership, subscription = form.save(
                 create_subscription=beta_eligible,
             )
@@ -382,6 +424,7 @@ def _register_business(
         form = BusinessRegistrationForm(
             selected_plan_slug=request.GET.get("plan"),
             selected_billing_interval=request.GET.get("interval"),
+            selected_pricing_currency=selected_pricing_currency,
             beta_eligible=beta_eligible,
         )
 
@@ -406,6 +449,16 @@ def _register_business(
     selected_billing_currency = (
         "" if beta_eligible else form.selected_billing_currency_for_display.upper()
     )
+    selected_pricing_region_label = (
+        ""
+        if beta_eligible
+        else public_pricing_currency_label(form.selected_pricing_currency_for_display)
+    )
+    selected_pricing_currency_display = (
+        ""
+        if beta_eligible
+        else public_pricing_currency_display(form.selected_pricing_currency_for_display)
+    )
     return render(
         request,
         "accounts/forms/business_registration.html",
@@ -417,6 +470,11 @@ def _register_business(
             "selected_billing_interval": selected_billing_interval,
             "selected_billing_interval_label": selected_billing_interval_label,
             "selected_billing_currency": selected_billing_currency,
+            "selected_pricing_currency": (
+                "" if beta_eligible else form.selected_pricing_currency_for_display
+            ),
+            "selected_pricing_region_label": selected_pricing_region_label,
+            "selected_pricing_currency_display": selected_pricing_currency_display,
             "show_paid_plan_summary": not beta_eligible,
             "standard_trial_days": STANDARD_TRIAL_DAYS,
         },
@@ -442,8 +500,8 @@ def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse
         messages.error(request, "This invitation has been cancelled.")
 
     invitation_is_available = invitation.status == BusinessInvitation.Status.PENDING
-    invitation_blocked_by_subscription = invitation_is_available and not business_can_modify_workspace(
-        invitation.business
+    invitation_blocked_by_subscription = (
+        invitation_is_available and not business_can_modify_workspace(invitation.business)
     )
     wrong_authenticated_user = (
         request.user.is_authenticated and request.user.email.lower() != invitation.email.lower()

@@ -15,11 +15,21 @@ Including another URLconf
 """
 
 from django.contrib import admin
+from django.http import HttpRequest
 from django.shortcuts import render
 from django.urls import include, path
 from django.views.generic import RedirectView
 
 from apps.businesses.models import ClarivoPlan
+from apps.businesses.plan_catalog import (
+    PUBLIC_PRICING_CURRENCIES,
+    PUBLIC_PRICING_CURRENCY_QUERY_PARAM,
+    PUBLIC_PRICING_CURRENCY_SESSION_KEY,
+    normalize_public_pricing_currency,
+    public_pricing_currency_display,
+    public_pricing_currency_label,
+    public_pricing_currency_or_default,
+)
 from apps.businesses.views import (
     billing_checkout_cancelled,
     billing_checkout_resume,
@@ -31,18 +41,51 @@ from apps.businesses.views import (
 from apps.crm.views import public_booking, public_booking_thank_you
 
 
-def motionmate_pricing_context():
+def _selected_public_pricing_currency(request: HttpRequest) -> str:
+    query_currency = normalize_public_pricing_currency(
+        request.GET.get(PUBLIC_PRICING_CURRENCY_QUERY_PARAM),
+    )
+    if query_currency is not None:
+        request.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY] = query_currency
+        return query_currency
+
+    return public_pricing_currency_or_default(
+        request.session.get(PUBLIC_PRICING_CURRENCY_SESSION_KEY),
+    )
+
+
+def motionmate_pricing_context(request: HttpRequest):
+    selected_pricing_currency = _selected_public_pricing_currency(request)
     pricing_plans = list(ClarivoPlan.motionmate_plans())
-    ClarivoPlan.attach_display_pricing(pricing_plans)
-    return {"pricing_plans": pricing_plans}
+    ClarivoPlan.attach_display_pricing(pricing_plans, region=selected_pricing_currency)
+    pricing_currency_options = [
+        {
+            "value": currency,
+            "label": public_pricing_currency_label(currency),
+            "display": public_pricing_currency_display(currency),
+            "is_active": currency == selected_pricing_currency,
+        }
+        for currency in PUBLIC_PRICING_CURRENCIES
+    ]
+    return {
+        "pricing_plans": pricing_plans,
+        "selected_pricing_currency": selected_pricing_currency,
+        "selected_pricing_region_label": public_pricing_currency_label(
+            selected_pricing_currency,
+        ),
+        "selected_pricing_currency_display": public_pricing_currency_display(
+            selected_pricing_currency,
+        ),
+        "pricing_currency_options": pricing_currency_options,
+    }
 
 
 def landing(request):
-    return render(request, "public_site/home.html", motionmate_pricing_context())
+    return render(request, "public_site/home.html", motionmate_pricing_context(request))
 
 
 def site_preview(request):
-    return render(request, "public_site/home.html", motionmate_pricing_context())
+    return render(request, "public_site/home.html", motionmate_pricing_context(request))
 
 
 urlpatterns = [

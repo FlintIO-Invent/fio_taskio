@@ -56,6 +56,7 @@ from .plan_catalog import (
     PUBLIC_PAID_PLAN_ORDERING,
     PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
+    PUBLIC_PRICING_CURRENCY_SESSION_KEY,
     STANDARD_TRIAL_DAYS,
     is_public_billing_interval,
     is_public_paid_plan_slug,
@@ -3922,6 +3923,24 @@ class SubscriptionBillingLifecycleEndToEndTests(TestCase):
         )
         return SimpleNamespace(Subscription=subscription_api), subscription_api
 
+    def _stripe_checkout_client(
+        self,
+        *,
+        session_id: str,
+        checkout_url: str,
+    ):
+        session_api = SimpleNamespace(
+            create=mock.Mock(
+                return_value={
+                    "id": session_id,
+                    "url": checkout_url,
+                    "expires_at": self._timestamp(2026, 7, 19, 13),
+                },
+            ),
+        )
+        checkout_api = SimpleNamespace(Session=session_api)
+        return SimpleNamespace(checkout=checkout_api), session_api
+
     def _create_owner_business_subscription(
         self,
         *,
@@ -4003,6 +4022,7 @@ class SubscriptionBillingLifecycleEndToEndTests(TestCase):
                         "country": "Sint Maarten",
                         "plan": plan.slug,
                         "billing_interval": "monthly",
+                        "pricing_currency": "usd",
                         "password1": "StrongPass123!",
                         "password2": "StrongPass123!",
                     },
@@ -4112,6 +4132,218 @@ class SubscriptionBillingLifecycleEndToEndTests(TestCase):
             1,
         )
         self.assertEqual(mail.outbox, [])
+
+    def test_eur_pricing_lifecycle_from_public_selector_to_webhook(self):
+        pricing_response = self.client.get(f"{reverse('home')}?currency=eur")
+        self.assertEqual(pricing_response.context["selected_pricing_currency"], "eur")
+        self.assertEqual(
+            self.client.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY],
+            "eur",
+        )
+
+        registration_response = self.client.get(
+            f"{reverse('register_business')}?plan=pro&interval=monthly&currency=eur",
+        )
+        self.assertEqual(registration_response.context["selected_pricing_currency"], "eur")
+        self.assertContains(registration_response, "Europe/EUR pricing")
+        self.assertContains(registration_response, "€79 / month after trial")
+
+        checkout_client, session_api = self._stripe_checkout_client(
+            session_id="cs_eur_lifecycle",
+            checkout_url="https://checkout.stripe.test/eur-lifecycle",
+        )
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_checkout,
+                "configure_stripe_sdk",
+                return_value=checkout_client,
+            ):
+                response = self.client.post(
+                    reverse("register_business"),
+                    {
+                        "first_name": "Euro",
+                        "last_name": "Owner",
+                        "email": "eur-lifecycle@example.com",
+                        "business_name": "EUR Lifecycle",
+                        "business_email": "hello@eur-lifecycle.test",
+                        "country": "Germany",
+                        "plan": "pro",
+                        "billing_interval": "monthly",
+                        "pricing_currency": "eur",
+                        "password1": "StrongPass123!",
+                        "password2": "StrongPass123!",
+                    },
+                )
+
+        business = Business.objects.get(slug="eur-lifecycle")
+        user = TaskIOUser.objects.get(email="eur-lifecycle@example.com")
+        subscription = BusinessSubscription.objects.get(business=business)
+        checkout_kwargs = session_api.create.call_args.kwargs
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "https://checkout.stripe.test/eur-lifecycle")
+        self.assertEqual(subscription.plan.slug, "pro")
+        self.assertEqual(
+            subscription.billing_interval, BusinessSubscription.BillingInterval.MONTHLY
+        )
+        self.assertEqual(subscription.billing_currency, BusinessSubscription.BillingCurrency.EUR)
+        self.assertEqual(subscription.provider_price_id, "price_pro_monthly_eur")
+        self.assertEqual(
+            checkout_kwargs["line_items"],
+            [{"price": "price_pro_monthly_eur", "quantity": 1}],
+        )
+        self.assertEqual(checkout_kwargs["metadata"]["billing_currency"], "eur")
+
+        trial_start = self._timestamp(2026, 7, 19)
+        trial_end = self._timestamp(2026, 8, 2)
+        trialing_remote = self._remote_subscription(
+            subscription,
+            provider_subscription_id="sub_eur_lifecycle",
+            provider_customer_id="cus_eur_lifecycle",
+            status="trialing",
+            trial_start=trial_start,
+            trial_end=trial_end,
+            current_period_start=trial_start,
+            current_period_end=trial_end,
+        )
+        stripe_client, _subscription_api = self._stripe_client(
+            retrieved_subscription=trialing_remote,
+        )
+        checkout_payload = self._event(
+            event_id="evt_eur_lifecycle_checkout_completed",
+            event_type="checkout.session.completed",
+            event_object=self._checkout_session(
+                subscription,
+                user=user,
+                session_id="cs_eur_lifecycle",
+                provider_subscription_id="sub_eur_lifecycle",
+                provider_customer_id="cus_eur_lifecycle",
+            ),
+            created=trial_start,
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_webhooks,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                webhook_response = self._signed_post(checkout_payload)
+
+        subscription.refresh_from_db()
+        self.assertEqual(webhook_response.status_code, 200)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(subscription.plan.slug, "pro")
+        self.assertEqual(
+            subscription.billing_interval, BusinessSubscription.BillingInterval.MONTHLY
+        )
+        self.assertEqual(subscription.billing_currency, BusinessSubscription.BillingCurrency.EUR)
+        self.assertEqual(subscription.provider_price_id, "price_pro_monthly_eur")
+
+    def test_usd_pricing_lifecycle_from_public_selector_to_webhook(self):
+        session = self.client.session
+        session[PUBLIC_PRICING_CURRENCY_SESSION_KEY] = "eur"
+        session.save()
+
+        pricing_response = self.client.get(f"{reverse('home')}?currency=usd")
+        self.assertEqual(pricing_response.context["selected_pricing_currency"], "usd")
+        self.assertEqual(
+            self.client.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY],
+            "usd",
+        )
+
+        registration_response = self.client.get(
+            f"{reverse('register_business')}?plan=business&interval=yearly&currency=usd",
+        )
+        self.assertEqual(registration_response.context["selected_pricing_currency"], "usd")
+        self.assertContains(registration_response, "International/USD pricing")
+        self.assertContains(registration_response, "$1,590 / year after trial")
+
+        checkout_client, session_api = self._stripe_checkout_client(
+            session_id="cs_usd_lifecycle",
+            checkout_url="https://checkout.stripe.test/usd-lifecycle",
+        )
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_checkout,
+                "configure_stripe_sdk",
+                return_value=checkout_client,
+            ):
+                response = self.client.post(
+                    reverse("register_business"),
+                    {
+                        "first_name": "Dollar",
+                        "last_name": "Owner",
+                        "email": "usd-lifecycle@example.com",
+                        "business_name": "USD Lifecycle",
+                        "business_email": "hello@usd-lifecycle.test",
+                        "country": "Sint Maarten",
+                        "plan": "business",
+                        "billing_interval": "yearly",
+                        "pricing_currency": "usd",
+                        "password1": "StrongPass123!",
+                        "password2": "StrongPass123!",
+                    },
+                )
+
+        business = Business.objects.get(slug="usd-lifecycle")
+        user = TaskIOUser.objects.get(email="usd-lifecycle@example.com")
+        subscription = BusinessSubscription.objects.get(business=business)
+        checkout_kwargs = session_api.create.call_args.kwargs
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "https://checkout.stripe.test/usd-lifecycle")
+        self.assertEqual(subscription.plan.slug, "business")
+        self.assertEqual(subscription.billing_interval, BusinessSubscription.BillingInterval.YEARLY)
+        self.assertEqual(subscription.billing_currency, BusinessSubscription.BillingCurrency.USD)
+        self.assertEqual(subscription.provider_price_id, "price_business_yearly_usd")
+        self.assertEqual(
+            checkout_kwargs["line_items"],
+            [{"price": "price_business_yearly_usd", "quantity": 1}],
+        )
+        self.assertEqual(checkout_kwargs["metadata"]["billing_currency"], "usd")
+
+        trial_start = self._timestamp(2026, 7, 19)
+        trial_end = self._timestamp(2026, 8, 2)
+        trialing_remote = self._remote_subscription(
+            subscription,
+            provider_subscription_id="sub_usd_lifecycle",
+            provider_customer_id="cus_usd_lifecycle",
+            status="trialing",
+            trial_start=trial_start,
+            trial_end=trial_end,
+            current_period_start=trial_start,
+            current_period_end=trial_end,
+        )
+        stripe_client, _subscription_api = self._stripe_client(
+            retrieved_subscription=trialing_remote,
+        )
+        checkout_payload = self._event(
+            event_id="evt_usd_lifecycle_checkout_completed",
+            event_type="checkout.session.completed",
+            event_object=self._checkout_session(
+                subscription,
+                user=user,
+                session_id="cs_usd_lifecycle",
+                provider_subscription_id="sub_usd_lifecycle",
+                provider_customer_id="cus_usd_lifecycle",
+            ),
+            created=trial_start,
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch.object(
+                stripe_webhooks,
+                "configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                webhook_response = self._signed_post(checkout_payload)
+
+        subscription.refresh_from_db()
+        self.assertEqual(webhook_response.status_code, 200)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
+        self.assertEqual(subscription.plan.slug, "business")
+        self.assertEqual(subscription.billing_interval, BusinessSubscription.BillingInterval.YEARLY)
+        self.assertEqual(subscription.billing_currency, BusinessSubscription.BillingCurrency.USD)
+        self.assertEqual(subscription.provider_price_id, "price_business_yearly_usd")
 
     def test_failed_payment_recovery_lifecycle_requires_verified_webhook(self):
         user, business, subscription = self._create_owner_business_subscription(
@@ -5828,22 +6060,22 @@ class MotionmatePlanCatalogTests(TestCase):
 
     def test_display_pricing_supports_usd_default_and_eur_business_context(self):
         plan = ClarivoPlan.objects.get(slug="business")
-        dutch_business = Business.objects.create(
-            name="Amsterdam Ops",
-            slug="amsterdam-ops",
-            country="Netherlands",
+        european_business = Business.objects.create(
+            name="Berlin Ops",
+            slug="berlin-ops",
+            country="Germany",
         )
 
         public_pricing = plan.get_display_pricing()
-        dutch_pricing = plan.get_display_pricing(business=dutch_business)
+        european_pricing = plan.get_display_pricing(business=european_business)
         eur_pricing = plan.get_display_pricing(region=ClarivoPlan.EUR_PRICING_REGION)
 
         self.assertEqual(public_pricing["monthly_display"], "$159")
         self.assertEqual(public_pricing["yearly_display"], "$1,590")
         self.assertEqual(public_pricing["tax_note"], "")
-        self.assertEqual(dutch_pricing["monthly_display"], "€149")
-        self.assertEqual(dutch_pricing["yearly_display"], "€1,490")
-        self.assertEqual(dutch_pricing["tax_note"], "")
+        self.assertEqual(european_pricing["monthly_display"], "€149")
+        self.assertEqual(european_pricing["yearly_display"], "€1,490")
+        self.assertEqual(european_pricing["tax_note"], "")
         self.assertEqual(eur_pricing["monthly_display"], "€149")
         self.assertEqual(eur_pricing["yearly_display"], "€1,490")
 
@@ -6008,7 +6240,7 @@ class MotionmatePlanCatalogTests(TestCase):
         self.assertTrue(business_limit_reached(business, "appointments_per_month"))
         self.assertTrue(business_limit_reached(business, "public_bookings_per_month"))
 
-    def test_public_pricing_page_uses_final_dual_currency_prices_and_no_growth_plan(self):
+    def test_public_pricing_page_defaults_to_usd_prices_and_no_growth_plan(self):
         ClarivoPlan.objects.create(
             name="Growth",
             slug="growth",
@@ -6020,23 +6252,58 @@ class MotionmatePlanCatalogTests(TestCase):
         response = self.client.get(reverse("home"), HTTP_HOST="localhost", secure=True)
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["selected_pricing_currency"], "usd")
         self.assertContains(response, "$39")
-        self.assertContains(response, "€39")
         self.assertContains(response, "$79")
-        self.assertContains(response, "€79")
         self.assertContains(response, "$159")
-        self.assertContains(response, "€149")
         self.assertContains(response, "$1,590 yearly USD")
-        self.assertContains(response, "EUR: €1,490 / year")
+        self.assertContains(response, "International/USD pricing")
+        self.assertContains(response, "Europe/EUR")
+        self.assertContains(
+            response,
+            f"{reverse('register_business')}?plan=business&amp;interval=monthly&amp;currency=usd",
+        )
+        self.assertContains(response, "interval=yearly&amp;currency=usd")
         self.assertContains(response, "Recommended")
         self.assertContains(response, "Client CRM")
         self.assertContains(response, "Online Booking")
         self.assertContains(response, "2 total users: owner + 1 staff account")
+        self.assertNotContains(response, "€39")
+        self.assertNotContains(response, "€79")
+        self.assertNotContains(response, "€149")
+        self.assertNotContains(response, "EUR:")
+        self.assertNotContains(response, "€1,490")
         self.assertNotContains(response, "$0.00")
         self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
         self.assertNotContains(response, "Growth")
         self.assertNotContains(response, "Public Request Form")
         self.assertNotContains(response, "Public Booking")
+
+    def test_public_pricing_page_can_select_eur_as_primary_prices(self):
+        response = self.client.get(
+            f"{reverse('home')}?currency=eur",
+            HTTP_HOST="localhost",
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["selected_pricing_currency"], "eur")
+        self.assertEqual(
+            self.client.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY],
+            "eur",
+        )
+        self.assertContains(response, "€39")
+        self.assertContains(response, "€79")
+        self.assertContains(response, "€149")
+        self.assertContains(response, "€1,490 yearly EUR")
+        self.assertContains(response, "Europe/EUR pricing")
+        self.assertContains(
+            response,
+            f"{reverse('register_business')}?plan=business&amp;interval=monthly&amp;currency=eur",
+        )
+        self.assertContains(response, "interval=yearly&amp;currency=eur")
+        self.assertNotContains(response, "$159")
+        self.assertNotContains(response, "$1,590 yearly USD")
 
     def test_home_uses_public_site_landing_template_and_assets(self):
         response = self.client.get(reverse("home"), HTTP_HOST="localhost", secure=True)

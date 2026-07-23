@@ -14,18 +14,25 @@ Where possible, run the Stripe CLI against a staging or local HTTPS tunnel so si
 
 ## Public Signup And Checkout
 
-1. Register Starter monthly from the pricing card.
-2. Confirm Checkout requires payment details.
-3. Complete Checkout with a Stripe test payment method.
-4. Confirm local state remains `pending_checkout` until the signed webhook is received.
-5. Confirm webhook changes the local subscription to `trialing`.
-6. Confirm Starter features and limits only.
-7. Repeat representative signup and activation checks for Pro.
-8. Repeat representative signup and activation checks for Business.
-9. Repeat at least one yearly billing path.
-10. Cancel Checkout before completion and confirm local state remains `pending_checkout`.
-11. Resume Checkout and confirm the stored open Session is reused when still usable.
-12. Expire or abandon Checkout and confirm a replacement Session can be created without granting access.
+1. Open public pricing with no currency parameter and confirm International/USD is selected, only USD card prices are active, and signup links include `currency=usd`.
+2. Register Starter monthly from the International/USD pricing card with a non-Europe country.
+3. Confirm Checkout uses the matching USD test Price ID and requires payment details.
+4. Complete Checkout with a Stripe test payment method.
+5. Confirm local state remains `pending_checkout` until the signed webhook is received.
+6. Confirm webhook changes the local subscription to `trialing` and preserves `BusinessSubscription.billing_currency=usd`.
+7. Select Europe/EUR on public pricing and confirm only EUR card prices are active and signup links include `currency=eur`.
+8. Register Pro monthly with a Europe country such as `Germany`.
+9. Confirm Checkout uses `STRIPE_PRICE_PRO_MONTHLY_EUR`.
+10. Complete Checkout and confirm the signed webhook preserves `BusinessSubscription.billing_currency=eur`.
+11. Register Business yearly from International/USD with a non-Europe country and confirm Checkout uses `STRIPE_PRICE_BUSINESS_YEARLY_USD`.
+12. Confirm Starter, Pro, and Business features and limits match the selected plan after webhook activation.
+13. Attempt a Europe country such as `Germany` with International/USD and confirm registration rejects it before creating an account, business, subscription, or Stripe Checkout Session.
+14. Attempt a non-Europe country with Europe/EUR and confirm registration rejects it before creating an account, business, subscription, or Stripe Checkout Session.
+15. Attempt an invalid `currency` link value and confirm it does not select an unsupported currency.
+16. Confirm pricing is not changed by IP address, VPN location, browser locale, timezone, or language headers.
+17. Cancel Checkout before completion and confirm local state remains `pending_checkout`.
+18. Resume Checkout and confirm the stored open Session is reused when still usable.
+19. Expire or abandon Checkout and confirm a replacement Session can be created without granting access.
 
 ## Webhook Reliability
 

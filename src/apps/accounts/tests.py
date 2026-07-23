@@ -1,6 +1,7 @@
 from datetime import timedelta
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 from urllib.parse import urlparse
 
@@ -33,6 +34,7 @@ from apps.businesses.plan_catalog import (
     PUBLIC_BILLING_INTERVALS,
     PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
+    PUBLIC_PRICING_CURRENCY_SESSION_KEY,
     STANDARD_TRIAL_DAYS,
 )
 from apps.businesses.stripe_checkout import StripeCheckoutError
@@ -145,6 +147,7 @@ class BusinessRegistrationViewTests(TestCase):
         plan: ClarivoPlan | None = None,
         billing_interval: str | None = None,
         country: str = "Sint Maarten",
+        pricing_currency: str | None = "usd",
     ) -> dict[str, str | int]:
         payload: dict[str, str | int] = {
             "first_name": "Jane",
@@ -160,6 +163,8 @@ class BusinessRegistrationViewTests(TestCase):
             payload["plan"] = plan.slug
         if billing_interval is not None:
             payload["billing_interval"] = billing_interval
+        if pricing_currency is not None:
+            payload["pricing_currency"] = pricing_currency
         return payload
 
     def _beta_url(self, token: str | None = None) -> str:
@@ -238,6 +243,61 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertContains(response, "on yearly billing")
         self.assertContains(response, f'name="plan" value="{business_plan.slug}"')
         self.assertContains(response, 'name="billing_interval" value="yearly"')
+
+    def test_get_preserves_pricing_currency_from_public_link(self):
+        business_plan = ClarivoPlan.objects.get(slug="business")
+
+        response = self.client.get(
+            f"{reverse('register_business')}?plan=business&interval=yearly&currency=eur",
+        )
+
+        self.assertEqual(response.context["form"]["plan"].value(), business_plan.slug)
+        self.assertEqual(response.context["selected_plan"], business_plan)
+        self.assertEqual(response.context["selected_billing_interval"], "yearly")
+        self.assertEqual(response.context["selected_pricing_currency"], "eur")
+        self.assertEqual(response.context["selected_billing_currency"], "EUR")
+        self.assertEqual(
+            self.client.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY],
+            "eur",
+        )
+        self.assertContains(response, "Europe/EUR pricing")
+        self.assertContains(response, "€1,490 / year after trial")
+        self.assertContains(response, 'name="pricing_currency" value="eur"')
+
+    def test_registration_currency_link_overrides_existing_session(self):
+        session = self.client.session
+        session[PUBLIC_PRICING_CURRENCY_SESSION_KEY] = "eur"
+        session.save()
+
+        response = self.client.get(
+            f"{reverse('register_business')}?plan=starter&currency=usd",
+        )
+
+        self.assertEqual(response.context["selected_pricing_currency"], "usd")
+        self.assertEqual(
+            self.client.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY],
+            "usd",
+        )
+        self.assertContains(response, "International/USD pricing")
+        self.assertContains(response, "$39 / month after trial")
+        self.assertContains(response, 'name="pricing_currency" value="usd"')
+
+    def test_invalid_registration_currency_query_uses_safe_session_fallback(self):
+        session = self.client.session
+        session[PUBLIC_PRICING_CURRENCY_SESSION_KEY] = "eur"
+        session.save()
+
+        response = self.client.get(
+            f"{reverse('register_business')}?plan=starter&currency=gbp",
+        )
+
+        self.assertEqual(response.context["selected_pricing_currency"], "eur")
+        self.assertEqual(
+            self.client.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY],
+            "eur",
+        )
+        self.assertContains(response, "Europe/EUR pricing")
+        self.assertContains(response, 'name="pricing_currency" value="eur"')
 
     def test_get_ignores_unknown_trial_plan_and_defaults_to_pro(self):
         pro_plan = ClarivoPlan.objects.get(slug="pro")
@@ -596,6 +656,142 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertFalse(get_user_model().objects.filter(email="bad-password@example.com").exists())
         self.assertFalse(Business.objects.filter(name="Bad Password Workspace").exists())
 
+    def test_validation_errors_preserve_selected_public_pricing_currency_summary(self):
+        business_plan = ClarivoPlan.objects.get(slug="business")
+        payload = self._registration_payload(
+            email="bad-password-eur@example.com",
+            business_name="Bad Password EUR Workspace",
+            plan=business_plan,
+            billing_interval="yearly",
+            country="Germany",
+            pricing_currency="eur",
+        )
+        payload["password2"] = "DifferentStrongPass123!"
+
+        response = self.client.post(reverse("register_business"), payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Passwords do not match.")
+        self.assertEqual(response.context["selected_plan"], business_plan)
+        self.assertEqual(response.context["selected_pricing_currency"], "eur")
+        self.assertContains(response, "Business")
+        self.assertContains(response, "Europe/EUR pricing")
+        self.assertContains(response, "€1,490 / year after trial")
+        self.assertContains(response, f'name="plan" value="{business_plan.slug}"')
+        self.assertContains(response, 'name="pricing_currency" value="eur"')
+        self.assertFalse(
+            get_user_model().objects.filter(email="bad-password-eur@example.com").exists()
+        )
+        self.assertFalse(Business.objects.filter(name="Bad Password EUR Workspace").exists())
+
+    def test_registration_rejects_country_and_pricing_currency_mismatches(self):
+        pro_plan = ClarivoPlan.objects.get(slug="pro")
+        cases = (
+            (
+                "Germany",
+                "usd",
+                "Businesses registered in Europe use EUR pricing. Please select Europe/EUR pricing before continuing.",
+            ),
+            (
+                "Sint Maarten",
+                "eur",
+                "This business location currently uses USD pricing. Please select International/USD pricing before continuing.",
+            ),
+        )
+
+        for index, (country, pricing_currency, message) in enumerate(cases):
+            with self.subTest(country=country, pricing_currency=pricing_currency):
+                email = f"pricing-mismatch-{index}@example.com"
+                business_name = f"Pricing Mismatch {index}"
+
+                response = self.client.post(
+                    reverse("register_business"),
+                    self._registration_payload(
+                        email=email,
+                        business_name=business_name,
+                        plan=pro_plan,
+                        country=country,
+                        pricing_currency=pricing_currency,
+                    ),
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, message)
+                self.assertFalse(get_user_model().objects.filter(email=email).exists())
+                self.assertFalse(Business.objects.filter(name=business_name).exists())
+
+    def test_registration_rejects_invalid_submitted_pricing_currency(self):
+        pro_plan = ClarivoPlan.objects.get(slug="pro")
+
+        response = self.client.post(
+            reverse("register_business"),
+            self._registration_payload(
+                email="invalid-currency@example.com",
+                business_name="Invalid Currency Workspace",
+                plan=pro_plan,
+                pricing_currency="gbp",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Select Europe/EUR or International/USD pricing before continuing.",
+        )
+        self.assertFalse(
+            get_user_model().objects.filter(email="invalid-currency@example.com").exists()
+        )
+        self.assertFalse(Business.objects.filter(name="Invalid Currency Workspace").exists())
+
+    def test_registration_accepts_european_countries_with_eur_pricing(self):
+        starter_plan = ClarivoPlan.objects.get(slug="starter")
+
+        for country in ("Netherlands", "Nederland", "NL", "Germany", "DE", "France", "FR"):
+            with self.subTest(country=country):
+                email = f"europe-pricing-{country.lower()}@example.com".replace(" ", "-")
+                business_name = f"Europe Pricing {country}"
+                response = self.client.post(
+                    reverse("register_business"),
+                    self._registration_payload(
+                        email=email,
+                        business_name=business_name,
+                        plan=starter_plan,
+                        country=country,
+                        pricing_currency="eur",
+                    ),
+                    follow=True,
+                )
+
+                self.assertRedirects(response, reverse("agent_dashboard"))
+                self.assertTrue(get_user_model().objects.filter(email=email).exists())
+                self.assertTrue(Business.objects.filter(name=business_name).exists())
+                self.client.logout()
+
+    def test_direct_registration_defaults_to_usd_and_rejects_european_country(self):
+        pro_plan = ClarivoPlan.objects.get(slug="pro")
+
+        response = self.client.post(
+            reverse("register_business"),
+            self._registration_payload(
+                email="direct-europe@example.com",
+                business_name="Direct Europe Workspace",
+                plan=pro_plan,
+                country="Germany",
+                pricing_currency=None,
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Businesses registered in Europe use EUR pricing. Please select Europe/EUR pricing before continuing.",
+        )
+        self.assertContains(response, 'name="pricing_currency" value="usd"')
+        self.assertFalse(
+            get_user_model().objects.filter(email="direct-europe@example.com").exists()
+        )
+        self.assertFalse(Business.objects.filter(name="Direct Europe Workspace").exists())
+
     def test_public_registration_rejects_unknown_submitted_plan_slug(self):
         response = self.client.post(
             reverse("register_business"),
@@ -857,7 +1053,8 @@ class BusinessRegistrationViewTests(TestCase):
                         business_name="Stripe Enabled Workspace",
                         plan=starter_plan,
                         billing_interval="yearly",
-                        country="Netherlands",
+                        country="Germany",
+                        pricing_currency="eur",
                     ),
                 )
 
@@ -881,8 +1078,68 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertFalse(subscription.has_access)
         self.assertIsNone(subscription.trial_start)
         self.assertIsNone(subscription.trial_end)
+        self.assertEqual(
+            self.client.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY],
+            BusinessSubscription.BillingCurrency.EUR,
+        )
         self.assertEqual(create_checkout.call_args.kwargs["subscription"], subscription)
         self.assertEqual(create_checkout.call_args.kwargs["user"], user)
+
+    def test_stripe_checkout_uses_server_subscription_price_despite_tampered_post(self):
+        business_plan = ClarivoPlan.objects.get(slug="business")
+        session_api = SimpleNamespace(
+            create=mock.Mock(
+                return_value={
+                    "id": "cs_authoritative",
+                    "url": "https://checkout.stripe.test/authoritative",
+                    "expires_at": int((timezone.now() + timedelta(hours=1)).timestamp()),
+                },
+            ),
+        )
+        stripe_client = SimpleNamespace(
+            checkout=SimpleNamespace(Session=session_api),
+        )
+        payload = self._registration_payload(
+            email="tampered-price@example.com",
+            business_name="Tampered Price Workspace",
+            plan=business_plan,
+            billing_interval="yearly",
+            pricing_currency="usd",
+        )
+        payload.update(
+            {
+                "amount": "1",
+                "billing_currency": "eur",
+                "provider_price_id": "price_pro_monthly_eur",
+                "stripe_price_id": "price_pro_monthly_eur",
+            }
+        )
+
+        with override_settings(**self._valid_stripe_settings()):
+            with mock.patch(
+                "apps.businesses.stripe_checkout.configure_stripe_sdk",
+                return_value=stripe_client,
+            ):
+                response = self.client.post(reverse("register_business"), payload)
+
+        business = Business.objects.get(name="Tampered Price Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+        checkout_kwargs = session_api.create.call_args.kwargs
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "https://checkout.stripe.test/authoritative")
+        self.assertEqual(subscription.plan, business_plan)
+        self.assertEqual(subscription.billing_interval, BusinessSubscription.BillingInterval.YEARLY)
+        self.assertEqual(subscription.billing_currency, BusinessSubscription.BillingCurrency.USD)
+        self.assertEqual(subscription.provider_price_id, "price_business_yearly_usd")
+        self.assertEqual(
+            checkout_kwargs["line_items"],
+            [{"price": "price_business_yearly_usd", "quantity": 1}],
+        )
+        self.assertEqual(
+            checkout_kwargs["subscription_data"]["metadata"]["billing_currency"],
+            "usd",
+        )
 
     def test_stripe_enabled_checkout_failure_keeps_pending_subscription_for_resume(self):
         pro_plan = ClarivoPlan.objects.get(slug="pro")
@@ -950,19 +1207,54 @@ class BusinessRegistrationViewTests(TestCase):
 
         self.assertContains(
             response,
-            f"{reverse('register_business')}?plan=starter&amp;interval=monthly",
+            f"{reverse('register_business')}?plan=starter&amp;interval=monthly&amp;currency=usd",
         )
         self.assertContains(
             response,
-            f"{reverse('register_business')}?plan=pro&amp;interval=monthly",
+            f"{reverse('register_business')}?plan=pro&amp;interval=monthly&amp;currency=usd",
         )
         self.assertContains(
             response,
-            f"{reverse('register_business')}?plan=business&amp;interval=monthly",
+            f"{reverse('register_business')}?plan=business&amp;interval=monthly&amp;currency=usd",
         )
+        self.assertEqual(response.context["selected_pricing_currency"], "usd")
+        self.assertContains(response, "International/USD")
+        self.assertContains(response, "Europe/EUR")
         self.assertContains(response, "data-yearly-registration-url")
-        self.assertContains(response, "interval=yearly")
+        self.assertContains(response, "interval=yearly&amp;currency=usd")
         self.assertNotContains(response, BETA_PLAN_DISPLAY_NAME)
+
+    def test_home_pricing_link_currency_overrides_session_and_updates_links(self):
+        session = self.client.session
+        session[PUBLIC_PRICING_CURRENCY_SESSION_KEY] = "usd"
+        session.save()
+
+        response = self.client.get(f"{reverse('home')}?currency=eur")
+
+        self.assertEqual(response.context["selected_pricing_currency"], "eur")
+        self.assertEqual(
+            self.client.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY],
+            "eur",
+        )
+        self.assertContains(
+            response,
+            f"{reverse('register_business')}?plan=pro&amp;interval=monthly&amp;currency=eur",
+        )
+        self.assertContains(response, "interval=yearly&amp;currency=eur")
+
+    def test_invalid_home_pricing_currency_is_ignored_safely(self):
+        response = self.client.get(f"{reverse('home')}?currency=gbp")
+
+        self.assertEqual(response.context["selected_pricing_currency"], "usd")
+        self.assertNotEqual(
+            self.client.session.get(PUBLIC_PRICING_CURRENCY_SESSION_KEY),
+            "gbp",
+        )
+        self.assertContains(response, "International/USD")
+        self.assertContains(
+            response,
+            f"{reverse('register_business')}?plan=pro&amp;interval=monthly&amp;currency=usd",
+        )
 
     def test_post_generates_unique_slug_for_duplicate_business_names(self):
         pro_plan = ClarivoPlan.objects.get(slug="pro")

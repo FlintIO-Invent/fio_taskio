@@ -20,6 +20,7 @@ from apps.businesses.models import (
 from apps.businesses.plan_catalog import (
     DEFAULT_PUBLIC_BILLING_INTERVAL,
     DEFAULT_PUBLIC_PAID_PLAN_SLUG,
+    DEFAULT_PUBLIC_PRICING_CURRENCY,
     PUBLIC_BILLING_INTERVAL_LABELS,
     PUBLIC_PAID_PLAN_SLUG_SET,
     PUBLIC_PAID_PLAN_SLUGS,
@@ -28,7 +29,9 @@ from apps.businesses.plan_catalog import (
     normalize_plan_slug,
     normalize_public_billing_interval,
     normalize_public_paid_plan_slug,
+    normalize_public_pricing_currency,
     public_billing_interval_or_default,
+    public_pricing_currency_or_default,
 )
 from apps.businesses.utils import create_default_trial_subscription, generate_business_slug
 
@@ -206,6 +209,10 @@ class BusinessRegistrationForm(forms.Form):
         initial=DEFAULT_PUBLIC_BILLING_INTERVAL,
         widget=forms.HiddenInput(),
     )
+    pricing_currency = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(),
+    )
     password1 = forms.CharField(
         label="Password",
         strip=False,
@@ -227,6 +234,7 @@ class BusinessRegistrationForm(forms.Form):
         *args,
         selected_plan_slug: str | None = None,
         selected_billing_interval: str | None = None,
+        selected_pricing_currency: str | None = None,
         beta_eligible: bool = False,
         **kwargs,
     ):
@@ -255,9 +263,10 @@ class BusinessRegistrationForm(forms.Form):
         self.selected_billing_interval_for_display = public_billing_interval_or_default(
             submitted_billing_interval,
         )
-        self.selected_pricing_region_for_display = self._pricing_region_for_country(
-            self.data.get(self.add_prefix("country")) if self.is_bound else None,
+        self.selected_pricing_currency_for_display = self._selected_pricing_currency(
+            selected_pricing_currency,
         )
+        self.selected_pricing_region_for_display = self.selected_pricing_currency_for_display
         self.selected_billing_currency_for_display = self._billing_currency_for_plan(
             self.selected_plan_for_display,
             region=self.selected_pricing_region_for_display,
@@ -266,6 +275,7 @@ class BusinessRegistrationForm(forms.Form):
         self.fields["plan"].label_from_instance = self._plan_label
         self.fields["plan"].initial = self.selected_plan_for_display
         self.fields["billing_interval"].initial = self.selected_billing_interval_for_display
+        self.fields["pricing_currency"].initial = self.selected_pricing_currency_for_display
         if not beta_eligible:
             self.fields["plan"].widget = forms.HiddenInput()
 
@@ -374,6 +384,20 @@ class BusinessRegistrationForm(forms.Form):
             raise ValidationError("Select monthly or yearly billing.")
         return normalized_interval
 
+    def clean_pricing_currency(self) -> str:
+        if self.beta_eligible:
+            return ""
+
+        value = self.cleaned_data.get("pricing_currency")
+        normalized_currency = normalize_public_pricing_currency(value)
+        if normalized_currency is None:
+            if value:
+                raise ValidationError(
+                    "Select Europe/EUR or International/USD pricing before continuing."
+                )
+            normalized_currency = self.selected_pricing_currency_for_display
+        return normalized_currency
+
     def clean(self):
         cleaned_data = super().clean()
         password1 = cleaned_data.get("password1")
@@ -398,13 +422,33 @@ class BusinessRegistrationForm(forms.Form):
             self.selected_billing_interval_for_display = (
                 cleaned_data.get("billing_interval") or DEFAULT_PUBLIC_BILLING_INTERVAL
             )
-            self.selected_pricing_region_for_display = self._pricing_region_for_country(
-                cleaned_data.get("country"),
+            selected_currency = (
+                normalize_public_pricing_currency(cleaned_data.get("pricing_currency"))
+                or self.selected_pricing_currency_for_display
             )
+            self.selected_pricing_currency_for_display = selected_currency
+            self.selected_pricing_region_for_display = selected_currency
             self.selected_billing_currency_for_display = self._billing_currency_for_plan(
                 cleaned_data.get("plan") or self.selected_plan_for_display,
-                region=self.selected_pricing_region_for_display,
+                region=selected_currency,
             )
+
+            expected_region = self._pricing_region_for_country(cleaned_data.get("country"))
+            expected_currency = self._billing_currency_for_plan(
+                cleaned_data.get("plan") or self.selected_plan_for_display,
+                region=expected_region,
+            )
+            if expected_currency != selected_currency:
+                if expected_currency == BusinessSubscription.BillingCurrency.EUR:
+                    self.add_error(
+                        "country",
+                        "Businesses registered in Europe use EUR pricing. Please select Europe/EUR pricing before continuing.",
+                    )
+                else:
+                    self.add_error(
+                        "country",
+                        "This business location currently uses USD pricing. Please select International/USD pricing before continuing.",
+                    )
 
         return cleaned_data
 
@@ -462,6 +506,10 @@ class BusinessRegistrationForm(forms.Form):
     def _pricing_region_for_country(country: object | None) -> str:
         pricing_business = Business(country=str(country or ""))
         return ClarivoPlan.pricing_region_for_business(pricing_business)
+
+    @staticmethod
+    def _selected_pricing_currency(value: object | None) -> str:
+        return public_pricing_currency_or_default(value or DEFAULT_PUBLIC_PRICING_CURRENCY)
 
     @staticmethod
     def _billing_currency_for_plan(
