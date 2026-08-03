@@ -7,9 +7,13 @@ from .utils import (
     CLIENT_MANAGE_ROLES,
     LEAD_MANAGE_ROLES,
     OWNER_ADMIN_ROLES,
+    business_can_modify_workspace,
+    business_can_view_workspace,
     business_has_active_subscription,
+    business_has_restricted_subscription,
     business_is_trialing,
     can_use_module,
+    can_view_module,
     get_business_subscription,
     get_current_business,
     get_current_business_membership,
@@ -22,8 +26,20 @@ def current_business(request):
     membership = get_current_business_membership(request)
     subscription = get_business_subscription(business)
     current_plan = subscription.plan if subscription is not None else None
+    subscription_access_state = (
+        subscription.effective_access_state if subscription is not None else None
+    )
+    workspace_can_view = business_can_view_workspace(business)
+    workspace_can_modify = business_can_modify_workspace(business)
+    workspace_is_restricted = business_has_restricted_subscription(business)
 
     module_access = {
+        "invoicing": can_view_module(business, "invoicing"),
+        "appointments": can_view_module(business, "appointments"),
+        "public_booking": can_view_module(business, "public_booking"),
+        "public_request_form": can_view_module(business, "public_booking"),
+    }
+    module_write_access = {
         "invoicing": can_use_module(business, "invoicing"),
         "appointments": can_use_module(business, "appointments"),
         "public_booking": can_use_module(business, "public_booking"),
@@ -53,9 +69,14 @@ def current_business(request):
         "current_business": business,
         "current_business_membership": membership,
         "current_subscription": subscription,
+        "subscription_access_state": subscription_access_state,
         "current_plan": current_plan,
         "subscription_has_access": business_has_active_subscription(business),
+        "workspace_can_view": workspace_can_view,
+        "workspace_can_modify": workspace_can_modify,
+        "workspace_is_restricted": workspace_is_restricted,
         "subscription_is_trialing": business_is_trialing(business),
         "module_access": module_access,
+        "module_write_access": module_write_access,
         "role_access": role_access,
     }

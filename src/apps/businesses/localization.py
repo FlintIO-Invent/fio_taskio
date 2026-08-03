@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
 import re
 import unicodedata
+from decimal import Decimal, InvalidOperation
 
 EUROPEAN_DECIMAL_LOCALE_PREFIXES = (
     "nl",
@@ -42,6 +42,121 @@ NETHERLANDS_ADDRESS_COUNTRIES = {
     "the netherlands",
     "nl",
     "nederland",
+}
+EUROPE_PRICING_COUNTRIES = {
+    "albania",
+    "al",
+    "andorra",
+    "ad",
+    "armenia",
+    "am",
+    "austria",
+    "at",
+    "azerbaijan",
+    "az",
+    "belarus",
+    "by",
+    "belgium",
+    "be",
+    "bosnia",
+    "bosnia and herzegovina",
+    "ba",
+    "bulgaria",
+    "bg",
+    "croatia",
+    "hr",
+    "cyprus",
+    "cy",
+    "czech republic",
+    "czechia",
+    "cz",
+    "denmark",
+    "dk",
+    "estonia",
+    "ee",
+    "finland",
+    "fi",
+    "france",
+    "fr",
+    "georgia",
+    "ge",
+    "germany",
+    "de",
+    "greece",
+    "gr",
+    "hungary",
+    "hu",
+    "iceland",
+    "is",
+    "ireland",
+    "ie",
+    "italy",
+    "it",
+    "kosovo",
+    "xk",
+    "latvia",
+    "lv",
+    "liechtenstein",
+    "li",
+    "lithuania",
+    "lt",
+    "luxembourg",
+    "lu",
+    "malta",
+    "mt",
+    "moldova",
+    "md",
+    "monaco",
+    "mc",
+    "montenegro",
+    "me",
+    "netherlands",
+    "the netherlands",
+    "nederland",
+    "nl",
+    "north macedonia",
+    "macedonia",
+    "mk",
+    "norway",
+    "no",
+    "poland",
+    "pl",
+    "portugal",
+    "pt",
+    "romania",
+    "ro",
+    "san marino",
+    "sm",
+    "serbia",
+    "rs",
+    "slovakia",
+    "sk",
+    "slovenia",
+    "si",
+    "spain",
+    "es",
+    "sweden",
+    "se",
+    "switzerland",
+    "ch",
+    "turkey",
+    "turkiye",
+    "tr",
+    "ukraine",
+    "ua",
+    "united kingdom",
+    "uk",
+    "great britain",
+    "gb",
+    "england",
+    "scotland",
+    "wales",
+    "northern ireland",
+    "vatican city",
+    "va",
+    "europe",
+    "eu",
+    "european union",
 }
 SINT_MAARTEN_ADDRESS_COUNTRIES = {
     "sint maarten",
@@ -135,14 +250,9 @@ def _normalized_country(business) -> str:
 
 
 def normalize_country_key(value_or_business) -> str:
-    raw_country = (
-        getattr(value_or_business, "country", value_or_business) or ""
-    ).strip()
+    raw_country = (getattr(value_or_business, "country", value_or_business) or "").strip()
     normalized = (
-        unicodedata.normalize("NFKD", raw_country)
-        .encode("ascii", "ignore")
-        .decode("ascii")
-        .lower()
+        unicodedata.normalize("NFKD", raw_country).encode("ascii", "ignore").decode("ascii").lower()
     )
     normalized = normalized.replace("&", " and ")
     normalized = re.sub(r"[^a-z0-9]+", " ", normalized).strip()
@@ -151,6 +261,10 @@ def normalize_country_key(value_or_business) -> str:
 
 def uses_netherlands_address_format(value_or_business) -> bool:
     return normalize_country_key(value_or_business) in NETHERLANDS_ADDRESS_COUNTRIES
+
+
+def uses_europe_pricing_region(value_or_business) -> bool:
+    return normalize_country_key(value_or_business) in EUROPE_PRICING_COUNTRIES
 
 
 def uses_caribbean_address_format(value_or_business) -> bool:

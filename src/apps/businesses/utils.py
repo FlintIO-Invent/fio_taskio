@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import secrets
 from collections.abc import Callable
 from datetime import timedelta
@@ -10,7 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -26,11 +27,25 @@ from .models import (
     BusinessUser,
     ClarivoPlan,
 )
+from .plan_catalog import (
+    DEFAULT_PUBLIC_PAID_PLAN_SLUG,
+    STANDARD_TRIAL_DAYS,
+    is_public_paid_plan_slug,
+)
 
 CURRENT_BUSINESS_SESSION_KEY = "current_business_id"
 _CURRENT_BUSINESS_RESOLVED_ATTR = "_current_business_resolved"
 _CURRENT_BUSINESS_CACHE_ATTR = "_cached_current_business"
 _CURRENT_BUSINESS_MEMBERSHIP_CACHE_ATTR = "_cached_current_business_membership"
+WORKSPACE_ACCESS_READ = "read"
+WORKSPACE_ACCESS_WRITE = "write"
+WORKSPACE_ACCESS_LEVELS = frozenset({WORKSPACE_ACCESS_READ, WORKSPACE_ACCESS_WRITE})
+WORKSPACE_RESTRICTED_MESSAGE = (
+    "This workspace is currently read-only. Update the subscription to make changes."
+)
+WORKSPACE_RESTRICTED_ERROR_CODE = "subscription_restricted"
+
+logger = logging.getLogger(__name__)
 
 ViewFunc = TypeVar("ViewFunc", bound=Callable[..., HttpResponse])
 
@@ -181,13 +196,13 @@ def generate_business_slug(name: str) -> str:
     return candidate
 
 
-def business_required(
-    view_func: ViewFunc | None = None,
+def business_required[T: Callable[..., HttpResponse]](
+    view_func: T | None = None,
     *,
     login_url: str = "business_login",
     setup_url_name: str = "business_setup",
-) -> ViewFunc | Callable[[ViewFunc], ViewFunc]:
-    def decorator(func: ViewFunc) -> ViewFunc:
+) -> T | Callable[[T], T]:
+    def decorator(func: T) -> T:
         @wraps(func)
         def wrapped(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
             business = get_current_business(request)
@@ -248,9 +263,31 @@ def get_business_subscription(business: Business | None) -> BusinessSubscription
         return None
 
 
+def _normalize_workspace_access(access: str) -> str:
+    normalized_access = str(access or "").strip().lower()
+    if normalized_access not in WORKSPACE_ACCESS_LEVELS:
+        raise ValueError(f"Unsupported workspace access level: {access!r}")
+    return normalized_access
+
+
 def business_has_active_subscription(business: Business | None) -> bool:
     subscription = get_business_subscription(business)
     return bool(subscription and subscription.has_access)
+
+
+def business_has_restricted_subscription(business: Business | None) -> bool:
+    subscription = get_business_subscription(business)
+    return bool(subscription and subscription.has_restricted_access)
+
+
+def business_can_view_workspace(business: Business | None) -> bool:
+    subscription = get_business_subscription(business)
+    return bool(subscription and subscription.can_view_workspace)
+
+
+def business_can_modify_workspace(business: Business | None) -> bool:
+    subscription = get_business_subscription(business)
+    return bool(subscription and subscription.can_modify_workspace)
 
 
 def business_is_trialing(business: Business | None) -> bool:
@@ -259,8 +296,29 @@ def business_is_trialing(business: Business | None) -> bool:
 
 
 def can_use_module(business: Business | None, module_name: str) -> bool:
+    return can_modify_module(business, module_name)
+
+
+def can_view_module(business: Business | None, module_name: str) -> bool:
+    subscription = get_business_subscription(business)
+    return bool(subscription and subscription.can_view_module(module_name))
+
+
+def can_modify_module(business: Business | None, module_name: str) -> bool:
     subscription = get_business_subscription(business)
     return bool(subscription and subscription.can_use_module(module_name))
+
+
+def business_can_access_module(
+    business: Business | None,
+    module_name: str,
+    *,
+    access: str = WORKSPACE_ACCESS_WRITE,
+) -> bool:
+    normalized_access = _normalize_workspace_access(access)
+    if normalized_access == WORKSPACE_ACCESS_READ:
+        return can_view_module(business, module_name)
+    return can_modify_module(business, module_name)
 
 
 PLAN_LIMIT_FIELDS = {
@@ -486,6 +544,8 @@ def get_business_limit_reached_message(business: Business | None, limit_name: st
 def get_module_display_name(module_name: str) -> str:
     normalized_name = module_name.strip().lower().replace("-", "_")
     display_names = {
+        "crm": "Client Management",
+        "workspace": "Workspace",
         "client_management": "Client Management",
         "invoicing": "Invoicing",
         "public_request_form": "Online Booking",
@@ -502,7 +562,10 @@ def get_module_display_name(module_name: str) -> str:
 def get_business_module_unavailable_message(
     business: Business | None,
     module_name: str,
+    *,
+    access: str = WORKSPACE_ACCESS_WRITE,
 ) -> str:
+    access = _normalize_workspace_access(access)
     module_label = get_module_display_name(module_name)
 
     if business is None or not business.is_active:
@@ -515,11 +578,17 @@ def get_business_module_unavailable_message(
             "an active Motionmate subscription yet."
         )
 
-    if not subscription.has_access:
-        return (
-            f"{module_label} is not available because this workspace subscription "
-            "is not active."
-        )
+    if subscription.can_view_workspace and not subscription.plan.allows_module(module_name):
+        return f"{module_label} is not included in the current workspace plan."
+
+    if access == WORKSPACE_ACCESS_WRITE and subscription.has_restricted_access:
+        return WORKSPACE_RESTRICTED_MESSAGE
+
+    if access == WORKSPACE_ACCESS_READ and not subscription.can_view_workspace:
+        return f"{module_label} is not available because this workspace subscription is not active."
+
+    if access == WORKSPACE_ACCESS_WRITE and not subscription.can_modify_workspace:
+        return f"{module_label} is not available because this workspace subscription is not active."
 
     return f"{module_label} is not included in the current workspace plan."
 
@@ -536,7 +605,8 @@ def get_public_booking_share_context(
         except BusinessBookingSettings.DoesNotExist:
             booking_settings = None
 
-    public_booking_allowed = can_use_module(business, "public_booking")
+    public_booking_allowed = can_view_module(business, "public_booking")
+    public_booking_accepts_requests = can_use_module(business, "public_booking")
     booking_enabled = bool(booking_settings and booking_settings.booking_enabled)
     bookable_service_count = business.business_services.filter(
         is_active=True,
@@ -547,6 +617,8 @@ def get_public_booking_share_context(
     setup_items = []
     if not public_booking_allowed:
         setup_items.append("Upgrade to a plan with Online Booking.")
+    elif not public_booking_accepts_requests:
+        setup_items.append("This workspace is temporarily read-only.")
     if not booking_enabled:
         setup_items.append("Enable online booking.")
     if bookable_service_count == 0:
@@ -560,10 +632,11 @@ def get_public_booking_share_context(
         "public_booking_url": build_public_url(public_booking_path, request=request),
         "public_booking_path": public_booking_path,
         "public_booking_allowed": public_booking_allowed,
+        "public_booking_accepts_requests": public_booking_accepts_requests,
         "public_booking_enabled": booking_enabled,
         "public_booking_bookable_service_count": bookable_service_count,
         "public_booking_active_availability_count": active_availability_count,
-        "public_booking_share_ready": not setup_items,
+        "public_booking_share_ready": public_booking_accepts_requests and not setup_items,
         "public_booking_setup_items": setup_items,
     }
 
@@ -571,34 +644,187 @@ def get_public_booking_share_context(
 def redirect_for_unavailable_business_module(
     request: HttpRequest,
     module_name: str,
+    *,
+    access: str = WORKSPACE_ACCESS_WRITE,
 ) -> HttpResponse:
     membership = get_current_business_membership(request)
+    access = _normalize_workspace_access(access)
     message = get_business_module_unavailable_message(
         getattr(request, "current_business", None),
         module_name,
+        access=access,
     )
 
+    _log_workspace_access_denied(
+        request,
+        access=access,
+        module_name=module_name,
+        reason=message,
+    )
+
+    subscription = get_business_subscription(getattr(request, "current_business", None))
+    is_restricted_write_denial = (
+        access == WORKSPACE_ACCESS_WRITE
+        and subscription is not None
+        and subscription.has_restricted_access
+        and subscription.plan.allows_module(module_name)
+    )
+
+    if _request_expects_json(request):
+        return JsonResponse(
+            {
+                "error": WORKSPACE_RESTRICTED_ERROR_CODE
+                if is_restricted_write_denial
+                else "subscription_unavailable",
+                "message": message,
+            },
+            status=403,
+        )
+
     if membership is not None and membership.role == BusinessUser.Role.OWNER:
-        messages.error(request, f"{message} Review your subscription to upgrade access.")
+        if is_restricted_write_denial:
+            messages.warning(request, message)
+        else:
+            messages.error(request, f"{message} Review your subscription to upgrade access.")
         return redirect("business_subscription")
 
     messages.error(request, f"{message} Please contact your workspace owner.")
     return redirect("agent_dashboard")
 
 
-def business_module_required(
-    module_name: str,
+def _request_expects_json(request: HttpRequest) -> bool:
+    accept_header = request.headers.get("Accept", "")
+    requested_with = request.headers.get("X-Requested-With", "")
+    content_type = request.headers.get("Content-Type", "")
+    return (
+        requested_with == "XMLHttpRequest"
+        or "application/json" in accept_header
+        or content_type.startswith("application/json")
+    )
+
+
+def _log_workspace_access_denied(
+    request: HttpRequest,
     *,
+    access: str,
+    reason: str,
+    module_name: str | None = None,
+) -> None:
+    business = getattr(request, "current_business", None)
+    subscription = get_business_subscription(business)
+    access_state = subscription.effective_access_state if subscription is not None else None
+    resolver_match = getattr(request, "resolver_match", None)
+    logger.warning(
+        "workspace_access.denied",
+        extra={
+            "business_id": getattr(business, "id", None),
+            "subscription_id": getattr(subscription, "id", None),
+            "user_id": getattr(getattr(request, "user", None), "id", None),
+            "route_name": getattr(resolver_match, "url_name", ""),
+            "http_method": request.method,
+            "access": access,
+            "workspace_module": module_name or "",
+            "access_mode": getattr(access_state, "mode", ""),
+            "denial_reason": reason,
+        },
+    )
+
+
+def redirect_for_unavailable_workspace_access(
+    request: HttpRequest,
+    *,
+    access: str = WORKSPACE_ACCESS_WRITE,
+) -> HttpResponse:
+    access = _normalize_workspace_access(access)
+    business = getattr(request, "current_business", None)
+    if access == WORKSPACE_ACCESS_WRITE and business_has_restricted_subscription(business):
+        message = WORKSPACE_RESTRICTED_MESSAGE
+        error_code = WORKSPACE_RESTRICTED_ERROR_CODE
+    else:
+        message = "Workspace is not available because this workspace subscription is not active."
+        error_code = "subscription_unavailable"
+
+    _log_workspace_access_denied(
+        request,
+        access=access,
+        reason=message,
+    )
+
+    if _request_expects_json(request):
+        return JsonResponse(
+            {
+                "error": error_code,
+                "message": message,
+            },
+            status=403,
+        )
+
+    membership = get_current_business_membership(request)
+    if membership is not None and membership.role == BusinessUser.Role.OWNER:
+        if error_code == WORKSPACE_RESTRICTED_ERROR_CODE:
+            messages.warning(request, message)
+        else:
+            messages.error(request, f"{message} Review your subscription.")
+        return redirect("business_subscription")
+
+    messages.error(request, f"{message} Please contact your workspace owner.")
+    return redirect("agent_dashboard")
+
+
+def business_workspace_access_required(
+    *,
+    access: str = WORKSPACE_ACCESS_WRITE,
     login_url: str = "business_login",
     setup_url_name: str = "business_setup",
 ) -> Callable[[ViewFunc], ViewFunc]:
+    access = _normalize_workspace_access(access)
+
+    def decorator(func: ViewFunc) -> ViewFunc:
+        @wraps(func)
+        def wrapped(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+            business = request.current_business
+            if access == WORKSPACE_ACCESS_READ:
+                has_access = business_can_view_workspace(business)
+            else:
+                has_access = business_can_modify_workspace(business)
+
+            if not has_access:
+                return redirect_for_unavailable_workspace_access(request, access=access)
+
+            return func(request, *args, **kwargs)
+
+        return business_required(
+            login_url=login_url,
+            setup_url_name=setup_url_name,
+        )(wrapped)
+
+    return decorator
+
+
+def business_module_required(
+    module_name: str,
+    *,
+    access: str = WORKSPACE_ACCESS_WRITE,
+    login_url: str = "business_login",
+    setup_url_name: str = "business_setup",
+) -> Callable[[ViewFunc], ViewFunc]:
+    access = _normalize_workspace_access(access)
+
     def decorator(func: ViewFunc) -> ViewFunc:
         @wraps(func)
         def wrapped(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
             # UI hiding helps discovery, but it is not a security boundary.
             # Route handlers must enforce plan access on the backend as well.
-            if not can_use_module(request.current_business, module_name):
-                return redirect_for_unavailable_business_module(request, module_name)
+            if not business_can_access_module(
+                request.current_business,
+                module_name,
+                access=access,
+            ):
+                return redirect_for_unavailable_business_module(
+                    request,
+                    module_name,
+                    access=access,
+                )
 
             return func(request, *args, **kwargs)
 
@@ -614,19 +840,17 @@ def create_default_trial_subscription(
     business: Business,
     *,
     plan: ClarivoPlan | None = None,
-    trial_days: int = 14,
+    trial_days: int = STANDARD_TRIAL_DAYS,
 ) -> BusinessSubscription | None:
     existing_subscription = get_business_subscription(business)
     if existing_subscription is not None:
         return existing_subscription
 
-    if plan is not None and (
-        not plan.is_active or plan.slug not in ClarivoPlan.MOTIONMATE_PLAN_SLUGS
-    ):
+    if plan is not None and (not plan.is_active or not is_public_paid_plan_slug(plan.slug)):
         plan = None
 
     if plan is None:
-        plan = ClarivoPlan.motionmate_plans().filter(slug="pro").first()
+        plan = ClarivoPlan.motionmate_plans().filter(slug=DEFAULT_PUBLIC_PAID_PLAN_SLUG).first()
     if plan is None:
         plan = ClarivoPlan.motionmate_plans().first()
 
@@ -693,7 +917,7 @@ def assign_business_subscription_plan(
     business: Business,
     plan: ClarivoPlan,
     *,
-    trial_days: int = 14,
+    trial_days: int = STANDARD_TRIAL_DAYS,
 ) -> BusinessSubscription:
     subscription = get_business_subscription(business)
     now = timezone.now()

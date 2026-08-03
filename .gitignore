@@ -24,6 +24,11 @@ Thumbs.db
 *.log
 replacements.txt
 
+# Local environment files
+.env
+.env.*
+!.env.example
+
 
 # agents 
 AGENTS.md

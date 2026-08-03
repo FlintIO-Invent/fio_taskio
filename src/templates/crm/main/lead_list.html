@@ -84,14 +84,16 @@
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
             <div>
-              {% if role_access.can_manage_leads %}
+              {% if role_access.can_manage_leads and workspace_can_modify %}
                 <a class="btn btn-primary me-4" href="{% url 'staff_lead_create' %}">
                   <span class="fas fa-plus me-2"></span>Create Service Request
                 </a>
               {% endif %}
-              <button class="btn btn-link text-body px-0" type="button">
-                <span class="fa-solid fa-file-export fs-9 me-2"></span>Export
-              </button>
+              {% if workspace_can_modify %}
+                <button class="btn btn-link text-body px-0" type="button">
+                  <span class="fa-solid fa-file-export fs-9 me-2"></span>Export
+                </button>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -327,7 +329,7 @@
                   </button>
                   <div class="dropdown-menu dropdown-menu-end py-2">
                     <a class="dropdown-item" href="{% url 'staff_lead_detail' lead.id %}">View</a>
-                    {% if role_access.can_manage_leads %}
+                    {% if role_access.can_manage_leads and workspace_can_modify %}
                       <a class="dropdown-item" href="{% url 'staff_lead_update' lead.id %}">Edit</a>
                     {% endif %}
                   </div>

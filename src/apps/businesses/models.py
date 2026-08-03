@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import secrets
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -10,7 +11,13 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from .localization import format_business_address_lines, uses_netherlands_address_format
+from .localization import format_business_address_lines, uses_europe_pricing_region
+from .plan_catalog import (
+    PUBLIC_BILLING_INTERVALS,
+    PUBLIC_PAID_PLAN_ORDERING,
+    PUBLIC_PAID_PLAN_SLUGS,
+    PUBLIC_PRICING_CURRENCIES,
+)
 
 
 def default_business_invitation_expiry():
@@ -23,6 +30,36 @@ class TimeStampedModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+class SubscriptionAccessMode(models.TextChoices):
+    FULL = "full", "Full"
+    RESTRICTED = "restricted", "Restricted"
+    NONE = "none", "None"
+
+
+@dataclass(frozen=True)
+class SubscriptionAccessState:
+    code: str
+    mode: SubscriptionAccessMode
+    has_access: bool
+    billing_attention_required: bool
+    access_ends_at: datetime | None = None
+    reason: str = ""
+    can_resume_checkout: bool = False
+    should_contact_support: bool = False
+    payment_recovery_available: bool = False
+
+    @property
+    def can_view_workspace(self) -> bool:
+        return self.mode in {
+            SubscriptionAccessMode.FULL,
+            SubscriptionAccessMode.RESTRICTED,
+        }
+
+    @property
+    def can_modify_workspace(self) -> bool:
+        return self.mode == SubscriptionAccessMode.FULL
 
 
 class Business(TimeStampedModel):
@@ -105,6 +142,13 @@ class Business(TimeStampedModel):
         except BusinessSubscription.DoesNotExist:
             return False
         return subscription.can_use_module(module_name)
+
+    def can_view_module(self, module_name: str) -> bool:
+        try:
+            subscription = self.subscription
+        except BusinessSubscription.DoesNotExist:
+            return False
+        return subscription.can_view_module(module_name)
 
 
 class BusinessBookingSettings(TimeStampedModel):
@@ -270,7 +314,7 @@ class WeeklyAvailability(TimeStampedModel):
 
 
 class ClarivoPlan(TimeStampedModel):
-    MOTIONMATE_PLAN_SLUGS = ("starter", "pro", "business")
+    MOTIONMATE_PLAN_SLUGS = PUBLIC_PAID_PLAN_SLUGS
     USD_PRICING_REGION = "usd"
     EUR_PRICING_REGION = "eur"
     DEFAULT_PRICING_REGION = USD_PRICING_REGION
@@ -280,7 +324,7 @@ class ClarivoPlan(TimeStampedModel):
         USD_PRICING_REGION: "USD",
         EUR_PRICING_REGION: "EUR",
         CARIBBEAN_INTERNATIONAL_PRICING_REGION: "Caribbean / International",
-        NETHERLANDS_PRICING_REGION: "Netherlands",
+        NETHERLANDS_PRICING_REGION: "Europe",
     }
     MODULE_FLAG_MAP = {
         "invoicing": "allow_invoicing",
@@ -338,9 +382,9 @@ class ClarivoPlan(TimeStampedModel):
         return models.Case(
             *[
                 models.When(slug=slug, then=models.Value(position))
-                for position, slug in enumerate(cls.MOTIONMATE_PLAN_SLUGS)
+                for position, slug in enumerate(PUBLIC_PAID_PLAN_ORDERING)
             ],
-            default=models.Value(len(cls.MOTIONMATE_PLAN_SLUGS)),
+            default=models.Value(len(PUBLIC_PAID_PLAN_ORDERING)),
             output_field=models.IntegerField(),
         )
 
@@ -348,7 +392,7 @@ class ClarivoPlan(TimeStampedModel):
     def motionmate_plans(cls):
         return cls.objects.filter(
             is_active=True,
-            slug__in=cls.MOTIONMATE_PLAN_SLUGS,
+            slug__in=PUBLIC_PAID_PLAN_SLUGS,
         ).order_by(cls.motionmate_plan_ordering(), "pk")
 
     @classmethod
@@ -367,7 +411,7 @@ class ClarivoPlan(TimeStampedModel):
 
     @classmethod
     def pricing_region_for_business(cls, business: Business | None = None) -> str:
-        if business is not None and uses_netherlands_address_format(business.country):
+        if business is not None and uses_europe_pricing_region(business.country):
             return cls.EUR_PRICING_REGION
         return cls.DEFAULT_PRICING_REGION
 
@@ -484,16 +528,50 @@ class ClarivoPlan(TimeStampedModel):
 
 class BusinessSubscription(TimeStampedModel):
     class Status(models.TextChoices):
+        PENDING_CHECKOUT = "pending_checkout", "Pending Checkout"
         TRIALING = "trialing", "Trialing"
         ACTIVE = "active", "Active"
         PAST_DUE = "past_due", "Past Due"
         CANCELLED = "cancelled", "Cancelled"
+        EXPIRED = "expired", "Expired"
         SUSPENDED = "suspended", "Suspended"
+
+    class PaymentProvider(models.TextChoices):
+        LOCAL = "local", "Local"
+        STRIPE = "stripe", "Stripe"
+
+    class BillingInterval(models.TextChoices):
+        MONTHLY = "monthly", "Monthly"
+        YEARLY = "yearly", "Yearly"
+
+    class BillingCurrency(models.TextChoices):
+        USD = "usd", "USD"
+        EUR = "eur", "EUR"
 
     ACCESS_STATUSES = {
         Status.TRIALING,
         Status.ACTIVE,
     }
+
+    class AccessCode:
+        BUSINESS_INACTIVE = "business_inactive"
+        PLAN_INACTIVE = "plan_inactive"
+        PENDING_CHECKOUT = "pending_checkout"
+        TRIAL_ACTIVE = "trial_active"
+        TRIAL_EXPIRED = "trial_expired"
+        TRIAL_MISSING_END = "trial_missing_end"
+        SUBSCRIPTION_ACTIVE = "subscription_active"
+        CANCELS_AT_PERIOD_END = "cancels_at_period_end"
+        BILLING_PAST_DUE = "billing_past_due"
+        PAST_DUE_GRACE = "past_due_grace"
+        PAST_DUE_GRACE_EXPIRED = "past_due_grace_expired"
+        PAST_DUE_MISSING_GRACE_STATE = "past_due_missing_grace_state"
+        PAST_DUE_PROVIDER_IDENTITY_INVALID = "past_due_provider_identity_invalid"
+        SUBSCRIPTION_CANCELLED = "subscription_cancelled"
+        SUBSCRIPTION_EXPIRED = "subscription_expired"
+        PROVIDER_STATE_STALE = "provider_state_stale"
+        PROVIDER_PERIOD_MISSING = "provider_period_missing"
+        UNSUPPORTED_STATUS = "unsupported_status"
 
     business = models.OneToOneField(
         Business,
@@ -515,25 +593,505 @@ class BusinessSubscription(TimeStampedModel):
     current_period_start = models.DateTimeField(null=True, blank=True)
     current_period_end = models.DateTimeField(null=True, blank=True)
     cancel_at_period_end = models.BooleanField(default=False)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    payment_provider = models.CharField(
+        max_length=30,
+        choices=PaymentProvider.choices,
+        blank=True,
+        default="",
+    )
+    billing_interval = models.CharField(
+        max_length=20,
+        choices=BillingInterval.choices,
+        blank=True,
+        default="",
+    )
+    billing_currency = models.CharField(
+        max_length=3,
+        choices=BillingCurrency.choices,
+        blank=True,
+        default="",
+    )
+    provider_price_id = models.CharField(max_length=255, blank=True, default="")
+    provider_checkout_session_id = models.CharField(max_length=255, blank=True, default="")
+    provider_customer_id = models.CharField(max_length=255, blank=True, default="")
+    provider_subscription_id = models.CharField(max_length=255, blank=True, default="")
+    provider_updated_at = models.DateTimeField(null=True, blank=True)
+    past_due_since = models.DateTimeField(null=True, blank=True)
+    grace_period_ends_at = models.DateTimeField(null=True, blank=True)
+    last_payment_failure_at = models.DateTimeField(null=True, blank=True)
+    last_payment_failure_reason = models.CharField(max_length=255, blank=True, default="")
+    checkout_session_expires_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["business__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["payment_provider", "provider_subscription_id"],
+                condition=~models.Q(provider_subscription_id=""),
+                name="businesses_unique_provider_subscription",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.business} - {self.plan} ({self.get_status_display()})"
 
     @property
     def has_access(self) -> bool:
-        return (
-            self.business.is_active and self.plan.is_active and self.status in self.ACCESS_STATUSES
+        return self.has_access_at(timezone.now())
+
+    def has_access_at(self, at_time) -> bool:
+        return self.has_full_access_at(at_time)
+
+    @property
+    def access_mode(self) -> SubscriptionAccessMode:
+        return self.access_mode_at(timezone.now())
+
+    def access_mode_at(self, at_time) -> SubscriptionAccessMode:
+        return self.effective_access_state_at(at_time).mode
+
+    @property
+    def has_restricted_access(self) -> bool:
+        return self.has_restricted_access_at(timezone.now())
+
+    def has_full_access_at(self, at_time) -> bool:
+        return self.effective_access_state_at(at_time).mode == SubscriptionAccessMode.FULL
+
+    def has_restricted_access_at(self, at_time) -> bool:
+        return self.effective_access_state_at(at_time).mode == SubscriptionAccessMode.RESTRICTED
+
+    @property
+    def can_view_workspace(self) -> bool:
+        return self.can_view_workspace_at(timezone.now())
+
+    def can_view_workspace_at(self, at_time) -> bool:
+        return self.effective_access_state_at(at_time).can_view_workspace
+
+    @property
+    def can_modify_workspace(self) -> bool:
+        return self.can_modify_workspace_at(timezone.now())
+
+    def can_modify_workspace_at(self, at_time) -> bool:
+        return self.effective_access_state_at(at_time).can_modify_workspace
+
+    @property
+    def effective_access_status(self) -> str:
+        return self.effective_access_status_at(timezone.now())
+
+    def effective_access_status_at(self, at_time) -> str:
+        return self.effective_access_state_at(at_time).code
+
+    @property
+    def access_ends_at(self):
+        return self.effective_access_state.access_ends_at
+
+    @property
+    def requires_billing_attention(self) -> bool:
+        return self.effective_access_state.billing_attention_required
+
+    @property
+    def billing_attention_reason(self) -> str:
+        return self.effective_access_state.reason
+
+    @property
+    def effective_access_state(self) -> SubscriptionAccessState:
+        return self.effective_access_state_at(timezone.now())
+
+    def effective_access_state_at(self, at_time) -> SubscriptionAccessState:
+        at_time = self._normalize_evaluation_time(at_time)
+
+        if not self.business.is_active:
+            return self._access_state(
+                self.AccessCode.BUSINESS_INACTIVE,
+                has_access=False,
+                billing_attention_required=True,
+                should_contact_support=True,
+            )
+
+        if not self.plan.is_active:
+            return self._access_state(
+                self.AccessCode.PLAN_INACTIVE,
+                has_access=False,
+                billing_attention_required=True,
+                should_contact_support=True,
+            )
+
+        if self.status == self.Status.PENDING_CHECKOUT:
+            return self._access_state(
+                self.AccessCode.PENDING_CHECKOUT,
+                has_access=False,
+                billing_attention_required=True,
+                can_resume_checkout=True,
+            )
+
+        if self.status == self.Status.TRIALING:
+            return self._trial_access_state(at_time)
+
+        if self.status == self.Status.ACTIVE:
+            return self._active_access_state(at_time)
+
+        if self.status == self.Status.PAST_DUE:
+            return self._past_due_access_state(at_time)
+
+        if self.status == self.Status.CANCELLED:
+            return self._access_state(
+                self.AccessCode.SUBSCRIPTION_CANCELLED,
+                has_access=False,
+                billing_attention_required=True,
+            )
+
+        if self.status == self.Status.EXPIRED:
+            return self._access_state(
+                self.AccessCode.SUBSCRIPTION_EXPIRED,
+                has_access=False,
+                billing_attention_required=True,
+            )
+
+        return self._access_state(
+            self.AccessCode.UNSUPPORTED_STATUS,
+            has_access=False,
+            billing_attention_required=True,
+            should_contact_support=True,
         )
 
     @property
     def is_trialing(self) -> bool:
-        return self.status == self.Status.TRIALING
+        return self.is_trialing_at(timezone.now())
+
+    def is_trialing_at(self, at_time) -> bool:
+        return self.status == self.Status.TRIALING and self.has_access_at(at_time)
+
+    @property
+    def is_pending_checkout(self) -> bool:
+        return self.status == self.Status.PENDING_CHECKOUT
 
     def can_use_module(self, module_name: str) -> bool:
-        return self.has_access and self.plan.allows_module(module_name)
+        return self.can_modify_module(module_name)
+
+    def can_use_module_at(self, module_name: str, at_time) -> bool:
+        return self.can_modify_module_at(module_name, at_time)
+
+    def can_view_module(self, module_name: str) -> bool:
+        return self.can_view_workspace and self.plan.allows_module(module_name)
+
+    def can_view_module_at(self, module_name: str, at_time) -> bool:
+        return self.can_view_workspace_at(at_time) and self.plan.allows_module(module_name)
+
+    def can_modify_module(self, module_name: str) -> bool:
+        return self.can_modify_workspace and self.plan.allows_module(module_name)
+
+    def can_modify_module_at(self, module_name: str, at_time) -> bool:
+        return self.can_modify_workspace_at(at_time) and self.plan.allows_module(module_name)
+
+    @property
+    def is_provider_backed(self) -> bool:
+        return self.payment_provider == self.PaymentProvider.STRIPE
+
+    @property
+    def is_beta_plan(self) -> bool:
+        return self.plan.slug == "beta"
+
+    @property
+    def is_public_paid_plan(self) -> bool:
+        return self.plan.slug in PUBLIC_PAID_PLAN_SLUGS
+
+    def _has_recoverable_stripe_identity(self) -> bool:
+        return (
+            self.is_provider_backed
+            and self.is_public_paid_plan
+            and not self.is_beta_plan
+            and self.billing_interval in PUBLIC_BILLING_INTERVALS
+            and self.billing_currency in PUBLIC_PRICING_CURRENCIES
+            and self.provider_customer_id.startswith("cus_")
+            and self.provider_subscription_id.startswith("sub_")
+            and self.provider_price_id.startswith("price_")
+        )
+
+    def _trial_access_state(self, at_time) -> SubscriptionAccessState:
+        end_at = self._scheduled_access_end_at() if self.cancel_at_period_end else self.trial_end
+        if end_at is None:
+            return self._access_state(
+                self.AccessCode.TRIAL_MISSING_END,
+                has_access=False,
+                billing_attention_required=True,
+                should_contact_support=True,
+            )
+
+        if at_time < end_at:
+            code = (
+                self.AccessCode.CANCELS_AT_PERIOD_END
+                if self.cancel_at_period_end
+                else self.AccessCode.TRIAL_ACTIVE
+            )
+            return self._access_state(
+                code,
+                has_access=True,
+                billing_attention_required=False,
+                access_ends_at=end_at,
+            )
+
+        return self._access_state(
+            self.AccessCode.TRIAL_EXPIRED,
+            has_access=False,
+            billing_attention_required=True,
+            access_ends_at=end_at,
+        )
+
+    def _active_access_state(self, at_time) -> SubscriptionAccessState:
+        if self.cancel_at_period_end:
+            end_at = self._scheduled_access_end_at()
+            if end_at is None:
+                return self._access_state(
+                    self.AccessCode.PROVIDER_PERIOD_MISSING,
+                    has_access=False,
+                    billing_attention_required=True,
+                    should_contact_support=True,
+                )
+            if at_time < end_at:
+                return self._access_state(
+                    self.AccessCode.CANCELS_AT_PERIOD_END,
+                    has_access=True,
+                    billing_attention_required=False,
+                    access_ends_at=end_at,
+                )
+            return self._access_state(
+                self.AccessCode.SUBSCRIPTION_CANCELLED,
+                has_access=False,
+                billing_attention_required=True,
+                access_ends_at=end_at,
+            )
+
+        if self.is_provider_backed:
+            if self.current_period_end is None:
+                return self._access_state(
+                    self.AccessCode.PROVIDER_PERIOD_MISSING,
+                    has_access=False,
+                    billing_attention_required=True,
+                    should_contact_support=True,
+                )
+            if at_time < self.current_period_end:
+                return self._access_state(
+                    self.AccessCode.SUBSCRIPTION_ACTIVE,
+                    has_access=True,
+                    billing_attention_required=False,
+                    access_ends_at=self.current_period_end,
+                )
+            return self._access_state(
+                self.AccessCode.PROVIDER_STATE_STALE,
+                has_access=False,
+                billing_attention_required=True,
+                access_ends_at=self.current_period_end,
+                should_contact_support=True,
+            )
+
+        return self._access_state(
+            self.AccessCode.SUBSCRIPTION_ACTIVE,
+            has_access=True,
+            billing_attention_required=False,
+            access_ends_at=self.current_period_end,
+        )
+
+    def _past_due_access_state(self, at_time) -> SubscriptionAccessState:
+        if not self.is_provider_backed:
+            return self._access_state(
+                self.AccessCode.BILLING_PAST_DUE,
+                has_access=False,
+                billing_attention_required=True,
+            )
+
+        if not self._has_recoverable_stripe_identity():
+            return self._access_state(
+                self.AccessCode.PAST_DUE_PROVIDER_IDENTITY_INVALID,
+                has_access=False,
+                billing_attention_required=True,
+                should_contact_support=True,
+            )
+
+        if (
+            self.past_due_since is None
+            or self.grace_period_ends_at is None
+            or self.grace_period_ends_at < self.past_due_since
+        ):
+            return self._access_state(
+                self.AccessCode.PAST_DUE_MISSING_GRACE_STATE,
+                has_access=False,
+                billing_attention_required=True,
+                should_contact_support=True,
+                payment_recovery_available=True,
+            )
+
+        if at_time < self.grace_period_ends_at:
+            return self._access_state(
+                self.AccessCode.PAST_DUE_GRACE,
+                has_access=True,
+                billing_attention_required=True,
+                access_ends_at=self.grace_period_ends_at,
+                payment_recovery_available=True,
+            )
+
+        return self._access_state(
+            self.AccessCode.PAST_DUE_GRACE_EXPIRED,
+            has_access=False,
+            access_mode=SubscriptionAccessMode.RESTRICTED,
+            billing_attention_required=True,
+            access_ends_at=self.grace_period_ends_at,
+            payment_recovery_available=True,
+        )
+
+    def _scheduled_access_end_at(self):
+        if self.status == self.Status.TRIALING:
+            if self.trial_end and (
+                self.current_period_end is None or self.trial_end <= self.current_period_end
+            ):
+                return self.trial_end
+            return self.current_period_end or self.trial_end
+        return self.current_period_end
+
+    @staticmethod
+    def _normalize_evaluation_time(at_time):
+        if at_time is None:
+            at_time = timezone.now()
+        if timezone.is_naive(at_time):
+            return timezone.make_aware(at_time, timezone.get_current_timezone())
+        return at_time
+
+    def _access_state(
+        self,
+        code: str,
+        *,
+        has_access: bool,
+        billing_attention_required: bool,
+        access_ends_at=None,
+        should_contact_support: bool = False,
+        can_resume_checkout: bool = False,
+        payment_recovery_available: bool = False,
+        access_mode: SubscriptionAccessMode | None = None,
+    ) -> SubscriptionAccessState:
+        mode = access_mode or (
+            SubscriptionAccessMode.FULL if has_access else SubscriptionAccessMode.NONE
+        )
+        return SubscriptionAccessState(
+            code=code,
+            mode=mode,
+            has_access=mode == SubscriptionAccessMode.FULL,
+            billing_attention_required=billing_attention_required,
+            access_ends_at=access_ends_at,
+            reason=code,
+            can_resume_checkout=can_resume_checkout,
+            should_contact_support=should_contact_support,
+            payment_recovery_available=payment_recovery_available,
+        )
+
+
+class BillingProviderWebhookEvent(TimeStampedModel):
+    class Provider(models.TextChoices):
+        STRIPE = "stripe", "Stripe"
+
+    class Status(models.TextChoices):
+        RECEIVED = "received", "Received"
+        PROCESSING = "processing", "Processing"
+        PROCESSED = "processed", "Processed"
+        FAILED = "failed", "Failed"
+        IGNORED = "ignored", "Ignored"
+
+    provider = models.CharField(
+        max_length=30,
+        choices=Provider.choices,
+        default=Provider.STRIPE,
+    )
+    event_id = models.CharField(max_length=255, unique=True)
+    event_type = models.CharField(max_length=120)
+    object_id = models.CharField(max_length=255, blank=True, default="")
+    api_version = models.CharField(max_length=64, blank=True, default="")
+    livemode = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.RECEIVED,
+    )
+    attempt_count = models.PositiveIntegerField(default=0)
+    received_at = models.DateTimeField(default=timezone.now)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True, default="")
+    payload_summary = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-received_at", "-pk"]
+
+    def __str__(self) -> str:
+        return f"{self.provider}:{self.event_id} ({self.status})"
+
+
+class SubscriptionNotification(TimeStampedModel):
+    class NotificationType(models.TextChoices):
+        TRIAL_STARTED = "trial_started", "Trial Started"
+        SUBSCRIPTION_ACTIVATED = "subscription_activated", "Subscription Activated"
+        PAYMENT_GRACE_STARTED = "payment_grace_started", "Payment Grace Started"
+        PAYMENT_RECOVERED = "payment_recovered", "Payment Recovered"
+        CANCELLATION_SCHEDULED = "cancellation_scheduled", "Cancellation Scheduled"
+        SUBSCRIPTION_CANCELLED = "subscription_cancelled", "Subscription Cancelled"
+        TRIAL_ENDING_3_DAYS = "trial_ending_3_days", "Trial Ending in 3 Days"
+        TRIAL_ENDING_1_DAY = "trial_ending_1_day", "Trial Ending in 1 Day"
+        PAYMENT_GRACE_ENDING_1_DAY = (
+            "payment_grace_ending_1_day",
+            "Payment Grace Ending in 1 Day",
+        )
+        RESTRICTED_MODE_STARTED = "restricted_mode_started", "Restricted Mode Started"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="subscription_notifications",
+    )
+    subscription = models.ForeignKey(
+        BusinessSubscription,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+    )
+    recipient_email = models.EmailField(blank=True)
+    recipient_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subscription_notifications",
+    )
+    notification_type = models.CharField(
+        max_length=40,
+        choices=NotificationType.choices,
+    )
+    deduplication_key = models.CharField(max_length=255, unique=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    available_at = models.DateTimeField(default=timezone.now, db_index=True)
+    attempt_count = models.PositiveIntegerField(default=0)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True, default="")
+    source_provider_event_id = models.CharField(max_length=255, blank=True, default="")
+    context_summary = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["available_at", "pk"]
+        indexes = [
+            models.Index(fields=["status", "available_at"]),
+            models.Index(fields=["business", "notification_type", "status"]),
+            models.Index(fields=["subscription", "notification_type"]),
+        ]
+
+    def __str__(self) -> str:
+        recipient = self.recipient_email or "missing recipient"
+        return f"{self.get_notification_type_display()} to {recipient} ({self.status})"
 
 
 class BusinessUser(TimeStampedModel):

@@ -1,12 +1,14 @@
 from django.contrib import admin
 
 from .models import (
+    BillingProviderWebhookEvent,
     Business,
     BusinessBookingSettings,
     BusinessInvitation,
     BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
+    SubscriptionNotification,
     UserOnboardingState,
     WeeklyAvailability,
 )
@@ -88,15 +90,102 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
         "business",
         "plan",
         "status",
+        "payment_provider",
+        "billing_interval",
+        "billing_currency",
         "current_period_start",
         "current_period_end",
         "cancel_at_period_end",
+        "past_due_since",
+        "grace_period_ends_at",
         "updated_at",
     )
-    list_filter = ("status", "cancel_at_period_end", "plan")
-    search_fields = ("business__name", "business__slug", "plan__name")
+    list_filter = ("status", "payment_provider", "billing_interval", "cancel_at_period_end", "plan")
+    search_fields = (
+        "business__name",
+        "business__slug",
+        "plan__name",
+        "provider_customer_id",
+        "provider_subscription_id",
+        "provider_checkout_session_id",
+    )
     autocomplete_fields = ("business", "plan")
     list_select_related = ("business", "plan")
+
+
+@admin.register(BillingProviderWebhookEvent)
+class BillingProviderWebhookEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "provider",
+        "event_id",
+        "event_type",
+        "object_id",
+        "status",
+        "attempt_count",
+        "received_at",
+        "processed_at",
+    )
+    list_filter = ("provider", "status", "event_type", "livemode")
+    search_fields = ("event_id", "event_type", "object_id", "last_error")
+    readonly_fields = (
+        "provider",
+        "event_id",
+        "event_type",
+        "object_id",
+        "api_version",
+        "livemode",
+        "attempt_count",
+        "received_at",
+        "processed_at",
+        "payload_summary",
+        "last_error",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(SubscriptionNotification)
+class SubscriptionNotificationAdmin(admin.ModelAdmin):
+    list_display = (
+        "notification_type",
+        "business",
+        "subscription",
+        "recipient_email",
+        "status",
+        "attempt_count",
+        "available_at",
+        "sent_at",
+        "source_provider_event_id",
+    )
+    list_filter = ("notification_type", "status", "available_at", "sent_at")
+    search_fields = (
+        "business__name",
+        "business__slug",
+        "recipient_email",
+        "deduplication_key",
+        "source_provider_event_id",
+        "last_error",
+    )
+    autocomplete_fields = ("business", "subscription", "recipient_user")
+    list_select_related = ("business", "subscription", "recipient_user")
+    readonly_fields = (
+        "business",
+        "subscription",
+        "recipient_email",
+        "recipient_user",
+        "notification_type",
+        "deduplication_key",
+        "status",
+        "available_at",
+        "attempt_count",
+        "last_attempt_at",
+        "sent_at",
+        "last_error",
+        "source_provider_event_id",
+        "context_summary",
+        "created_at",
+        "updated_at",
+    )
 
 
 @admin.register(BusinessBookingSettings)

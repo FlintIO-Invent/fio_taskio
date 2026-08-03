@@ -1,0 +1,32 @@
+{% extends "emails/base_email.html" %}
+
+{% block body %}
+  <p style="margin:0 0 16px;">{{ body_intro }}</p>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 16px; border-collapse:collapse;">
+    <tr>
+      <td style="padding:6px 0; color:#64748b;">Workspace</td>
+      <td style="padding:6px 0; text-align:right; color:#0f172a;">{{ business_name }}</td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0; color:#64748b;">Plan</td>
+      <td style="padding:6px 0; text-align:right; color:#0f172a;">{{ plan_name }}</td>
+    </tr>
+    {% if billing_interval_label %}
+      <tr>
+        <td style="padding:6px 0; color:#64748b;">Billing interval</td>
+        <td style="padding:6px 0; text-align:right; color:#0f172a;">{{ billing_interval_label }}</td>
+      </tr>
+    {% endif %}
+    {% if renewal_amount %}
+      <tr>
+        <td style="padding:6px 0; color:#64748b;">Plan amount</td>
+        <td style="padding:6px 0; text-align:right; color:#0f172a;">{{ renewal_amount }}</td>
+      </tr>
+    {% endif %}
+  </table>
+  <ul style="margin:0; padding-left:20px;">
+    {% for line in body_lines %}
+      <li style="margin:0 0 8px;">{{ line }}</li>
+    {% endfor %}
+  </ul>
+{% endblock %}

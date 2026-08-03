@@ -8,7 +8,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Case, Count, IntegerField, Q, QuerySet, Sum, Value, When
 from django.http import Http404, HttpRequest, HttpResponse
@@ -26,7 +26,13 @@ from apps.businesses.localization import (
     parse_localized_decimal,
     uses_sint_maarten_districts,
 )
-from apps.businesses.models import Business, BusinessBookingSettings, WeeklyAvailability
+from apps.businesses.models import (
+    Business,
+    BusinessBookingSettings,
+    BusinessSubscription,
+    BusinessUser,
+    WeeklyAvailability,
+)
 from apps.businesses.onboarding import (
     add_skipped_onboarding_step,
     get_onboarding_status,
@@ -41,13 +47,17 @@ from apps.businesses.utils import (
     LEAD_MANAGE_ROLES,
     OWNER_ADMIN_ROLES,
     SERVICE_MANAGEMENT_ROLES,
+    business_can_modify_workspace,
+    business_has_restricted_subscription,
     business_limit_reached,
     business_module_required,
     business_required,
     business_role_required,
     can_use_module,
+    can_view_module,
     get_business_limit_reached_message,
     get_business_module_unavailable_message,
+    get_business_subscription,
     get_current_business,
     get_current_business_membership,
     get_public_booking_share_context,
@@ -80,6 +90,9 @@ from .services import (
 
 SERVICE_REQUEST_ACTIVE_STATUSES = (Lead.Status.NEW, Lead.Status.CONTACTED)
 SERVICE_REQUEST_COMPLETED_STATUSES = (Lead.Status.INVOICED, Lead.Status.CLOSED)
+PUBLIC_WORKFLOW_TEMPORARILY_UNAVAILABLE_MESSAGE = (
+    "Online booking is temporarily unavailable. Please contact the business directly."
+)
 
 
 def _order_service_requests_for_followup(qs: QuerySet[Lead]) -> QuerySet[Lead]:
@@ -786,9 +799,43 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     """Render the agent dashboard."""
     current_business = request.current_business
     current_membership = get_current_business_membership(request)
+    subscription = get_business_subscription(current_business)
+    access_state = subscription.effective_access_state if subscription is not None else None
+    if (
+        subscription is not None
+        and access_state is not None
+        and access_state.billing_attention_required
+        and not access_state.can_view_workspace
+        and current_membership is not None
+    ):
+        if current_membership.role == BusinessUser.Role.OWNER:
+            if access_state.code == BusinessSubscription.AccessCode.PENDING_CHECKOUT:
+                messages.info(
+                    request,
+                    "Finish secure payment setup before opening the workspace dashboard.",
+                )
+                return redirect("billing_checkout_cancelled")
+
+            messages.info(
+                request,
+                "Review your Motionmate subscription before opening the workspace dashboard.",
+            )
+            return redirect("business_subscription")
+
+        raise PermissionDenied(
+            "This workspace is temporarily unavailable. Contact the account owner."
+        )
+
     onboarding_status = get_onboarding_status(user=request.user, business=current_business)
 
     if request.method == "POST":
+        if not business_can_modify_workspace(current_business):
+            messages.warning(
+                request,
+                "This workspace is currently read-only. Update the subscription to make changes.",
+            )
+            return redirect("agent_dashboard")
+
         onboarding_action = request.POST.get("onboarding_action", "").strip()
 
         if onboarding_action == "select_journey" and onboarding_status["visible"]:
@@ -894,9 +941,9 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         now,
     )
 
-    appointments_enabled = can_use_module(current_business, "appointments")
-    invoices_enabled = can_use_module(current_business, "invoicing")
-    public_booking_enabled = can_use_module(current_business, "public_booking")
+    appointments_enabled = can_view_module(current_business, "appointments")
+    invoices_enabled = can_view_module(current_business, "invoicing")
+    public_booking_enabled = can_view_module(current_business, "public_booking")
     public_booking_settings = _public_booking_settings_for_business(current_business)
     can_view_appointment_activity = appointments_enabled and membership_has_any_role(
         current_membership,
@@ -1075,15 +1122,20 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
 
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
     if not can_use_module(business, "public_booking"):
+        availability_message = (
+            PUBLIC_WORKFLOW_TEMPORARILY_UNAVAILABLE_MESSAGE
+            if business_has_restricted_subscription(business)
+            else get_business_module_unavailable_message(
+                business,
+                "public_booking",
+            )
+        )
         return render(
             request,
             "crm/success_fail/public_request_unavailable.html",
             {
                 "public_business": business,
-                "availability_message": get_business_module_unavailable_message(
-                    business,
-                    "public_booking",
-                ),
+                "availability_message": availability_message,
             },
             status=403,
         )
@@ -1136,9 +1188,15 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
     )
 
     if not _public_booking_is_available(business, booking_settings):
+        availability_message = (
+            PUBLIC_WORKFLOW_TEMPORARILY_UNAVAILABLE_MESSAGE
+            if business_has_restricted_subscription(business)
+            else None
+        )
         return _public_booking_unavailable_response(
             request,
             business=business,
+            availability_message=availability_message,
         )
 
     if business_limit_reached(business, "public_bookings_per_month"):
@@ -1267,6 +1325,7 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to create or edit service requests.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_lead_create(request: HttpRequest) -> HttpResponse:
     """
@@ -1300,6 +1359,7 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to view service requests.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET", "POST"])
 def staff_lead_list(request: HttpRequest) -> HttpResponse:
     """
@@ -1357,6 +1417,7 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to create or edit clients.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_client_create(request: HttpRequest) -> HttpResponse:
     """
@@ -1389,6 +1450,7 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to view clients.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def staff_client_list(request: HttpRequest) -> HttpResponse:
     """
@@ -1459,6 +1521,7 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to create or edit clients.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
     """Update a client record with tabbed form interface."""
@@ -1492,6 +1555,7 @@ def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
     permission_message="You do not have permission to archive clients.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["POST"])
 def staff_client_archive(request: HttpRequest, client_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1505,7 +1569,9 @@ def staff_client_archive(request: HttpRequest, client_id: int) -> HttpResponse:
     if client.client_status == Client.ClientStatus.ACTIVE:
         client.client_status = Client.ClientStatus.INACTIVE
     client.save(update_fields=["is_active", "client_status", "updated_at"])
-    messages.success(request, f"{client} was archived. Existing invoices and appointments were kept.")
+    messages.success(
+        request, f"{client} was archived. Existing invoices and appointments were kept."
+    )
     return redirect("staff_client_list")
 
 
@@ -1515,6 +1581,7 @@ def staff_client_archive(request: HttpRequest, client_id: int) -> HttpResponse:
     permission_message="You do not have permission to view clients.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     """Display staff-facing details for a single client."""
@@ -1523,7 +1590,7 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     upcoming_appointments = Appointment.objects.none()
     recent_appointment_history = Appointment.objects.none()
 
-    if can_use_module(current_business, "appointments"):
+    if can_view_module(current_business, "appointments"):
         client_appointments = _appointment_queryset_for_business(current_business).filter(
             client=client,
         )
@@ -1553,6 +1620,7 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     permission_message="You do not have permission to view service requests.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     """Display staff-facing details for a single lead."""
@@ -1592,6 +1660,7 @@ def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     permission_message="You do not have permission to create or edit service requests.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1624,6 +1693,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     permission_message="You do not have permission to convert service requests into clients.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_lead_convert_to_client(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1699,6 +1769,7 @@ def staff_lead_create_invoice(request: HttpRequest, lead_id: int) -> HttpRespons
     permission_message="You do not have permission to view clients.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def client_detail_view(request: HttpRequest) -> HttpResponse:
     """
@@ -1725,6 +1796,7 @@ def client_detail_view(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def business_service_category_list(request: HttpRequest) -> HttpResponse:
     return redirect("business_service_list")
@@ -1736,6 +1808,7 @@ def business_service_category_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_category_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1768,6 +1841,7 @@ def business_service_category_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_category_update(request: HttpRequest, category_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1806,6 +1880,7 @@ def business_service_category_update(request: HttpRequest, category_id: int) -> 
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["POST"])
 def business_service_category_archive(request: HttpRequest, category_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1830,6 +1905,7 @@ def business_service_category_archive(request: HttpRequest, category_id: int) ->
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def business_service_list(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1841,7 +1917,7 @@ def business_service_list(request: HttpRequest) -> HttpResponse:
             distinct=True,
         )
     )
-    public_booking_allowed = can_use_module(current_business, "public_booking")
+    public_booking_allowed = can_view_module(current_business, "public_booking")
 
     context: dict[str, Any] = {
         "business": current_business,
@@ -1871,6 +1947,7 @@ def business_service_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1916,6 +1993,7 @@ def business_service_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_update(request: HttpRequest, service_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1960,6 +2038,7 @@ def business_service_update(request: HttpRequest, service_id: int) -> HttpRespon
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["POST"])
 def business_service_archive(request: HttpRequest, service_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1984,6 +2063,7 @@ def business_service_archive(request: HttpRequest, service_id: int) -> HttpRespo
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_import(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -2034,6 +2114,7 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business

@@ -11,7 +11,7 @@
       {% if role_access.can_manage_subscription %}
         <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Subscription</a>
       {% endif %}
-      {% if role_access.can_manage_business_settings %}
+      {% if role_access.can_manage_business_settings and workspace_can_modify %}
         <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>
       {% endif %}
       
@@ -28,6 +28,7 @@
   {% endif %}
 
   <div class="row g-3 mb-4">
+    {% if workspace_can_modify %}
     <div class="col-12 col-xxl-5">
       <div class="card h-100">
         <div class="card-body p-4">
@@ -64,8 +65,9 @@
         </div>
       </div>
     </div>
+    {% endif %}
 
-    <div class="col-12 col-xxl-7">
+    <div class="col-12 {% if workspace_can_modify %}col-xxl-7{% endif %}">
       <div class="card h-100">
         <div class="card-body p-4">
           <div class="d-flex justify-content-between align-items-center mb-4">
@@ -84,7 +86,9 @@
                     <th>Email</th>
                     <th>Role</th>
                     <th>Expires</th>
-                    <th>Invite Link</th>
+                    {% if workspace_can_modify %}
+                      <th>Invite Link</th>
+                    {% endif %}
                   </tr>
                 </thead>
                 <tbody>
@@ -96,9 +100,11 @@
                       </td>
                       <td>{{ invitation.get_role_display }}</td>
                       <td>{{ invitation.expires_at|date:"M j, Y, g:i a" }}</td>
-                      <td>
-                        <code class="small">{{ invitation.public_accept_url }}</code>
-                      </td>
+                      {% if workspace_can_modify %}
+                        <td>
+                          <code class="small">{{ invitation.public_accept_url }}</code>
+                        </td>
+                      {% endif %}
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -134,7 +140,7 @@
 	                  <th>Email</th>
 	                  <th>Role</th>
 	                  <th>Active</th>
-                    {% if role_access.can_remove_team_members %}
+                    {% if role_access.can_remove_team_members and workspace_can_modify %}
 	                  <th>Actions</th>
                     {% endif %}
 	                </tr>
@@ -150,7 +156,7 @@
 	                        {% if team_membership.is_active %}Active{% else %}Inactive{% endif %}
 	                      </span>
 	                    </td>
-                      {% if role_access.can_remove_team_members %}
+                      {% if role_access.can_remove_team_members and workspace_can_modify %}
                         <td>
                           {% if team_membership.is_active and team_membership.id != current_business_membership.id %}
                             <form method="post" action="{% url 'business_team_member_deactivate' team_membership.id %}">
@@ -171,7 +177,7 @@
 	                  </tr>
 	                {% empty %}
 	                  <tr>
-	                    <td colspan="{% if role_access.can_remove_team_members %}5{% else %}4{% endif %}" class="text-body-tertiary">No team members are attached to this workspace yet.</td>
+	                    <td colspan="{% if role_access.can_remove_team_members and workspace_can_modify %}5{% else %}4{% endif %}" class="text-body-tertiary">No team members are attached to this workspace yet.</td>
 	                  </tr>
 	                {% endfor %}
               </tbody>

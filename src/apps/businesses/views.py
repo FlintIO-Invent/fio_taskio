@@ -1,3 +1,6 @@
+import logging
+
+import stripe
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -5,6 +8,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from apps.notifications.emails import send_business_invitation_email
@@ -21,9 +25,33 @@ from .forms import (
 from .models import (
     BusinessBookingSettings,
     BusinessInvitation,
+    BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
     WeeklyAvailability,
+)
+from .plan_catalog import normalize_public_paid_plan_slug
+from .stripe_checkout import (
+    StripeCheckoutAlreadyCompleted,
+    StripeCheckoutError,
+    resume_trial_checkout_session,
+)
+from .stripe_config import StripeConfigurationError, get_stripe_webhook_secret
+from .stripe_portal import (
+    StripeCustomerPortalError,
+    create_customer_portal_session,
+    create_payment_recovery_portal_session,
+    get_customer_portal_availability,
+    get_payment_recovery_portal_availability,
+)
+from .stripe_webhooks import (
+    StripeWebhookIgnored,
+    StripeWebhookProcessingError,
+    begin_stripe_webhook_event,
+    mark_stripe_webhook_failed,
+    mark_stripe_webhook_ignored,
+    mark_stripe_webhook_processed,
+    process_stripe_webhook_event,
 )
 from .utils import (
     BOOKING_AVAILABILITY_MANAGE_ROLES,
@@ -32,6 +60,7 @@ from .utils import (
     assign_business_subscription_plan,
     business_limit_reached,
     business_role_required,
+    business_workspace_access_required,
     can_assign_business_role,
     can_use_module,
     create_or_refresh_business_invitation,
@@ -44,7 +73,250 @@ from .utils import (
     get_current_business,
     get_other_active_business_membership_for_email,
     get_public_booking_share_context,
+    redirect_for_unavailable_business_module,
+    redirect_for_unavailable_workspace_access,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _checkout_status_context(
+    *,
+    request: HttpRequest,
+    status_kind: str,
+) -> dict:
+    business = request.current_business
+    subscription = get_business_subscription(business)
+    access_state = subscription.effective_access_state if subscription is not None else None
+    success_state = "attention"
+    if subscription is not None:
+        if (
+            access_state is not None
+            and access_state.code == subscription.AccessCode.PENDING_CHECKOUT
+        ):
+            success_state = "confirming"
+        elif (
+            access_state is not None
+            and access_state.has_access
+            and subscription.status == BusinessSubscription.Status.TRIALING
+        ):
+            success_state = "trialing"
+        elif access_state is not None and access_state.has_access:
+            success_state = "active"
+
+    return {
+        "business": business,
+        "subscription": subscription,
+        "access_state": access_state,
+        "status_kind": status_kind,
+        "success_state": success_state,
+        "can_enter_dashboard": bool(subscription is not None and subscription.has_access),
+        "can_resume_checkout": bool(access_state is not None and access_state.can_resume_checkout),
+    }
+
+
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["GET"])
+def billing_checkout_success(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        "businesses/checkout_status.html",
+        _checkout_status_context(request=request, status_kind="success"),
+    )
+
+
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["GET"])
+def billing_checkout_cancelled(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        "businesses/checkout_status.html",
+        _checkout_status_context(request=request, status_kind="cancelled"),
+    )
+
+
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["POST"])
+def billing_checkout_resume(request: HttpRequest) -> HttpResponse:
+    business = request.current_business
+    subscription = get_business_subscription(business)
+
+    if subscription is None or subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT:
+        messages.info(request, "This workspace does not have payment setup waiting to resume.")
+        return redirect("agent_dashboard")
+
+    if normalize_public_paid_plan_slug(subscription.plan.slug) is None:
+        messages.error(request, "This workspace plan does not use payment setup.")
+        return redirect("agent_dashboard")
+
+    try:
+        checkout_url = resume_trial_checkout_session(
+            request=request,
+            subscription=subscription,
+            user=request.user,
+        )
+    except StripeCheckoutAlreadyCompleted:
+        return redirect("billing_checkout_success")
+    except (StripeConfigurationError, StripeCheckoutError):
+        messages.error(
+            request,
+            "Secure payment setup could not be resumed. No payment was taken.",
+        )
+        return redirect("billing_checkout_cancelled")
+
+    return redirect(checkout_url)
+
+
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["POST"])
+def billing_customer_portal(request: HttpRequest) -> HttpResponse:
+    business = request.current_business
+    subscription = get_business_subscription(business)
+    if subscription is None:
+        messages.error(request, "Billing management is not available for this workspace yet.")
+        return redirect("business_subscription")
+
+    try:
+        portal_url = create_customer_portal_session(
+            request=request,
+            business=business,
+            user=request.user,
+            subscription=subscription,
+        )
+    except (StripeConfigurationError, StripeCustomerPortalError) as exc:
+        messages.error(
+            request,
+            getattr(
+                exc,
+                "user_message",
+                "We could not open the secure billing page. Please try again shortly.",
+            ),
+        )
+        return redirect("business_subscription")
+
+    return redirect(portal_url)
+
+
+@business_role_required(BusinessUser.Role.OWNER)
+@require_http_methods(["POST"])
+def billing_payment_recovery(request: HttpRequest) -> HttpResponse:
+    business = request.current_business
+    subscription = get_business_subscription(business)
+    if subscription is None:
+        messages.error(request, "Payment recovery is not available for this workspace yet.")
+        return redirect("business_subscription")
+
+    try:
+        portal_url = create_payment_recovery_portal_session(
+            request=request,
+            business=business,
+            user=request.user,
+            subscription=subscription,
+        )
+    except (StripeConfigurationError, StripeCustomerPortalError) as exc:
+        messages.error(
+            request,
+            getattr(
+                exc,
+                "user_message",
+                "We could not open the secure billing page. Please try again shortly.",
+            ),
+        )
+        return redirect("business_subscription")
+
+    return redirect(portal_url)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def stripe_billing_webhook(request: HttpRequest) -> HttpResponse:
+    webhook_secret = get_stripe_webhook_secret()
+    if webhook_secret is None:
+        logger.error("stripe_webhook.missing_secret")
+        return HttpResponse("Webhook unavailable.", status=503)
+
+    payload = request.body
+    signature = request.headers.get("Stripe-Signature", "")
+    if not signature:
+        logger.warning("stripe_webhook.missing_signature")
+        return HttpResponse("Invalid signature.", status=400)
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload=payload,
+            sig_header=signature,
+            secret=webhook_secret,
+        )
+    except ValueError:
+        logger.warning("stripe_webhook.invalid_payload")
+        return HttpResponse("Invalid payload.", status=400)
+    except (stripe.SignatureVerificationError, stripe.error.SignatureVerificationError):
+        logger.warning("stripe_webhook.invalid_signature")
+        return HttpResponse("Invalid signature.", status=400)
+
+    try:
+        event_record, is_duplicate = begin_stripe_webhook_event(event)
+    except StripeWebhookProcessingError as exc:
+        logger.warning("stripe_webhook.malformed_event", extra={"error": str(exc)})
+        return HttpResponse("Invalid event.", status=400)
+
+    if is_duplicate:
+        logger.info(
+            "stripe_webhook.duplicate",
+            extra={
+                "stripe_event_id": event_record.event_id,
+                "stripe_event_type": event_record.event_type,
+                "result": "duplicate",
+            },
+        )
+        return HttpResponse("ok", status=200)
+
+    try:
+        result = process_stripe_webhook_event(event, event_record)
+    except StripeWebhookIgnored as exc:
+        reason = str(exc)
+        mark_stripe_webhook_ignored(event_record, reason)
+        logger.info(
+            "stripe_webhook.ignored",
+            extra={
+                "stripe_event_id": event_record.event_id,
+                "stripe_event_type": event_record.event_type,
+                "stripe_object_id": event_record.object_id,
+                "result": "ignored",
+                "error": reason,
+            },
+        )
+        return HttpResponse("ignored", status=200)
+    except StripeWebhookProcessingError as exc:
+        mark_stripe_webhook_failed(event_record, exc)
+        result_status = 500 if exc.retryable else 200
+        logger.warning(
+            "stripe_webhook.failed",
+            extra={
+                "stripe_event_id": event_record.event_id,
+                "stripe_event_type": event_record.event_type,
+                "stripe_object_id": event_record.object_id,
+                "stripe_subscription_id": event_record.payload_summary.get(
+                    "provider_subscription_id",
+                    "",
+                ),
+                "result": "retry" if exc.retryable else "failed",
+                "error": str(exc),
+            },
+        )
+        return HttpResponse("retry" if exc.retryable else "failed", status=result_status)
+
+    mark_stripe_webhook_processed(event_record, result)
+    logger.info(
+        "stripe_webhook.processed",
+        extra={
+            "stripe_event_id": event_record.event_id,
+            "stripe_event_type": event_record.event_type,
+            "stripe_object_id": event_record.object_id,
+            "result": result.message,
+        },
+    )
+    return HttpResponse("ok", status=200)
 
 
 @login_required(login_url="business_login")
@@ -58,6 +330,7 @@ def business_setup(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_workspace_access_required()
 @require_http_methods(["GET", "POST"])
 def business_settings(request: HttpRequest) -> HttpResponse:
     business = request.current_business
@@ -86,6 +359,7 @@ def business_settings(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
+@business_workspace_access_required()
 @require_http_methods(["GET", "POST"])
 def business_booking_settings(request: HttpRequest) -> HttpResponse:
     business = request.current_business
@@ -244,6 +518,7 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
+@business_workspace_access_required()
 @require_http_methods(["POST"])
 def business_weekly_availability_deactivate(
     request: HttpRequest,
@@ -278,6 +553,13 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
     pending_plan_change = None
 
     if request.method == "POST":
+        if subscription is not None and not subscription.can_modify_workspace:
+            messages.warning(
+                request,
+                "Plan changes are unavailable while this workspace is read-only. Update the subscription to restore full access.",
+            )
+            return redirect("business_subscription")
+
         form = BusinessSubscriptionPlanForm(request.POST, plans=available_plan_queryset)
         if form.is_valid():
             selected_plan = form.cleaned_data["plan"]
@@ -297,7 +579,9 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
                         f"Review the limits before changing to {selected_plan.name}.",
                     )
                 else:
-                    updated_subscription = assign_business_subscription_plan(business, selected_plan)
+                    updated_subscription = assign_business_subscription_plan(
+                        business, selected_plan
+                    )
                     if updated_subscription.status == updated_subscription.Status.TRIALING:
                         messages.success(
                             request,
@@ -335,6 +619,17 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
 
     current_usage_summary = []
     staff_capacity = None
+    access_state = subscription.effective_access_state if subscription is not None else None
+    customer_portal_availability = get_customer_portal_availability(
+        business=business,
+        user=request.user,
+        subscription=subscription,
+    )
+    payment_recovery_portal_availability = get_payment_recovery_portal_availability(
+        business=business,
+        user=request.user,
+        subscription=subscription,
+    )
     if subscription is not None:
         current_usage_summary = get_business_plan_usage_summary(
             business,
@@ -370,6 +665,10 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
         "business": business,
         "membership": membership,
         "subscription": subscription,
+        "access_state": access_state,
+        "customer_portal_availability": customer_portal_availability,
+        "payment_recovery_portal_availability": payment_recovery_portal_availability,
+        "billing_portal_returned": request.GET.get("billing_return") == "1",
         "available_plans": available_plans,
         "plan_form": form,
         "pending_plan_change": pending_plan_change,
@@ -392,6 +691,13 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
     ).update(status=BusinessInvitation.Status.EXPIRED, updated_at=timezone.now())
 
     if request.method == "POST":
+        subscription = get_business_subscription(business)
+        if subscription is not None and not subscription.can_modify_workspace:
+            return redirect_for_unavailable_workspace_access(request)
+
+        if not can_use_module(business, "workspace"):
+            return redirect_for_unavailable_business_module(request, "workspace")
+
         invite_form = BusinessInvitationForm(
             request.POST,
             business=business,
@@ -488,6 +794,7 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+@business_workspace_access_required()
 @require_http_methods(["POST"])
 def business_team_member_deactivate(request: HttpRequest, membership_id: int) -> HttpResponse:
     business = request.current_business

@@ -77,7 +77,7 @@
         <button class="btn btn-phoenix-primary" onclick="window.print()">
           <span class="fa-solid fa-print me-2"></span>Print
         </button>
-        {% if role_access.can_delete_invoices %}
+        {% if role_access.can_delete_invoices and workspace_can_modify %}
           <form method="post" action="{% url 'invoice_delete' invoice.pk %}">
             {% csrf_token %}
             <button
@@ -265,10 +265,12 @@
             <a href="{% url 'invoice_pdf_download' invoice.pk %}" class="btn btn-phoenix-secondary">
               <span class="fa-solid fa-file-pdf me-2"></span>Download PDF
             </a>
-            <a href="{{ whatsapp_share_url }}" class="btn btn-phoenix-success" target="_blank" rel="noopener">
-              <span class="fa-brands fa-whatsapp me-2"></span>Share on WhatsApp
-            </a>
-            {% if role_access.can_manage_invoices %}
+            {% if workspace_can_modify %}
+              <a href="{{ whatsapp_share_url }}" class="btn btn-phoenix-success" target="_blank" rel="noopener">
+                <span class="fa-brands fa-whatsapp me-2"></span>Share on WhatsApp
+              </a>
+            {% endif %}
+            {% if role_access.can_manage_invoices and workspace_can_modify %}
               {% if invoice.client.email %}
                 <form method="post" action="{% url 'invoice_email_send' invoice.pk %}" class="d-inline">
                   {% csrf_token %}
@@ -297,7 +299,7 @@
             {% endif %}
           </div>
 
-          {% if role_access.can_manage_invoices %}
+          {% if role_access.can_manage_invoices and workspace_can_modify %}
             <div class="d-grid gap-2">
               {% if invoice.status == 'DRAFT' %}
               <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-phoenix-warning">

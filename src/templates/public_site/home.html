@@ -2465,6 +2465,20 @@
       <p class="fs-lg text-body mb-0">Start with the workspace size that fits today, then move up when your clients, bookings, and team grow.</p>
     </div>
   </div>
+  <div class="d-flex flex-column flex-sm-row align-items-center justify-content-center gap-2 mb-4">
+    <span class="fs-sm text-body-secondary">Pricing region</span>
+    <div class="btn-group" role="group" aria-label="Select pricing region">
+      {% for option in pricing_currency_options %}
+        <a
+          href="{% url 'home' %}?currency={{ option.value|urlencode }}#pricing"
+          class="btn btn-sm {% if option.is_active %}btn-primary{% else %}btn-outline-primary{% endif %}"
+          aria-pressed="{% if option.is_active %}true{% else %}false{% endif %}"
+        >
+          {{ option.display }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
   <div class="price-switch-wrapper">
     <div class="form-check form-switch price-switch justify-content-center mt-2 mb-4" data-bs-toggle="price">
       <input type="checkbox" class="form-check-input" id="pricing-billing-toggle">
@@ -2495,20 +2509,16 @@
                       {% endif %}
                     </div>
                     <h4 class="h2 lh-1 mb-1 {% if plan.is_recommended %}text-light{% endif %}">
-                      <span data-monthly-price>{{ plan.usd_display_pricing.monthly_display }}</span>
-                      <span class="d-none" data-annual-price>{{ plan.usd_display_pricing.yearly_display }}</span>
+                      <span data-monthly-price>{{ plan.display_pricing.monthly_display }}</span>
+                      <span class="d-none" data-annual-price>{{ plan.display_pricing.yearly_display }}</span>
                       <span class="fs-sm fw-normal {% if plan.is_recommended %}text-light opacity-75{% else %}text-body{% endif %}">
                         <span data-monthly-price>/ month</span>
                         <span class="d-none" data-annual-price>/ year</span>
                       </span>
                     </h4>
                     <p class="fs-xs mb-0 {% if plan.is_recommended %}text-light opacity-75{% else %}text-muted{% endif %}">
-                      <span data-monthly-price>Annual option: {{ plan.usd_display_pricing.yearly_display }} yearly USD</span>
-                      <span class="d-none" data-annual-price>Billed once yearly in USD</span>
-                    </p>
-                    <p class="fs-xs mb-0 {% if plan.is_recommended %}text-light opacity-75{% else %}text-muted{% endif %}">
-                      <span data-monthly-price>EUR: {{ plan.eur_display_pricing.monthly_display }} / month</span>
-                      <span class="d-none" data-annual-price>EUR: {{ plan.eur_display_pricing.yearly_display }} / year</span>
+                      <span data-monthly-price>{{ selected_pricing_currency_display }} pricing · Annual option: {{ plan.display_pricing.yearly_display }} yearly {{ selected_pricing_currency|upper }}</span>
+                      <span class="d-none" data-annual-price>{{ selected_pricing_currency_display }} pricing · Billed once yearly in {{ selected_pricing_currency|upper }}</span>
                     </p>
                   </div>
                 </div>
@@ -2566,7 +2576,15 @@
               </ul>
             </div>
             <div class="card-footer border-0 pt-0 pb-4 bg-transparent">
-              <a href="{% url 'register_business' %}?plan={{ plan.slug|urlencode }}" class="btn {% if plan.is_recommended %}btn-light{% else %}btn-outline-primary{% endif %} w-100">Start {{ plan.name }} trial</a>
+              <a
+                href="{% url 'register_business' %}?plan={{ plan.slug|urlencode }}&amp;interval=monthly&amp;currency={{ selected_pricing_currency|urlencode }}"
+                data-pricing-plan-link
+                data-monthly-registration-url="{% url 'register_business' %}?plan={{ plan.slug|urlencode }}&amp;interval=monthly&amp;currency={{ selected_pricing_currency|urlencode }}"
+                data-yearly-registration-url="{% url 'register_business' %}?plan={{ plan.slug|urlencode }}&amp;interval=yearly&amp;currency={{ selected_pricing_currency|urlencode }}"
+                class="btn {% if plan.is_recommended %}btn-light{% else %}btn-outline-primary{% endif %} w-100"
+              >
+                Start {{ plan.name }} trial
+              </a>
             </div>
           </div>
         </div>
@@ -2580,6 +2598,37 @@
     </div>
   </div>
 </section>
+
+<script>
+  (function () {
+    const billingToggle = document.getElementById('pricing-billing-toggle');
+    const planLinks = document.querySelectorAll('[data-pricing-plan-link]');
+
+    if (!planLinks.length) {
+      return;
+    }
+
+    const syncRegistrationLinks = function () {
+      const interval = billingToggle && billingToggle.checked ? 'yearly' : 'monthly';
+
+      planLinks.forEach(function (link) {
+        const registrationUrl = interval === 'yearly'
+          ? link.dataset.yearlyRegistrationUrl
+          : link.dataset.monthlyRegistrationUrl;
+
+        if (registrationUrl) {
+          link.setAttribute('href', registrationUrl);
+        }
+      });
+    };
+
+    if (billingToggle) {
+      billingToggle.addEventListener('change', syncRegistrationLinks);
+    }
+
+    syncRegistrationLinks();
+  })();
+</script>
 
 
 <!-- CTA -->
