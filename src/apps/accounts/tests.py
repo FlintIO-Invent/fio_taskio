@@ -176,7 +176,12 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Register your business")
         self.assertContains(response, "Owner login email")
+        self.assertContains(response, "Business location")
         self.assertContains(response, "Selected plan")
+        self.assertContains(response, "Change selection")
+        self.assertContains(response, "Pricing currency")
+        self.assertContains(response, "data-registration-plan-input")
+        self.assertNotContains(response, f'href="{reverse("home")}#pricing"')
         self.assertContains(
             response,
             "Use the email address you want to sign in with. This will become the workspace owner login for this business.",
