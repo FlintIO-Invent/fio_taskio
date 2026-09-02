@@ -10,7 +10,7 @@ Installed project apps include:
 - apps.crm
 - apps.billings
 
-The project uses a custom user model:
+The project uses a custom user model
 
 - accounts.TaskIOUser
 
