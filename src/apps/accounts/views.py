@@ -429,6 +429,13 @@ def _register_business(
         )
 
     selected_plan = None if beta_eligible else form.selected_plan_for_display
+    registration_plan_options = []
+    if not beta_eligible:
+        registration_plan_options = list(form.fields["plan"].queryset)
+        ClarivoPlan.attach_display_pricing(
+            registration_plan_options,
+            region=form.selected_pricing_region_for_display,
+        )
     selected_billing_interval = "" if beta_eligible else form.selected_billing_interval_for_display
     selected_billing_interval_label = PUBLIC_BILLING_INTERVAL_LABELS.get(
         selected_billing_interval,
@@ -465,6 +472,7 @@ def _register_business(
         {
             "form": form,
             "selected_plan": selected_plan,
+            "registration_plan_options": registration_plan_options,
             "selected_plan_pricing": selected_plan_pricing,
             "selected_plan_price_display": selected_plan_price_display,
             "selected_billing_interval": selected_billing_interval,
