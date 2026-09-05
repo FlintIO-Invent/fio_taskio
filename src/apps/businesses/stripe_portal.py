@@ -57,6 +57,9 @@ def get_customer_portal_availability(
     if subscription.business_id != business.pk:
         return CustomerPortalAvailability(False, "subscription_business_mismatch")
 
+    if not business.is_active:
+        return CustomerPortalAvailability(False, BusinessSubscription.AccessCode.BUSINESS_INACTIVE)
+
     if not _user_is_business_owner(business=business, user=user):
         return CustomerPortalAvailability(False, "owner_required")
 

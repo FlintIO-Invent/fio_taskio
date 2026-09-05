@@ -228,6 +228,12 @@ def deliver_subscription_notification(
             message=f"Notification is not eligible for delivery: {current_status or 'missing'}.",
         )
 
+    if not claimed.business.is_active:
+        return _mark_delivery_cancelled(
+            claimed.pk,
+            "Delivery cancelled because workspace is inactive.",
+        )
+
     cancelled = _cancel_obsolete_reminder_before_delivery(claimed)
     if cancelled is not None:
         return cancelled
@@ -732,6 +738,8 @@ def _subscription_is_billable_for_notifications(subscription: BusinessSubscripti
         subscription.payment_provider == BusinessSubscription.PaymentProvider.STRIPE
         and subscription.is_public_paid_plan
         and not subscription.is_beta_plan
+        and subscription.business.is_active
+        and subscription.plan.is_active
     )
 
 

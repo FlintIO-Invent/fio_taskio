@@ -1048,6 +1048,9 @@ def accept_business_invitation_for_user(
     invitation: BusinessInvitation,
     user,
 ) -> tuple[BusinessUser, bool, bool]:
+    if not invitation.business.is_active:
+        raise ValueError("This invitation is no longer available.")
+
     if expire_business_invitation_if_needed(invitation):
         raise ValueError("This invitation has expired.")
 

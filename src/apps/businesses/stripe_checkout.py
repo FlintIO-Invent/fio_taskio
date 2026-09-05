@@ -39,6 +39,7 @@ def ensure_pending_checkout_subscription(
     billing_interval: object,
     currency: object,
 ) -> BusinessSubscription:
+    _require_active_business_for_checkout(business)
     _require_stripe_checkout_ready()
     plan_slug, normalized_interval, normalized_currency = _validated_checkout_dimensions(
         plan=plan,
@@ -119,6 +120,7 @@ def resume_trial_checkout_session(
     subscription: BusinessSubscription,
     user: TaskIOUser,
 ) -> str:
+    _require_active_business_for_checkout(subscription.business)
     if subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT:
         raise StripeCheckoutError("This workspace subscription is not pending checkout.")
 
@@ -163,6 +165,7 @@ def _create_checkout_session(
     user: TaskIOUser,
     replacing_session_id: str,
 ) -> str:
+    _require_active_business_for_checkout(subscription.business)
     _require_stripe_checkout_ready()
 
     plan = subscription.plan
@@ -223,6 +226,11 @@ def _create_checkout_session(
 def _require_stripe_checkout_ready() -> None:
     if not is_stripe_enabled():
         raise StripeConfigurationError("Stripe subscription billing is disabled.")
+
+
+def _require_active_business_for_checkout(business: Business) -> None:
+    if not business.is_active:
+        raise StripeCheckoutError("Stripe Checkout is not available for this workspace.")
 
 
 def _validated_checkout_dimensions(
