@@ -41,6 +41,7 @@ from .business_data_operations import (
     BusinessDeactivationError,
     deactivate_business,
 )
+from .business_data_purge import BusinessPurgeError, purge_business
 from .business_resolution import (
     BusinessMatchKind,
     BusinessResolutionError,
@@ -10060,3 +10061,520 @@ class BusinessDeactivationTests(TestCase):
         self.assertEqual(operation.error_code, "deactivation_failed")
         self.assertEqual(operation.record_counts, {})
         self.assertNotIn("private injected failure detail", operation.error_code)
+
+
+class BusinessPurgeTests(TestCase):
+    reason_reference = "TEST-PURGE-001"
+
+    def setUp(self):
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+        self.business = Business.objects.create(
+            name="Private Purge Workspace",
+            slug="private-purge-workspace",
+            email="private-business@purge.example",
+            is_active=False,
+        )
+        self.other_business = Business.objects.create(
+            name="Other Untouched Workspace",
+            slug="other-untouched-workspace",
+        )
+        now = timezone.now()
+        self.subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=now,
+            trial_end=now + timedelta(days=14),
+            current_period_start=now,
+            current_period_end=now + timedelta(days=14),
+        )
+        self.owner = TaskIOUser.objects.create_user(
+            email="private-owner@purge.example",
+            password="StrongPass123!",
+        )
+        BusinessUser.objects.create(
+            business=self.business,
+            user=self.owner,
+            role=BusinessUser.Role.OWNER,
+        )
+
+    def _run_command(
+        self,
+        *,
+        execute=False,
+        confirmation=None,
+        reason_reference=None,
+        confirm_test_financial_data=False,
+        delete_eligible_users=False,
+        business_id=None,
+    ):
+        output = StringIO()
+        options = {
+            "business_id": business_id or self.business.pk,
+            "execute": execute,
+            "confirm_test_financial_data": confirm_test_financial_data,
+            "delete_eligible_users": delete_eligible_users,
+            "stdout": output,
+        }
+        if confirmation is not None:
+            options["confirm_business_id"] = confirmation
+        if reason_reference is not None:
+            options["reason_reference"] = reason_reference
+        call_command("purge_business", **options)
+        return output.getvalue()
+
+    @staticmethod
+    def _create_session(*, user=None, business_id=None, private_value=""):
+        client = DjangoClient()
+        if user is not None:
+            client.force_login(user)
+        session = client.session
+        if business_id is not None:
+            session[CURRENT_BUSINESS_SESSION_KEY] = business_id
+        if private_value:
+            session["private_test_value"] = private_value
+        session.save()
+        return session.session_key
+
+    def _create_tenant_graph(self):
+        category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Private Purge Category",
+        )
+        service = BusinessService.objects.create(
+            business=self.business,
+            category=category,
+            name="Private Purge Service",
+            unit_price=Decimal("80.00"),
+        )
+        lead = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            first_name="Private",
+            last_name="Lead",
+            email="private-lead@purge.example",
+            phone="+1 721 555 0200",
+            company_name="Private Lead Company",
+            category=category,
+            requested_service=service,
+        )
+        client = Client.objects.create(
+            business=self.business,
+            first_name="Private",
+            last_name="Client",
+            email="private-client@purge.example",
+            phone="+1 721 555 0201",
+            company_name="Private Client Company",
+            street_address="1 Purge Street",
+            assigned_to=self.owner,
+        )
+        activity = ActivityLog.objects.create(
+            business=self.business,
+            actor=self.owner,
+            lead=lead,
+            client=client,
+            action_type=ActivityLog.ActionType.STATUS_CHANGED,
+        )
+        now = timezone.now()
+        appointment = Appointment.objects.create(
+            business=self.business,
+            client=client,
+            service=service,
+            source_lead=lead,
+            title="Private purge appointment",
+            start_time=now + timedelta(days=1),
+            end_time=now + timedelta(days=1, hours=1),
+        )
+        invoice = Invoice.objects.create(
+            business=self.business,
+            client=client,
+            appointment=appointment,
+            invoice_number="INV-PURGE-1",
+        )
+        invoice_line = InvoiceLine.objects.create(
+            invoice=invoice,
+            service=service,
+            description="Private purge line",
+            quantity=1,
+            unit_price=Decimal("80.00"),
+        )
+        booking_settings = BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+        )
+        availability = WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+        invitation = BusinessInvitation.objects.create(
+            business=self.business,
+            email="private-invitee@purge.example",
+            role=BusinessUser.Role.STAFF,
+            token="private-purge-invitation-token",
+        )
+        onboarding = UserOnboardingState.objects.create(
+            business=self.business,
+            user=self.owner,
+        )
+        notification = SubscriptionNotification.objects.create(
+            business=self.business,
+            subscription=self.subscription,
+            recipient_email=self.owner.email,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+            deduplication_key="private-purge-notification",
+        )
+        return {
+            "category": category,
+            "service": service,
+            "lead": lead,
+            "client": client,
+            "activity": activity,
+            "appointment": appointment,
+            "invoice": invoice,
+            "invoice_line": invoice_line,
+            "booking_settings": booking_settings,
+            "availability": availability,
+            "invitation": invitation,
+            "onboarding": onboarding,
+            "notification": notification,
+        }
+
+    def test_dry_run_makes_no_changes_or_audit_writes(self):
+        records = self._create_tenant_graph()
+        session_key = self._create_session(
+            user=self.owner,
+            business_id=self.business.pk,
+            private_value="never-render-purge-session",
+        )
+
+        with CaptureQueriesContext(connection) as captured_queries:
+            rendered = self._run_command()
+
+        write_verbs = {"ALTER", "CREATE", "DELETE", "DROP", "INSERT", "REPLACE", "UPDATE"}
+        executed_verbs = {
+            query["sql"].lstrip().partition(" ")[0].upper()
+            for query in captured_queries.captured_queries
+        }
+        self.assertTrue(executed_verbs.isdisjoint(write_verbs))
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+        for record in records.values():
+            self.assertTrue(record.__class__.objects.filter(pk=record.pk).exists())
+        self.assertTrue(Session.objects.filter(session_key=session_key).exists())
+        self.assertFalse(BusinessDataOperation.objects.exists())
+        self.assertIn("DRY RUN ONLY", rendered)
+        self.assertIn("WARNING: invoices and invoice lines", rendered)
+        self.assertNotIn("never-render-purge-session", rendered)
+        self.assertNotIn(session_key, rendered)
+
+    def test_active_business_and_confirmation_mismatch_are_rejected(self):
+        with self.assertRaises(CommandError):
+            self._run_command(
+                execute=True,
+                reason_reference=self.reason_reference,
+            )
+        with self.assertRaises(CommandError):
+            self._run_command(
+                execute=True,
+                confirmation=self.business.pk,
+            )
+        with self.assertRaises(CommandError):
+            self._run_command(
+                execute=True,
+                confirmation=self.other_business.pk,
+                reason_reference=self.reason_reference,
+            )
+        self.assertFalse(BusinessDataOperation.objects.exists())
+
+        self.business.is_active = True
+        self.business.save(update_fields=["is_active", "updated_at"])
+        with self.assertRaises(CommandError) as raised:
+            self._run_command(
+                execute=True,
+                confirmation=self.business.pk,
+                reason_reference=self.reason_reference,
+            )
+
+        self.assertIn("business_active", str(raised.exception))
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+        operation = BusinessDataOperation.objects.get()
+        self.assertEqual(operation.status, BusinessDataOperation.Status.FAILED)
+        self.assertEqual(operation.error_code, "business_active")
+
+    def test_cross_tenant_integrity_blockers_prevent_purge(self):
+        selected_client = Client.objects.create(
+            business=self.business,
+            first_name="Selected",
+            last_name="Client",
+            email="selected-client@purge.example",
+            phone="",
+            company_name="Selected",
+            street_address="",
+        )
+        other_client = Client.objects.create(
+            business=self.other_business,
+            first_name="Other",
+            last_name="Client",
+            email="other-client@purge.example",
+            phone="",
+            company_name="Other",
+            street_address="",
+        )
+        now = timezone.now()
+        other_appointment = Appointment.objects.create(
+            business=self.other_business,
+            client=other_client,
+            title="Other appointment",
+            start_time=now + timedelta(days=1),
+            end_time=now + timedelta(days=1, hours=1),
+        )
+        Appointment.objects.filter(pk=other_appointment.pk).update(client_id=selected_client.pk)
+
+        with self.assertRaises(BusinessPurgeError) as raised:
+            purge_business(
+                business_id=self.business.pk,
+                reason_reference=self.reason_reference,
+            )
+
+        self.assertEqual(raised.exception.error_code, "cross_tenant_integrity_blockers")
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+        self.assertTrue(Client.objects.filter(pk=selected_client.pk).exists())
+
+    def test_stripe_identifiers_and_correlated_webhooks_prevent_purge_without_api_calls(self):
+        with mock.patch.object(stripe_checkout, "configure_stripe_sdk") as checkout_sdk:
+            self.subscription.provider_customer_id = "cus_private_purge"
+            self.subscription.save(update_fields=["provider_customer_id", "updated_at"])
+            with self.assertRaises(BusinessPurgeError) as identifier_error:
+                purge_business(
+                    business_id=self.business.pk,
+                    reason_reference=self.reason_reference,
+                )
+            self.assertEqual(identifier_error.exception.error_code, "stripe_references_present")
+            self.subscription.provider_customer_id = ""
+            self.subscription.save(update_fields=["provider_customer_id", "updated_at"])
+
+            BillingProviderWebhookEvent.objects.create(
+                event_id="evt_private_purge",
+                event_type="customer.subscription.updated",
+                payload_summary={"motionmate_business_id": str(self.business.pk)},
+            )
+            with self.assertRaises(BusinessPurgeError) as webhook_error:
+                purge_business(
+                    business_id=self.business.pk,
+                    reason_reference=self.reason_reference,
+                )
+
+        self.assertEqual(webhook_error.exception.error_code, "stripe_references_present")
+        checkout_sdk.assert_not_called()
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+
+    def test_invoices_require_explicit_test_financial_data_confirmation(self):
+        records = self._create_tenant_graph()
+
+        with self.assertRaises(BusinessPurgeError) as raised:
+            purge_business(
+                business_id=self.business.pk,
+                reason_reference=self.reason_reference,
+            )
+
+        self.assertEqual(
+            raised.exception.error_code,
+            "test_financial_data_confirmation_required",
+        )
+        self.assertTrue(Invoice.objects.filter(pk=records["invoice"].pk).exists())
+        self.assertTrue(InvoiceLine.objects.filter(pk=records["invoice_line"].pk).exists())
+
+    def test_confirmed_purge_explicitly_removes_all_tenant_records_and_preserves_shared_data(self):
+        records = self._create_tenant_graph()
+        business_id = self.business.pk
+        plan_count = ClarivoPlan.objects.count()
+        plan_updated_at = self.plan.updated_at
+        other_client = Client.objects.create(
+            business=self.other_business,
+            first_name="Other",
+            last_name="Preserved",
+            email="other-preserved@purge.example",
+            phone="",
+            company_name="Other",
+            street_address="",
+        )
+        target_session = self._create_session(
+            user=self.owner,
+            business_id=business_id,
+        )
+        other_session = self._create_session(business_id=self.other_business.pk)
+        corrupted = Session.objects.create(
+            session_key="corrupted-purge-session",
+            session_data="undecodable-purge-data",
+            expire_date=timezone.now() + timedelta(days=1),
+        )
+
+        with (
+            self.assertNoLogs("django.security.SuspiciousSession", level="WARNING"),
+            mock.patch.object(stripe_checkout, "configure_stripe_sdk") as checkout_sdk,
+            mock.patch.object(stripe_portal, "configure_stripe_sdk") as portal_sdk,
+        ):
+            result = purge_business(
+                business_id=business_id,
+                reason_reference=self.reason_reference,
+                confirm_test_financial_data=True,
+            )
+
+        self.assertTrue(result.purged)
+        self.assertFalse(Business.objects.filter(pk=business_id).exists())
+        self.assertFalse(Invoice.objects.filter(pk=records["invoice"].pk).exists())
+        self.assertFalse(InvoiceLine.objects.filter(pk=records["invoice_line"].pk).exists())
+        for model in (
+            Appointment,
+            ActivityLog,
+            Lead,
+            Client,
+            BusinessService,
+            ServiceCategory,
+            BusinessInvitation,
+            UserOnboardingState,
+            WeeklyAvailability,
+            SubscriptionNotification,
+            BusinessSubscription,
+            BusinessBookingSettings,
+            BusinessUser,
+        ):
+            self.assertFalse(model.objects.filter(business_id=business_id).exists())
+        self.assertTrue(TaskIOUser.objects.filter(pk=self.owner.pk).exists())
+        self.assertEqual(ClarivoPlan.objects.count(), plan_count)
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.updated_at, plan_updated_at)
+        self.assertTrue(Business.objects.filter(pk=self.other_business.pk).exists())
+        self.assertTrue(Client.objects.filter(pk=other_client.pk).exists())
+        self.assertFalse(Session.objects.filter(session_key=target_session).exists())
+        self.assertTrue(Session.objects.filter(session_key=other_session).exists())
+        self.assertTrue(Session.objects.filter(pk=corrupted.pk).exists())
+        checkout_sdk.assert_not_called()
+        portal_sdk.assert_not_called()
+        self.assertEqual(result.deletion_counts["invoices"], 1)
+        self.assertEqual(result.deletion_counts["invoice_lines"], 1)
+        self.assertEqual(result.deletion_counts["service_categories"], 1)
+
+    def test_delete_eligible_users_is_opt_in_and_preserves_protected_users(self):
+        eligible_user = TaskIOUser.objects.create_user(
+            email="eligible-user@purge.example",
+            password="StrongPass123!",
+        )
+        operator_user = TaskIOUser.objects.create_user(
+            email="operator-user@purge.example",
+            password="StrongPass123!",
+        )
+        shared_user = TaskIOUser.objects.create_user(
+            email="shared-user@purge.example",
+            password="StrongPass123!",
+        )
+        staff_user = TaskIOUser.objects.create_user(
+            email="staff-user@purge.example",
+            password="StrongPass123!",
+            is_staff=True,
+        )
+        superuser = TaskIOUser.objects.create_superuser(
+            email="superuser@purge.example",
+            password="StrongPass123!",
+        )
+        for user in (eligible_user, operator_user, shared_user, staff_user, superuser):
+            BusinessUser.objects.create(
+                business=self.business,
+                user=user,
+                role=BusinessUser.Role.STAFF,
+            )
+        BusinessUser.objects.create(
+            business=self.other_business,
+            user=shared_user,
+            role=BusinessUser.Role.VIEWER,
+            is_active=False,
+        )
+
+        result = purge_business(
+            business_id=self.business.pk,
+            reason_reference=self.reason_reference,
+            delete_eligible_users=True,
+            operator_id=operator_user.pk,
+        )
+
+        self.assertFalse(TaskIOUser.objects.filter(pk=eligible_user.pk).exists())
+        self.assertFalse(TaskIOUser.objects.filter(pk=self.owner.pk).exists())
+        for user in (operator_user, shared_user, staff_user, superuser):
+            self.assertTrue(TaskIOUser.objects.filter(pk=user.pk).exists())
+        decisions = {decision.user_id: decision for decision in result.user_decisions}
+        self.assertIn("command_operator", decisions[operator_user.pk].reason_codes)
+        self.assertIn("other_memberships", decisions[shared_user.pk].reason_codes)
+        self.assertIn("staff_user", decisions[staff_user.pk].reason_codes)
+        self.assertIn("superuser", decisions[superuser.pk].reason_codes)
+
+    def test_failure_after_deletions_rolls_back_everything_and_marks_audit_failed(self):
+        records = self._create_tenant_graph()
+        session_key = self._create_session(
+            user=self.owner,
+            business_id=self.business.pk,
+        )
+
+        with mock.patch(
+            "apps.businesses.business_data_purge._verify_purge_complete",
+            side_effect=RuntimeError("private injected purge failure"),
+        ):
+            with self.assertRaises(BusinessPurgeError) as raised:
+                purge_business(
+                    business_id=self.business.pk,
+                    reason_reference=self.reason_reference,
+                    confirm_test_financial_data=True,
+                )
+
+        self.assertEqual(raised.exception.error_code, "purge_failed")
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+        for record in records.values():
+            self.assertTrue(record.__class__.objects.filter(pk=record.pk).exists())
+        self.assertTrue(Session.objects.filter(session_key=session_key).exists())
+        operation = BusinessDataOperation.objects.get()
+        self.assertEqual(operation.mode, BusinessDataOperation.Mode.PURGE)
+        self.assertEqual(operation.status, BusinessDataOperation.Status.FAILED)
+        self.assertEqual(operation.error_code, "purge_failed")
+        self.assertNotIn("private injected purge failure", operation.error_code)
+
+    def test_completed_audit_survives_without_pii_and_missing_target_is_idempotent(self):
+        records = self._create_tenant_graph()
+        business_id = self.business.pk
+        private_session = self._create_session(
+            user=self.owner,
+            business_id=business_id,
+            private_value="private-purge-session-payload",
+        )
+
+        result = purge_business(
+            business_id=business_id,
+            reason_reference=self.reason_reference,
+            confirm_test_financial_data=True,
+        )
+
+        operation = BusinessDataOperation.objects.get(operation_id=result.audit_operation_id)
+        self.assertEqual(operation.mode, BusinessDataOperation.Mode.PURGE)
+        self.assertEqual(operation.status, BusinessDataOperation.Status.COMPLETED)
+        self.assertIsNotNone(operation.completed_at)
+        metadata = json.dumps(operation.record_counts, sort_keys=True)
+        for private_value in (
+            self.business.name,
+            self.business.email,
+            self.owner.email,
+            records["client"].email,
+            private_session,
+            "private-purge-session-payload",
+        ):
+            with self.subTest(private_value=private_value):
+                self.assertNotIn(private_value, metadata)
+
+        operation_count = BusinessDataOperation.objects.count()
+        rendered = self._run_command(
+            execute=True,
+            confirmation=business_id,
+            reason_reference=self.reason_reference,
+            confirm_test_financial_data=True,
+            business_id=business_id,
+        )
+        self.assertIn("not found or has already been purged", rendered)
+        self.assertEqual(BusinessDataOperation.objects.count(), operation_count)
