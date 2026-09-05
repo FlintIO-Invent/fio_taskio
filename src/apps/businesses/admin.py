@@ -20,6 +20,10 @@ admin.site.index_title = "Motionmate Administration"
 
 @admin.register(Business)
 class BusinessAdmin(admin.ModelAdmin):
+    deletion_workflow_notice = (
+        "Businesses cannot be deleted in Django Admin. Use the controlled "
+        "business closure and purge workflow so related records can be reviewed safely."
+    )
     list_display = (
         "name",
         "slug",
@@ -44,6 +48,14 @@ class BusinessAdmin(admin.ModelAdmin):
         "postal_code",
     )
     prepopulated_fields = {"slug": ("name",)}
+    readonly_fields = ("deletion_workflow_guidance",)
+
+    def has_delete_permission(self, request, obj=None) -> bool:
+        return False
+
+    @admin.display(description="Business closure and deletion")
+    def deletion_workflow_guidance(self, obj: Business | None = None) -> str:
+        return self.deletion_workflow_notice
 
     @admin.display(description="Plan")
     def subscription_plan(self, obj: Business) -> str:

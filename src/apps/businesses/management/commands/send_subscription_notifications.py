@@ -45,6 +45,7 @@ class Command(BaseCommand):
         eligible = SubscriptionNotification.objects.filter(
             status__in=statuses,
             available_at__lte=now,
+            business__is_active=True,
         ).order_by("available_at", "pk")
         total_eligible = eligible.count()
         notifications = list(eligible[:limit])

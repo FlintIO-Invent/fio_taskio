@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -149,6 +150,45 @@ class Business(TimeStampedModel):
         except BusinessSubscription.DoesNotExist:
             return False
         return subscription.can_view_module(module_name)
+
+
+class BusinessDataOperation(models.Model):
+    class Mode(models.TextChoices):
+        DEACTIVATE = "deactivate", "Deactivate"
+        ANONYMIZE = "anonymize", "Anonymize"
+        PURGE = "purge", "Purge"
+
+    class Status(models.TextChoices):
+        STARTED = "started", "Started"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
+    operation_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    business_id_snapshot = models.PositiveBigIntegerField()
+    mode = models.CharField(max_length=20, choices=Mode.choices)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.STARTED,
+    )
+    operator_id_snapshot = models.PositiveBigIntegerField(null=True, blank=True)
+    reason_reference = models.CharField(max_length=120, blank=True, default="")
+    record_counts = models.JSONField(default=dict, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=80, blank=True, default="")
+
+    class Meta:
+        ordering = ["-started_at", "-pk"]
+        indexes = [
+            models.Index(fields=["business_id_snapshot", "started_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.operation_id} - business #{self.business_id_snapshot} "
+            f"({self.get_status_display()})"
+        )
 
 
 class BusinessBookingSettings(TimeStampedModel):

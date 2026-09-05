@@ -5,34 +5,54 @@ from io import StringIO
 from types import SimpleNamespace
 from unittest import mock
 
+from django.contrib import admin
+from django.contrib.sessions.models import Session
 from django.core import mail
 from django.core.checks import run_checks
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.test import Client as DjangoClient
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.utils import timezone
 
 from apps.accounts.beta_registration import BETA_PLAN_DISPLAY_NAME, BETA_PLAN_SLUG
 from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
-from apps.billings.models import Invoice
-from apps.crm.models import BusinessService, Client, Lead
+from apps.billings.models import Invoice, InvoiceLine
+from apps.crm.models import ActivityLog, BusinessService, Client, Lead, ServiceCategory
 from config import Settings
 from helpers import build_public_url
 
 from . import stripe_checkout, stripe_config, stripe_portal, stripe_webhooks
+from .business_data_inventory import (
+    DIRECT_BUSINESS_RELATION_REGISTRY,
+    FuturePurgeReadiness,
+    InventoryClassification,
+    build_business_data_inventory,
+    find_unregistered_direct_business_relations,
+)
+from .business_data_operations import (
+    BusinessDeactivationError,
+    deactivate_business,
+)
+from .business_resolution import (
+    BusinessMatchKind,
+    BusinessResolutionError,
+    resolve_business_candidates,
+)
 from .checks import check_stripe_configuration
 from .localization import format_money_for_business, parse_localized_decimal
 from .models import (
     BillingProviderWebhookEvent,
     Business,
     BusinessBookingSettings,
+    BusinessDataOperation,
     BusinessInvitation,
     BusinessSubscription,
     BusinessUser,
@@ -1196,12 +1216,14 @@ class StripeCustomerPortalServiceTests(TestCase):
     def _stripe_client(self, *, create_result=None, create_side_effect=None):
         session_api = SimpleNamespace(
             create=mock.Mock(
-                return_value=create_result
-                if create_result is not None
-                else {
-                    "id": "bps_test_portal",
-                    "url": "https://billing.stripe.test/session",
-                },
+                return_value=(
+                    create_result
+                    if create_result is not None
+                    else {
+                        "id": "bps_test_portal",
+                        "url": "https://billing.stripe.test/session",
+                    }
+                ),
                 side_effect=create_side_effect,
             )
         )
@@ -2198,15 +2220,21 @@ class SubscriptionReminderDiscoveryTests(TestCase):
             payment_provider=payment_provider,
             billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
             billing_currency=BusinessSubscription.BillingCurrency.USD,
-            provider_customer_id="cus_reminder"
-            if payment_provider == BusinessSubscription.PaymentProvider.STRIPE
-            else "",
-            provider_subscription_id=f"sub_reminder_{suffix}"
-            if payment_provider == BusinessSubscription.PaymentProvider.STRIPE
-            else "",
-            provider_price_id="price_pro_monthly_usd"
-            if payment_provider == BusinessSubscription.PaymentProvider.STRIPE
-            else "",
+            provider_customer_id=(
+                "cus_reminder"
+                if payment_provider == BusinessSubscription.PaymentProvider.STRIPE
+                else ""
+            ),
+            provider_subscription_id=(
+                f"sub_reminder_{suffix}"
+                if payment_provider == BusinessSubscription.PaymentProvider.STRIPE
+                else ""
+            ),
+            provider_price_id=(
+                "price_pro_monthly_usd"
+                if payment_provider == BusinessSubscription.PaymentProvider.STRIPE
+                else ""
+            ),
             trial_start=self.now - timedelta(days=11),
             trial_end=trial_end,
             current_period_end=current_period_end or trial_end,
@@ -3494,7 +3522,10 @@ class StripeWebhookProcessingTests(TestCase):
         payload = self._event(
             event_id="evt_subscription_active_clears_grace",
             event_type="customer.subscription.updated",
-            event_object=self._remote_subscription(status="active"),
+            event_object=self._remote_subscription(
+                status="active",
+                current_period_end=int((timezone.now() + timedelta(days=30)).timestamp()),
+            ),
             created=self._timestamp(2026, 7, 9),
         )
 
@@ -8778,3 +8809,1254 @@ class BusinessInvitationViewTests(TestCase):
             0,
         )
         self.assertContains(response, MULTI_WORKSPACE_EMAIL_MESSAGE)
+
+
+class BusinessAdminDeletionProtectionTests(TestCase):
+    def setUp(self):
+        self.superuser = TaskIOUser.objects.create_superuser(
+            email="system-admin@example.com",
+            password="StrongPass123!",
+        )
+        self.business = Business.objects.create(
+            name="Protected Workspace",
+            slug="protected-workspace",
+        )
+        self.client.force_login(self.superuser)
+
+    def test_business_object_deletion_is_unavailable_even_to_superusers(self):
+        model_admin = admin.site._registry[Business]
+
+        response = self.client.get(
+            reverse("admin:businesses_business_delete", args=[self.business.pk])
+        )
+
+        self.assertFalse(model_admin.has_delete_permission(response.wsgi_request, self.business))
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+
+    def test_business_bulk_deletion_is_unavailable_and_admin_explains_workflow(self):
+        model_admin = admin.site._registry[Business]
+        change_response = self.client.get(
+            reverse("admin:businesses_business_change", args=[self.business.pk])
+        )
+        changelist_response = self.client.get(reverse("admin:businesses_business_changelist"))
+
+        actions = model_admin.get_actions(changelist_response.wsgi_request)
+
+        self.assertEqual(change_response.status_code, 200)
+        self.assertContains(change_response, model_admin.deletion_workflow_notice)
+        self.assertNotIn("delete_selected", actions)
+        self.assertNotContains(changelist_response, 'value="delete_selected"')
+
+
+class BusinessResolutionTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(
+            name="Resolver Workspace",
+            slug="resolver-workspace",
+            email="contact@resolver.example",
+            is_active=True,
+        )
+
+    def test_lookup_requires_exactly_one_identifier(self):
+        with self.assertRaises(BusinessResolutionError):
+            resolve_business_candidates()
+        with self.assertRaises(BusinessResolutionError):
+            resolve_business_candidates(
+                business_id=self.business.pk,
+                slug=self.business.slug,
+            )
+
+    def test_lookup_by_id_returns_structured_candidate(self):
+        candidates = resolve_business_candidates(business_id=str(self.business.pk))
+
+        self.assertEqual(len(candidates), 1)
+        candidate = candidates[0]
+        self.assertEqual(candidate.business_id, self.business.pk)
+        self.assertEqual(candidate.business_name, self.business.name)
+        self.assertEqual(candidate.slug, self.business.slug)
+        self.assertEqual(candidate.business_contact_email, self.business.email)
+        self.assertTrue(candidate.is_active)
+        self.assertEqual(candidate.matches[0].matched_by, BusinessMatchKind.PRIMARY_KEY)
+
+    def test_lookup_by_slug_returns_correct_candidate(self):
+        candidates = resolve_business_candidates(slug=self.business.slug)
+
+        self.assertEqual([candidate.business_id for candidate in candidates], [self.business.pk])
+        self.assertEqual(candidates[0].matches[0].matched_by, BusinessMatchKind.SLUG)
+
+    def test_user_email_matching_is_case_insensitive(self):
+        user = TaskIOUser.objects.create_user(
+            email="member@resolver.example",
+            password="StrongPass123!",
+        )
+        BusinessUser.objects.create(
+            user=user,
+            business=self.business,
+            role=BusinessUser.Role.ACCOUNTANT,
+        )
+
+        candidates = resolve_business_candidates(email=" MEMBER@RESOLVER.EXAMPLE ")
+
+        self.assertEqual([candidate.business_id for candidate in candidates], [self.business.pk])
+        match = candidates[0].matches[0]
+        self.assertEqual(match.matched_by, BusinessMatchKind.MEMBER_EMAIL)
+        self.assertEqual(match.membership_role, BusinessUser.Role.ACCOUNTANT)
+        self.assertTrue(match.membership_is_active)
+
+    def test_business_contact_email_matching_is_case_insensitive(self):
+        candidates = resolve_business_candidates(email="CONTACT@RESOLVER.EXAMPLE")
+
+        self.assertEqual([candidate.business_id for candidate in candidates], [self.business.pk])
+        self.assertEqual(candidates[0].matches[0].matched_by, BusinessMatchKind.CONTACT_EMAIL)
+
+    def test_multiple_email_matches_remain_multiple(self):
+        member_business = Business.objects.create(
+            name="Member Match",
+            slug="member-match",
+        )
+        member = TaskIOUser.objects.create_user(
+            email="shared@resolver.example",
+            password="StrongPass123!",
+        )
+        BusinessUser.objects.create(
+            user=member,
+            business=member_business,
+            role=BusinessUser.Role.STAFF,
+        )
+        contact_business = Business.objects.create(
+            name="Contact Match",
+            slug="contact-match",
+            email="shared@resolver.example",
+        )
+
+        candidates = resolve_business_candidates(email="shared@resolver.example")
+
+        self.assertEqual(
+            {candidate.business_id for candidate in candidates},
+            {member_business.pk, contact_business.pk},
+        )
+
+    def test_duplicate_matches_for_one_business_are_merged(self):
+        shared_email = "both@resolver.example"
+        self.business.email = shared_email
+        self.business.save(update_fields=["email", "updated_at"])
+        member = TaskIOUser.objects.create_user(
+            email=shared_email,
+            password="StrongPass123!",
+        )
+        BusinessUser.objects.create(
+            user=member,
+            business=self.business,
+            role=BusinessUser.Role.OWNER,
+        )
+
+        candidates = resolve_business_candidates(email=shared_email.upper())
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].business_id, self.business.pk)
+        self.assertEqual(
+            {match.matched_by for match in candidates[0].matches},
+            {BusinessMatchKind.MEMBER_EMAIL, BusinessMatchKind.CONTACT_EMAIL},
+        )
+
+    def test_inactive_membership_is_discoverable(self):
+        user = TaskIOUser.objects.create_user(
+            email="inactive@resolver.example",
+            password="StrongPass123!",
+        )
+        BusinessUser.objects.create(
+            user=user,
+            business=self.business,
+            role=BusinessUser.Role.VIEWER,
+            is_active=False,
+        )
+
+        candidates = resolve_business_candidates(email=user.email)
+
+        self.assertEqual(len(candidates), 1)
+        match = candidates[0].matches[0]
+        self.assertEqual(match.membership_role, BusinessUser.Role.VIEWER)
+        self.assertFalse(match.membership_is_active)
+
+    def test_tenant_customer_and_invitation_emails_are_not_resolution_sources(self):
+        Client.objects.create(
+            business=self.business,
+            first_name="Client",
+            last_name="Only",
+            email="client-only@resolver.example",
+            phone="",
+            company_name="",
+            street_address="",
+        )
+        Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.INTEREST,
+            first_name="Lead",
+            last_name="Only",
+            email="lead-only@resolver.example",
+            phone="",
+            company_name="",
+        )
+        BusinessInvitation.objects.create(
+            business=self.business,
+            email="invitation-only@resolver.example",
+            role=BusinessUser.Role.STAFF,
+        )
+
+        for email in (
+            "client-only@resolver.example",
+            "lead-only@resolver.example",
+            "invitation-only@resolver.example",
+        ):
+            with self.subTest(email=email):
+                self.assertEqual(resolve_business_candidates(email=email), ())
+
+
+class BusinessDataOperationTests(TestCase):
+    def test_audit_model_has_snapshot_ids_without_business_or_user_relations(self):
+        relation_fields = [
+            field for field in BusinessDataOperation._meta.get_fields() if field.is_relation
+        ]
+
+        self.assertEqual(relation_fields, [])
+        self.assertFalse(BusinessDataOperation._meta.get_field("operation_id").editable)
+        self.assertTrue(BusinessDataOperation._meta.get_field("operation_id").unique)
+
+    def test_audit_record_uses_only_snapshot_ids_and_non_pii_metadata(self):
+        operation = BusinessDataOperation.objects.create(
+            business_id_snapshot=987654321,
+            mode=BusinessDataOperation.Mode.DEACTIVATE,
+            operator_id_snapshot=123456789,
+            reason_reference="SUPPORT-1001",
+            record_counts={"clients": 4, "invoices": 2},
+        )
+
+        operation.refresh_from_db()
+
+        self.assertIsNotNone(operation.operation_id)
+        self.assertEqual(operation.business_id_snapshot, 987654321)
+        self.assertEqual(operation.operator_id_snapshot, 123456789)
+        self.assertEqual(operation.status, BusinessDataOperation.Status.STARTED)
+        self.assertEqual(operation.reason_reference, "SUPPORT-1001")
+        self.assertEqual(operation.record_counts, {"clients": 4, "invoices": 2})
+        self.assertIsNone(operation.completed_at)
+        self.assertEqual(operation.error_code, "")
+
+
+class BusinessDataInventoryCommandTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(
+            name="Inventory Workspace",
+            slug="inventory-workspace",
+            email="private-contact@inventory.example",
+        )
+        self.other_business = Business.objects.create(
+            name="Other Workspace",
+            slug="other-inventory-workspace",
+            email="other-private-contact@inventory.example",
+        )
+
+    def _command_output(self, *, output_format="json", **lookup):
+        output = StringIO()
+        call_command(
+            "inspect_business_data",
+            output_format=output_format,
+            stdout=output,
+            **lookup,
+        )
+        return output.getvalue()
+
+    def _json_inventory(self):
+        return json.loads(self._command_output(business_id=self.business.pk))
+
+    @staticmethod
+    def _records_by_key(inventory):
+        return {record["key"]: record for record in inventory["records"]}
+
+    def _client(self, *, business, suffix):
+        return Client.objects.create(
+            business=business,
+            first_name="Inventory",
+            last_name=suffix,
+            email=f"client-{suffix}@inventory.example",
+            phone="+1 721 555 0100",
+            company_name=f"Client {suffix}",
+            street_address="1 Inventory Street",
+        )
+
+    def test_command_requires_exactly_one_lookup_argument(self):
+        with self.assertRaises(CommandError):
+            call_command("inspect_business_data", stdout=StringIO())
+
+        with self.assertRaises(CommandError):
+            call_command(
+                "inspect_business_data",
+                business_id=self.business.pk,
+                slug=self.business.slug,
+                stdout=StringIO(),
+            )
+
+    def test_missing_business_returns_nonzero_with_clear_message(self):
+        output = StringIO()
+
+        with self.assertRaises(CommandError):
+            call_command(
+                "inspect_business_data",
+                business_id=999999,
+                stdout=output,
+            )
+
+        self.assertIn("No business matched", output.getvalue())
+
+    def test_ambiguous_email_lists_all_candidates_and_requires_business_id(self):
+        user = TaskIOUser.objects.create_user(
+            email="shared-operator@inventory.example",
+            password="StrongPass123!",
+        )
+        BusinessUser.objects.create(
+            business=self.business,
+            user=user,
+            role=BusinessUser.Role.OWNER,
+        )
+        BusinessUser.objects.create(
+            business=self.other_business,
+            user=user,
+            role=BusinessUser.Role.VIEWER,
+            is_active=False,
+        )
+        BusinessInvitation.objects.create(
+            business=self.business,
+            email="invitee@inventory.example",
+            token="never-display-this-invitation-token",
+        )
+        output = StringIO()
+
+        with self.assertRaises(CommandError):
+            call_command(
+                "inspect_business_data",
+                email="SHARED-OPERATOR@INVENTORY.EXAMPLE",
+                stdout=output,
+            )
+
+        rendered = output.getvalue()
+        self.assertIn(f"Business ID={self.business.pk}", rendered)
+        self.assertIn(f"Business ID={self.other_business.pk}", rendered)
+        self.assertIn("matched_by=member_email", rendered)
+        self.assertIn("rerun using --business-id", rendered)
+        self.assertNotIn(self.business.email, rendered)
+        self.assertNotIn(self.other_business.email, rendered)
+        self.assertNotIn("never-display-this-invitation-token", rendered)
+
+    def test_exact_business_id_outputs_inventory_in_text_and_json(self):
+        text_output = self._command_output(
+            output_format="text",
+            business_id=self.business.pk,
+        )
+        json_output = self._json_inventory()
+        summary = json_output["summary"]
+
+        self.assertIn(f"Selected Business ID: {self.business.pk}", text_output)
+        self.assertIn(f"- Business slug: {summary['business_slug']}", text_output)
+        self.assertIn(
+            "- Total directly and indirectly owned records: "
+            f"{summary['total_directly_and_indirectly_owned_records']}",
+            text_output,
+        )
+        self.assertIn(
+            f"- Overall future-purge readiness: {summary['future_purge_readiness']}",
+            text_output,
+        )
+        self.assertEqual(
+            json_output["selected_business"]["business_id"],
+            self.business.pk,
+        )
+        self.assertTrue(json_output["informational_only"])
+
+    def test_unique_slug_and_email_lookups_produce_the_same_inventory(self):
+        by_slug = json.loads(self._command_output(slug=self.business.slug))
+        by_email = json.loads(self._command_output(email=self.business.email.upper()))
+
+        self.assertEqual(
+            by_slug["selected_business"]["business_id"],
+            self.business.pk,
+        )
+        self.assertEqual(by_slug["summary"], by_email["summary"])
+
+    def test_command_executes_no_database_writes_or_audit_operations(self):
+        output = StringIO()
+        initial_operation_count = BusinessDataOperation.objects.count()
+
+        with CaptureQueriesContext(connection) as captured_queries:
+            call_command(
+                "inspect_business_data",
+                business_id=self.business.pk,
+                output_format="json",
+                stdout=output,
+            )
+
+        write_verbs = {"ALTER", "CREATE", "DELETE", "DROP", "INSERT", "REPLACE", "UPDATE"}
+        executed_verbs = {
+            query["sql"].lstrip().partition(" ")[0].upper()
+            for query in captured_queries.captured_queries
+        }
+        self.assertTrue(executed_verbs.isdisjoint(write_verbs))
+        self.assertEqual(BusinessDataOperation.objects.count(), initial_operation_count)
+        self.business.refresh_from_db()
+        self.assertTrue(self.business.is_active)
+
+    def test_inventory_counts_cascade_set_null_invoice_and_indirect_records(self):
+        BusinessBookingSettings.objects.create(business=self.business)
+        WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+        category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Inventory Category",
+        )
+        service = BusinessService.objects.create(
+            business=self.business,
+            category=category,
+            name="Inventory Service",
+        )
+        lead = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            first_name="Inventory",
+            last_name="Lead",
+            email="lead@inventory.example",
+            phone="+1 721 555 0101",
+            company_name="Lead Company",
+            category=category,
+            requested_service=service,
+        )
+        client = self._client(business=self.business, suffix="owned")
+        ActivityLog.objects.create(
+            business=self.business,
+            lead=lead,
+            client=client,
+            action_type=ActivityLog.ActionType.STATUS_CHANGED,
+        )
+        now = timezone.now()
+        appointment = Appointment.objects.create(
+            business=self.business,
+            client=client,
+            service=service,
+            source_lead=lead,
+            title="Inventory appointment",
+            start_time=now + timedelta(days=1),
+            end_time=now + timedelta(days=1, hours=1),
+        )
+        invoice = Invoice.objects.create(
+            business=self.business,
+            client=client,
+            appointment=appointment,
+            invoice_number="INV-INVENTORY-1",
+        )
+        InvoiceLine.objects.create(
+            invoice=invoice,
+            service=service,
+            description="Inventory line",
+            quantity=1,
+            unit_price=Decimal("25.00"),
+        )
+
+        inventory = self._json_inventory()
+        records = self._records_by_key(inventory)
+
+        self.assertEqual(records["business_booking_settings"]["total_count"], 1)
+        self.assertEqual(records["weekly_availability"]["total_count"], 1)
+        self.assertEqual(records["business_services"]["classification"], "cascade")
+        self.assertEqual(records["service_categories"]["classification"], "set_null_orphan_risk")
+        self.assertEqual(records["leads"]["total_count"], 1)
+        self.assertEqual(records["clients"]["total_count"], 1)
+        self.assertEqual(records["activity_logs"]["total_count"], 1)
+        self.assertEqual(records["appointments"]["total_count"], 1)
+        self.assertEqual(records["invoices"]["total_count"], 1)
+        self.assertEqual(records["invoices"]["classification"], "protect_blocker")
+        self.assertEqual(records["invoice_lines"]["total_count"], 1)
+        self.assertEqual(records["invoice_lines"]["classification"], "indirect")
+        self.assertEqual(inventory["summary"]["set_null_orphan_risk_count"], 4)
+        self.assertEqual(inventory["summary"]["protect_blocker_count"], 1)
+        self.assertTrue(inventory["billing_assessment"]["invoice_protect_would_block_delete"])
+        self.assertEqual(
+            inventory["summary"]["future_purge_readiness"],
+            FuturePurgeReadiness.BLOCKED_BY_FINANCIAL_RETENTION,
+        )
+
+    def test_shared_and_system_users_are_protected_without_exposing_email(self):
+        shared_user = TaskIOUser.objects.create_user(
+            email="shared-user@inventory.example",
+            password="StrongPass123!",
+        )
+        system_user = TaskIOUser.objects.create_superuser(
+            email="system-user@inventory.example",
+            password="StrongPass123!",
+        )
+        BusinessUser.objects.create(
+            business=self.business,
+            user=shared_user,
+            role=BusinessUser.Role.STAFF,
+        )
+        BusinessUser.objects.create(
+            business=self.other_business,
+            user=shared_user,
+            role=BusinessUser.Role.VIEWER,
+            is_active=False,
+        )
+        BusinessUser.objects.create(
+            business=self.business,
+            user=system_user,
+            role=BusinessUser.Role.ADMIN,
+        )
+
+        rendered = self._command_output(business_id=self.business.pk)
+        inventory = json.loads(rendered)
+        impacts = {impact["user_id"]: impact for impact in inventory["user_impact"]}
+
+        self.assertTrue(impacts[shared_user.pk]["appears_shared"])
+        self.assertEqual(
+            impacts[shared_user.pk]["other_business_membership_count"],
+            1,
+        )
+        self.assertTrue(impacts[shared_user.pk]["automatic_account_deletion_prohibited"])
+        self.assertTrue(impacts[system_user.pk]["is_staff"])
+        self.assertTrue(impacts[system_user.pk]["is_superuser"])
+        self.assertTrue(impacts[system_user.pk]["automatic_account_deletion_prohibited"])
+        self.assertEqual(inventory["summary"]["shared_user_count"], 1)
+        self.assertEqual(inventory["summary"]["protected_or_system_user_count"], 2)
+        self.assertNotIn(shared_user.email, rendered)
+        self.assertNotIn(system_user.email, rendered)
+
+    def test_cross_business_relationship_is_a_future_purge_blocker(self):
+        selected_client = self._client(business=self.business, suffix="selected")
+        other_client = self._client(business=self.other_business, suffix="other")
+        now = timezone.now()
+        other_appointment = Appointment.objects.create(
+            business=self.other_business,
+            client=other_client,
+            title="Other appointment",
+            start_time=now + timedelta(days=2),
+            end_time=now + timedelta(days=2, hours=1),
+        )
+        Appointment.objects.filter(pk=other_appointment.pk).update(client_id=selected_client.pk)
+
+        inventory = self._json_inventory()
+        checks = {check["check_code"]: check for check in inventory["integrity_checks"]}
+
+        check = checks["cross_tenant_external_appointment_client"]
+        self.assertEqual(check["severity"], "blocker")
+        self.assertEqual(check["affected_count"], 1)
+        self.assertEqual(
+            inventory["summary"]["future_purge_readiness"],
+            FuturePurgeReadiness.BLOCKED_BY_INTEGRITY,
+        )
+        self.assertGreater(
+            inventory["summary"]["cross_tenant_integrity_blocker_count"],
+            0,
+        )
+
+    def test_null_business_legacy_records_are_not_attributed_to_selected_business(self):
+        self._client(business=None, suffix="legacy-null")
+
+        inventory = self._json_inventory()
+        records = self._records_by_key(inventory)
+        checks = {check["check_code"]: check for check in inventory["integrity_checks"]}
+
+        self.assertEqual(records["clients"]["total_count"], 0)
+        self.assertGreaterEqual(
+            checks["legacy_null_business_crm_client"]["affected_count"],
+            1,
+        )
+        self.assertEqual(
+            inventory["summary"]["total_directly_and_indirectly_owned_records"],
+            1,
+        )
+
+    def test_webhooks_and_provider_state_are_counted_without_exposing_identifiers(self):
+        plan = ClarivoPlan.objects.get(slug="pro")
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+            payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+            billing_interval=BusinessSubscription.BillingInterval.MONTHLY,
+            billing_currency=BusinessSubscription.BillingCurrency.USD,
+            provider_customer_id="cus_inventory_secret",
+            provider_subscription_id="sub_inventory_secret",
+            provider_checkout_session_id="cs_inventory_secret",
+            provider_price_id="price_inventory_secret",
+            current_period_end=timezone.now() + timedelta(days=30),
+        )
+        BillingProviderWebhookEvent.objects.create(
+            event_id="evt_inventory_secret",
+            event_type="customer.subscription.updated",
+            object_id=subscription.provider_subscription_id,
+            payload_summary={
+                "motionmate_business_id": str(self.business.pk),
+                "motionmate_subscription_id": str(subscription.pk),
+                "provider_subscription_id": subscription.provider_subscription_id,
+                "private_payload_value": "never-display-webhook-payload",
+            },
+        )
+        BusinessInvitation.objects.create(
+            business=self.business,
+            email="private-invitee@inventory.example",
+            token="never-display-inventory-token",
+        )
+
+        rendered = self._command_output(business_id=self.business.pk)
+        inventory = json.loads(rendered)
+        billing = inventory["billing_assessment"]
+
+        self.assertEqual(billing["correlated_webhook_event_count"], 1)
+        self.assertTrue(billing["provider_customer_id_present"])
+        self.assertTrue(billing["provider_subscription_id_present"])
+        self.assertTrue(billing["provider_checkout_id_present"])
+        self.assertTrue(billing["provider_price_id_present"])
+        self.assertTrue(billing["future_stripe_closure_required"])
+        for secret in (
+            "cus_inventory_secret",
+            "sub_inventory_secret",
+            "cs_inventory_secret",
+            "price_inventory_secret",
+            "evt_inventory_secret",
+            "never-display-webhook-payload",
+            "never-display-inventory-token",
+            "private-invitee@inventory.example",
+        ):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, rendered)
+
+    def test_database_sessions_are_counted_without_exposing_contents(self):
+        session = self.client.session
+        session[CURRENT_BUSINESS_SESSION_KEY] = self.business.pk
+        session["private_test_value"] = "never-display-session-contents"
+        session.save()
+
+        rendered = self._command_output(business_id=self.business.pk)
+        records = self._records_by_key(json.loads(rendered))
+
+        self.assertEqual(records["sessions"]["active_count"], 1)
+        self.assertEqual(records["sessions"]["total_count"], 1)
+        self.assertNotIn("never-display-session-contents", rendered)
+        self.assertNotIn(session.session_key, rendered)
+
+    def test_completeness_guard_detects_missing_and_accepts_current_registry(self):
+        self.assertEqual(find_unregistered_direct_business_relations(), ())
+
+        registry_without_invoices = tuple(
+            registration
+            for registration in DIRECT_BUSINESS_RELATION_REGISTRY
+            if registration.model_label != "billings.Invoice"
+        )
+
+        self.assertIn(
+            "billings.Invoice.business",
+            find_unregistered_direct_business_relations(registry_without_invoices),
+        )
+
+    def test_inventory_service_accepts_exact_instance_or_id_and_is_serializable(self):
+        by_instance = build_business_data_inventory(self.business).to_dict()
+        by_id = build_business_data_inventory(self.business.pk).to_dict()
+
+        self.assertEqual(by_instance["summary"], by_id["summary"])
+        self.assertEqual(
+            self._records_by_key(by_instance)["business"]["classification"],
+            InventoryClassification.TENANT_ROOT,
+        )
+        json.dumps(by_instance)
+
+
+class BusinessDeactivationTests(TestCase):
+    reason_reference = "TEST-CLEANUP-001"
+
+    def setUp(self):
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+        self.business = Business.objects.create(
+            name="Private Deactivation Workspace",
+            slug="deactivation-workspace",
+            email="private-business@deactivation.example",
+        )
+        self.other_business = Business.objects.create(
+            name="Other Preserved Workspace",
+            slug="other-preserved-workspace",
+        )
+        now = timezone.now()
+        self.subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=now,
+            trial_end=now + timedelta(days=14),
+            current_period_start=now,
+            current_period_end=now + timedelta(days=14),
+        )
+        self.other_subscription = BusinessSubscription.objects.create(
+            business=self.other_business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.TRIALING,
+            trial_start=now,
+            trial_end=now + timedelta(days=14),
+            current_period_start=now,
+            current_period_end=now + timedelta(days=14),
+        )
+        self.owner = TaskIOUser.objects.create_user(
+            email="private-owner@deactivation.example",
+            password="StrongPass123!",
+        )
+        self.membership = BusinessUser.objects.create(
+            business=self.business,
+            user=self.owner,
+            role=BusinessUser.Role.OWNER,
+        )
+
+    def _run_command(self, *, execute=False, confirmation=None):
+        output = StringIO()
+        options = {
+            "business_id": self.business.pk,
+            "reason_reference": self.reason_reference,
+            "execute": execute,
+            "stdout": output,
+        }
+        if confirmation is not None:
+            options["confirm_business_id"] = confirmation
+        call_command("deactivate_business", **options)
+        return output.getvalue()
+
+    @staticmethod
+    def _create_session(*, user=None, business_id=None, private_value=""):
+        client = DjangoClient()
+        if user is not None:
+            client.force_login(user)
+        session = client.session
+        if business_id is not None:
+            session[CURRENT_BUSINESS_SESSION_KEY] = business_id
+        if private_value:
+            session["private_test_value"] = private_value
+        session.save()
+        return session.session_key
+
+    def _create_tenant_records(self):
+        category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Private Category",
+        )
+        service = BusinessService.objects.create(
+            business=self.business,
+            category=category,
+            name="Private Service",
+            unit_price=Decimal("45.00"),
+        )
+        lead = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            first_name="Private",
+            last_name="Lead",
+            email="private-lead@deactivation.example",
+            phone="+1 721 555 0100",
+            company_name="Private Client",
+            category=category,
+            requested_service=service,
+        )
+        client = Client.objects.create(
+            business=self.business,
+            first_name="Private",
+            last_name="Client",
+            email="private-client@deactivation.example",
+            phone="+1 721 555 0101",
+            company_name="Private Client",
+            street_address="1 Private Street",
+        )
+        activity = ActivityLog.objects.create(
+            business=self.business,
+            lead=lead,
+            client=client,
+            action_type=ActivityLog.ActionType.STATUS_CHANGED,
+        )
+        now = timezone.now()
+        appointment = Appointment.objects.create(
+            business=self.business,
+            client=client,
+            service=service,
+            source_lead=lead,
+            title="Private appointment",
+            start_time=now + timedelta(days=1),
+            end_time=now + timedelta(days=1, hours=1),
+        )
+        invoice = Invoice.objects.create(
+            business=self.business,
+            client=client,
+            appointment=appointment,
+            invoice_number="INV-DEACTIVATE-1",
+        )
+        invoice_line = InvoiceLine.objects.create(
+            invoice=invoice,
+            service=service,
+            description="Private invoice line",
+            quantity=1,
+            unit_price=Decimal("45.00"),
+        )
+        booking_settings = BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+        )
+        return {
+            "category": category,
+            "service": service,
+            "lead": lead,
+            "client": client,
+            "activity": activity,
+            "appointment": appointment,
+            "invoice": invoice,
+            "invoice_line": invoice_line,
+            "booking_settings": booking_settings,
+        }
+
+    def test_dry_run_performs_no_writes_and_creates_no_audit_operation(self):
+        pending = SubscriptionNotification.objects.create(
+            business=self.business,
+            subscription=self.subscription,
+            recipient_email=self.owner.email,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+            deduplication_key="dry-run-pending",
+        )
+        session_key = self._create_session(
+            user=self.owner,
+            business_id=self.business.pk,
+            private_value="never-render-dry-run-session-data",
+        )
+        initial_operations = BusinessDataOperation.objects.count()
+
+        with CaptureQueriesContext(connection) as captured_queries:
+            rendered = self._run_command()
+
+        write_verbs = {"ALTER", "CREATE", "DELETE", "DROP", "INSERT", "REPLACE", "UPDATE"}
+        executed_verbs = {
+            query["sql"].lstrip().partition(" ")[0].upper()
+            for query in captured_queries.captured_queries
+        }
+        self.assertTrue(executed_verbs.isdisjoint(write_verbs))
+        self.business.refresh_from_db()
+        pending.refresh_from_db()
+        self.assertTrue(self.business.is_active)
+        self.assertEqual(pending.status, SubscriptionNotification.Status.PENDING)
+        self.assertTrue(Session.objects.filter(session_key=session_key).exists())
+        self.assertEqual(BusinessDataOperation.objects.count(), initial_operations)
+        self.assertIn("DRY RUN ONLY", rendered)
+        self.assertIn(f"Business ID: {self.business.pk}", rendered)
+        self.assertIn(f"Business slug: {self.business.slug}", rendered)
+        self.assertIn("Subscription state: trialing", rendered)
+        self.assertNotIn("never-render-dry-run-session-data", rendered)
+        self.assertNotIn(session_key, rendered)
+        self.assertNotIn(self.owner.email, rendered)
+
+    def test_execution_requires_an_exact_numeric_confirmation(self):
+        for confirmation in (None, self.other_business.pk, self.owner.email):
+            with self.subTest(confirmation=confirmation):
+                with self.assertRaises(CommandError):
+                    self._run_command(execute=True, confirmation=confirmation)
+
+        self.business.refresh_from_db()
+        self.assertTrue(self.business.is_active)
+        self.assertFalse(BusinessDataOperation.objects.exists())
+
+    def test_exact_confirmation_deactivates_only_selected_business_and_preserves_data(self):
+        records = self._create_tenant_records()
+        initial_plan_values = {
+            plan.pk: (plan.is_active, plan.updated_at) for plan in ClarivoPlan.objects.all()
+        }
+        user_count = TaskIOUser.objects.count()
+
+        with (
+            mock.patch.object(stripe_checkout, "configure_stripe_sdk") as checkout_sdk,
+            mock.patch.object(stripe_portal, "configure_stripe_sdk") as portal_sdk,
+        ):
+            rendered = self._run_command(
+                execute=True,
+                confirmation=self.business.pk,
+            )
+
+        self.business.refresh_from_db()
+        self.other_business.refresh_from_db()
+        self.subscription.refresh_from_db()
+        self.membership.refresh_from_db()
+        self.owner.refresh_from_db()
+        self.assertFalse(self.business.is_active)
+        self.assertTrue(self.other_business.is_active)
+        self.assertTrue(self.membership.is_active)
+        self.assertTrue(self.owner.is_active)
+        self.assertEqual(TaskIOUser.objects.count(), user_count)
+        self.assertTrue(BusinessSubscription.objects.filter(pk=self.subscription.pk).exists())
+        self.assertEqual(self.subscription.status, BusinessSubscription.Status.TRIALING)
+        for record in records.values():
+            self.assertTrue(record.__class__.objects.filter(pk=record.pk).exists())
+        self.assertEqual(
+            {plan.pk: (plan.is_active, plan.updated_at) for plan in ClarivoPlan.objects.all()},
+            initial_plan_values,
+        )
+        checkout_sdk.assert_not_called()
+        portal_sdk.assert_not_called()
+        self.assertIn("was deactivated successfully", rendered)
+
+    def test_pending_notifications_are_cancelled_and_sent_history_is_preserved(self):
+        pending = SubscriptionNotification.objects.create(
+            business=self.business,
+            subscription=self.subscription,
+            recipient_email=self.owner.email,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+            deduplication_key="deactivation-pending",
+        )
+        failed = SubscriptionNotification.objects.create(
+            business=self.business,
+            subscription=self.subscription,
+            recipient_email=self.owner.email,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_ENDING_1_DAY,
+            deduplication_key="deactivation-failed",
+            status=SubscriptionNotification.Status.FAILED,
+            last_error="Prior safe error",
+        )
+        sent_at = timezone.now() - timedelta(hours=1)
+        sent = SubscriptionNotification.objects.create(
+            business=self.business,
+            subscription=self.subscription,
+            recipient_email=self.owner.email,
+            notification_type=SubscriptionNotification.NotificationType.SUBSCRIPTION_ACTIVATED,
+            deduplication_key="deactivation-sent",
+            status=SubscriptionNotification.Status.SENT,
+            sent_at=sent_at,
+            last_error="",
+        )
+
+        result = deactivate_business(
+            business_id=self.business.pk,
+            reason_reference=self.reason_reference,
+        )
+
+        pending.refresh_from_db()
+        failed.refresh_from_db()
+        sent.refresh_from_db()
+        self.assertEqual(pending.status, SubscriptionNotification.Status.CANCELLED)
+        self.assertEqual(failed.status, SubscriptionNotification.Status.CANCELLED)
+        self.assertEqual(sent.status, SubscriptionNotification.Status.SENT)
+        self.assertEqual(sent.sent_at, sent_at)
+        self.assertEqual(result.notification_count_cancelled, 2)
+
+    def test_sessions_are_invalidated_selectively_for_sole_and_shared_users(self):
+        shared_user = TaskIOUser.objects.create_user(
+            email="shared-user@deactivation.example",
+            password="StrongPass123!",
+        )
+        BusinessUser.objects.create(
+            business=self.business,
+            user=shared_user,
+            role=BusinessUser.Role.STAFF,
+        )
+        BusinessUser.objects.create(
+            business=self.other_business,
+            user=shared_user,
+            role=BusinessUser.Role.VIEWER,
+        )
+        sole_user_target_session = self._create_session(
+            user=self.owner,
+            business_id=self.business.pk,
+        )
+        sole_user_unscoped_session = self._create_session(user=self.owner)
+        shared_user_target_session = self._create_session(
+            user=shared_user,
+            business_id=self.business.pk,
+        )
+        shared_user_other_session = self._create_session(
+            user=shared_user,
+            business_id=self.other_business.pk,
+        )
+        unrelated_user = TaskIOUser.objects.create_user(
+            email="unrelated-user@deactivation.example",
+            password="StrongPass123!",
+        )
+        unrelated_session = self._create_session(user=unrelated_user)
+
+        result = deactivate_business(
+            business_id=self.business.pk,
+            reason_reference=self.reason_reference,
+        )
+
+        self.assertFalse(
+            Session.objects.filter(
+                session_key__in=(
+                    sole_user_target_session,
+                    sole_user_unscoped_session,
+                    shared_user_target_session,
+                )
+            ).exists()
+        )
+        self.assertTrue(Session.objects.filter(session_key=shared_user_other_session).exists())
+        self.assertTrue(Session.objects.filter(session_key=unrelated_session).exists())
+        self.assertEqual(result.session_summary.sessions_to_invalidate, 3)
+
+    def test_corrupted_sessions_are_skipped_without_warning_or_failure(self):
+        corrupted_session = Session.objects.create(
+            session_key="corrupted-session-for-deactivation",
+            session_data="not-a-valid-signed-session",
+            expire_date=timezone.now() + timedelta(days=1),
+        )
+
+        with self.assertNoLogs("django.security.SuspiciousSession", level="WARNING"):
+            result = deactivate_business(
+                business_id=self.business.pk,
+                reason_reference=self.reason_reference,
+            )
+
+        self.assertTrue(Session.objects.filter(pk=corrupted_session.pk).exists())
+        self.assertEqual(result.session_summary.corrupted_sessions_skipped, 1)
+
+    @override_settings(SESSION_ENGINE="django.contrib.sessions.backends.signed_cookies")
+    def test_unsupported_session_backend_fails_safely_without_writes(self):
+        with self.assertRaises(CommandError) as raised:
+            self._run_command(
+                execute=True,
+                confirmation=self.business.pk,
+            )
+
+        self.business.refresh_from_db()
+        self.assertTrue(self.business.is_active)
+        self.assertFalse(BusinessDataOperation.objects.exists())
+        self.assertIn("session_backend_unsupported", str(raised.exception))
+
+    def test_inactive_business_is_blocked_from_workspace_roles_and_tenant_routes(self):
+        UserOnboardingState.objects.create(user=self.owner, business=self.business)
+        self.business.is_active = False
+        self.business.save(update_fields=["is_active", "updated_at"])
+        role_routes = (
+            "agent_dashboard",
+            "staff_client_list",
+            "staff_lead_create",
+            "invoice_list",
+            "invoice_create",
+            "appointment_list",
+            "appointment_create",
+            "business_settings",
+        )
+
+        for role in BusinessUser.Role.values:
+            user = TaskIOUser.objects.create_user(
+                email=f"{role}@inactive-access.example",
+                password="StrongPass123!",
+            )
+            BusinessUser.objects.create(business=self.business, user=user, role=role)
+            client = DjangoClient()
+            client.force_login(user)
+            for route_name in role_routes:
+                with self.subTest(role=role, route=route_name):
+                    response = client.get(reverse(route_name))
+                    self.assertNotEqual(response.status_code, 200)
+
+        before = UserOnboardingState.objects.get(user=self.owner, business=self.business)
+        client = DjangoClient()
+        client.force_login(self.owner)
+        response = client.post(
+            reverse("agent_dashboard"),
+            {"onboarding_action": "dismiss_welcome"},
+        )
+        self.assertNotEqual(response.status_code, 200)
+        before.refresh_from_db()
+        self.assertIsNone(before.dismissed_at)
+
+    def test_inactive_business_rejects_public_submissions_and_invitation_acceptance(self):
+        invitation = BusinessInvitation.objects.create(
+            business=self.business,
+            email="invitee@inactive.example",
+            role=BusinessUser.Role.STAFF,
+            token="inactive-business-invitation",
+        )
+        self.business.is_active = False
+        self.business.save(update_fields=["is_active", "updated_at"])
+        lead_count = Lead.objects.count()
+        appointment_count = Appointment.objects.count()
+
+        public_request_response = self.client.post(
+            reverse("public_request", args=[self.business.slug]),
+            {},
+        )
+        public_booking_response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            {},
+        )
+        invitation_response = self.client.post(
+            reverse("accept_business_invitation", args=[invitation.token]),
+            {},
+        )
+
+        self.assertEqual(public_request_response.status_code, 404)
+        self.assertEqual(public_booking_response.status_code, 404)
+        self.assertEqual(invitation_response.status_code, 302)
+        self.assertEqual(Lead.objects.count(), lead_count)
+        self.assertEqual(Appointment.objects.count(), appointment_count)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.status, BusinessInvitation.Status.PENDING)
+
+    def test_inactive_business_cannot_open_checkout_or_portal_sessions(self):
+        self.business.is_active = False
+        self.business.save(update_fields=["is_active", "updated_at"])
+        self.subscription.status = BusinessSubscription.Status.PENDING_CHECKOUT
+        self.subscription.payment_provider = BusinessSubscription.PaymentProvider.STRIPE
+        self.subscription.billing_interval = BusinessSubscription.BillingInterval.MONTHLY
+        self.subscription.billing_currency = BusinessSubscription.BillingCurrency.USD
+        self.subscription.provider_customer_id = "cus_private_deactivation"
+        self.subscription.provider_subscription_id = "sub_private_deactivation"
+        self.subscription.save()
+
+        with mock.patch.object(stripe_checkout, "configure_stripe_sdk") as checkout_sdk:
+            with self.assertRaises(StripeCheckoutError):
+                resume_trial_checkout_session(
+                    request=RequestFactory().post("/billing/checkout/resume/"),
+                    subscription=self.subscription,
+                    user=self.owner,
+                )
+        with mock.patch.object(stripe_portal, "configure_stripe_sdk") as portal_sdk:
+            with self.assertRaises(StripeCustomerPortalError):
+                create_customer_portal_session(
+                    request=RequestFactory().post("/billing/portal/"),
+                    business=self.business,
+                    user=self.owner,
+                    subscription=self.subscription,
+                )
+
+        checkout_sdk.assert_not_called()
+        portal_sdk.assert_not_called()
+
+    def test_background_notification_generation_and_delivery_skip_inactive_business(self):
+        self.business.is_active = False
+        self.business.save(update_fields=["is_active", "updated_at"])
+        self.subscription.payment_provider = BusinessSubscription.PaymentProvider.STRIPE
+        self.subscription.save(update_fields=["payment_provider", "updated_at"])
+
+        generated = enqueue_subscription_notification(
+            subscription=self.subscription,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+            deduplication_context="inactive-generation",
+        )
+        pending = SubscriptionNotification.objects.create(
+            business=self.business,
+            subscription=self.subscription,
+            recipient_email=self.owner.email,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+            deduplication_key="inactive-delivery",
+        )
+        with mock.patch("apps.notifications.emails.send_templated_email") as send_email:
+            delivery = deliver_subscription_notification(pending)
+
+        self.assertEqual(generated, [])
+        self.assertEqual(delivery.status, "cancelled")
+        send_email.assert_not_called()
+
+    def test_repeated_deactivation_is_a_noop_without_duplicate_side_effects(self):
+        session_key = self._create_session(
+            user=self.owner,
+            business_id=self.business.pk,
+        )
+        first = deactivate_business(
+            business_id=self.business.pk,
+            reason_reference=self.reason_reference,
+        )
+        operation_count = BusinessDataOperation.objects.count()
+
+        second = deactivate_business(
+            business_id=self.business.pk,
+            reason_reference=self.reason_reference,
+        )
+
+        self.assertTrue(first.changed)
+        self.assertFalse(second.changed)
+        self.assertIsNone(second.audit_operation_id)
+        self.assertEqual(BusinessDataOperation.objects.count(), operation_count)
+        self.assertFalse(Session.objects.filter(session_key=session_key).exists())
+
+    def test_completed_audit_contains_only_snapshot_ids_and_non_pii_counts(self):
+        session_key = self._create_session(
+            user=self.owner,
+            business_id=self.business.pk,
+            private_value="private-session-payload",
+        )
+        self.subscription.provider_customer_id = "cus_private_audit"
+        self.subscription.provider_subscription_id = "sub_private_audit"
+        self.subscription.save(
+            update_fields=[
+                "provider_customer_id",
+                "provider_subscription_id",
+                "updated_at",
+            ]
+        )
+
+        result = deactivate_business(
+            business_id=self.business.pk,
+            reason_reference=self.reason_reference,
+            operator_id=self.owner.pk,
+        )
+
+        operation = BusinessDataOperation.objects.get(operation_id=result.audit_operation_id)
+        serialized_metadata = json.dumps(
+            {
+                "business_id_snapshot": operation.business_id_snapshot,
+                "operator_id_snapshot": operation.operator_id_snapshot,
+                "reason_reference": operation.reason_reference,
+                "record_counts": operation.record_counts,
+                "error_code": operation.error_code,
+            },
+            sort_keys=True,
+        )
+        self.assertEqual(operation.status, BusinessDataOperation.Status.COMPLETED)
+        self.assertIsNotNone(operation.completed_at)
+        self.assertEqual(operation.business_id_snapshot, self.business.pk)
+        self.assertEqual(operation.operator_id_snapshot, self.owner.pk)
+        self.assertTrue(operation.record_counts)
+        for private_value in (
+            self.business.name,
+            self.business.email,
+            self.owner.email,
+            session_key,
+            "private-session-payload",
+            "cus_private_audit",
+            "sub_private_audit",
+        ):
+            with self.subTest(private_value=private_value):
+                self.assertNotIn(private_value, serialized_metadata)
+
+    def test_failure_after_state_change_rolls_back_and_records_safe_error_code(self):
+        pending = SubscriptionNotification.objects.create(
+            business=self.business,
+            subscription=self.subscription,
+            recipient_email=self.owner.email,
+            notification_type=SubscriptionNotification.NotificationType.TRIAL_STARTED,
+            deduplication_key="rollback-pending",
+        )
+        session_key = self._create_session(
+            user=self.owner,
+            business_id=self.business.pk,
+        )
+
+        with mock.patch(
+            "apps.businesses.business_data_operations._complete_operation",
+            side_effect=RuntimeError("private injected failure detail"),
+        ):
+            with self.assertRaises(BusinessDeactivationError) as raised:
+                deactivate_business(
+                    business_id=self.business.pk,
+                    reason_reference=self.reason_reference,
+                )
+
+        self.assertEqual(raised.exception.error_code, "deactivation_failed")
+        self.business.refresh_from_db()
+        pending.refresh_from_db()
+        self.assertTrue(self.business.is_active)
+        self.assertEqual(pending.status, SubscriptionNotification.Status.PENDING)
+        self.assertTrue(Session.objects.filter(session_key=session_key).exists())
+        operation = BusinessDataOperation.objects.get()
+        self.assertEqual(operation.status, BusinessDataOperation.Status.FAILED)
+        self.assertIsNotNone(operation.completed_at)
+        self.assertEqual(operation.error_code, "deactivation_failed")
+        self.assertEqual(operation.record_counts, {})
+        self.assertNotIn("private injected failure detail", operation.error_code)
