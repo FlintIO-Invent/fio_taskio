@@ -81,6 +81,8 @@ from .forms import (
     PublicLeadForm,
     ServiceCategoryForm,
 )
+from .importing.permissions import user_can_import
+from .importing.types import ImportType
 from .models import BusinessService, Client, Lead, ServiceCategory
 from .services import (
     find_matching_client_for_lead,
@@ -2106,6 +2108,32 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
         "price_input_example": localized_price_input_example(current_business),
     }
     return render(request, "crm/settings/business_service_import.html", context)
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import workspace data.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def data_import(request: HttpRequest) -> HttpResponse:
+    current_business = request.current_business
+    return render(
+        request,
+        "crm/importing/data_import.html",
+        {
+            "business": current_business,
+            "can_import_clients": user_can_import(
+                current_business, request.user, ImportType.CLIENTS
+            ),
+            "can_import_leads": user_can_import(current_business, request.user, ImportType.LEADS),
+            "can_import_services": user_can_import(
+                current_business, request.user, ImportType.SERVICES
+            ),
+        },
+    )
 
 
 @business_role_required(

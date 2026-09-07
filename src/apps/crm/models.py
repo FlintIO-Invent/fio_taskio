@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import uuid
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 from apps.businesses.localization import format_crm_address, format_crm_address_lines
@@ -17,6 +20,113 @@ class TimeStampedModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+def default_import_job_expiry():
+    return timezone.now() + timedelta(hours=24)
+
+
+class ImportJob(TimeStampedModel):
+    class Status(models.TextChoices):
+        UPLOADED = "uploaded", "Uploaded"
+        VALIDATED = "validated", "Validated"
+        READY = "ready", "Ready"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+        EXPIRED = "expired", "Expired"
+
+    class ImportType(models.TextChoices):
+        CLIENTS = "clients", "Clients"
+        LEADS = "leads", "Leads"
+        SERVICES = "services", "Services"
+
+    ALLOWED_STATUS_TRANSITIONS = {
+        Status.UPLOADED: frozenset({Status.VALIDATED, Status.FAILED, Status.EXPIRED}),
+        Status.VALIDATED: frozenset({Status.READY, Status.FAILED, Status.EXPIRED}),
+        Status.READY: frozenset({Status.COMPLETED, Status.FAILED, Status.EXPIRED}),
+        Status.COMPLETED: frozenset(),
+        Status.FAILED: frozenset(),
+        Status.EXPIRED: frozenset(),
+    }
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    business = models.ForeignKey(
+        "businesses.Business",
+        on_delete=models.CASCADE,
+        related_name="import_jobs",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="crm_import_jobs",
+    )
+    import_type = models.CharField(max_length=20, choices=ImportType.choices)
+    schema_version = models.CharField(max_length=20)
+    original_filename = models.CharField(max_length=255)
+    file_digest = models.CharField(max_length=64)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.UPLOADED)
+    rows_detected = models.PositiveIntegerField(default=0)
+    rows_valid = models.PositiveIntegerField(default=0)
+    rows_warning = models.PositiveIntegerField(default=0)
+    rows_error = models.PositiveIntegerField(default=0)
+    rows_created = models.PositiveIntegerField(default=0)
+    rows_updated = models.PositiveIntegerField(default=0)
+    rows_skipped = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(default=default_import_job_expiry)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["business", "import_type", "status"]),
+            models.Index(fields=["created_by", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_import_type_display()} import {self.pk} ({self.status})"
+
+    @property
+    def is_expired(self) -> bool:
+        return self.expires_at <= timezone.now()
+
+    def validate_transition(self, new_status: str) -> str:
+        try:
+            current_status = self.Status(self.status)
+            normalized_status = self.Status(new_status)
+        except ValueError as exc:
+            raise ValidationError({"status": "Unknown import job status."}) from exc
+        if normalized_status not in self.ALLOWED_STATUS_TRANSITIONS[current_status]:
+            raise ValidationError(
+                {"status": f"Import job cannot move from {self.status} to {normalized_status}."}
+            )
+        return normalized_status
+
+    def transition_to(self, new_status: str, *, at=None) -> None:
+        normalized_status = self.validate_transition(new_status)
+        transition_time = at or timezone.now()
+        self.status = normalized_status
+        update_fields = ["status", "updated_at"]
+        if normalized_status == self.Status.COMPLETED:
+            self.completed_at = transition_time
+            update_fields.append("completed_at")
+        self.save(update_fields=update_fields)
+
+    def assert_usable(self, *, at=None) -> None:
+        checked_at = at or timezone.now()
+        if self.expires_at <= checked_at or self.status == self.Status.EXPIRED:
+            raise ValidationError("This import preview has expired.", code="import_job_expired")
+        if self.status in {self.Status.COMPLETED, self.Status.FAILED}:
+            raise ValidationError(
+                "This import preview can no longer be used.", code="import_job_unusable"
+            )
+
+    def assert_confirmable(self, *, at=None) -> None:
+        self.assert_usable(at=at)
+        if self.status != self.Status.READY:
+            raise ValidationError(
+                "This import preview is not ready for confirmation.",
+                code="import_job_not_ready",
+            )
 
 
 class ServiceCategory(TimeStampedModel):

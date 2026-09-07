@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
-from apps.crm.models import ActivityLog, BusinessService, Client, Lead, ServiceCategory
+from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
 
 from .business_sessions import decode_session_data_safely
 from .models import (
@@ -370,6 +370,15 @@ DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
         InventoryClassification.SET_NULL_ORPHAN_RISK,
         True,
         True,
+    ),
+    InventoryRegistration(
+        "import_jobs",
+        "crm.ImportJob",
+        "business",
+        "Business.import_jobs",
+        InventoryClassification.CASCADE,
+        False,
+        False,
     ),
     InventoryRegistration(
         "appointments",
@@ -845,6 +854,7 @@ def _cross_business_user_references(
         (Appointment, "staff_member_id", "business_id", "appointments"),
         (Client, "assigned_to_id", "business_id", "assigned_clients"),
         (ActivityLog, "actor_id", "business_id", "activity_logs"),
+        (ImportJob, "created_by_id", "business_id", "import_jobs"),
         (UserOnboardingState, "user_id", "business_id", "onboarding_states"),
         (
             SubscriptionNotification,

@@ -63,6 +63,7 @@ def current_business(request):
         "can_manage_invoices": membership_has_any_role(membership, BILLING_MANAGE_ROLES),
         "can_delete_invoices": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_manage_services": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
+        "can_import_data": membership_has_any_role(membership, CLIENT_MANAGE_ROLES),
     }
 
     return {

@@ -105,6 +105,11 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Services</span></div>
                                                 </a>
                                             {% endif %}
+                                            {% if role_access.can_import_data and workspace_can_modify %}
+                                                <a class="nav-link" href="{% url 'data_import' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Data Import</span></div>
+                                                </a>
+                                            {% endif %}
                                             {% if role_access.can_manage_booking_availability and workspace_can_modify %}
                                                 <a class="nav-link" href="{% url 'business_booking_settings' %}" data-onboarding-target="availability">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Availability</span></div>

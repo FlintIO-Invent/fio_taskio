@@ -14,6 +14,7 @@ from .views import (
     business_service_update,
     # staff_lead_email,
     client_detail_view,
+    data_import,
     public_request,
     public_request_entry,
     public_thank_you,
@@ -32,6 +33,7 @@ from .views import (
 
 urlpatterns = [
     path("agent/dashboard/", agent_dashboard, name="agent_dashboard"),
+    path("staff/data-import/", data_import, name="data_import"),
     path("public_request/", public_request_entry, name="public_request_entry"),
     path("public_request/<slug:business_slug>/", public_request, name="public_request"),
     path("thanks/", public_thank_you, name="public_thank_you"),

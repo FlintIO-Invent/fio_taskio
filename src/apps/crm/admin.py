@@ -1,6 +1,23 @@
 from django.contrib import admin
 
-from .models import ActivityLog, BusinessService, Client, Lead, ServiceCategory
+from .models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
+
+
+@admin.register(ImportJob)
+class ImportJobAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "business",
+        "created_by",
+        "import_type",
+        "status",
+        "rows_detected",
+        "created_at",
+        "expires_at",
+    )
+    list_filter = ("business", "import_type", "status")
+    search_fields = ("id", "original_filename", "file_digest", "created_by__email")
+    readonly_fields = ("id", "file_digest", "created_at", "updated_at")
 
 
 @admin.register(ServiceCategory)
