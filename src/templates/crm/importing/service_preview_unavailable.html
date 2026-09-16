@@ -1,0 +1,13 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      <h2>Service preview unavailable</h2>
+      <p class="text-body-tertiary">{{ message }}</p>
+      <a class="btn btn-primary" href="{% url 'business_service_import' %}">Upload a new CSV</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

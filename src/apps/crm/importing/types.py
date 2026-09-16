@@ -81,3 +81,4 @@ class ImportPreviewBinding:
 class StoredPreviewPayload:
     binding: ImportPreviewBinding
     normalized_rows: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    metadata: dict[str, Any] = field(default_factory=dict)

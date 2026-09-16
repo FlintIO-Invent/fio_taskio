@@ -14,7 +14,7 @@
   <div class="row g-3 mb-4 justify-content-between align-items-center">
     <div class="col-lg-8">
       <h2 class="mb-2 text-body-emphasis">Import Services From CSV</h2>
-      <p class="text-body-tertiary mb-0">Upload a price list for {{ business.name }}. All imported services stay inside this workspace.</p>
+      <p class="text-body-tertiary mb-0">Upload a price list for {{ business.name }} to validate and preview it. No services or categories are changed until you confirm.</p>
     </div>
     <div class="col-auto d-flex gap-2">
       <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Back to services</a>
@@ -30,17 +30,6 @@
     {% endfor %}
   {% endif %}
 
-  {% if import_errors %}
-    <div class="alert alert-danger">
-      <h5 class="alert-heading mb-2">Import errors</h5>
-      <ul class="mb-0">
-        {% for error in import_errors %}
-          <li>{{ error }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-  {% endif %}
-
   <div class="row g-4">
     <div class="col-12 col-xl-7">
       <div class="card border-0 shadow-sm">
@@ -52,7 +41,7 @@
               {{ form.csv_file }}
               {% if form.csv_file.errors %}<div class="invalid-feedback d-block">{{ form.csv_file.errors|striptags }}</div>{% endif %}
             </div>
-            <button class="btn btn-primary" type="submit">Import services</button>
+            <button class="btn btn-primary" type="submit">Validate and preview</button>
           </form>
         </div>
       </div>

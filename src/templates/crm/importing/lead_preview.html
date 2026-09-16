@@ -1,0 +1,78 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'lead_import_upload' %}">Import Leads</a></li>
+      <li class="breadcrumb-item active">Preview</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h2 class="mb-2">Lead Import Preview</h2>
+      <p class="text-body-tertiary mb-0">{{ job.original_filename }} for {{ business.name }}</p>
+    </div>
+    {% if preview.ready %}
+      <span class="badge badge-phoenix badge-phoenix-success fs-8">Ready for import</span>
+    {% else %}
+      <span class="badge badge-phoenix badge-phoenix-warning fs-8">Review required</span>
+    {% endif %}
+  </div>
+
+  {% if file_issues %}
+    <div class="alert alert-danger" role="alert">
+      <h5 class="alert-heading">File issues</h5>
+      <ul class="mb-0">
+        {% for issue in file_issues %}<li>{{ issue.message }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Rows detected</div><div class="fs-5 fw-semibold">{{ summary.rows_detected }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Ready to import</div><div class="fs-5 fw-semibold">{{ summary.ready_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Duplicates</div><div class="fs-5 fw-semibold">{{ summary.duplicate_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Review</div><div class="fs-5 fw-semibold">{{ summary.review_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Errors</div><div class="fs-5 fw-semibold">{{ summary.error_count }}</div></div></div></div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Row</th><th>Type</th><th>Name</th><th>Email</th><th>Phone</th><th>Category</th><th>Status</th><th>Issue</th></tr></thead>
+          <tbody>
+            {% for row in preview_rows %}
+              <tr>
+                <td>{{ row.row_number }}</td>
+                <td>{{ row.display.lead_type }}</td>
+                <td>{{ row.display.first_name }} {{ row.display.last_name }}</td>
+                <td>{{ row.display.email }}</td>
+                <td>{{ row.display.phone }}</td>
+                <td>{{ row.display.category|default:"—" }}</td>
+                <td><span class="badge badge-phoenix">{{ row.status }}</span></td>
+                <td>{% for issue in row.issues %}<div>{{ issue.message }}</div>{% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="8" class="text-center text-body-tertiary py-4">No previewable rows.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    {% if job.status == "ready" and preview.ready %}
+      <form class="d-inline" method="post" action="{% url 'lead_import_execute' job.id %}">
+        {% csrf_token %}
+        <button class="btn btn-primary" type="submit">Confirm Lead Import</button>
+      </form>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{% url 'lead_import_upload' %}">Upload a revised CSV</a>
+  </div>
+</div>
+{% endblock %}

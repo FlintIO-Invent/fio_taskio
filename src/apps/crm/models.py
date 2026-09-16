@@ -72,6 +72,7 @@ class ImportJob(TimeStampedModel):
     rows_created = models.PositiveIntegerField(default=0)
     rows_updated = models.PositiveIntegerField(default=0)
     rows_skipped = models.PositiveIntegerField(default=0)
+    preview_payload = models.JSONField(default=dict, blank=True)
     expires_at = models.DateTimeField(default=default_import_job_expiry)
     completed_at = models.DateTimeField(null=True, blank=True)
 

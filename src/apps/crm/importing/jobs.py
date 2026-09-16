@@ -20,7 +20,7 @@ def create_import_job(
     parsed_file: ParsedImportFile,
     lifetime: timedelta = timedelta(hours=24),
 ) -> ImportJob:
-    """Persist metadata only; normalized rows remain outside this model."""
+    """Create the bound metadata record before any preview payload is attached."""
 
     return ImportJob.objects.create(
         business=business,

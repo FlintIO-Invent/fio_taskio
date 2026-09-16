@@ -1,0 +1,32 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'business_service_list' %}">Services</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_service_import' %}">Import CSV</a></li>
+      <li class="breadcrumb-item active">Result</li>
+    </ol>
+  </nav>
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      {% if result_code == "completed" %}<h2>Import complete</h2>
+      {% elif result_code == "already_completed" %}<h2>Import already completed</h2>
+      {% else %}<h2>Import not completed</h2>{% endif %}
+      <p class="text-body-tertiary">{{ result.message }}</p>
+      <div class="row g-3 my-3">
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Services created</span><div class="fs-5 fw-semibold">{{ result.services_created }}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Services updated</span><div class="fs-5 fw-semibold">{{ result.services_updated }}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Rows skipped</span><div class="fs-5 fw-semibold">{{ result.rows_skipped }}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Categories created</span><div class="fs-5 fw-semibold">{{ result.categories_created }}</div></div></div></div>
+      </div>
+      {% if result.completed %}
+        <a class="btn btn-primary" href="{% url 'business_service_list' %}">View Services</a>
+      {% else %}
+        <a class="btn btn-primary" href="{% url 'business_service_import' %}">Create a new preview</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

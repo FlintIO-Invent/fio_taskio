@@ -22,8 +22,8 @@
         <div class="card h-100 border-0 shadow-sm">
           <div class="card-body p-4">
             <h4>Import Clients</h4>
-            <p class="text-body-tertiary">Client CSV preview and validation will be available in the next step.</p>
-            <span class="badge badge-phoenix badge-phoenix-secondary">Coming next</span>
+            <p class="text-body-tertiary">Upload a CSV to validate clients, review duplicates, and check plan capacity.</p>
+            <a class="btn btn-primary" href="{% url 'client_import_upload' %}">Upload Client CSV</a>
           </div>
         </div>
       </div>
@@ -34,8 +34,8 @@
         <div class="card h-100 border-0 shadow-sm">
           <div class="card-body p-4">
             <h4>Import Leads</h4>
-            <p class="text-body-tertiary">Lead importing is planned for a later step.</p>
-            <span class="badge badge-phoenix badge-phoenix-secondary">Coming later</span>
+            <p class="text-body-tertiary">Upload a CSV to validate historical leads and review possible matches.</p>
+            <a class="btn btn-primary" href="{% url 'lead_import_upload' %}">Upload Lead CSV</a>
           </div>
         </div>
       </div>

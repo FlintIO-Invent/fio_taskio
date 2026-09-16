@@ -1,0 +1,81 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'business_service_list' %}">Services</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_service_import' %}">Import CSV</a></li>
+      <li class="breadcrumb-item active">Preview</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h2 class="mb-2">Service Import Preview</h2>
+      <p class="text-body-tertiary mb-0">{{ job.original_filename }} for {{ business.name }}</p>
+    </div>
+    {% if preview.ready %}
+      <span class="badge badge-phoenix badge-phoenix-success fs-8">Ready for import</span>
+    {% else %}
+      <span class="badge badge-phoenix badge-phoenix-warning fs-8">Not ready</span>
+    {% endif %}
+  </div>
+
+  {% if file_issues %}
+    <div class="alert alert-danger" role="alert">
+      <h5 class="alert-heading">File issues</h5>
+      <ul class="mb-0">{% for issue in file_issues %}<li>{{ issue.message }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Rows</div><div class="fs-5 fw-semibold">{{ summary.rows_detected }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Create</div><div class="fs-5 fw-semibold">{{ summary.create_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Update</div><div class="fs-5 fw-semibold">{{ summary.update_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Review</div><div class="fs-5 fw-semibold">{{ summary.review_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Errors</div><div class="fs-5 fw-semibold">{{ summary.error_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">New categories</div><div class="fs-5 fw-semibold">{{ summary.categories_to_create }}</div></div></div></div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Row</th><th>Service</th><th>Price</th><th>External code</th><th>Category</th><th>Action</th><th>Changes and notes</th><th>Issues</th></tr></thead>
+          <tbody>
+            {% for row in preview_rows %}
+              <tr>
+                <td>{{ row.row_number }}</td>
+                <td>{{ row.display.name|default:"—" }}</td>
+                <td>{{ row.display.unit_price|default:"—" }}</td>
+                <td>{{ row.display.external_code|default:"—" }}</td>
+                <td>{% if row.category %}{{ row.category.display }}{% else %}{{ row.display.category|default:"—" }}{% endif %}</td>
+                <td><span class="badge badge-phoenix">{{ row.status }}</span></td>
+                <td>
+                  {% for change in row.changes %}<div><strong>{{ change.label }}:</strong> {{ change.before }} → {{ change.after }}</div>{% endfor %}
+                  {% for note in row.notes %}<div class="text-body-tertiary">{{ note }}</div>{% endfor %}
+                  {% if not row.changes and not row.notes %}<span class="text-body-tertiary">—</span>{% endif %}
+                </td>
+                <td>{% for issue in row.issues %}<div>{{ issue.message }}</div>{% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="8" class="text-center text-body-tertiary py-4">No previewable rows.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    {% if job.status == "ready" and preview.ready %}
+      <form class="d-inline" method="post" action="{% url 'business_service_import_execute' job.id %}">
+        {% csrf_token %}
+        <button class="btn btn-primary" type="submit">Confirm Service Import</button>
+      </form>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{% url 'business_service_import' %}">Upload a revised CSV</a>
+  </div>
+</div>
+{% endblock %}

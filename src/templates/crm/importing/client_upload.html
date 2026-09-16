@@ -1,0 +1,47 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item active">Import Clients</li>
+    </ol>
+  </nav>
+
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h2 class="mb-2">Import Clients</h2>
+          <p class="text-body-tertiary">Upload a CSV to validate and preview it for {{ business.name }}. No clients will be created yet.</p>
+
+          {% if upload_error %}
+            <div class="alert alert-danger" role="alert">{{ upload_error }}</div>
+          {% endif %}
+
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label" for="id_csv_file">Client CSV file</label>
+              <input class="form-control" id="id_csv_file" name="csv_file" type="file" accept=".csv,text/csv" required>
+            </div>
+            <button class="btn btn-primary" type="submit">Validate and preview</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h4>Client CSV template</h4>
+          <p class="text-body-tertiary">Start with the supported V1 headers and a fictional example row.</p>
+          <a class="btn btn-outline-primary" href="{% url 'client_import_template' %}">Download template</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

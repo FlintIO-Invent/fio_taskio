@@ -1,0 +1,13 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      <h2>Lead preview unavailable</h2>
+      <p class="text-body-tertiary">{{ message }}</p>
+      <a class="btn btn-primary" href="{% url 'lead_import_upload' %}">Start a new preview</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

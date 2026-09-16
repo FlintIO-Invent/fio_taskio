@@ -374,17 +374,16 @@ class DataImportLandingPageTests(TestCase):
         session[CURRENT_BUSINESS_SESSION_KEY] = self.business.pk
         session.save()
 
-    def test_owner_sees_shell_and_existing_service_link_only(self):
+    def test_owner_sees_client_upload_and_existing_service_link(self):
         self.login(self.make_user(BusinessUser.Role.OWNER))
 
         response = self.client.get(reverse("data_import"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Import Clients")
-        self.assertContains(response, "Coming next")
+        self.assertContains(response, reverse("client_import_upload"))
         self.assertContains(response, "Import Leads")
         self.assertContains(response, reverse("business_service_import"))
-        self.assertNotContains(response, "client-import")
         self.assertNotContains(response, "lead-import")
 
     def test_accountant_sees_client_only_and_not_service_or_lead(self):
@@ -433,11 +432,22 @@ class ExistingServiceImportCharacterizationTests(TestCase):
         session.save()
 
     def upload(self, content: bytes):
-        return self.client.post(
+        response = self.client.post(
             reverse("business_service_import"),
             {"csv_file": SimpleUploadedFile("services.csv", content, content_type="text/csv")},
             follow=True,
         )
+        job = ImportJob.objects.get(
+            business=self.business,
+            created_by=self.user,
+            import_type=ImportType.SERVICES,
+        )
+        if job.status == ImportJob.Status.READY:
+            return self.client.post(
+                reverse("business_service_import_execute", args=[job.pk]),
+                follow=True,
+            )
+        return response
 
     def test_existing_import_accepts_bom_case_and_whitespace_in_headers(self):
         response = self.upload(
@@ -446,7 +456,7 @@ class ExistingServiceImportCharacterizationTests(TestCase):
             )
         )
 
-        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertContains(response, "Import complete")
         service = BusinessService.objects.get(external_code="BOM-1")
         self.assertEqual(service.unit_price, Decimal("12.50"))
         self.assertFalse(service.is_active)
@@ -454,7 +464,7 @@ class ExistingServiceImportCharacterizationTests(TestCase):
     def test_existing_import_requires_name_and_unit_price_headers(self):
         response = self.upload(b"name,external_code\nMissing Price,NO-PRICE\n")
 
-        self.assertContains(response, "Missing required CSV columns: unit_price.")
+        self.assertContains(response, "Missing required CSV column: unit_price.")
         self.assertFalse(BusinessService.objects.exists())
 
     def test_existing_import_rolls_back_services_and_categories_on_late_error(self):
