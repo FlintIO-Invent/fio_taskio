@@ -17,7 +17,7 @@
     <div class="col-auto">
       <div class="d-flex gap-3">
         <a class="btn btn-phoenix-primary" href="{% url 'staff_client_list' %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to List</a>
-        {% if single_client and role_access.can_manage_invoices and module_access.invoicing %}
+        {% if single_client and role_access.can_manage_invoices and module_access.invoicing and workspace_can_modify %}
         <a class="btn btn-phoenix-secondary" href="{% url 'invoice_create_from_client' single_client.id %}"><span class="fa-solid fa-file-invoice me-2"></span>Create Invoice</a>
         {% endif %}
       </div>
@@ -91,7 +91,7 @@
                   <h5 class="mb-0">{{ client.first_name }} {{ client.last_name }}</h5>
                   <p class="text-body-secondary mb-0">{{ client.company_name|default:"No company" }} • {{ client.get_client_type_display }}</p>
                 </div>
-	                {% if role_access.can_manage_clients or role_access.can_delete_clients %}
+	                {% if workspace_can_modify and role_access.can_manage_clients or workspace_can_modify and role_access.can_delete_clients %}
                     <div class="d-flex flex-wrap gap-2">
                       {% if role_access.can_manage_clients %}
                         <a href="{% url 'staff_client_update' client.id %}" class="btn btn-phoenix-primary btn-sm">
@@ -596,7 +596,7 @@
       {% else %}
         <div class="alert alert-info" role="alert">
           <h5>No active clients found</h5>
-          {% if role_access.can_manage_clients %}
+          {% if role_access.can_manage_clients and workspace_can_modify %}
             <p class="mb-0">Start by <a href="{% url 'staff_client_create' %}" class="alert-link">creating a new client</a>.</p>
           {% else %}
             <p class="mb-0">No client records are available in this workspace yet.</p>
@@ -615,7 +615,7 @@
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-sm btn-outline-primary" href="{% url 'appointment_list' %}">View Appointments</a>
-        {% if role_access.can_manage_appointments %}
+        {% if role_access.can_manage_appointments and workspace_can_modify %}
         <a class="btn btn-sm btn-primary" href="{% url 'appointment_create' %}?client_id={{ single_client.id }}">
           <span class="fa-solid fa-calendar-plus me-2"></span>Schedule Appointment
         </a>

@@ -1,9 +1,9 @@
 # MotionMate Production Email Readiness
 
 This runbook prepares MotionMate for production transactional email delivery.
-It covers password resets, password-change confirmations, team invitations, customer request confirmations, internal business alerts, appointment confirmations, and invoice emails.
+It covers password resets, password-change confirmations, team invitations, customer request confirmations, internal business alerts, appointment confirmations, invoice emails, and owner-facing subscription billing notifications.
 
-This does not add marketing email, newsletters, background workers, webhooks, or scheduled reminders.
+This does not add marketing email, newsletters, background workers, Celery Beat, cron, Heroku Scheduler, or automated periodic execution.
 
 ## Current Email-Producing Flows
 
@@ -18,8 +18,28 @@ The current repository sends or prepares transactional email for:
 - public booking request internal business alert
 - appointment confirmation
 - invoice email with PDF attachment
+- owner-facing subscription billing notifications from the subscription notification outbox
 
 Local development uses the console email backend by default. Staging and production should use SMTP through a transactional provider.
+
+Subscription billing emails are queued durably as `SubscriptionNotification` records by verified Stripe webhook state transitions and by manual local reminder discovery. Webhook processing and reminder discovery do not send SMTP email. Deliver queued subscription notifications manually until a later scheduling block defines an automated cadence:
+
+```bash
+uv run --no-sync python src/manage.py enqueue_subscription_reminders
+uv run --no-sync python src/manage.py send_subscription_notifications
+```
+
+Use `enqueue_subscription_reminders --dry-run` to preview due trial-ending, payment-grace-ending, and restricted-mode reminder rows without creating outbox records, sending email, changing subscription state, or calling Stripe. Use `--at 2026-08-01T12:00:00+00:00` for an aware deterministic evaluation time during testing or investigation.
+
+Then deliver queued rows:
+
+```bash
+uv run --no-sync python src/manage.py send_subscription_notifications
+```
+
+Use `send_subscription_notifications --dry-run` to inspect eligible rows and `--retry-failed` to retry failed outbox records. Delivery cancels obsolete reminder rows before sending if recovery, cancellation, changed billing milestones, invalid provider identity, or changed access mode made the reminder stale.
+
+Reminder date comparisons use aware timestamps. Recipient-facing reminder dates use the business timezone when configured, otherwise the project timezone, otherwise UTC with an explicit timezone label. Beta subscriptions are excluded from subscription reminders. Customer invoice emails, appointment emails, and booking emails remain separate flows.
 
 ## Provider Choice
 
@@ -156,6 +176,7 @@ Trigger pilot-critical transactional flows:
 - Public booking receipt and alert: submit `/book/<business_slug>/` and verify the visitor receipt plus internal alert are delivered.
 - Appointment confirmation: schedule or confirm an appointment from a booking request and verify the customer receives the appointment details.
 - Invoice PDF email: from an invoice detail page, manually click the invoice email action and verify the client receives exactly one email with an opening PDF attachment.
+- Subscription reminder outbox: run `enqueue_subscription_reminders --dry-run --at <aware ISO datetime>` to preview due SaaS subscription reminders, then run `enqueue_subscription_reminders --at <same aware ISO datetime>` in a safe test state and `send_subscription_notifications --dry-run` before sending. Confirm subscription links point to the MotionMate app subscription page, not a transient Stripe Portal URL.
 
 Inspect Heroku logs safely:
 

@@ -17,7 +17,7 @@
     </div>
     <div class="col-auto">
       <div class="d-flex gap-2">
-        {% if role_access.can_manage_leads %}
+        {% if role_access.can_manage_leads and workspace_can_modify %}
           <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_update' lead.id %}">
             <span class="fa-solid fa-pen me-2"></span>Edit Service Request
           </a>
@@ -85,13 +85,13 @@
               <a class="btn btn-phoenix-secondary" href="{% url 'staff_client_detail' matched_client.id %}">
                 <span class="fa-solid fa-user me-2"></span>View Client
               </a>
-              {% elif role_access.can_manage_clients %}
+              {% elif role_access.can_manage_clients and workspace_can_modify %}
               <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_convert_to_client' lead.id %}">
                 <span class="fa-solid fa-user-plus me-2"></span>Convert to Client
               </a>
               {% endif %}
 
-              {% if matched_client and role_access.can_manage_invoices and module_access.invoicing %}
+              {% if matched_client and role_access.can_manage_invoices and module_access.invoicing and workspace_can_modify %}
               <a class="btn btn-phoenix-primary" href="{% url 'staff_lead_create_invoice' lead.id %}">
                 <span class="fa-solid fa-file-invoice me-2"></span>Create Invoice
               </a>
@@ -103,7 +103,7 @@
               </a>
               {% endif %}
 
-              {% if role_access.can_manage_appointments and module_access.appointments and request_ready_for_appointment and not request_appointment and not lead.is_public_booking_request %}
+              {% if role_access.can_manage_appointments and module_access.appointments and request_ready_for_appointment and not request_appointment and not lead.is_public_booking_request and workspace_can_modify %}
               <a class="btn btn-phoenix-primary" href="{% url 'appointment_create_from_request' lead.id %}">
                 <span class="fa-solid fa-calendar-plus me-2"></span>Confirm / Schedule Appointment
               </a>
@@ -113,10 +113,10 @@
           {% if not matched_client and not role_access.can_manage_clients %}
           <p class="text-body-secondary small mb-0 mt-3">A teammate with client access needs to complete the client conversion for this request.</p>
           {% endif %}
-          {% if not matched_client and role_access.can_manage_invoices and module_access.invoicing %}
+          {% if not matched_client and role_access.can_manage_invoices and module_access.invoicing and workspace_can_modify %}
           <p class="text-body-secondary small mb-0 mt-2">Create Invoice becomes available after a client is created or matched in this workspace.</p>
           {% endif %}
-          {% if role_access.can_manage_appointments and module_access.appointments and not request_ready_for_appointment %}
+          {% if role_access.can_manage_appointments and module_access.appointments and not request_ready_for_appointment and workspace_can_modify %}
           <p class="text-body-secondary small mb-0 mt-2">Complete the client details before scheduling an appointment.</p>
           {% endif %}
         </div>
@@ -137,7 +137,7 @@
               <a class="btn btn-phoenix-secondary align-self-start" href="{% url 'appointment_detail' request_appointment.id %}">
                 <span class="fa-solid fa-calendar-day me-2"></span>View Confirmed Appointment
               </a>
-            {% elif role_access.can_manage_appointments and module_access.appointments and request_ready_for_appointment %}
+            {% elif role_access.can_manage_appointments and module_access.appointments and request_ready_for_appointment and workspace_can_modify %}
               <a class="btn btn-phoenix-primary align-self-start" href="{% url 'appointment_create_from_request' lead.id %}">
                 <span class="fa-solid fa-calendar-plus me-2"></span>Confirm / Schedule Appointment
               </a>

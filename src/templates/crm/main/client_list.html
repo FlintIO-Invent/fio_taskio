@@ -78,15 +78,20 @@
       <div class="row g-3 justify-content-between align-items-center mb-3">
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
-            <div>
-              {% if role_access.can_manage_clients %}
-                <a class="btn btn-primary me-4" href="{% url 'staff_client_create' %}">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              {% if role_access.can_manage_clients and workspace_can_modify %}
+                <a class="btn btn-primary" href="{% url 'staff_client_create' %}">
                   <span class="fas fa-plus me-2"></span>Create Client
                 </a>
+                <a class="btn btn-phoenix-secondary" href="{% url 'client_import_upload' %}">
+                  <span class="fas fa-file-import me-2"></span>Import Client CSV
+                </a>
               {% endif %}
-              <button class="btn btn-link text-body px-0" type="button">
-                <span class="fa-solid fa-file-export fs-9 me-2"></span>Export
-              </button>
+              {% if workspace_can_modify %}
+                <button class="btn btn-link text-body px-0" type="button">
+                  <span class="fa-solid fa-file-export fs-9 me-2"></span>Export
+                </button>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -268,7 +273,7 @@
                   </button>
                   <div class="dropdown-menu dropdown-menu-end py-2">
                     <a class="dropdown-item" href="{% url 'staff_client_detail' client.id %}">View</a>
-                    {% if role_access.can_manage_clients %}
+                    {% if role_access.can_manage_clients and workspace_can_modify %}
                       <a class="dropdown-item" href="{% url 'staff_client_update' client.id %}">Edit</a>
                     {% endif %}
                   </div>

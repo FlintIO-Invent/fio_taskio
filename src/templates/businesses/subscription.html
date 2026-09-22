@@ -8,7 +8,9 @@
       <p class="text-body-tertiary mb-0">Review the current Motionmate plan and workspace module access.</p>
     </div>
     <div class="col-auto d-flex gap-2">
-      <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>
+      {% if workspace_can_modify %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>
+      {% endif %}
       <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
     </div>
   </div>
@@ -21,6 +23,13 @@
     {% endfor %}
   {% endif %}
 
+  {% if billing_portal_returned %}
+    <div class="alert alert-info mb-4" role="alert">
+      <div class="fw-semibold mb-1">Your billing update is being confirmed.</div>
+      <div>Full access will return after Stripe confirms a successful payment.</div>
+    </div>
+  {% endif %}
+
   <div class="row g-3 mb-4">
     <div class="col-12 col-xxl-5">
       <div class="card h-100 border-0 overflow-hidden">
@@ -30,17 +39,37 @@
           {% if subscription %}
             <div class="d-flex flex-wrap gap-2 mb-3">
               <span class="badge badge-phoenix badge-phoenix-secondary">{{ subscription.plan.name }}</span>
-              <span class="badge badge-phoenix {% if subscription.is_trialing %}badge-phoenix-info{% elif subscription.has_access %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
+              <span class="badge badge-phoenix {% if access_state.code == 'trial_active' %}badge-phoenix-info{% elif access_state.has_access %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">
                 {{ subscription.get_status_display }}
               </span>
             </div>
             <p class="text-white text-opacity-75 mb-4">
-              {% if subscription.is_trialing and subscription.trial_end %}
-                Trial access ends on {{ subscription.trial_end|date:"M j, Y, g:i a" }}.
-              {% elif subscription.current_period_end %}
-                Current period ends on {{ subscription.current_period_end|date:"M j, Y, g:i a" }}.
+              {% if access_state.code == "pending_checkout" %}
+                Complete your payment setup to start your 14-day trial.
+              {% elif access_state.code == "trial_active" %}
+                Your {{ subscription.plan.name }} trial ends on {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.
+              {% elif access_state.code == "trial_expired" or access_state.code == "subscription_expired" %}
+                Your free trial has ended. Complete your subscription setup to continue using paid features.
+              {% elif access_state.code == "subscription_active" %}
+                Your {{ subscription.plan.name }} subscription is active.
+              {% elif access_state.code == "cancels_at_period_end" %}
+                Your {{ subscription.plan.name }} subscription will remain available until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.
+              {% elif access_state.code == "past_due_grace" %}
+                We could not process your latest Motionmate payment. Your account will remain available until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.
+              {% elif access_state.code == "past_due_grace_expired" %}
+                Your Motionmate workspace is temporarily read-only because the payment grace period has ended. Full access returns after Stripe confirms a successful payment.
+              {% elif access_state.code == "past_due_missing_grace_state" or access_state.code == "billing_past_due" %}
+                There is a payment issue with your subscription. Paid features are temporarily unavailable.
+              {% elif access_state.code == "subscription_cancelled" %}
+                Your subscription is no longer active.
+              {% elif access_state.code == "provider_state_stale" or access_state.code == "provider_period_missing" or access_state.code == "trial_missing_end" %}
+                We could not confirm your latest subscription period. Please contact support if this does not resolve shortly.
+              {% elif access_state.code == "plan_inactive" %}
+                This workspace plan is inactive. Please contact support.
+              {% elif access_state.code == "business_inactive" %}
+                This workspace is inactive. Please contact support.
               {% else %}
-                Workspace access follows the current Motionmate subscription settings.
+                Workspace access is unavailable. Please contact support.
               {% endif %}
             </p>
           {% else %}
@@ -75,7 +104,7 @@
             Plan selection is managed manually during the pilot. Changes here update the workspace subscription record so Motionmate modules and limits can react to the selected plan.
           </p>
           <div class="alert alert-info mb-0" role="alert">
-            Checkout and payment collection are not connected in this task.
+            Secure payment setup can be used during initial signup when enabled. Plan changes here remain manual during the pilot and do not start a new checkout session.
           </div>
         </div>
       </div>
@@ -83,6 +112,67 @@
   </div>
 
   {% if subscription %}
+    {% if not subscription.is_beta_plan %}
+      {% if customer_portal_availability.can_open or payment_recovery_portal_availability.can_open or access_state.code == "pending_checkout" or customer_portal_availability.user_message or payment_recovery_portal_availability.user_message %}
+        <div class="card mb-4">
+          <div class="card-body p-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+              <div>
+                <h4 class="mb-2">Motionmate subscription billing</h4>
+                {% if payment_recovery_portal_availability.can_open %}
+                  {% if access_state.code == "past_due_grace" %}
+                    <p class="text-body-tertiary mb-1">We could not process your latest Motionmate payment.</p>
+                    <p class="text-body-tertiary mb-0">Your account will remain available until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}. Update your payment method to prevent an interruption.</p>
+                  {% elif access_state.code == "past_due_grace_expired" %}
+                    <p class="text-body-tertiary mb-1">Your Motionmate workspace is temporarily read-only because the payment grace period has ended.</p>
+                    <p class="text-body-tertiary mb-0">Update your payment method to restore full access after Stripe confirms a successful payment.</p>
+                  {% else %}
+                    <p class="text-body-tertiary mb-0">Payment recovery is available through Stripe's secure billing page.</p>
+                  {% endif %}
+                {% elif customer_portal_availability.can_open %}
+                  {% if access_state.code == "trial_active" %}
+                    <p class="text-body-tertiary mb-1">Your 14-day trial is active until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.</p>
+                    <p class="text-body-tertiary mb-0">You can update your payment method or cancel before your first charge.</p>
+                  {% elif access_state.code == "cancels_at_period_end" %}
+                    <p class="text-body-tertiary mb-1">Your subscription remains available until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.</p>
+                    <p class="text-body-tertiary mb-0">Billing management is securely hosted by Stripe.</p>
+                  {% else %}
+                    <p class="text-body-tertiary mb-0">Manage your payment method, billing details, invoices, or cancellation.</p>
+                  {% endif %}
+                {% elif access_state.code == "pending_checkout" %}
+                  <p class="text-body-tertiary mb-0">Complete payment setup to start your 14-day trial.</p>
+                {% elif payment_recovery_portal_availability.user_message %}
+                  <p class="text-body-tertiary mb-0">{{ payment_recovery_portal_availability.user_message }}</p>
+                {% else %}
+                  <p class="text-body-tertiary mb-0">{{ customer_portal_availability.user_message }}</p>
+                {% endif %}
+              </div>
+              <div class="align-self-lg-start">
+                {% if payment_recovery_portal_availability.can_open %}
+                  <form method="POST" action="{% url 'billing_payment_recovery' %}">
+                    {% csrf_token %}
+                    <button class="btn btn-warning" type="submit">Fix payment</button>
+                  </form>
+                  <div class="fs-10 text-body-tertiary mt-2">Payment recovery is securely hosted by Stripe.</div>
+                {% elif customer_portal_availability.can_open %}
+                  <form method="POST" action="{% url 'billing_customer_portal' %}">
+                    {% csrf_token %}
+                    <button class="btn btn-primary" type="submit">Manage billing</button>
+                  </form>
+                  <div class="fs-10 text-body-tertiary mt-2">Billing management is securely hosted by Stripe.</div>
+                {% elif access_state.code == "pending_checkout" and access_state.can_resume_checkout %}
+                  <form method="POST" action="{% url 'billing_checkout_resume' %}">
+                    {% csrf_token %}
+                    <button class="btn btn-primary" type="submit">Complete payment setup</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
+
     <div class="card mb-4">
       <div class="card-body p-4">
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
@@ -130,13 +220,15 @@
             new activity may be blocked until usage is back within that plan.
           </p>
         </div>
-        <form method="POST" class="d-flex flex-column flex-sm-row gap-2 align-self-lg-start">
-          {% csrf_token %}
-          <input type="hidden" name="plan" value="{{ pending_plan_change.target_plan.id }}">
-          <input type="hidden" name="confirm_plan_change" value="1">
-          <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Cancel</a>
-          <button class="btn btn-warning" type="submit">Confirm Plan Change</button>
-        </form>
+        {% if workspace_can_modify %}
+          <form method="POST" class="d-flex flex-column flex-sm-row gap-2 align-self-lg-start">
+            {% csrf_token %}
+            <input type="hidden" name="plan" value="{{ pending_plan_change.target_plan.id }}">
+            <input type="hidden" name="confirm_plan_change" value="1">
+            <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Cancel</a>
+            <button class="btn btn-warning" type="submit">Confirm Plan Change</button>
+          </form>
+        {% endif %}
       </div>
 
       {% if pending_plan_change.over_limit_usage %}
@@ -292,7 +384,7 @@
               <div class="alert alert-primary mb-0" role="alert">
                 This workspace is already on {{ plan.name }}.
               </div>
-            {% else %}
+            {% elif workspace_can_modify %}
               <form method="POST">
                 {% csrf_token %}
                 <input type="hidden" name="plan" value="{{ plan.id }}">
@@ -300,6 +392,10 @@
                   Select {{ plan.name }}
                 </button>
               </form>
+            {% else %}
+              <div class="alert alert-subtle-secondary border mb-0" role="alert">
+                Plan changes are unavailable while this workspace is read-only.
+              </div>
             {% endif %}
           </div>
         </div>

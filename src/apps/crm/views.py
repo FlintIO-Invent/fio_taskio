@@ -3,19 +3,19 @@ from __future__ import annotations
 import csv
 import io
 from datetime import datetime, time, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Case, Count, IntegerField, Q, QuerySet, Sum, Value, When
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.text import slugify
 from django.views.decorators.http import require_http_methods
 from loguru import logger
 
@@ -23,10 +23,15 @@ from apps.appointments.models import Appointment
 from apps.billings.models import Invoice
 from apps.businesses.localization import (
     localized_price_input_example,
-    parse_localized_decimal,
     uses_sint_maarten_districts,
 )
-from apps.businesses.models import Business, BusinessBookingSettings, WeeklyAvailability
+from apps.businesses.models import (
+    Business,
+    BusinessBookingSettings,
+    BusinessSubscription,
+    BusinessUser,
+    WeeklyAvailability,
+)
 from apps.businesses.onboarding import (
     add_skipped_onboarding_step,
     get_onboarding_status,
@@ -41,13 +46,17 @@ from apps.businesses.utils import (
     LEAD_MANAGE_ROLES,
     OWNER_ADMIN_ROLES,
     SERVICE_MANAGEMENT_ROLES,
+    business_can_modify_workspace,
+    business_has_restricted_subscription,
     business_limit_reached,
     business_module_required,
     business_required,
     business_role_required,
     can_use_module,
+    can_view_module,
     get_business_limit_reached_message,
     get_business_module_unavailable_message,
+    get_business_subscription,
     get_current_business,
     get_current_business_membership,
     get_public_booking_share_context,
@@ -61,6 +70,7 @@ from apps.notifications.emails import (
 )
 from helpers import build_public_url, upsert_client_from_lead
 
+from .client_capacity import lock_client_capacity_scope
 from .forms import (
     BusinessServiceCSVImportForm,
     BusinessServiceForm,
@@ -71,7 +81,41 @@ from .forms import (
     PublicLeadForm,
     ServiceCategoryForm,
 )
-from .models import BusinessService, Client, Lead, ServiceCategory
+from .importing.client_execution import execute_client_import, execution_result_from_job
+from .importing.client_preview import persist_client_preview
+from .importing.clients import (
+    CLIENT_IMPORT_SCHEMA,
+    CLIENT_SAMPLE_ROW,
+    CLIENT_STANDARD_TEMPLATE_FIELDS,
+    validate_client_import,
+)
+from .importing.constants import DEFAULT_CSV_LIMITS
+from .importing.jobs import create_import_job, get_import_job_for_owner
+from .importing.lead_execution import (
+    execute_lead_import,
+    lead_execution_result_from_job,
+)
+from .importing.lead_preview import persist_lead_preview
+from .importing.leads import (
+    LEAD_IMPORT_SCHEMA,
+    LEAD_SAMPLE_ROW,
+    LEAD_TEMPLATE_FIELDS,
+    validate_lead_import,
+)
+from .importing.permissions import user_can_import, user_can_view_import_history
+from .importing.preview import database_preview_store, preview_binding_for_job
+from .importing.service_execution import (
+    execute_service_import,
+    service_execution_result_from_job,
+)
+from .importing.service_preview import persist_service_preview
+from .importing.services import (
+    SERVICE_IMPORT_SCHEMA,
+    SERVICE_TEMPLATE_FIELDS,
+    validate_service_import,
+)
+from .importing.types import ImportType
+from .models import BusinessService, Client, ImportJob, Lead, ServiceCategory
 from .services import (
     find_matching_client_for_lead,
     get_missing_client_required_field_labels_for_lead,
@@ -80,6 +124,9 @@ from .services import (
 
 SERVICE_REQUEST_ACTIVE_STATUSES = (Lead.Status.NEW, Lead.Status.CONTACTED)
 SERVICE_REQUEST_COMPLETED_STATUSES = (Lead.Status.INVOICED, Lead.Status.CLOSED)
+PUBLIC_WORKFLOW_TEMPORARILY_UNAVAILABLE_MESSAGE = (
+    "Online booking is temporarily unavailable. Please contact the business directly."
+)
 
 
 def _order_service_requests_for_followup(qs: QuerySet[Lead]) -> QuerySet[Lead]:
@@ -401,29 +448,6 @@ def _business_local_periods(
     return start_of_today, start_of_tomorrow, start_of_month
 
 
-def _normalize_csv_fieldname(value: str | None) -> str:
-    return (value or "").strip().lower()
-
-
-def _parse_csv_decimal(
-    value: str,
-    *,
-    row_number: int,
-    field_name: str,
-    business: Business,
-) -> Decimal:
-    normalized_value = value.strip()
-    if not normalized_value:
-        raise ValidationError(f"Row {row_number}: {field_name} is required.")
-
-    try:
-        return parse_localized_decimal(normalized_value, business)
-    except InvalidOperation as exc:
-        raise ValidationError(
-            f"Row {row_number}: {field_name} must be a valid decimal number."
-        ) from exc
-
-
 def _service_import_example_rows(business: Business) -> list[dict[str, str]]:
     return [
         {
@@ -458,59 +482,31 @@ def _service_import_example_rows(business: Business) -> list[dict[str, str]]:
 
 
 def _service_import_columns() -> list[dict[str, str]]:
+    descriptions = {
+        "name": "Service name.",
+        "unit_price": "Decimal service price.",
+        "description": "Internal service description.",
+        "tax_rate": "Service tax percentage. Blank uses the workspace default.",
+        "category": "Existing or new category name for this workspace.",
+        "is_active": "true/false, yes/no, or 1/0. Blank defaults to true.",
+        "external_code": "Stable code used to update matching services later.",
+        "is_bookable_online": "true only when the service should appear on online booking.",
+        "default_duration_minutes": "Whole-number booking duration in minutes.",
+        "booking_buffer_minutes": "Whole-number buffer in minutes.",
+        "public_description": "Online booking description.",
+        "requires_manual_confirmation": (
+            "true/false. Current MotionMate booking flow is manual confirmation."
+        ),
+    }
     return [
-        {"name": "name", "required": "Required", "description": "Service name."},
-        {"name": "unit_price", "required": "Required", "description": "Decimal service price."},
         {
-            "name": "description",
-            "required": "Optional",
-            "description": "Internal service description.",
-        },
-        {
-            "name": "tax_rate",
-            "required": "Optional",
-            "description": "Service tax percentage. Blank uses the workspace default.",
-        },
-        {
-            "name": "category",
-            "required": "Optional",
-            "description": "Existing or new category name for this workspace.",
-        },
-        {
-            "name": "is_active",
-            "required": "Optional",
-            "description": "true/false, yes/no, or 1/0. Blank defaults to true.",
-        },
-        {
-            "name": "external_code",
-            "required": "Optional",
-            "description": "Stable code used to update matching services later.",
-        },
-        {
-            "name": "is_bookable_online",
-            "required": "Optional",
-            "description": "true only when the service should appear on online booking.",
-        },
-        {
-            "name": "default_duration_minutes",
-            "required": "Optional",
-            "description": "Whole-number booking duration in minutes.",
-        },
-        {
-            "name": "booking_buffer_minutes",
-            "required": "Optional",
-            "description": "Whole-number buffer in minutes.",
-        },
-        {
-            "name": "public_description",
-            "required": "Optional",
-            "description": "Online booking description.",
-        },
-        {
-            "name": "requires_manual_confirmation",
-            "required": "Optional",
-            "description": "true/false. Current Motionmate booking flow is manual confirmation.",
-        },
+            "name": field_name,
+            "required": (
+                "Required" if field_name in SERVICE_IMPORT_SCHEMA.required_columns else "Optional"
+            ),
+            "description": descriptions.get(field_name, "Supported service import field."),
+        }
+        for field_name in SERVICE_TEMPLATE_FIELDS
     ]
 
 
@@ -525,219 +521,10 @@ def _service_import_example_csv_text(business: Business) -> str:
     return output.getvalue().strip()
 
 
-def _parse_csv_boolean(
-    value: str,
-    *,
-    default: bool,
-    row_number: int,
-    field_name: str = "is_active",
-) -> bool:
-    normalized_value = value.strip().lower()
-    if not normalized_value:
-        return default
-
-    if normalized_value in {"1", "true", "yes", "y", "on"}:
-        return True
-    if normalized_value in {"0", "false", "no", "n", "off"}:
-        return False
-
-    raise ValidationError(
-        f"Row {row_number}: {field_name} must be one of true/false, yes/no, or 1/0."
-    )
-
-
-def _parse_optional_csv_integer(
-    value: str,
-    *,
-    row_number: int,
-    field_name: str,
-    minimum: int,
-) -> int | None:
-    normalized_value = value.strip()
-    if not normalized_value:
-        return None
-
-    try:
-        parsed_value = int(normalized_value)
-    except ValueError as exc:
-        raise ValidationError(f"Row {row_number}: {field_name} must be a whole number.") from exc
-
-    if parsed_value < minimum:
-        if minimum == 1:
-            raise ValidationError(f"Row {row_number}: {field_name} must be greater than zero.")
-        raise ValidationError(f"Row {row_number}: {field_name} cannot be negative.")
-
-    return parsed_value
-
-
-def _get_or_create_service_category_for_import(
-    *,
-    business: Business,
-    category_value: str,
-) -> tuple[ServiceCategory | None, bool]:
-    label = category_value.strip()
-    if not label:
-        return None, False
-
-    normalized_code = slugify(label).replace("-", "_")
-    category = (
-        ServiceCategory.objects.filter(business=business)
-        .filter(Q(name__iexact=label) | Q(code=normalized_code))
-        .order_by("name", "pk")
-        .first()
-    )
-    if category is not None:
-        return category, False
-
-    category = ServiceCategory.objects.create(
-        business=business,
-        name=label,
-        is_active=True,
-    )
-    return category, True
-
-
-def _import_business_services_from_csv(
-    *,
-    business: Business,
-    uploaded_file,
-) -> dict[str, int]:
-    try:
-        decoded_content = uploaded_file.read().decode("utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise ValidationError("CSV files must be UTF-8 encoded.") from exc
-
-    reader = csv.DictReader(io.StringIO(decoded_content))
-    if not reader.fieldnames:
-        raise ValidationError("The CSV file must include a header row.")
-
-    normalized_headers = {_normalize_csv_fieldname(fieldname) for fieldname in reader.fieldnames}
-    missing_headers = {"name", "unit_price"} - normalized_headers
-    if missing_headers:
-        missing_label = ", ".join(sorted(missing_headers))
-        raise ValidationError(f"Missing required CSV columns: {missing_label}.")
-
-    created_count = 0
-    updated_count = 0
-    created_category_count = 0
-
-    with transaction.atomic():
-        for row_number, raw_row in enumerate(reader, start=2):
-            row = {
-                _normalize_csv_fieldname(key): (value or "").strip()
-                for key, value in raw_row.items()
-                if key is not None
-            }
-
-            if not any(row.values()):
-                continue
-
-            name = row.get("name", "")
-            if not name:
-                raise ValidationError(f"Row {row_number}: name is required.")
-
-            unit_price = _parse_csv_decimal(
-                row.get("unit_price", ""),
-                row_number=row_number,
-                field_name="unit_price",
-                business=business,
-            )
-            tax_rate_value = row.get("tax_rate", "")
-            tax_rate = (
-                _parse_csv_decimal(
-                    tax_rate_value,
-                    row_number=row_number,
-                    field_name="tax_rate",
-                    business=business,
-                )
-                if tax_rate_value
-                else business.tax_rate
-            )
-            is_active = _parse_csv_boolean(
-                row.get("is_active", ""),
-                default=True,
-                row_number=row_number,
-            )
-            is_bookable_online = None
-            if "is_bookable_online" in row:
-                is_bookable_online = _parse_csv_boolean(
-                    row.get("is_bookable_online", ""),
-                    default=False,
-                    row_number=row_number,
-                    field_name="is_bookable_online",
-                )
-            requires_manual_confirmation = None
-            if "requires_manual_confirmation" in row:
-                requires_manual_confirmation = _parse_csv_boolean(
-                    row.get("requires_manual_confirmation", ""),
-                    default=True,
-                    row_number=row_number,
-                    field_name="requires_manual_confirmation",
-                )
-            default_duration_minutes = None
-            if "default_duration_minutes" in row:
-                default_duration_minutes = _parse_optional_csv_integer(
-                    row.get("default_duration_minutes", ""),
-                    row_number=row_number,
-                    field_name="default_duration_minutes",
-                    minimum=1,
-                )
-            booking_buffer_minutes = None
-            if "booking_buffer_minutes" in row:
-                booking_buffer_minutes = _parse_optional_csv_integer(
-                    row.get("booking_buffer_minutes", ""),
-                    row_number=row_number,
-                    field_name="booking_buffer_minutes",
-                    minimum=0,
-                )
-            category, category_created = _get_or_create_service_category_for_import(
-                business=business,
-                category_value=row.get("category", ""),
-            )
-            if category_created:
-                created_category_count += 1
-
-            external_code = row.get("external_code", "") or None
-            service = None
-            if external_code:
-                service = (
-                    BusinessService.objects.filter(
-                        business=business,
-                        external_code__iexact=external_code,
-                    )
-                    .order_by("pk")
-                    .first()
-                )
-
-            if service is None:
-                service = BusinessService(business=business)
-                created_count += 1
-            else:
-                updated_count += 1
-
-            service.category = category
-            service.name = name
-            service.description = row.get("description", "")
-            service.unit_price = unit_price
-            service.tax_rate = tax_rate
-            service.is_active = is_active
-            service.external_code = external_code
-            if is_bookable_online is not None:
-                service.is_bookable_online = is_bookable_online
-            if "default_duration_minutes" in row:
-                service.default_duration_minutes = default_duration_minutes
-            if "booking_buffer_minutes" in row:
-                service.booking_buffer_minutes = booking_buffer_minutes
-            if "public_description" in row:
-                service.public_description = row.get("public_description", "")
-            if requires_manual_confirmation is not None:
-                service.requires_manual_confirmation = requires_manual_confirmation
-            service.save()
-
+def _csv_import_ux_context() -> dict[str, int]:
     return {
-        "created_count": created_count,
-        "updated_count": updated_count,
-        "created_category_count": created_category_count,
+        "maximum_upload_megabytes": DEFAULT_CSV_LIMITS.maximum_upload_bytes // (1024 * 1024),
+        "maximum_data_rows": DEFAULT_CSV_LIMITS.maximum_data_rows,
     }
 
 
@@ -786,9 +573,43 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     """Render the agent dashboard."""
     current_business = request.current_business
     current_membership = get_current_business_membership(request)
+    subscription = get_business_subscription(current_business)
+    access_state = subscription.effective_access_state if subscription is not None else None
+    if (
+        subscription is not None
+        and access_state is not None
+        and access_state.billing_attention_required
+        and not access_state.can_view_workspace
+        and current_membership is not None
+    ):
+        if current_membership.role == BusinessUser.Role.OWNER:
+            if access_state.code == BusinessSubscription.AccessCode.PENDING_CHECKOUT:
+                messages.info(
+                    request,
+                    "Finish secure payment setup before opening the workspace dashboard.",
+                )
+                return redirect("billing_checkout_cancelled")
+
+            messages.info(
+                request,
+                "Review your Motionmate subscription before opening the workspace dashboard.",
+            )
+            return redirect("business_subscription")
+
+        raise PermissionDenied(
+            "This workspace is temporarily unavailable. Contact the account owner."
+        )
+
     onboarding_status = get_onboarding_status(user=request.user, business=current_business)
 
     if request.method == "POST":
+        if not business_can_modify_workspace(current_business):
+            messages.warning(
+                request,
+                "This workspace is currently read-only. Update the subscription to make changes.",
+            )
+            return redirect("agent_dashboard")
+
         onboarding_action = request.POST.get("onboarding_action", "").strip()
 
         if onboarding_action == "select_journey" and onboarding_status["visible"]:
@@ -894,9 +715,9 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         now,
     )
 
-    appointments_enabled = can_use_module(current_business, "appointments")
-    invoices_enabled = can_use_module(current_business, "invoicing")
-    public_booking_enabled = can_use_module(current_business, "public_booking")
+    appointments_enabled = can_view_module(current_business, "appointments")
+    invoices_enabled = can_view_module(current_business, "invoicing")
+    public_booking_enabled = can_view_module(current_business, "public_booking")
     public_booking_settings = _public_booking_settings_for_business(current_business)
     can_view_appointment_activity = appointments_enabled and membership_has_any_role(
         current_membership,
@@ -1075,15 +896,20 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
 
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
     if not can_use_module(business, "public_booking"):
+        availability_message = (
+            PUBLIC_WORKFLOW_TEMPORARILY_UNAVAILABLE_MESSAGE
+            if business_has_restricted_subscription(business)
+            else get_business_module_unavailable_message(
+                business,
+                "public_booking",
+            )
+        )
         return render(
             request,
             "crm/success_fail/public_request_unavailable.html",
             {
                 "public_business": business,
-                "availability_message": get_business_module_unavailable_message(
-                    business,
-                    "public_booking",
-                ),
+                "availability_message": availability_message,
             },
             status=403,
         )
@@ -1136,9 +962,15 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
     )
 
     if not _public_booking_is_available(business, booking_settings):
+        availability_message = (
+            PUBLIC_WORKFLOW_TEMPORARILY_UNAVAILABLE_MESSAGE
+            if business_has_restricted_subscription(business)
+            else None
+        )
         return _public_booking_unavailable_response(
             request,
             business=business,
+            availability_message=availability_message,
         )
 
     if business_limit_reached(business, "public_bookings_per_month"):
@@ -1267,6 +1099,7 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to create or edit service requests.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_lead_create(request: HttpRequest) -> HttpResponse:
     """
@@ -1300,6 +1133,7 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to view service requests.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET", "POST"])
 def staff_lead_list(request: HttpRequest) -> HttpResponse:
     """
@@ -1357,6 +1191,7 @@ def staff_lead_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to create or edit clients.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_client_create(request: HttpRequest) -> HttpResponse:
     """
@@ -1370,10 +1205,20 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         form = PrivateClientForm(request.POST, business=current_business)
         if form.is_valid():
-            client = form.save(commit=False)
-            client.business = current_business
-            client.save()
-            form.save_m2m()
+            client = None
+            with transaction.atomic():
+                locked_business = lock_client_capacity_scope(current_business)
+                if not business_limit_reached(locked_business, "clients"):
+                    client = form.save(commit=False)
+                    client.business = locked_business
+                    client.save()
+                    form.save_m2m()
+            if client is None:
+                messages.error(
+                    request,
+                    get_business_limit_reached_message(current_business, "clients"),
+                )
+                return redirect("staff_client_list")
             messages.success(request, "Client created successfully.")
             return redirect("staff_client_list")
     else:
@@ -1389,6 +1234,7 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to view clients.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def staff_client_list(request: HttpRequest) -> HttpResponse:
     """
@@ -1459,6 +1305,7 @@ def staff_client_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to create or edit clients.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
     """Update a client record with tabbed form interface."""
@@ -1492,6 +1339,7 @@ def staff_client_update(request: HttpRequest, client_id: int) -> HttpResponse:
     permission_message="You do not have permission to archive clients.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["POST"])
 def staff_client_archive(request: HttpRequest, client_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1505,7 +1353,9 @@ def staff_client_archive(request: HttpRequest, client_id: int) -> HttpResponse:
     if client.client_status == Client.ClientStatus.ACTIVE:
         client.client_status = Client.ClientStatus.INACTIVE
     client.save(update_fields=["is_active", "client_status", "updated_at"])
-    messages.success(request, f"{client} was archived. Existing invoices and appointments were kept.")
+    messages.success(
+        request, f"{client} was archived. Existing invoices and appointments were kept."
+    )
     return redirect("staff_client_list")
 
 
@@ -1515,6 +1365,7 @@ def staff_client_archive(request: HttpRequest, client_id: int) -> HttpResponse:
     permission_message="You do not have permission to view clients.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     """Display staff-facing details for a single client."""
@@ -1523,7 +1374,7 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     upcoming_appointments = Appointment.objects.none()
     recent_appointment_history = Appointment.objects.none()
 
-    if can_use_module(current_business, "appointments"):
+    if can_view_module(current_business, "appointments"):
         client_appointments = _appointment_queryset_for_business(current_business).filter(
             client=client,
         )
@@ -1553,6 +1404,7 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     permission_message="You do not have permission to view service requests.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     """Display staff-facing details for a single lead."""
@@ -1592,6 +1444,7 @@ def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     permission_message="You do not have permission to create or edit service requests.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1624,6 +1477,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     permission_message="You do not have permission to convert service requests into clients.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def staff_lead_convert_to_client(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1699,6 +1553,7 @@ def staff_lead_create_invoice(request: HttpRequest, lead_id: int) -> HttpRespons
     permission_message="You do not have permission to view clients.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def client_detail_view(request: HttpRequest) -> HttpResponse:
     """
@@ -1725,6 +1580,7 @@ def client_detail_view(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def business_service_category_list(request: HttpRequest) -> HttpResponse:
     return redirect("business_service_list")
@@ -1736,6 +1592,7 @@ def business_service_category_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_category_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1768,6 +1625,7 @@ def business_service_category_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_category_update(request: HttpRequest, category_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1806,6 +1664,7 @@ def business_service_category_update(request: HttpRequest, category_id: int) -> 
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["POST"])
 def business_service_category_archive(request: HttpRequest, category_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1830,6 +1689,7 @@ def business_service_category_archive(request: HttpRequest, category_id: int) ->
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def business_service_list(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1841,7 +1701,7 @@ def business_service_list(request: HttpRequest) -> HttpResponse:
             distinct=True,
         )
     )
-    public_booking_allowed = can_use_module(current_business, "public_booking")
+    public_booking_allowed = can_view_module(current_business, "public_booking")
 
     context: dict[str, Any] = {
         "business": current_business,
@@ -1871,6 +1731,7 @@ def business_service_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1916,6 +1777,7 @@ def business_service_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_update(request: HttpRequest, service_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1960,6 +1822,7 @@ def business_service_update(request: HttpRequest, service_id: int) -> HttpRespon
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["POST"])
 def business_service_archive(request: HttpRequest, service_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1984,48 +1847,553 @@ def business_service_archive(request: HttpRequest, service_id: int) -> HttpRespo
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm")
 @require_http_methods(["GET", "POST"])
 def business_service_import(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
-    import_errors: list[str] = []
+    form = BusinessServiceCSVImportForm(
+        request.POST or None,
+        request.FILES or None,
+    )
 
-    if request.method == "POST":
-        form = BusinessServiceCSVImportForm(request.POST, request.FILES)
-        if form.is_valid():
-            try:
-                results = _import_business_services_from_csv(
-                    business=current_business,
-                    uploaded_file=form.cleaned_data["csv_file"],
-                )
-            except ValidationError as exc:
-                import_errors = exc.messages
-                messages.error(request, "The CSV import could not be completed.")
-            else:
-                messages.success(
-                    request,
-                    (
-                        f"Imported services for {current_business.name}: "
-                        f"{results['created_count']} created, "
-                        f"{results['updated_count']} updated, "
-                        f"{results['created_category_count']} categories created."
-                    ),
-                )
-                return redirect("business_service_list")
-        else:
-            messages.error(request, "Please upload a CSV file.")
-    else:
-        form = BusinessServiceCSVImportForm()
+    if request.method == "POST" and form.is_valid():
+        validation = validate_service_import(
+            form.cleaned_data["csv_file"],
+            business=current_business,
+        )
+        job = create_import_job(
+            business=current_business,
+            actor=request.user,
+            import_type=ImportType.SERVICES,
+            schema_version=SERVICE_IMPORT_SCHEMA.version,
+            parsed_file=validation.parsed_file,
+        )
+        persist_service_preview(
+            validation,
+            job=job,
+            business=current_business,
+            actor=request.user,
+        )
+        return redirect("business_service_import_preview", job_id=job.pk)
 
     context: dict[str, Any] = {
         "business": current_business,
         "form": form,
-        "import_errors": import_errors,
+        "import_limits": _csv_import_ux_context(),
         "import_columns": _service_import_columns(),
         "sample_rows": _service_import_example_rows(current_business),
         "sample_csv_text": _service_import_example_csv_text(current_business),
         "price_input_example": localized_price_input_example(current_business),
     }
-    return render(request, "crm/settings/business_service_import.html", context)
+    status = 400 if request.method == "POST" else 200
+    return render(request, "crm/settings/business_service_import.html", context, status=status)
+
+
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import services.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def business_service_import_preview(request: HttpRequest, job_id) -> HttpResponse:
+    current_business = request.current_business
+    try:
+        job = get_import_job_for_owner(
+            job_id=job_id,
+            business=current_business,
+            actor=request.user,
+        )
+    except ValidationError as exc:
+        return render(
+            request,
+            "crm/importing/service_preview_unavailable.html",
+            {"business": current_business, "message": exc.messages[0]},
+            status=410,
+        )
+    if (
+        job.import_type != ImportJob.ImportType.SERVICES
+        or job.schema_version != SERVICE_IMPORT_SCHEMA.version
+    ):
+        raise Http404("Service import preview not found.")
+    payload = database_preview_store.load(preview_binding_for_job(job))
+    if payload is None:
+        raise Http404("Service import preview not found.")
+    return render(
+        request,
+        "crm/importing/service_preview.html",
+        {
+            "business": current_business,
+            "job": job,
+            "preview_rows": payload.normalized_rows,
+            "preview": payload.metadata,
+            "summary": payload.metadata["summary"],
+            "file_issues": payload.metadata["file_issues"],
+        },
+    )
+
+
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import services.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["POST"])
+def business_service_import_execute(request: HttpRequest, job_id) -> HttpResponse:
+    execute_service_import(
+        job_id=job_id,
+        business=request.current_business,
+        actor=request.user,
+    )
+    return redirect("business_service_import_result", job_id=job_id)
+
+
+@business_role_required(
+    *SERVICE_MANAGEMENT_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view this Service import.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def business_service_import_result(request: HttpRequest, job_id) -> HttpResponse:
+    job = get_import_job_for_owner(
+        job_id=job_id,
+        business=request.current_business,
+        actor=request.user,
+        require_usable=False,
+    )
+    if (
+        job.import_type != ImportJob.ImportType.SERVICES
+        or job.schema_version != SERVICE_IMPORT_SCHEMA.version
+    ):
+        raise Http404("Service import result not found.")
+    result = service_execution_result_from_job(job)
+    return render(
+        request,
+        "crm/importing/service_result.html",
+        {
+            "business": request.current_business,
+            "job": job,
+            "result": result,
+            "result_code": result.code.value,
+            "can_view_import_history": user_can_view_import_history(
+                request.current_business,
+                request.user,
+            ),
+        },
+    )
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import workspace data.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def data_import(request: HttpRequest) -> HttpResponse:
+    current_business = request.current_business
+    return render(
+        request,
+        "crm/importing/data_import.html",
+        {
+            "business": current_business,
+            "can_import_clients": user_can_import(
+                current_business, request.user, ImportType.CLIENTS
+            ),
+            "can_import_leads": user_can_import(current_business, request.user, ImportType.LEADS),
+            "can_import_services": user_can_import(
+                current_business, request.user, ImportType.SERVICES
+            ),
+            "can_view_import_history": user_can_view_import_history(
+                current_business,
+                request.user,
+            ),
+        },
+    )
+
+
+@business_role_required(
+    *OWNER_ADMIN_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view import history.",
+    raise_exception=False,
+)
+@business_module_required("crm", access="read")
+@require_http_methods(["GET"])
+def import_history(request: HttpRequest) -> HttpResponse:
+    current_business = request.current_business
+    jobs = (
+        ImportJob.objects.filter(business=current_business)
+        .select_related("created_by")
+        .defer("preview_payload", "file_digest")
+        .order_by("-created_at", "-pk")
+    )
+    page = Paginator(jobs, 50).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "crm/importing/history.html",
+        {
+            "business": current_business,
+            "page": page,
+        },
+    )
+
+
+@business_role_required(
+    *OWNER_ADMIN_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view import history.",
+    raise_exception=False,
+)
+@business_module_required("crm", access="read")
+@require_http_methods(["GET"])
+def import_history_detail(request: HttpRequest, job_id) -> HttpResponse:
+    job = get_object_or_404(
+        ImportJob.objects.select_related("created_by").defer(
+            "preview_payload",
+            "file_digest",
+        ),
+        pk=job_id,
+        business=request.current_business,
+        status__in=(
+            ImportJob.Status.COMPLETED,
+            ImportJob.Status.FAILED,
+            ImportJob.Status.EXPIRED,
+        ),
+    )
+    return render(
+        request,
+        "crm/importing/history_detail.html",
+        {
+            "business": request.current_business,
+            "job": job,
+        },
+    )
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import clients.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET", "POST"])
+def client_import_upload(request: HttpRequest) -> HttpResponse:
+    current_business = request.current_business
+    context = {
+        "business": current_business,
+        "import_limits": _csv_import_ux_context(),
+        "standard_headers": CLIENT_STANDARD_TEMPLATE_FIELDS,
+    }
+    if request.method == "GET":
+        return render(request, "crm/importing/client_upload.html", context)
+
+    uploaded_file = request.FILES.get("csv_file")
+    if uploaded_file is None:
+        context["upload_error"] = "Choose a CSV file to preview."
+        return render(request, "crm/importing/client_upload.html", context, status=400)
+
+    validation = validate_client_import(uploaded_file, business=current_business)
+    job = create_import_job(
+        business=current_business,
+        actor=request.user,
+        import_type=ImportType.CLIENTS,
+        schema_version=CLIENT_IMPORT_SCHEMA.version,
+        parsed_file=validation.parsed_file,
+    )
+    persist_client_preview(
+        validation,
+        job=job,
+        business=current_business,
+        actor=request.user,
+    )
+    return redirect("client_import_preview", job_id=job.pk)
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import clients.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def client_import_preview(request: HttpRequest, job_id) -> HttpResponse:
+    current_business = request.current_business
+    try:
+        job = get_import_job_for_owner(
+            job_id=job_id,
+            business=current_business,
+            actor=request.user,
+        )
+    except ValidationError as exc:
+        return render(
+            request,
+            "crm/importing/client_preview_unavailable.html",
+            {"business": current_business, "message": exc.messages[0]},
+            status=410,
+        )
+
+    if (
+        job.import_type != ImportJob.ImportType.CLIENTS
+        or job.schema_version != CLIENT_IMPORT_SCHEMA.version
+    ):
+        raise Http404("Client import preview not found.")
+    payload = database_preview_store.load(preview_binding_for_job(job))
+    if payload is None:
+        raise Http404("Client import preview not found.")
+    return render(
+        request,
+        "crm/importing/client_preview.html",
+        {
+            "business": current_business,
+            "job": job,
+            "preview_rows": payload.normalized_rows,
+            "preview": payload.metadata,
+            "summary": payload.metadata["summary"],
+            "capacity": payload.metadata["capacity"],
+            "file_issues": payload.metadata["file_issues"],
+        },
+    )
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import clients.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["POST"])
+def client_import_execute(request: HttpRequest, job_id) -> HttpResponse:
+    execute_client_import(
+        job_id=job_id,
+        business=request.current_business,
+        actor=request.user,
+    )
+    return redirect("client_import_result", job_id=job_id)
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view this Client import.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def client_import_result(request: HttpRequest, job_id) -> HttpResponse:
+    job = get_import_job_for_owner(
+        job_id=job_id,
+        business=request.current_business,
+        actor=request.user,
+        require_usable=False,
+    )
+    if (
+        job.import_type != ImportJob.ImportType.CLIENTS
+        or job.schema_version != CLIENT_IMPORT_SCHEMA.version
+    ):
+        raise Http404("Client import result not found.")
+    result = execution_result_from_job(job)
+    return render(
+        request,
+        "crm/importing/client_result.html",
+        {
+            "business": request.current_business,
+            "job": job,
+            "result": result,
+            "result_code": result.code.value,
+            "can_view_import_history": user_can_view_import_history(
+                request.current_business,
+                request.user,
+            ),
+        },
+    )
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import clients.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def client_import_template(request: HttpRequest) -> HttpResponse:
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(CLIENT_STANDARD_TEMPLATE_FIELDS)
+    writer.writerow(
+        [CLIENT_SAMPLE_ROW.get(field_name, "") for field_name in CLIENT_STANDARD_TEMPLATE_FIELDS]
+    )
+    response = HttpResponse(output.getvalue(), content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="motionmate_clients_v1.csv"'
+    return response
+
+
+@business_role_required(
+    *LEAD_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import leads.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET", "POST"])
+def lead_import_upload(request: HttpRequest) -> HttpResponse:
+    current_business = request.current_business
+    context = {
+        "business": current_business,
+        "import_limits": _csv_import_ux_context(),
+        "standard_headers": LEAD_TEMPLATE_FIELDS,
+    }
+    if request.method == "GET":
+        return render(request, "crm/importing/lead_upload.html", context)
+
+    uploaded_file = request.FILES.get("csv_file")
+    if uploaded_file is None:
+        context["upload_error"] = "Choose a CSV file to preview."
+        return render(request, "crm/importing/lead_upload.html", context, status=400)
+
+    validation = validate_lead_import(uploaded_file, business=current_business)
+    job = create_import_job(
+        business=current_business,
+        actor=request.user,
+        import_type=ImportType.LEADS,
+        schema_version=LEAD_IMPORT_SCHEMA.version,
+        parsed_file=validation.parsed_file,
+    )
+    persist_lead_preview(
+        validation,
+        job=job,
+        business=current_business,
+        actor=request.user,
+    )
+    return redirect("lead_import_preview", job_id=job.pk)
+
+
+@business_role_required(
+    *LEAD_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import leads.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def lead_import_preview(request: HttpRequest, job_id) -> HttpResponse:
+    current_business = request.current_business
+    try:
+        job = get_import_job_for_owner(
+            job_id=job_id,
+            business=current_business,
+            actor=request.user,
+        )
+    except ValidationError as exc:
+        return render(
+            request,
+            "crm/importing/lead_preview_unavailable.html",
+            {"business": current_business, "message": exc.messages[0]},
+            status=410,
+        )
+
+    if (
+        job.import_type != ImportJob.ImportType.LEADS
+        or job.schema_version != LEAD_IMPORT_SCHEMA.version
+    ):
+        raise Http404("Lead import preview not found.")
+    payload = database_preview_store.load(preview_binding_for_job(job))
+    if payload is None:
+        raise Http404("Lead import preview not found.")
+    return render(
+        request,
+        "crm/importing/lead_preview.html",
+        {
+            "business": current_business,
+            "job": job,
+            "preview_rows": payload.normalized_rows,
+            "preview": payload.metadata,
+            "summary": payload.metadata["summary"],
+            "file_issues": payload.metadata["file_issues"],
+        },
+    )
+
+
+@business_role_required(
+    *LEAD_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import leads.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["POST"])
+def lead_import_execute(request: HttpRequest, job_id) -> HttpResponse:
+    execute_lead_import(
+        job_id=job_id,
+        business=request.current_business,
+        actor=request.user,
+    )
+    return redirect("lead_import_result", job_id=job_id)
+
+
+@business_role_required(
+    *LEAD_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view this Lead import.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def lead_import_result(request: HttpRequest, job_id) -> HttpResponse:
+    job = get_import_job_for_owner(
+        job_id=job_id,
+        business=request.current_business,
+        actor=request.user,
+        require_usable=False,
+    )
+    if (
+        job.import_type != ImportJob.ImportType.LEADS
+        or job.schema_version != LEAD_IMPORT_SCHEMA.version
+    ):
+        raise Http404("Lead import result not found.")
+    result = lead_execution_result_from_job(job)
+    return render(
+        request,
+        "crm/importing/lead_result.html",
+        {
+            "business": request.current_business,
+            "job": job,
+            "result": result,
+            "result_code": result.code.value,
+            "can_view_import_history": user_can_view_import_history(
+                request.current_business,
+                request.user,
+            ),
+        },
+    )
+
+
+@business_role_required(
+    *LEAD_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to import leads.",
+    raise_exception=False,
+)
+@business_module_required("crm")
+@require_http_methods(["GET"])
+def lead_import_template(request: HttpRequest) -> HttpResponse:
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(LEAD_TEMPLATE_FIELDS)
+    writer.writerow([LEAD_SAMPLE_ROW.get(field_name, "") for field_name in LEAD_TEMPLATE_FIELDS])
+    response = HttpResponse(output.getvalue(), content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="motionmate_leads_v1.csv"'
+    return response
 
 
 @business_role_required(
@@ -2034,11 +2402,12 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
+@business_module_required("crm", access="read")
 @require_http_methods(["GET"])
 def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
     response = HttpResponse(
         _service_import_example_csv_text(current_business), content_type="text/csv"
     )
-    response["Content-Disposition"] = 'attachment; filename="motionmate_services_sample.csv"'
+    response["Content-Disposition"] = 'attachment; filename="motionmate_services_v1.csv"'
     return response

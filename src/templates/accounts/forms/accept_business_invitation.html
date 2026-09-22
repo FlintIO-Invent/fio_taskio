@@ -55,6 +55,10 @@
             <div class="alert alert-warning mb-0" role="alert">
               This invitation is no longer available.
             </div>
+          {% elif invitation_blocked_by_subscription %}
+            <div class="alert alert-warning mb-0" role="alert">
+              This workspace is temporarily read-only. Please ask the account owner to update the subscription before accepting this invitation.
+            </div>
           {% elif wrong_authenticated_user %}
             <div class="alert alert-warning mb-3" role="alert">
               You are signed in as {{ request.user.email }}. Please <a href="{% url 'logout' %}">sign out</a> and accept this invitation with {{ invitation.email }}.

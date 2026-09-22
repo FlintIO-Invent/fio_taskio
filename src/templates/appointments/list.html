@@ -24,7 +24,7 @@
       <h2 class="mb-0 text-body-emphasis">Appointments</h2>
     </div>
     <div class="col-auto">
-      {% if role_access.can_manage_appointments %}
+      {% if role_access.can_manage_appointments and workspace_can_modify %}
         <a class="btn btn-phoenix-primary" href="{% url 'appointment_create' %}">
           <span class="fa-solid fa-plus me-2"></span>Schedule Appointment
         </a>
@@ -32,7 +32,7 @@
     </div>
   </div>
 
-  {% if not role_access.can_manage_appointments %}
+  {% if not role_access.can_manage_appointments or not workspace_can_modify %}
     <div class="alert alert-subtle-secondary border mb-4" role="alert">
       You have read-only appointment access in this workspace.
     </div>
@@ -114,7 +114,7 @@
                       <a href="{% url 'appointment_detail' appointment.pk %}" class="btn btn-sm btn-outline-primary">
                         <span class="fa-solid fa-eye"></span>
                       </a>
-                      {% if role_access.can_manage_appointments %}
+                      {% if role_access.can_manage_appointments and workspace_can_modify %}
                         <a href="{% url 'appointment_update' appointment.pk %}" class="btn btn-sm btn-outline-warning">
                           <span class="fa-solid fa-edit"></span>
                         </a>
@@ -142,7 +142,7 @@
             No appointments have been scheduled for this workspace yet.
           {% endif %}
         </p>
-        {% if role_access.can_manage_appointments %}
+        {% if role_access.can_manage_appointments and workspace_can_modify %}
           <a href="{% url 'appointment_create' %}" class="btn btn-phoenix-primary">
             <span class="fa-solid fa-plus me-2"></span>Schedule Your First Appointment
           </a>

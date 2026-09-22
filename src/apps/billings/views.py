@@ -686,7 +686,7 @@ def invoice_create_from_appointment(request: HttpRequest, appointment_id: int) -
     permission_message="You do not have permission to view invoices.",
     raise_exception=False,
 )
-@business_module_required("invoicing")
+@business_module_required("invoicing", access="read")
 @require_http_methods(["GET"])
 def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     """
@@ -718,7 +718,7 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     permission_message="You do not have permission to view invoices.",
     raise_exception=False,
 )
-@business_module_required("invoicing")
+@business_module_required("invoicing", access="read")
 @require_http_methods(["GET"])
 def invoice_pdf_download(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -812,7 +812,7 @@ def invoice_email_send(request: HttpRequest, invoice_id: int) -> HttpResponse:
     permission_message="You do not have permission to view invoices.",
     raise_exception=False,
 )
-@business_module_required("invoicing")
+@business_module_required("invoicing", access="read")
 @require_http_methods(["GET"])
 def invoice_list(request: HttpRequest) -> HttpResponse:
     """

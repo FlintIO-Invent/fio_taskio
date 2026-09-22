@@ -1,0 +1,13 @@
+{% extends "emails/base_email.txt" %}
+
+{% block body %}
+{{ body_intro }}
+
+Workspace: {{ business_name }}
+Plan: {{ plan_name }}
+{% if billing_interval_label %}Billing interval: {{ billing_interval_label }}
+{% endif %}{% if renewal_amount %}Plan amount: {{ renewal_amount }}
+{% endif %}
+{% for line in body_lines %}- {{ line }}
+{% endfor %}
+{% endblock %}

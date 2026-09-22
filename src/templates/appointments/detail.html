@@ -41,12 +41,12 @@
           <a class="btn btn-phoenix-secondary" href="{% url 'invoice_detail' linked_invoice.pk %}">
             <span class="fa-solid fa-file-invoice me-2"></span>View Invoice
           </a>
-        {% elif module_access.invoicing and role_access.can_manage_invoices %}
+        {% elif module_access.invoicing and role_access.can_manage_invoices and workspace_can_modify %}
           <a class="btn btn-phoenix-primary" href="{% url 'invoice_create_from_appointment' appointment.pk %}">
             <span class="fa-solid fa-file-invoice-dollar me-2"></span>Create Invoice
           </a>
         {% endif %}
-        {% if role_access.can_manage_appointments %}
+        {% if role_access.can_manage_appointments and workspace_can_modify %}
           <a class="btn btn-phoenix-warning" href="{% url 'appointment_update' appointment.pk %}">
             <span class="fa-solid fa-edit me-2"></span>Edit Appointment
           </a>
@@ -149,7 +149,7 @@
           <h5 class="mb-0">Actions</h5>
         </div>
         <div class="card-body">
-          {% if role_access.can_manage_appointments %}
+          {% if role_access.can_manage_appointments and workspace_can_modify %}
             {% if available_statuses %}
               <div class="d-grid gap-2">
                 {% if 'completed' in available_statuses %}
