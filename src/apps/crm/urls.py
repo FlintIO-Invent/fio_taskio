@@ -23,6 +23,8 @@ from .views import (
     client_import_upload,
     # staff_lead_email,
     data_import,
+    import_history,
+    import_history_detail,
     lead_import_execute,
     lead_import_preview,
     lead_import_result,
@@ -47,6 +49,12 @@ from .views import (
 urlpatterns = [
     path("agent/dashboard/", agent_dashboard, name="agent_dashboard"),
     path("staff/data-import/", data_import, name="data_import"),
+    path("staff/data-import/history/", import_history, name="import_history"),
+    path(
+        "staff/data-import/history/<uuid:job_id>/",
+        import_history_detail,
+        name="import_history_detail",
+    ),
     path("staff/data-import/clients/", client_import_upload, name="client_import_upload"),
     path(
         "staff/data-import/clients/template/",

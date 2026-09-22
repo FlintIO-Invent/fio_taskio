@@ -191,6 +191,9 @@
 	                                                <a class="nav-link" href="{% url 'staff_client_create' %}">
 	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Client</span></div>
 	                                                </a>
+	                                                <a class="nav-link" href="{% url 'client_import_upload' %}">
+	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Import Client CSV</span></div>
+	                                                </a>
 	                                            {% endif %}
 	                                        </li>
 	                                    </ul>
@@ -215,6 +218,9 @@
 	                                            {% if role_access.can_manage_leads and workspace_can_modify %}
 	                                                <a class="nav-link" href="{% url 'staff_lead_create' %}">
 	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Service Request</span></div>
+	                                                </a>
+	                                                <a class="nav-link" href="{% url 'lead_import_upload' %}">
+	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Import Lead CSV</span></div>
 	                                                </a>
 	                                            {% endif %}
 	                                        </li>

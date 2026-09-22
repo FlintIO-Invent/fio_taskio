@@ -12,32 +12,46 @@
 
   <div class="card border-0 shadow-sm">
     <div class="card-body p-4">
-      {% if result_code == "completed" %}
-        <h2>Import complete</h2>
-      {% elif result_code == "already_completed" %}
-        <h2>Import already completed</h2>
+      {% if result.completed %}
+        <div class="alert alert-success" role="status">
+          <h2 class="h4 alert-heading">{% if result_code == "already_completed" %}Import already completed{% else %}Import complete{% endif %}</h2>
+          <p class="mb-0">{{ result.message }}</p>
+        </div>
       {% else %}
-        <h2>Import not completed</h2>
+        <div class="alert alert-warning" role="alert">
+          <h2 class="h4 alert-heading">Import not completed</h2>
+          <p class="mb-2">{{ result.message }}</p>
+          {% if result_code == "expired" %}
+            <p class="mb-0">The preview can no longer be used. Upload the CSV again to create a current preview.</p>
+          {% elif result_code == "duplicates_changed" or result_code == "capacity_changed" %}
+            <p class="mb-0">Workspace data changed after preview. Create a new preview and review the updated counts before confirming.</p>
+          {% else %}
+            <p class="mb-0">Return to the upload page, correct any reported problem, and create a new preview.</p>
+          {% endif %}
+        </div>
       {% endif %}
-      <p class="text-body-tertiary">{{ result.message }}</p>
 
       <div class="row g-3 my-3">
-        <div class="col-md-4">
+        <div class="col-12 col-sm-6 col-lg-4">
           <div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Clients created</span><div class="fs-5 fw-semibold">{{ result.clients_created }}</div></div></div>
         </div>
-        <div class="col-md-4">
+        <div class="col-12 col-sm-6 col-lg-4">
           <div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Duplicates skipped</span><div class="fs-5 fw-semibold">{{ result.duplicates_skipped }}</div></div></div>
         </div>
-        <div class="col-md-4">
+        <div class="col-12 col-sm-6 col-lg-4">
           <div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Total processed</span><div class="fs-5 fw-semibold">{{ result.total_processed }}</div></div></div>
         </div>
       </div>
 
-      {% if result.completed %}
-        <a class="btn btn-primary" href="{% url 'staff_client_list' %}">View Clients</a>
-      {% else %}
-        <a class="btn btn-primary" href="{% url 'client_import_upload' %}">Create a new preview</a>
-      {% endif %}
+      <div class="d-flex flex-wrap gap-2" aria-label="Client import next actions">
+        {% if result.completed %}
+          <a class="btn btn-primary" href="{% url 'staff_client_list' %}">View Clients</a>
+        {% else %}
+          <a class="btn btn-primary" href="{% url 'client_import_upload' %}">Create a New Preview</a>
+        {% endif %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'data_import' %}">Import More Data</a>
+        {% if can_view_import_history %}<a class="btn btn-outline-primary" href="{% url 'import_history' %}">View Import History</a>{% endif %}
+      </div>
     </div>
   </div>
 </div>

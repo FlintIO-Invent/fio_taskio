@@ -316,7 +316,7 @@ class LeadImportPreviewTests(LeadImportTestMixin, TestCase):
             {"csv_file": self.upload([self.base_row])},
         )
 
-        self.assertContains(landing, "Upload Lead CSV")
+        self.assertContains(landing, "Import Leads")
         self.assertEqual(upload.status_code, 200)
         self.assertEqual(template.status_code, 200)
         self.assertEqual(template["Content-Type"], "text/csv")

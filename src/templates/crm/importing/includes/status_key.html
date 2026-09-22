@@ -1,0 +1,8 @@
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3" aria-label="Import row status key">
+  <strong class="me-1">Row status key:</strong>
+  <span class="badge badge-phoenix badge-phoenix-success">Create</span>
+  {% if show_update %}<span class="badge badge-phoenix badge-phoenix-info">Update</span>{% endif %}
+  {% if show_duplicate %}<span class="badge badge-phoenix badge-phoenix-secondary">Duplicate</span>{% endif %}
+  <span class="badge badge-phoenix badge-phoenix-warning">Review</span>
+  <span class="badge badge-phoenix badge-phoenix-danger">Error</span>
+</div>

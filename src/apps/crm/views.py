@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Case, Count, IntegerField, Q, QuerySet, Sum, Value, When
 from django.http import Http404, HttpRequest, HttpResponse
@@ -88,6 +89,7 @@ from .importing.clients import (
     CLIENT_STANDARD_TEMPLATE_FIELDS,
     validate_client_import,
 )
+from .importing.constants import DEFAULT_CSV_LIMITS
 from .importing.jobs import create_import_job, get_import_job_for_owner
 from .importing.lead_execution import (
     execute_lead_import,
@@ -100,14 +102,18 @@ from .importing.leads import (
     LEAD_TEMPLATE_FIELDS,
     validate_lead_import,
 )
-from .importing.permissions import user_can_import
+from .importing.permissions import user_can_import, user_can_view_import_history
 from .importing.preview import database_preview_store, preview_binding_for_job
 from .importing.service_execution import (
     execute_service_import,
     service_execution_result_from_job,
 )
 from .importing.service_preview import persist_service_preview
-from .importing.services import SERVICE_IMPORT_SCHEMA, validate_service_import
+from .importing.services import (
+    SERVICE_IMPORT_SCHEMA,
+    SERVICE_TEMPLATE_FIELDS,
+    validate_service_import,
+)
 from .importing.types import ImportType
 from .models import BusinessService, Client, ImportJob, Lead, ServiceCategory
 from .services import (
@@ -476,59 +482,31 @@ def _service_import_example_rows(business: Business) -> list[dict[str, str]]:
 
 
 def _service_import_columns() -> list[dict[str, str]]:
+    descriptions = {
+        "name": "Service name.",
+        "unit_price": "Decimal service price.",
+        "description": "Internal service description.",
+        "tax_rate": "Service tax percentage. Blank uses the workspace default.",
+        "category": "Existing or new category name for this workspace.",
+        "is_active": "true/false, yes/no, or 1/0. Blank defaults to true.",
+        "external_code": "Stable code used to update matching services later.",
+        "is_bookable_online": "true only when the service should appear on online booking.",
+        "default_duration_minutes": "Whole-number booking duration in minutes.",
+        "booking_buffer_minutes": "Whole-number buffer in minutes.",
+        "public_description": "Online booking description.",
+        "requires_manual_confirmation": (
+            "true/false. Current MotionMate booking flow is manual confirmation."
+        ),
+    }
     return [
-        {"name": "name", "required": "Required", "description": "Service name."},
-        {"name": "unit_price", "required": "Required", "description": "Decimal service price."},
         {
-            "name": "description",
-            "required": "Optional",
-            "description": "Internal service description.",
-        },
-        {
-            "name": "tax_rate",
-            "required": "Optional",
-            "description": "Service tax percentage. Blank uses the workspace default.",
-        },
-        {
-            "name": "category",
-            "required": "Optional",
-            "description": "Existing or new category name for this workspace.",
-        },
-        {
-            "name": "is_active",
-            "required": "Optional",
-            "description": "true/false, yes/no, or 1/0. Blank defaults to true.",
-        },
-        {
-            "name": "external_code",
-            "required": "Optional",
-            "description": "Stable code used to update matching services later.",
-        },
-        {
-            "name": "is_bookable_online",
-            "required": "Optional",
-            "description": "true only when the service should appear on online booking.",
-        },
-        {
-            "name": "default_duration_minutes",
-            "required": "Optional",
-            "description": "Whole-number booking duration in minutes.",
-        },
-        {
-            "name": "booking_buffer_minutes",
-            "required": "Optional",
-            "description": "Whole-number buffer in minutes.",
-        },
-        {
-            "name": "public_description",
-            "required": "Optional",
-            "description": "Online booking description.",
-        },
-        {
-            "name": "requires_manual_confirmation",
-            "required": "Optional",
-            "description": "true/false. Current Motionmate booking flow is manual confirmation.",
-        },
+            "name": field_name,
+            "required": (
+                "Required" if field_name in SERVICE_IMPORT_SCHEMA.required_columns else "Optional"
+            ),
+            "description": descriptions.get(field_name, "Supported service import field."),
+        }
+        for field_name in SERVICE_TEMPLATE_FIELDS
     ]
 
 
@@ -541,6 +519,13 @@ def _service_import_example_csv_text(business: Business) -> str:
     writer.writeheader()
     writer.writerows(_service_import_example_rows(business))
     return output.getvalue().strip()
+
+
+def _csv_import_ux_context() -> dict[str, int]:
+    return {
+        "maximum_upload_megabytes": DEFAULT_CSV_LIMITS.maximum_upload_bytes // (1024 * 1024),
+        "maximum_data_rows": DEFAULT_CSV_LIMITS.maximum_data_rows,
+    }
 
 
 # Fucntions below relate to public-facing lead capture and agent dashboard
@@ -1894,6 +1879,7 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
     context: dict[str, Any] = {
         "business": current_business,
         "form": form,
+        "import_limits": _csv_import_ux_context(),
         "import_columns": _service_import_columns(),
         "sample_rows": _service_import_example_rows(current_business),
         "sample_csv_text": _service_import_example_csv_text(current_business),
@@ -1994,6 +1980,10 @@ def business_service_import_result(request: HttpRequest, job_id) -> HttpResponse
             "job": job,
             "result": result,
             "result_code": result.code.value,
+            "can_view_import_history": user_can_view_import_history(
+                request.current_business,
+                request.user,
+            ),
         },
     )
 
@@ -2020,6 +2010,69 @@ def data_import(request: HttpRequest) -> HttpResponse:
             "can_import_services": user_can_import(
                 current_business, request.user, ImportType.SERVICES
             ),
+            "can_view_import_history": user_can_view_import_history(
+                current_business,
+                request.user,
+            ),
+        },
+    )
+
+
+@business_role_required(
+    *OWNER_ADMIN_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view import history.",
+    raise_exception=False,
+)
+@business_module_required("crm", access="read")
+@require_http_methods(["GET"])
+def import_history(request: HttpRequest) -> HttpResponse:
+    current_business = request.current_business
+    jobs = (
+        ImportJob.objects.filter(business=current_business)
+        .select_related("created_by")
+        .defer("preview_payload", "file_digest")
+        .order_by("-created_at", "-pk")
+    )
+    page = Paginator(jobs, 50).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "crm/importing/history.html",
+        {
+            "business": current_business,
+            "page": page,
+        },
+    )
+
+
+@business_role_required(
+    *OWNER_ADMIN_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to view import history.",
+    raise_exception=False,
+)
+@business_module_required("crm", access="read")
+@require_http_methods(["GET"])
+def import_history_detail(request: HttpRequest, job_id) -> HttpResponse:
+    job = get_object_or_404(
+        ImportJob.objects.select_related("created_by").defer(
+            "preview_payload",
+            "file_digest",
+        ),
+        pk=job_id,
+        business=request.current_business,
+        status__in=(
+            ImportJob.Status.COMPLETED,
+            ImportJob.Status.FAILED,
+            ImportJob.Status.EXPIRED,
+        ),
+    )
+    return render(
+        request,
+        "crm/importing/history_detail.html",
+        {
+            "business": request.current_business,
+            "job": job,
         },
     )
 
@@ -2036,6 +2089,7 @@ def client_import_upload(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
     context = {
         "business": current_business,
+        "import_limits": _csv_import_ux_context(),
         "standard_headers": CLIENT_STANDARD_TEMPLATE_FIELDS,
     }
     if request.method == "GET":
@@ -2156,6 +2210,10 @@ def client_import_result(request: HttpRequest, job_id) -> HttpResponse:
             "job": job,
             "result": result,
             "result_code": result.code.value,
+            "can_view_import_history": user_can_view_import_history(
+                request.current_business,
+                request.user,
+            ),
         },
     )
 
@@ -2192,6 +2250,7 @@ def lead_import_upload(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
     context = {
         "business": current_business,
+        "import_limits": _csv_import_ux_context(),
         "standard_headers": LEAD_TEMPLATE_FIELDS,
     }
     if request.method == "GET":
@@ -2311,6 +2370,10 @@ def lead_import_result(request: HttpRequest, job_id) -> HttpResponse:
             "job": job,
             "result": result,
             "result_code": result.code.value,
+            "can_view_import_history": user_can_view_import_history(
+                request.current_business,
+                request.user,
+            ),
         },
     )
 
@@ -2346,5 +2409,5 @@ def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
     response = HttpResponse(
         _service_import_example_csv_text(current_business), content_type="text/csv"
     )
-    response["Content-Disposition"] = 'attachment; filename="motionmate_services_sample.csv"'
+    response["Content-Disposition"] = 'attachment; filename="motionmate_services_v1.csv"'
     return response

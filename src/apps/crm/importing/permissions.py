@@ -4,6 +4,7 @@ from apps.businesses.models import Business, BusinessUser
 from apps.businesses.utils import (
     CLIENT_MANAGE_ROLES,
     LEAD_MANAGE_ROLES,
+    OWNER_ADMIN_ROLES,
     SERVICE_MANAGEMENT_ROLES,
     membership_has_any_role,
 )
@@ -31,6 +32,17 @@ def user_can_import(business: Business | None, user, import_type: ImportType | s
         is_active=True,
     ).first()
     return membership_has_any_role(membership, IMPORT_ROLES[normalized_import_type])
+
+
+def user_can_view_import_history(business: Business | None, user) -> bool:
+    if business is None or not getattr(user, "is_authenticated", False):
+        return False
+    membership = BusinessUser.objects.filter(
+        business=business,
+        user=user,
+        is_active=True,
+    ).first()
+    return membership_has_any_role(membership, OWNER_ADMIN_ROLES)
 
 
 def check_import_access(

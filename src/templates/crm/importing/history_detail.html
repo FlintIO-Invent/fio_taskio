@@ -1,0 +1,43 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'import_history' %}">Import History</a></li>
+      <li class="breadcrumb-item active">Import Detail</li>
+    </ol>
+  </nav>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      <div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
+        <div>
+          <h2 class="mb-2">{{ job.get_import_type_display }} Import</h2>
+          <p class="text-body-tertiary mb-0">{{ job.original_filename }}</p>
+        </div>
+        <span class="badge badge-phoenix">{{ job.get_status_display }}</span>
+      </div>
+
+      <dl class="row mb-4">
+        <dt class="col-sm-4">Imported by</dt><dd class="col-sm-8">{{ job.created_by.email }}</dd>
+        <dt class="col-sm-4">Created</dt><dd class="col-sm-8">{{ job.created_at|date:"M j, Y H:i" }}</dd>
+        <dt class="col-sm-4">Completed</dt><dd class="col-sm-8">{% if job.completed_at %}{{ job.completed_at|date:"M j, Y H:i" }}{% else %}—{% endif %}</dd>
+        <dt class="col-sm-4">Schema version</dt><dd class="col-sm-8">{{ job.schema_version }}</dd>
+      </dl>
+
+      <h4>Sanitized result</h4>
+      <div class="row g-3 mt-1">
+        <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Rows detected</span><div class="fs-5 fw-semibold">{{ job.rows_detected }}</div></div></div></div>
+        <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Created</span><div class="fs-5 fw-semibold">{{ job.rows_created }}</div></div></div></div>
+        <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Updated</span><div class="fs-5 fw-semibold">{{ job.rows_updated }}</div></div></div></div>
+        <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Skipped</span><div class="fs-5 fw-semibold">{{ job.rows_skipped }}</div></div></div></div>
+        <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Errors</span><div class="fs-5 fw-semibold">{{ job.rows_error }}</div></div></div></div>
+      </div>
+
+      <div class="alert alert-info mt-4 mb-0" role="alert">Uploaded rows and preview payloads are intentionally unavailable from import history.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

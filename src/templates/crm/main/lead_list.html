@@ -83,10 +83,13 @@
       <div class="row g-3 justify-content-between align-items-center mb-3">
         <div class="col-auto">
           <div class="d-md-flex justify-content-between">
-            <div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
               {% if role_access.can_manage_leads and workspace_can_modify %}
-                <a class="btn btn-primary me-4" href="{% url 'staff_lead_create' %}">
+                <a class="btn btn-primary" href="{% url 'staff_lead_create' %}">
                   <span class="fas fa-plus me-2"></span>Create Service Request
+                </a>
+                <a class="btn btn-phoenix-secondary" href="{% url 'lead_import_upload' %}">
+                  <span class="fas fa-file-import me-2"></span>Import Lead CSV
                 </a>
               {% endif %}
               {% if workspace_can_modify %}

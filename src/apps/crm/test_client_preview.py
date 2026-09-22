@@ -321,7 +321,7 @@ class ClientPreviewViewSecurityTests(ClientPreviewTestMixin, TestCase):
         self.assertRedirects(response, reverse("client_import_preview", args=[job.pk]))
         preview_response = self.client.get(response.url)
         self.assertContains(preview_response, "Client Import Preview")
-        self.assertContains(preview_response, "Ready to import")
+        self.assertContains(preview_response, "Ready to confirm")
         self.assertContains(preview_response, "jane@example.com")
 
     def test_template_download_uses_schema_header(self):

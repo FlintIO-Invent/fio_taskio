@@ -2,11 +2,19 @@
 
 {% block content %}
 <div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item active">Lead Preview Unavailable</li>
+    </ol>
+  </nav>
   <div class="card border-0 shadow-sm">
     <div class="card-body p-4">
       <h2>Lead preview unavailable</h2>
       <p class="text-body-tertiary">{{ message }}</p>
-      <a class="btn btn-primary" href="{% url 'lead_import_upload' %}">Start a new preview</a>
+      <div class="alert alert-info" role="note">The preview may have expired or workspace matches may have changed. Upload the CSV again, review the current results, and confirm from the new preview.</div>
+      <a class="btn btn-primary" href="{% url 'lead_import_upload' %}">Create a New Preview</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'data_import' %}">Import More Data</a>
     </div>
   </div>
 </div>

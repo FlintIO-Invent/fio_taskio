@@ -1,0 +1,11 @@
+{% if status == "NEW" or status == "CREATE" %}
+  <span class="badge badge-phoenix badge-phoenix-success"><span class="visually-hidden">Row status: </span>Create</span>
+{% elif status == "UPDATE" %}
+  <span class="badge badge-phoenix badge-phoenix-info"><span class="visually-hidden">Row status: </span>Update</span>
+{% elif status == "DUPLICATE" %}
+  <span class="badge badge-phoenix badge-phoenix-secondary"><span class="visually-hidden">Row status: </span>Duplicate</span>
+{% elif status == "REVIEW" %}
+  <span class="badge badge-phoenix badge-phoenix-warning"><span class="visually-hidden">Row status: </span>Review</span>
+{% else %}
+  <span class="badge badge-phoenix badge-phoenix-danger"><span class="visually-hidden">Row status: </span>Error</span>
+{% endif %}
