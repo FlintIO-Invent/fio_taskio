@@ -1,0 +1,59 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item active">Import Leads</li>
+    </ol>
+  </nav>
+
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h2 class="mb-2">Import Leads</h2>
+          <p class="text-body-tertiary">Upload a CSV to validate and preview historical leads for {{ business.name }}. Nothing is saved before you confirm the import.</p>
+
+          {% if upload_error %}
+            <div class="alert alert-danger" role="alert">{{ upload_error }}</div>
+          {% endif %}
+
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label" for="id_csv_file">Lead CSV file</label>
+              <input class="form-control" id="id_csv_file" name="csv_file" type="file" accept=".csv,text/csv" aria-describedby="lead-csv-help" required>
+              <div id="lead-csv-help" class="form-text">CSV only, up to {{ import_limits.maximum_upload_megabytes }} MB and {{ import_limits.maximum_data_rows }} data rows.</div>
+            </div>
+            <button class="btn btn-primary" type="submit">Validate and preview</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h3 class="h4">Lead CSV template</h3>
+          <p class="text-body-tertiary">Download the current schema with exact headers and a fictional example row.</p>
+          <a class="btn btn-outline-primary" href="{% url 'lead_import_template' %}">Download Template</a>
+          <hr>
+          <h4 class="h5">Required fields</h4>
+          <p class="small mb-2"><code>lead_type</code>, <code>first_name</code>, <code>last_name</code>, <code>email</code>, <code>phone</code>, and <code>company_name</code>.</p>
+          <p class="small text-body-tertiary mb-0">Use supported Lead types and status choices exactly as shown in the template. Email addresses are checked during preview.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-body p-4">
+      <h3 class="h5">If the preview finds a problem</h3>
+      <p class="text-body-tertiary mb-0">Correct the highlighted row in your CSV and upload it again. Duplicate rows can be skipped; Review and Error rows must be resolved before confirmation.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

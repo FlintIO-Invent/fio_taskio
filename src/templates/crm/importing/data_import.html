@@ -9,45 +9,83 @@
     </ol>
   </nav>
 
-  <div class="row g-3 mb-4 justify-content-between align-items-center">
-    <div class="col-lg-8">
-      <h2 class="mb-2 text-body-emphasis">Data Import</h2>
-      <p class="text-body-tertiary mb-0">Bring business data into {{ business.name }}. Imports are always scoped to this workspace.</p>
-    </div>
+  <div class="mb-4">
+    <h2 class="mb-2 text-body-emphasis">Data Import</h2>
+    <p class="text-body-tertiary mb-0">Bring business data into {{ business.name }}. Every import is validated and scoped to this workspace.</p>
   </div>
 
-  <div class="row g-4">
-    {% if can_import_clients %}
-      <div class="col-12 col-md-6 col-xl-4">
-        <div class="card h-100 border-0 shadow-sm">
-          <div class="card-body p-4">
-            <h4>Import Clients</h4>
-            <p class="text-body-tertiary">Client CSV preview and validation will be available in the next step.</p>
-            <span class="badge badge-phoenix badge-phoenix-secondary">Coming next</span>
-          </div>
-        </div>
-      </div>
-    {% endif %}
+  <div class="alert alert-info mb-4" role="note">
+    <h4 class="alert-heading">Moving from another system?</h4>
+    <p class="mb-0">Export your customer, lead, or service data as CSV, then transfer it into MotionMate using the matching import below.</p>
+  </div>
 
-    {% if can_import_leads %}
-      <div class="col-12 col-md-6 col-xl-4">
+  <section class="card border-0 shadow-sm mb-4" aria-labelledby="import-process-heading">
+    <div class="card-body p-4">
+      <h3 id="import-process-heading" class="mb-3">How importing works</h3>
+      <ol class="row g-3 list-unstyled mb-0">
+        <li class="col-12 col-sm-6 col-xl"><span class="badge badge-phoenix badge-phoenix-primary me-2">1</span><strong>Download template</strong></li>
+        <li class="col-12 col-sm-6 col-xl"><span class="badge badge-phoenix badge-phoenix-primary me-2">2</span><strong>Add or export your data</strong></li>
+        <li class="col-12 col-sm-6 col-xl"><span class="badge badge-phoenix badge-phoenix-primary me-2">3</span><strong>Upload CSV</strong></li>
+        <li class="col-12 col-sm-6 col-xl"><span class="badge badge-phoenix badge-phoenix-primary me-2">4</span><strong>Review MotionMate's interpretation</strong></li>
+        <li class="col-12 col-sm-6 col-xl"><span class="badge badge-phoenix badge-phoenix-primary me-2">5</span><strong>Confirm import</strong></li>
+      </ol>
+      <p class="text-body-tertiary mt-3 mb-0">Nothing is added or updated until you review the preview and confirm.</p>
+    </div>
+  </section>
+
+  <div class="row g-4" aria-label="Import options">
+    {% if can_import_clients %}
+      <div class="col-12 col-md-6 col-xl-3">
         <div class="card h-100 border-0 shadow-sm">
-          <div class="card-body p-4">
-            <h4>Import Leads</h4>
-            <p class="text-body-tertiary">Lead importing is planned for a later step.</p>
-            <span class="badge badge-phoenix badge-phoenix-secondary">Coming later</span>
+          <div class="card-body p-4 d-flex flex-column">
+            <h3 class="h4">Clients</h3>
+            <p class="text-body-tertiary flex-grow-1">Create client records from contact and company details. Duplicates and plan capacity are checked before confirmation.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-primary" href="{% url 'client_import_upload' %}">Import Clients</a>
+              <a class="btn btn-phoenix-secondary" href="{% url 'client_import_template' %}">Template</a>
+            </div>
           </div>
         </div>
       </div>
     {% endif %}
 
     {% if can_import_services %}
-      <div class="col-12 col-md-6 col-xl-4">
+      <div class="col-12 col-md-6 col-xl-3">
         <div class="card h-100 border-0 shadow-sm">
-          <div class="card-body p-4">
-            <h4>Import Services</h4>
-            <p class="text-body-tertiary">Use the existing Service CSV importer and sample template.</p>
-            <a class="btn btn-primary" href="{% url 'business_service_import' %}">Open Service Import</a>
+          <div class="card-body p-4 d-flex flex-column">
+            <h3 class="h4">Services</h3>
+            <p class="text-body-tertiary flex-grow-1">Create or update service names, prices, categories, and supported booking details.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-primary" href="{% url 'business_service_import' %}">Import Services</a>
+              <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Template</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if can_import_leads %}
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4 d-flex flex-column">
+            <h3 class="h4">Leads</h3>
+            <p class="text-body-tertiary flex-grow-1">Create historical leads and service requests while reviewing duplicates and possible existing matches.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-primary" href="{% url 'lead_import_upload' %}">Import Leads</a>
+              <a class="btn btn-phoenix-secondary" href="{% url 'lead_import_template' %}">Template</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if can_view_import_history %}
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4 d-flex flex-column">
+            <h3 class="h4">Import History</h3>
+            <p class="text-body-tertiary flex-grow-1">Review completed, failed, and expired import metadata for this workspace without exposing uploaded customer data.</p>
+            <div><a class="btn btn-outline-primary" href="{% url 'import_history' %}">View Import History</a></div>
           </div>
         </div>
       </div>

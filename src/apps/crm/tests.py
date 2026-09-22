@@ -27,7 +27,7 @@ from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 from apps.notifications.emails import get_internal_booking_notification_recipient
 
 from .forms import PrivateClientForm, PrivateLeadForm, PublicBookingForm
-from .models import BusinessService, Client, Lead, ServiceCategory
+from .models import BusinessService, Client, ImportJob, Lead, ServiceCategory
 from .services import sync_client_from_lead
 
 
@@ -126,6 +126,18 @@ class CRMBusinessScopingTests(TestCase):
         subscription = BusinessSubscription.objects.get(business=self.business)
         subscription.plan = invoicing_plan
         subscription.save(update_fields=["plan", "updated_at"])
+
+    def _confirm_latest_service_import(self):
+        job = ImportJob.objects.filter(
+            business=self.business,
+            created_by=self.user,
+            import_type=ImportJob.ImportType.SERVICES,
+        ).latest("created_at")
+        self.assertEqual(job.status, ImportJob.Status.READY)
+        return self.client.post(
+            reverse("business_service_import_execute", args=[job.pk]),
+            follow=True,
+        )
 
     def _enable_appointments_for_business(self):
         appointments_plan = ClarivoPlan.objects.create(
@@ -1995,8 +2007,10 @@ class CRMBusinessScopingTests(TestCase):
             {"csv_file": upload},
             follow=True,
         )
+        self.assertContains(response, "Service Import Preview")
+        response = self._confirm_latest_service_import()
 
-        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertContains(response, "Import complete")
 
         existing_service.refresh_from_db()
         imported_service = BusinessService.objects.get(name="Drain Cleaning")
@@ -2055,10 +2069,12 @@ class CRMBusinessScopingTests(TestCase):
             {"csv_file": upload},
             follow=True,
         )
+        self.assertContains(response, "Service Import Preview")
+        response = self._confirm_latest_service_import()
 
         imported_service = BusinessService.objects.get(external_code="LOCALE-001")
 
-        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertContains(response, "Import complete")
         self.assertEqual(imported_service.unit_price, Decimal("1234.56"))
         self.assertEqual(imported_service.tax_rate, Decimal("21.00"))
 
@@ -2099,9 +2115,11 @@ class CRMBusinessScopingTests(TestCase):
             {"csv_file": upload},
             follow=True,
         )
+        self.assertContains(response, "Service Import Preview")
+        response = self._confirm_latest_service_import()
         existing_service.refresh_from_db()
 
-        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertContains(response, "Import complete")
         self.assertTrue(existing_service.is_bookable_online)
         self.assertEqual(existing_service.default_duration_minutes, 45)
         self.assertEqual(existing_service.booking_buffer_minutes, 5)

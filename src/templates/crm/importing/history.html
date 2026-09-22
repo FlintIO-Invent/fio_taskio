@@ -1,0 +1,70 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item active">Import History</li>
+    </ol>
+  </nav>
+
+  <div class="mb-4">
+    <h2 class="mb-2">Import History</h2>
+    <p class="text-body-tertiary mb-0">Import activity for {{ business.name }}. Preview and uploaded customer data are never shown here.</p>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Type</th><th>Filename</th><th>User</th><th>Status</th>
+              <th>Detected</th><th>Created</th><th>Updated</th><th>Skipped</th>
+              <th>Errors</th><th>Started</th><th>Completed</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for job in page.object_list %}
+              <tr>
+                <td>{{ job.get_import_type_display }}</td>
+                <td>{{ job.original_filename }}</td>
+                <td>{{ job.created_by.email }}</td>
+                <td><span class="badge badge-phoenix">{{ job.get_status_display }}</span></td>
+                <td>{{ job.rows_detected }}</td>
+                <td>{{ job.rows_created }}</td>
+                <td>{{ job.rows_updated }}</td>
+                <td>{{ job.rows_skipped }}</td>
+                <td>{{ job.rows_error }}</td>
+                <td>{{ job.created_at|date:"M j, Y H:i" }}</td>
+                <td>{% if job.completed_at %}{{ job.completed_at|date:"M j, Y H:i" }}{% else %}—{% endif %}</td>
+                <td>
+                  {% if job.status == "completed" or job.status == "failed" or job.status == "expired" %}
+                    <a href="{% url 'import_history_detail' job.id %}">View</a>
+                  {% else %}
+                    <span class="text-body-tertiary">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="12" class="text-center text-body-tertiary py-5">No imports have been recorded for this workspace.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if page.paginator.num_pages > 1 %}
+    <nav class="mt-4" aria-label="Import history pages">
+      <ul class="pagination mb-0">
+        {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}">Previous</a></li>{% endif %}
+        <li class="page-item disabled"><span class="page-link">Page {{ page.number }} of {{ page.paginator.num_pages }}</span></li>
+        {% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}">Next</a></li>{% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+</div>
+{% endblock %}

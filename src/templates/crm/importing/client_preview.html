@@ -1,0 +1,123 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'client_import_upload' %}">Import Clients</a></li>
+      <li class="breadcrumb-item active">Preview</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h2 class="mb-2">Client Import Preview</h2>
+      <p class="text-body-tertiary mb-0">{{ job.original_filename }} for {{ business.name }}</p>
+    </div>
+    {% if preview.ready %}
+      <span class="badge badge-phoenix badge-phoenix-success fs-8"><span class="visually-hidden">Import status: </span>Ready</span>
+    {% else %}
+      <span class="badge badge-phoenix badge-phoenix-warning fs-8"><span class="visually-hidden">Import status: </span>Import blocked</span>
+    {% endif %}
+  </div>
+
+  {% if preview.ready %}
+    <div class="alert alert-success" role="status">
+      <h3 class="h5 alert-heading">Ready to confirm</h3>
+      <p class="mb-0">Review the summary and row results below. MotionMate will use this server-side preview when you confirm.</p>
+    </div>
+  {% else %}
+    <div class="alert alert-warning" role="alert">
+      <h3 class="h5 alert-heading">This import cannot continue yet</h3>
+      <p class="mb-0">Fix every row marked Review or Error, then upload a revised CSV. No clients have been saved.</p>
+    </div>
+  {% endif %}
+
+  {% if capacity.message %}
+    <div class="alert {% if capacity.allowed %}alert-info{% else %}alert-warning{% endif %}" role="alert">
+      <h3 class="h5 alert-heading">Client capacity</h3>
+      <p class="mb-0">{{ capacity.message }}{% if not capacity.allowed %} Reduce the number of new clients or make capacity available, then create a new preview.{% endif %}</p>
+    </div>
+  {% endif %}
+  {% if file_issues %}
+    <div class="alert alert-danger" role="alert">
+      <h3 class="h5 alert-heading">Blocking file issues</h3>
+      <ul class="mb-0">
+        {% for issue in file_issues %}<li>{{ issue.message }}</li>{% endfor %}
+      </ul>
+      <p class="mt-2 mb-0">Download the current template, copy your data beneath its headers, and upload the corrected CSV.</p>
+    </div>
+  {% endif %}
+  {% if summary.warning_count or summary.review_count %}
+    <div class="alert alert-warning" role="alert">
+      <h3 class="h5 alert-heading">Warnings and review rows</h3>
+      <p class="mb-0">Duplicate rows will be skipped. Review rows need your attention in the source CSV before you can continue.</p>
+    </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Rows detected</div><div class="fs-5 fw-semibold">{{ summary.rows_detected }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Create</div><div class="fs-5 fw-semibold">{{ summary.new_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Duplicate</div><div class="fs-5 fw-semibold">{{ summary.duplicate_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Review</div><div class="fs-5 fw-semibold">{{ summary.review_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Warnings</div><div class="fs-5 fw-semibold">{{ summary.warning_count }}</div></div></div></div>
+    <div class="col-6 col-lg"><div class="card h-100"><div class="card-body"><div class="text-body-tertiary">Error</div><div class="fs-5 fw-semibold">{{ summary.error_count }}</div></div></div></div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-4">
+      <h4>Client capacity</h4>
+      <div class="row g-3">
+        <div class="col-md-3"><span class="text-body-tertiary">Current active clients</span><div class="fw-semibold">{{ capacity.current_active_clients }}</div></div>
+        <div class="col-md-3"><span class="text-body-tertiary">Plan limit</span><div class="fw-semibold">{% if capacity.available %}{{ capacity.plan_limit }}{% else %}Unavailable{% endif %}</div></div>
+        <div class="col-md-3"><span class="text-body-tertiary">Remaining capacity</span><div class="fw-semibold">{% if capacity.available %}{{ capacity.remaining_capacity }}{% else %}Unavailable{% endif %}</div></div>
+        <div class="col-md-3"><span class="text-body-tertiary">New importable clients</span><div class="fw-semibold">{{ capacity.new_importable_clients }}</div></div>
+      </div>
+    </div>
+  </div>
+
+  {% include "crm/importing/includes/status_key.html" with show_duplicate=1 %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <caption class="visually-hidden">Client import row-by-row results</caption>
+          <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Phone</th><th scope="col">Status</th><th scope="col">Issue</th></tr></thead>
+          <tbody>
+            {% for row in preview_rows %}
+              <tr>
+                <td>{{ row.row_number }}</td>
+                <td>{{ row.display.first_name }} {{ row.display.last_name }}</td>
+                <td>{{ row.display.email }}</td>
+                <td>{{ row.display.phone }}</td>
+                <td>{% include "crm/importing/includes/status_badge.html" with status=row.status %}</td>
+                <td>{% for issue in row.issues %}<div>{{ issue.message }}</div>{% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" class="text-center text-body-tertiary py-4">No previewable rows.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-body p-4">
+      <h3 class="h4">Confirm this import</h3>
+      {% if job.status == "ready" and preview.ready %}
+        <p><strong>{{ summary.new_count }}</strong> clients will be created. <strong>{{ summary.duplicate_count }}</strong> duplicates will be skipped.</p>
+        <p class="text-body-tertiary">Confirmation uses the reviewed server-side data above. Import rows cannot be edited in the browser.</p>
+        <form class="d-inline" method="post" action="{% url 'client_import_execute' job.id %}">
+          {% csrf_token %}
+          <button class="btn btn-primary" type="submit">Confirm Client Import</button>
+        </form>
+      {% else %}
+        <p class="text-body-tertiary">Confirmation is unavailable until blocking issues are resolved.</p>
+      {% endif %}
+      <a class="btn btn-outline-secondary" href="{% url 'client_import_upload' %}">Upload a revised CSV</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
