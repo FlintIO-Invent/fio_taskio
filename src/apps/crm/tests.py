@@ -3699,26 +3699,98 @@ class DashboardOnboardingViewTests(TestCase):
         self.assertContains(owner_response, "Open Setup Guide")
         self.assertNotContains(staff_response, "Open Setup Guide")
 
-    def test_dashboard_sidebar_shows_service_requests_below_clients(self):
+    def _sidebar_and_online_booking_menu(self, response):
+        html = response.content.decode()
+        sidebar_start = html.index('id="navbarVerticalCollapse"')
+        sidebar_end = html.index("</nav>", sidebar_start)
+        sidebar_html = html[sidebar_start:sidebar_end]
+        menu_start = sidebar_html.index('id="nv-online-booking"')
+        menu_end = sidebar_html.index("</ul>", menu_start)
+        return sidebar_html, sidebar_html[menu_start:menu_end]
+
+    def test_dashboard_sidebar_shows_enabled_public_booking_and_request_actions(self):
+        BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=True,
+        )
         self._login(self.owner_user)
 
         response = self.client.get(reverse("agent_dashboard"))
 
-        html = response.content.decode()
-        clients_menu_index = html.index('id="nv-client"')
-        service_requests_menu_index = html.index('id="nv-service-requests"')
-        clients_menu_html = html[clients_menu_index:service_requests_menu_index]
-        service_requests_menu_html = html[service_requests_menu_index:]
+        sidebar_html, online_booking_menu_html = self._sidebar_and_online_booking_menu(response)
 
-        self.assertLess(clients_menu_index, service_requests_menu_index)
-        self.assertIn("Clients", clients_menu_html)
-        self.assertIn(reverse("staff_client_list"), clients_menu_html)
-        self.assertIn(reverse("staff_client_create"), clients_menu_html)
-        self.assertNotIn(reverse("staff_lead_list"), clients_menu_html)
-        self.assertNotIn(reverse("staff_lead_create"), clients_menu_html)
-        self.assertIn("Service Requests", service_requests_menu_html)
-        self.assertIn(reverse("staff_lead_list"), service_requests_menu_html)
-        self.assertIn(reverse("staff_lead_create"), service_requests_menu_html)
+        self.assertEqual(sidebar_html.count('href="#nv-online-booking"'), 1)
+        self.assertNotIn('href="#nv-service-requests"', sidebar_html)
+        self.assertNotIn('id="nv-service-requests"', sidebar_html)
+        self.assertNotIn('<span class="nav-link-text">Service Requests</span>', sidebar_html)
+        self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
+        self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
+        self.assertIn("Public Booking", online_booking_menu_html)
+        self.assertIn("ENABLED", online_booking_menu_html)
+        self.assertIn(reverse("business_booking_settings"), online_booking_menu_html)
+        self.assertEqual(
+            sidebar_html.count(f'href="{reverse("staff_lead_list")}"'),
+            1,
+        )
+        self.assertEqual(
+            sidebar_html.count(f'href="{reverse("staff_lead_create")}"'),
+            1,
+        )
+
+    def test_dashboard_sidebar_keeps_request_actions_when_public_booking_not_included(self):
+        self.plan.allow_public_booking = False
+        self.plan.save(update_fields=["allow_public_booking", "updated_at"])
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        sidebar_html, online_booking_menu_html = self._sidebar_and_online_booking_menu(response)
+
+        self.assertEqual(sidebar_html.count('href="#nv-online-booking"'), 1)
+        self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
+        self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
+        self.assertIn("NOT INCLUDED", online_booking_menu_html)
+
+    def test_dashboard_sidebar_shows_public_booking_off_without_hiding_request_actions(self):
+        BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=False,
+        )
+        self._login(self.owner_user)
+
+        response = self.client.get(reverse("agent_dashboard"))
+
+        _sidebar_html, online_booking_menu_html = self._sidebar_and_online_booking_menu(response)
+
+        self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
+        self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
+        self.assertIn("Public Booking", online_booking_menu_html)
+        self.assertIn("OFF", online_booking_menu_html)
+
+    def test_dashboard_sidebar_preserves_service_request_role_restrictions(self):
+        role_cases = (
+            (self.owner_user, True),
+            (self.admin_user, True),
+            (self.staff_user, True),
+            (self.accountant_user, False),
+            (self.viewer_user, False),
+        )
+
+        for user, can_create in role_cases:
+            with self.subTest(user=user.email):
+                self.client.logout()
+                self._login(user)
+
+                response = self.client.get(reverse("agent_dashboard"))
+
+                _sidebar_html, online_booking_menu_html = (
+                    self._sidebar_and_online_booking_menu(response)
+                )
+                self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
+                if can_create:
+                    self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
+                else:
+                    self.assertNotIn(reverse("staff_lead_create"), online_booking_menu_html)
 
     def test_owner_with_selected_journey_gets_guide_panel_state(self):
         UserOnboardingState.objects.create(
