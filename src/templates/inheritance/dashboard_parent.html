@@ -110,11 +110,6 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Data Import</span></div>
                                                 </a>
                                             {% endif %}
-                                            {% if role_access.can_manage_booking_availability and workspace_can_modify %}
-                                                <a class="nav-link" href="{% url 'business_booking_settings' %}" data-onboarding-target="availability">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Availability</span></div>
-                                                </a>
-                                            {% endif %}
                                             {% if role_access.can_manage_subscription %}
                                                 <a class="nav-link" href="{% url 'business_subscription' %}">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Subscription</span></div>
@@ -200,34 +195,7 @@
 	                                </div>
 	                            </div>
 
-	                            <!-- service request navigation -->
-	                            <div class="nav-item-wrapper">
-	                                <a class="nav-link dropdown-indicator label-1" href="#nv-service-requests" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-service-requests" data-onboarding-target="service-requests">
-	                                    <div class="d-flex align-items-center">
-	                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-	                                        <span class="nav-link-icon"><span data-feather="clipboard"></span></span><span class="nav-link-text">Service Requests</span>
-	                                    </div>
-	                                </a>
-	                                <div class="parent-wrapper label-1">
-	                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-service-requests">
-	                                        <li class="collapsed-nav-item-title d-none">Service Requests</li>
-	                                        <li class="nav-item">
-	                                            <a class="nav-link" href="{% url 'staff_lead_list' %}">
-	                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
-	                                            </a>
-	                                            {% if role_access.can_manage_leads and workspace_can_modify %}
-	                                                <a class="nav-link" href="{% url 'staff_lead_create' %}">
-	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Service Request</span></div>
-	                                                </a>
-	                                                <a class="nav-link" href="{% url 'lead_import_upload' %}">
-	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Import Lead CSV</span></div>
-	                                                </a>
-	                                            {% endif %}
-	                                        </li>
-	                                    </ul>
-	                                </div>
-	                            </div>
-	                        </li>
+                        </li>
 
                         <!-- Module Section -->
                         <li class="nav-item">
@@ -264,14 +232,45 @@
                                 </div>
                             {% endif %}
                             <div class="nav-item-wrapper">
-                                <span class="nav-link label-1 d-flex align-items-center {% if not module_access.public_booking %}text-body-tertiary{% endif %}" {% if module_access.public_booking %}data-onboarding-target="booking-settings"{% endif %}>
-                                    <span class="d-flex align-items-center">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-online-booking" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-online-booking" {% if module_access.public_booking %}data-onboarding-target="booking-settings"{% endif %}>
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
                                         <span class="nav-link-icon"><span data-feather="globe"></span></span><span class="nav-link-text">Online Booking</span>
-                                    </span>
-                                    <span class="badge badge-phoenix {% if module_access.public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %} nav-module-status">
-                                        {% if module_access.public_booking %}Included{% else %}Locked{% endif %}
-                                    </span>
-                                </span>
+                                    </div>
+                                </a>
+                                <div class="parent-wrapper label-1">
+                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-online-booking">
+                                        <li class="collapsed-nav-item-title d-none">Online Booking</li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'staff_lead_list' %}" data-onboarding-target="service-requests">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
+                                            </a>
+                                            {% if role_access.can_manage_leads and workspace_can_modify %}
+                                                <a class="nav-link" href="{% url 'staff_lead_create' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Service Request</span></div>
+                                                </a>
+                                                <a class="nav-link" href="{% url 'lead_import_upload' %}">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Import Lead CSV</span></div>
+                                                </a>
+                                            {% endif %}
+                                            <span class="nav-link d-flex align-items-center justify-content-between text-body-tertiary">
+                                                <span class="nav-link-text">Public Booking</span>
+                                                {% if not module_access.public_booking %}
+                                                    <span class="badge badge-phoenix badge-phoenix-warning">NOT INCLUDED</span>
+                                                {% elif current_business.booking_settings.booking_enabled %}
+                                                    <span class="badge badge-phoenix badge-phoenix-success">ENABLED</span>
+                                                {% else %}
+                                                    <span class="badge badge-phoenix badge-phoenix-secondary">OFF</span>
+                                                {% endif %}
+                                            </span>
+                                            {% if role_access.can_manage_booking_availability and workspace_can_modify %}
+                                                <a class="nav-link" href="{% url 'business_booking_settings' %}" data-onboarding-target="availability">
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Booking Settings</span></div>
+                                                </a>
+                                            {% endif %}
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
                             
                         </li>

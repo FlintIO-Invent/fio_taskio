@@ -108,7 +108,19 @@
             {% endif %}
             {% if not source_appointment %}
               <div class="mb-4">
-                <label class="form-label" for="id_client_id">Client{% include "includes/help_icon.html" with text="Search and select any client in the current workspace." %}</label>
+                <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
+                  <label class="form-label mb-0" for="id_client_id">Client <span class="text-danger">*</span>{% include "includes/help_icon.html" with text="Search and select any client in the current workspace." %}</label>
+                  {% if not client_is_locked %}
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-phoenix-primary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#quickClientModal"
+                    >
+                      <span class="fa-solid fa-user-plus me-2"></span>Add client
+                    </button>
+                  {% endif %}
+                </div>
                 {% if client_is_locked and client %}
                   <input type="hidden" name="client_id" value="{{ client.id }}">
                   <select class="form-select" id="id_client_id" disabled>
@@ -120,8 +132,6 @@
                     id="id_client_id"
                     name="client_id"
                     required
-                    data-choices="data-choices"
-                    data-options='{"searchEnabled":true,"shouldSort":false,"searchResultLimit":8}'
                   >
                     <option value="">Search or select a client</option>
                     {% for available_client in available_clients %}
@@ -195,7 +205,7 @@
               </div>
               </div>
             {% else %}
-              <div class="alert alert-subtle-secondary border mb-0" role="alert">
+              <div id="client-selection-help" class="alert alert-subtle-secondary border mb-0" role="alert">
                 Select a client to create this invoice.
               </div>
             {% endif %}
@@ -247,16 +257,16 @@
                       {% endfor %}
                     </select>
                   </div>
-                  <label class="form-label mt-2 service-description-label">Service name</label>
-                  <input type="text" class="form-control" name="description" value="{{ line.description }}" maxlength="255">
+                  <label class="form-label mt-2 service-description-label">Service name *</label>
+                  <input type="text" class="form-control" name="description" value="{{ line.description }}" maxlength="255" required>
                 </div>
                 <div class="col-md-2">
-                  <label class="form-label">Quantity</label>
-                  <input type="number" class="form-control" name="quantity" value="{{ line.quantity }}" step="1.00" min="1.00" inputmode="numeric">
+                  <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                  <input type="number" class="form-control" name="quantity" value="{{ line.quantity }}" step="1.00" min="1.00" inputmode="numeric" required>
                 </div>
                 <div class="col-md-2">
-                  <label class="form-label">Unit Price</label>
-                  <input type="number" class="form-control" name="unit_price" value="{{ line.unit_price }}" step="1.00" min="0">
+                  <label class="form-label">Unit Price <span class="text-danger">*</span></label>
+                  <input type="number" class="form-control" name="unit_price" value="{{ line.unit_price }}" step="1.00" min="0" required>
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Line Total</label>
@@ -298,16 +308,16 @@
                     {% endfor %}
                   </select>
                 </div>
-                <label class="form-label mt-2 service-description-label">Service name</label>
-                <input type="text" class="form-control" name="description" maxlength="255" disabled>
+                <label class="form-label mt-2 service-description-label">Service name *</label>
+                <input type="text" class="form-control" name="description" maxlength="255" required disabled>
               </div>
               <div class="col-md-2">
-                <label class="form-label">Quantity</label>
-                <input type="number" class="form-control" name="quantity" step="1.00" min="1.00" inputmode="numeric" disabled>
+                <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                <input type="number" class="form-control" name="quantity" step="1.00" min="1.00" inputmode="numeric" required disabled>
               </div>
               <div class="col-md-2">
-                <label class="form-label">Unit Price</label>
-                <input type="number" class="form-control" name="unit_price" step="1.00" min="0" disabled>
+                <label class="form-label">Unit Price <span class="text-danger">*</span></label>
+                <input type="number" class="form-control" name="unit_price" step="1.00" min="0" required disabled>
               </div>
               <div class="col-md-2">
                 <label class="form-label">Line Total</label>
@@ -334,7 +344,7 @@
               <h6 class="alert-heading">Invoice will be created with:</h6>
               <ul class="mb-0">
                 <li>Status: Draft</li>
-                <li>Client: {% if client %}{{ client.first_name }} {{ client.last_name }}{% else %}Select on this page{% endif %}</li>
+                <li>Client: <span id="invoice-summary-client">{% if client %}{{ client.first_name }} {{ client.last_name }}{% else %}Select on this page{% endif %}</span></li>
                 <li>Invoice number: {{ invoice_number_preview }}</li>
                 <li>Currency: {{ current_business.currency }}</li>
                 <li>Tax rate: {{ current_business.tax_rate }}%</li>
@@ -381,11 +391,146 @@
       </div>
     </div>
   </form>
+
+  {% if not source_appointment and not client_is_locked %}
+    <div class="modal fade" id="quickClientModal" tabindex="-1" aria-labelledby="quickClientModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <form id="quick-client-form" method="post" action="{% url 'invoice_quick_create_client' %}">
+            {% csrf_token %}
+            <div class="modal-header">
+              <div>
+                <h5 class="modal-title" id="quickClientModalLabel">Add a client</h5>
+                <p class="mb-0 text-body-secondary small">All fields below are required. You can complete the rest of the client profile later.</p>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="quick-client-errors" class="alert alert-danger d-none" role="alert"></div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="quick_client_first_name">First name <span class="text-danger">*</span></label>
+                  <input class="form-control" id="quick_client_first_name" name="first_name" maxlength="80" autocomplete="given-name" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="quick_client_last_name">Last name <span class="text-danger">*</span></label>
+                  <input class="form-control" id="quick_client_last_name" name="last_name" maxlength="80" autocomplete="family-name" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label" for="quick_client_company_name">Company name <span class="text-danger">*</span></label>
+                  <input class="form-control" id="quick_client_company_name" name="company_name" maxlength="120" autocomplete="organization" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="quick_client_email">Email <span class="text-danger">*</span></label>
+                  <input type="email" class="form-control" id="quick_client_email" name="email" maxlength="254" autocomplete="email" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="quick_client_phone">Phone <span class="text-danger">*</span></label>
+                  <input type="tel" class="form-control" id="quick_client_phone" name="phone" maxlength="40" autocomplete="tel" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label" for="quick_client_street_address">Street address <span class="text-danger">*</span></label>
+                  <input class="form-control" id="quick_client_street_address" name="street_address" maxlength="255" autocomplete="street-address" required>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-phoenix-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Add and select client</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  {% endif %}
 </div>
 
 <script>
 const currencyCode = "{{ current_business.currency }}";
 const taxRate = parseFloat("{{ current_business.tax_rate }}") || 0;
+let clientChoices = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  const clientSelect = document.getElementById('id_client_id');
+  if (clientSelect && !clientSelect.disabled && window.Choices) {
+    clientChoices = new window.Choices(clientSelect, {
+      itemSelectText: '',
+      addItems: true,
+      allowHTML: false,
+      searchEnabled: true,
+      shouldSort: false,
+      searchResultLimit: 8
+    });
+  }
+});
+
+const quickClientForm = document.getElementById('quick-client-form');
+if (quickClientForm) {
+  quickClientForm.addEventListener('submit', async function(event) {
+    event.preventDefault();
+
+    const errorBox = document.getElementById('quick-client-errors');
+    const submitButton = quickClientForm.querySelector('button[type="submit"]');
+    errorBox.classList.add('d-none');
+    errorBox.replaceChildren();
+    submitButton.disabled = true;
+
+    try {
+      const response = await fetch(quickClientForm.action, {
+        method: 'POST',
+        body: new FormData(quickClientForm),
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorList = document.createElement('ul');
+        errorList.className = 'mb-0';
+        Object.values(data.errors || {}).flat().forEach(message => {
+          const item = document.createElement('li');
+          item.textContent = message;
+          errorList.appendChild(item);
+        });
+        if (!errorList.children.length) {
+          const item = document.createElement('li');
+          item.textContent = 'Please check the client details and try again.';
+          errorList.appendChild(item);
+        }
+        errorBox.appendChild(errorList);
+        errorBox.classList.remove('d-none');
+        return;
+      }
+
+      const clientValue = String(data.client.id);
+      if (clientChoices) {
+        clientChoices.setChoices(
+          [{ value: clientValue, label: data.client.label, selected: true }],
+          'value',
+          'label',
+          false
+        );
+      } else {
+        const clientSelect = document.getElementById('id_client_id');
+        clientSelect.add(new Option(data.client.label, clientValue, true, true));
+      }
+
+      document.getElementById('invoice-summary-client').textContent = data.client.label;
+      const selectionHelp = document.getElementById('client-selection-help');
+      if (selectionHelp) {
+        selectionHelp.className = 'alert alert-subtle-success border mb-0';
+        selectionHelp.textContent = 'Client added and selected. Continue editing your invoice.';
+      }
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('quickClientModal')).hide();
+      quickClientForm.reset();
+    } catch (error) {
+      errorBox.textContent = 'The client could not be added. Please try again.';
+      errorBox.classList.remove('d-none');
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+}
 
 function isWholeUnitQuantity(value) {
   const quantity = parseFloat(value);
@@ -438,7 +583,7 @@ function updateServiceSource(lineItem) {
     savedFields.classList.toggle('d-none', source !== 'saved');
   }
   if (descriptionLabel) {
-    descriptionLabel.textContent = source === 'saved' ? 'Description' : 'Service name';
+    descriptionLabel.textContent = source === 'saved' ? 'Description *' : 'Service name *';
   }
 }
 

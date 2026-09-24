@@ -496,6 +496,29 @@ class PrivateClientForm(CRMAddressStyleMixin, forms.ModelForm):
         }
 
 
+class QuickClientForm(forms.ModelForm):
+    """Collect only the client details required while drafting an invoice."""
+
+    class Meta:
+        model = Client
+        fields = [
+            "first_name",
+            "last_name",
+            "company_name",
+            "email",
+            "phone",
+            "street_address",
+        ]
+        widgets = {
+            "first_name": forms.TextInput(attrs={"class": "form-control"}),
+            "last_name": forms.TextInput(attrs={"class": "form-control"}),
+            "company_name": forms.TextInput(attrs={"class": "form-control"}),
+            "email": forms.EmailInput(attrs={"class": "form-control"}),
+            "phone": forms.TextInput(attrs={"class": "form-control"}),
+            "street_address": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+
 class PrivateLeadForm(CRMAddressStyleMixin, forms.ModelForm):
     def __init__(self, *args, business=None, **kwargs):
         super().__init__(*args, **kwargs)

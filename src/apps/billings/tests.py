@@ -600,6 +600,9 @@ class BillingBusinessScopingTests(TestCase):
             html,
         )
         self.assertIn('name="unit_price" value="" step="1.00" min="0"', html)
+        self.assertIn('name="description" value="" maxlength="255" required', html)
+        self.assertIn('inputmode="numeric" required', html)
+        self.assertIn('min="0" required', html)
         self.assertIn("Service type", html)
         self.assertIn('class="form-select service-source-select"', html)
         self.assertIn("New service", html)
@@ -627,10 +630,70 @@ class BillingBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'name="client_id"')
-        self.assertContains(response, 'data-choices="data-choices"')
+        self.assertContains(response, "new window.Choices(clientSelect")
         self.assertContains(response, "Search or select a client")
         self.assertContains(response, "Alicia Client")
         self.assertNotContains(response, "Boris Client")
+
+    def test_invoice_create_page_offers_quick_client_modal(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-bs-target="#quickClientModal"')
+        self.assertContains(response, reverse("invoice_quick_create_client"))
+        self.assertContains(response, "All fields below are required.")
+        self.assertContains(response, "Add and select client")
+
+    def test_invoice_quick_create_client_uses_current_business(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_quick_create_client"),
+            data={
+                "first_name": "Nadia",
+                "last_name": "Newclient",
+                "company_name": "Nadia Services",
+                "email": "nadia@example.com",
+                "phone": "+1 721 555 0010",
+                "street_address": "10 Front Street",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        created_client = Client.objects.get(email="nadia@example.com")
+        self.assertEqual(created_client.business, self.business)
+        self.assertEqual(created_client.client_status, Client.ClientStatus.ACTIVE)
+        self.assertEqual(response.json()["client"]["id"], created_client.id)
+        self.assertEqual(response.json()["client"]["label"], str(created_client))
+
+    def test_invoice_quick_create_client_returns_validation_errors(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("invoice_quick_create_client"),
+            data={
+                "first_name": "Nadia",
+                "last_name": "Newclient",
+                "company_name": "Nadia Services",
+                "email": "not-an-email",
+                "phone": "+1 721 555 0010",
+                "street_address": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("email", response.json()["errors"])
+        self.assertIn("street_address", response.json()["errors"])
+        self.assertFalse(Client.objects.filter(first_name="Nadia").exists())
+
+    def test_invoice_quick_create_client_is_post_only(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("invoice_quick_create_client"))
+
+        self.assertEqual(response.status_code, 405)
 
     def test_invoice_create_page_posts_selected_client(self):
         self.client.force_login(self.user)
