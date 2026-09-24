@@ -418,8 +418,6 @@ def _update_import_job(job: ImportJob, result: ClientImportValidationResult, *, 
             ]
         )
         locked_job.transition_to(ImportJob.Status.VALIDATED)
-        if not result.has_errors:
-            locked_job.transition_to(ImportJob.Status.READY)
 
 
 def validate_client_import(uploaded_file, *, business, job=None) -> ClientImportValidationResult:

@@ -1406,5 +1406,11 @@ class BusinessServiceForm(forms.ModelForm):
 
 class BusinessServiceCSVImportForm(forms.Form):
     csv_file = forms.FileField(
-        widget=forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".csv,text/csv"})
+        widget=forms.ClearableFileInput(
+            attrs={
+                "class": "form-control",
+                "accept": ".csv,text/csv",
+                "aria-describedby": "service-csv-help",
+            }
+        )
     )

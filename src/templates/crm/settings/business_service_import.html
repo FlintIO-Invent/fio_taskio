@@ -14,11 +14,11 @@
   <div class="row g-3 mb-4 justify-content-between align-items-center">
     <div class="col-lg-8">
       <h2 class="mb-2 text-body-emphasis">Import Services From CSV</h2>
-      <p class="text-body-tertiary mb-0">Upload a price list for {{ business.name }}. All imported services stay inside this workspace.</p>
+      <p class="text-body-tertiary mb-0">Upload a price list for {{ business.name }} to validate and preview it. Nothing is saved before you confirm the import.</p>
     </div>
     <div class="col-auto d-flex gap-2">
       <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Back to services</a>
-      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Download sample CSV</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Download Template</a>
     </div>
   </div>
 
@@ -30,17 +30,6 @@
     {% endfor %}
   {% endif %}
 
-  {% if import_errors %}
-    <div class="alert alert-danger">
-      <h5 class="alert-heading mb-2">Import errors</h5>
-      <ul class="mb-0">
-        {% for error in import_errors %}
-          <li>{{ error }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-  {% endif %}
-
   <div class="row g-4">
     <div class="col-12 col-xl-7">
       <div class="card border-0 shadow-sm">
@@ -50,9 +39,10 @@
             <div class="mb-3">
               <label class="form-label" for="{{ form.csv_file.id_for_label }}">CSV file</label>
               {{ form.csv_file }}
+              <div id="service-csv-help" class="form-text">CSV only, up to {{ import_limits.maximum_upload_megabytes }} MB and {{ import_limits.maximum_data_rows }} data rows.</div>
               {% if form.csv_file.errors %}<div class="invalid-feedback d-block">{{ form.csv_file.errors|striptags }}</div>{% endif %}
             </div>
-            <button class="btn btn-primary" type="submit">Import services</button>
+            <button class="btn btn-primary" type="submit">Validate and preview</button>
           </form>
         </div>
       </div>
@@ -61,7 +51,7 @@
     <div class="col-12 col-xl-5">
       <div class="card border-0 shadow-sm">
         <div class="card-body p-4">
-          <h4 class="mb-3">CSV format</h4>
+          <h3 class="h4 mb-3">CSV format</h3>
           <p class="text-body-tertiary mb-2">Required columns:</p>
           <ul class="mb-3">
             <li><code>name</code></li>
@@ -81,7 +71,7 @@
             <li><code>requires_manual_confirmation</code></li>
           </ul>
           <p class="text-body-tertiary mb-2">Prices are stored as decimals. Use <code>1234.56</code>, or <code>{{ price_input_example }}</code> for this workspace format.</p>
-          <p class="text-body-tertiary mb-2">If <code>tax_rate</code> is blank, Motionmate uses the current workspace default {{ business.tax_label|default:"Tax" }} rate of {{ business.tax_rate|floatformat:2 }}%.</p>
+          <p class="text-body-tertiary mb-2">If <code>tax_rate</code> is blank, MotionMate uses the current workspace default {{ business.tax_label|default:"Tax" }} rate of {{ business.tax_rate|floatformat:2 }}%.</p>
           <p class="text-body-tertiary mb-0">If booking columns are omitted, existing booking settings on matched services are left unchanged.</p>
         </div>
       </div>
@@ -95,7 +85,7 @@
           <h4 class="mb-1">View Import Examples</h4>
           <p class="text-body-tertiary mb-0">Review the columns and sample rows here before downloading or uploading a CSV.</p>
         </div>
-        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Download sample CSV</a>
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Download Template</a>
       </div>
 
       <div class="table-responsive mb-4">
@@ -151,6 +141,13 @@
 
       <label class="form-label" for="sample-csv-text">Copyable CSV</label>
       <textarea id="sample-csv-text" class="form-control font-monospace" rows="6" readonly>{{ sample_csv_text }}</textarea>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-body p-4">
+      <h3 class="h5">If the preview finds a problem</h3>
+      <p class="text-body-tertiary mb-0">Correct invalid prices or choices in the highlighted row and upload the CSV again. Review and Error rows block confirmation. If a service or category changed after preview, create a fresh preview before confirming.</p>
     </div>
   </div>
 </div>

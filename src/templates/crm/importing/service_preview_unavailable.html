@@ -1,0 +1,21 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item active">Service Preview Unavailable</li>
+    </ol>
+  </nav>
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      <h2>Service preview unavailable</h2>
+      <p class="text-body-tertiary">{{ message }}</p>
+      <div class="alert alert-info" role="note">The preview may have expired or service data may have changed. Upload the CSV again, review the current actions, and confirm from the new preview.</div>
+      <a class="btn btn-primary" href="{% url 'business_service_import' %}">Create a New Preview</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'data_import' %}">Import More Data</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

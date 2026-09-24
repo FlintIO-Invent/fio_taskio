@@ -1,0 +1,51 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'business_service_list' %}">Services</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'business_service_import' %}">Import CSV</a></li>
+      <li class="breadcrumb-item active">Result</li>
+    </ol>
+  </nav>
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      {% if result.completed %}
+        <div class="alert alert-success" role="status">
+          <h2 class="h4 alert-heading">{% if result_code == "already_completed" %}Import already completed{% else %}Import complete{% endif %}</h2>
+          <p class="mb-0">{{ result.message }}</p>
+        </div>
+      {% else %}
+        <div class="alert alert-warning" role="alert">
+          <h2 class="h4 alert-heading">Import not completed</h2>
+          <p class="mb-2">{{ result.message }}</p>
+          {% if result_code == "expired" %}
+            <p class="mb-0">The preview can no longer be used. Upload the CSV again to create a current preview.</p>
+          {% elif result_code == "state_changed" %}
+            <p class="mb-0">A service match or category changed after preview. Create a new preview and review the updated actions before confirming.</p>
+          {% else %}
+            <p class="mb-0">Return to the upload page, correct any reported problem, and create a new preview.</p>
+          {% endif %}
+        </div>
+      {% endif %}
+      <div class="row g-3 my-3">
+        <div class="col-12 col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Services created</span><div class="fs-5 fw-semibold">{{ result.services_created }}</div></div></div></div>
+        <div class="col-12 col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Services updated</span><div class="fs-5 fw-semibold">{{ result.services_updated }}</div></div></div></div>
+        <div class="col-12 col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Rows skipped</span><div class="fs-5 fw-semibold">{{ result.rows_skipped }}</div></div></div></div>
+        <div class="col-12 col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body"><span class="text-body-tertiary">Total processed</span><div class="fs-5 fw-semibold">{{ result.total_processed }}</div></div></div></div>
+      </div>
+      {% if result.categories_created %}<p class="text-body-tertiary">Categories created: <strong>{{ result.categories_created }}</strong></p>{% endif %}
+      <div class="d-flex flex-wrap gap-2" aria-label="Service import next actions">
+        {% if result.completed %}
+          <a class="btn btn-primary" href="{% url 'business_service_list' %}">View Services</a>
+        {% else %}
+          <a class="btn btn-primary" href="{% url 'business_service_import' %}">Create a New Preview</a>
+        {% endif %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'data_import' %}">Import More Data</a>
+        {% if can_view_import_history %}<a class="btn btn-outline-primary" href="{% url 'import_history' %}">View Import History</a>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

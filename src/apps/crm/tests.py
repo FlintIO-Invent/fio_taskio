@@ -27,7 +27,7 @@ from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 from apps.notifications.emails import get_internal_booking_notification_recipient
 
 from .forms import PrivateClientForm, PrivateLeadForm, PublicBookingForm
-from .models import BusinessService, Client, Lead, ServiceCategory
+from .models import BusinessService, Client, ImportJob, Lead, ServiceCategory
 from .services import sync_client_from_lead
 
 
@@ -126,6 +126,18 @@ class CRMBusinessScopingTests(TestCase):
         subscription = BusinessSubscription.objects.get(business=self.business)
         subscription.plan = invoicing_plan
         subscription.save(update_fields=["plan", "updated_at"])
+
+    def _confirm_latest_service_import(self):
+        job = ImportJob.objects.filter(
+            business=self.business,
+            created_by=self.user,
+            import_type=ImportJob.ImportType.SERVICES,
+        ).latest("created_at")
+        self.assertEqual(job.status, ImportJob.Status.READY)
+        return self.client.post(
+            reverse("business_service_import_execute", args=[job.pk]),
+            follow=True,
+        )
 
     def _enable_appointments_for_business(self):
         appointments_plan = ClarivoPlan.objects.create(
@@ -2039,8 +2051,10 @@ class CRMBusinessScopingTests(TestCase):
             {"csv_file": upload},
             follow=True,
         )
+        self.assertContains(response, "Service Import Preview")
+        response = self._confirm_latest_service_import()
 
-        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertContains(response, "Import complete")
 
         existing_service.refresh_from_db()
         imported_service = BusinessService.objects.get(name="Drain Cleaning")
@@ -2099,10 +2113,12 @@ class CRMBusinessScopingTests(TestCase):
             {"csv_file": upload},
             follow=True,
         )
+        self.assertContains(response, "Service Import Preview")
+        response = self._confirm_latest_service_import()
 
         imported_service = BusinessService.objects.get(external_code="LOCALE-001")
 
-        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertContains(response, "Import complete")
         self.assertEqual(imported_service.unit_price, Decimal("1234.56"))
         self.assertEqual(imported_service.tax_rate, Decimal("21.00"))
 
@@ -2143,9 +2159,11 @@ class CRMBusinessScopingTests(TestCase):
             {"csv_file": upload},
             follow=True,
         )
+        self.assertContains(response, "Service Import Preview")
+        response = self._confirm_latest_service_import()
         existing_service.refresh_from_db()
 
-        self.assertRedirects(response, reverse("business_service_list"))
+        self.assertContains(response, "Import complete")
         self.assertTrue(existing_service.is_bookable_online)
         self.assertEqual(existing_service.default_duration_minutes, 45)
         self.assertEqual(existing_service.booking_buffer_minutes, 5)
@@ -3723,8 +3741,10 @@ class DashboardOnboardingViewTests(TestCase):
         self.assertNotIn('href="#nv-service-requests"', sidebar_html)
         self.assertNotIn('id="nv-service-requests"', sidebar_html)
         self.assertNotIn('<span class="nav-link-text">Service Requests</span>', sidebar_html)
+        self.assertIn(reverse("client_import_upload"), sidebar_html)
         self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
         self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
+        self.assertIn(reverse("lead_import_upload"), online_booking_menu_html)
         self.assertIn("Public Booking", online_booking_menu_html)
         self.assertIn("ENABLED", online_booking_menu_html)
         self.assertIn(reverse("business_booking_settings"), online_booking_menu_html)
@@ -3734,6 +3754,10 @@ class DashboardOnboardingViewTests(TestCase):
         )
         self.assertEqual(
             sidebar_html.count(f'href="{reverse("staff_lead_create")}"'),
+            1,
+        )
+        self.assertEqual(
+            sidebar_html.count(f'href="{reverse("lead_import_upload")}"'),
             1,
         )
 
@@ -3749,6 +3773,7 @@ class DashboardOnboardingViewTests(TestCase):
         self.assertEqual(sidebar_html.count('href="#nv-online-booking"'), 1)
         self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
         self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
+        self.assertIn(reverse("lead_import_upload"), online_booking_menu_html)
         self.assertIn("NOT INCLUDED", online_booking_menu_html)
 
     def test_dashboard_sidebar_shows_public_booking_off_without_hiding_request_actions(self):
@@ -3764,6 +3789,7 @@ class DashboardOnboardingViewTests(TestCase):
 
         self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
         self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
+        self.assertIn(reverse("lead_import_upload"), online_booking_menu_html)
         self.assertIn("Public Booking", online_booking_menu_html)
         self.assertIn("OFF", online_booking_menu_html)
 
@@ -3789,8 +3815,10 @@ class DashboardOnboardingViewTests(TestCase):
                 self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
                 if can_create:
                     self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
+                    self.assertIn(reverse("lead_import_upload"), online_booking_menu_html)
                 else:
                     self.assertNotIn(reverse("staff_lead_create"), online_booking_menu_html)
+                    self.assertNotIn(reverse("lead_import_upload"), online_booking_menu_html)
 
     def test_owner_with_selected_journey_gets_guide_panel_state(self):
         UserOnboardingState.objects.create(

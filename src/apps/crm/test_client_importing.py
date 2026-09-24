@@ -531,7 +531,7 @@ class ClientImportJobIntegrationTests(TestCase):
             lifetime=timedelta(hours=1),
         )
 
-    def test_valid_file_moves_uploaded_through_validated_to_ready(self):
+    def test_valid_file_stops_at_validated_until_preview_checks(self):
         upload = self.upload([self.valid_values, self.valid_values])
         job = self.create_job(upload)
 
@@ -539,7 +539,7 @@ class ClientImportJobIntegrationTests(TestCase):
         job.refresh_from_db()
 
         self.assertFalse(result.has_errors)
-        self.assertEqual(job.status, ImportJob.Status.READY)
+        self.assertEqual(job.status, ImportJob.Status.VALIDATED)
         self.assertEqual(job.rows_detected, 2)
         self.assertEqual(job.rows_valid, 2)
         self.assertEqual(job.rows_warning, 0)
