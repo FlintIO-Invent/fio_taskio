@@ -540,7 +540,7 @@ class Client(TimeStampedModel):
     client_status = models.CharField(
         max_length=20,
         choices=ClientStatus.choices,
-        default=ClientStatus.LEAD,
+        default=ClientStatus.ACTIVE,
     )
     lead_source = models.CharField(
         max_length=20,

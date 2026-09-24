@@ -174,6 +174,50 @@ class CRMBusinessScopingTests(TestCase):
             [self.accountant_user, self.user, self.staff_user],
         )
 
+    def test_private_client_form_defaults_status_to_active(self):
+        form = PrivateClientForm(business=self.business)
+
+        self.assertEqual(form["client_status"].value(), Client.ClientStatus.ACTIVE)
+
+    def test_client_create_page_marks_required_fields_and_exposes_tab_errors(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("staff_client_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Required fields")
+        self.assertContains(response, "data-client-form")
+        self.assertContains(response, "showTabForElement(invalidFields[0])")
+
+    def test_client_create_missing_address_shows_error_summary(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("staff_client_create"),
+            data={
+                "client_type": Client.ClientType.BUSINESS,
+                "first_name": "Missing",
+                "last_name": "Address",
+                "company_name": "Missing Address Co",
+                "email": "missing-address@example.com",
+                "phone": "+1 721 555 0011",
+                "preferred_contact_method": Client.PreferredContactMethod.EMAIL,
+                "client_status": Client.ClientStatus.ACTIVE,
+                "priority": Client.Priority.MEDIUM,
+                "street_address": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Client was not saved. Please correct the following:")
+        self.assertContains(response, "This field is required.")
+        self.assertFormError(
+            response.context["form"],
+            "street_address",
+            "This field is required.",
+        )
+        self.assertFalse(Client.objects.filter(email="missing-address@example.com").exists())
+
     def test_private_client_form_uses_dutch_address_style_and_accepts_city(self):
         self.business.country = "Netherlands"
         self.business.save(update_fields=["country", "updated_at"])
