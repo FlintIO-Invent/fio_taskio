@@ -31,12 +31,14 @@ from .models import (
     BusinessInvitation,
     BusinessSubscription,
     BusinessUser,
+    DemoSeedRun,
     SubscriptionNotification,
     UserOnboardingState,
     WeeklyAvailability,
 )
 
 PURGE_DELETION_ORDER = (
+    "demo_seed_runs",
     "invoice_lines",
     "invoices",
     "appointments",
@@ -370,6 +372,7 @@ def _delete_business_records(
 ) -> dict[str, int]:
     business_id = business.pk
     deletion_counts = {
+        "demo_seed_runs": _delete_queryset(DemoSeedRun.objects.filter(business_id=business_id)),
         "invoice_lines": _delete_queryset(
             InvoiceLine.objects.filter(invoice__business_id=business_id)
         ),
