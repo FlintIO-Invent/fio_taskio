@@ -238,6 +238,15 @@ class BusinessDataInventory:
 
 DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
     InventoryRegistration(
+        "demo_seed_runs",
+        "businesses.DemoSeedRun",
+        "business",
+        "Business.demo_seed_run",
+        InventoryClassification.CASCADE,
+        False,
+        False,
+    ),
+    InventoryRegistration(
         "business_booking_settings",
         "businesses.BusinessBookingSettings",
         "business",
