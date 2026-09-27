@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
 from django.db.models import F
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -26,6 +26,7 @@ from apps.businesses.utils import (
     business_role_required,
     get_business_limit_reached_message,
 )
+from apps.crm.forms import QuickClientForm
 from apps.crm.models import ActivityLog, BusinessService, Client, ServiceCategory
 from apps.crm.services import log_activity
 from apps.notifications.emails import send_invoice_email
@@ -632,6 +633,55 @@ def _invoice_create_response(
 @require_http_methods(["GET", "POST"])
 def invoice_create(request: HttpRequest) -> HttpResponse:
     return _invoice_create_response(request)
+
+
+@business_role_required(
+    *BILLING_MANAGE_ROLES,
+    redirect_url_name="agent_dashboard",
+    permission_message="You do not have permission to manage invoices.",
+    raise_exception=False,
+)
+@business_module_required("invoicing")
+@require_http_methods(["POST"])
+def invoice_quick_create_client(request: HttpRequest) -> JsonResponse:
+    current_business = request.current_business
+    if business_limit_reached(current_business, "clients"):
+        return JsonResponse(
+            {
+                "errors": {
+                    "__all__": [
+                        get_business_limit_reached_message(current_business, "clients")
+                    ]
+                }
+            },
+            status=400,
+        )
+
+    form = QuickClientForm(request.POST)
+    if not form.is_valid():
+        return JsonResponse(
+            {
+                "errors": {
+                    field: [error["message"] for error in errors]
+                    for field, errors in form.errors.get_json_data().items()
+                }
+            },
+            status=400,
+        )
+
+    client = form.save(commit=False)
+    client.business = current_business
+    client.save()
+
+    return JsonResponse(
+        {
+            "client": {
+                "id": client.pk,
+                "label": str(client),
+            }
+        },
+        status=201,
+    )
 
 
 @business_role_required(

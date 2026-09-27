@@ -4,20 +4,32 @@
 {% block content %}
   <div class="content">
 
-  <form class="mb-9" method="POST" novalidate>
+  <form class="mb-9" method="POST" novalidate data-client-form>
     {% csrf_token %}
 
     <!-- Top bar -->
     <div class="row g-3 flex-between-end mb-5">
       <div class="col-auto">
         <h2 class="mb-2">{{ page_title|default:"Create a new client" }}</h2>
-        <h5 class="text-body-tertiary fw-semibold"></h5>
+        <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
       </div>
     </div>
 
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">{{ form.non_field_errors|striptags }}</div>
-    {% endif %}
+    <div id="client-form-error-summary" class="alert alert-danger{% if not form.errors %} d-none{% endif %}" role="alert" tabindex="-1">
+      {% if form.errors %}
+        <div class="fw-semibold mb-1">Client was not saved. Please correct the following:</div>
+        <ul class="mb-0">
+          {% for field in form %}
+            {% for error in field.errors %}
+              <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+            {% endfor %}
+          {% endfor %}
+          {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
 
     <div class="row g-5">
       <div class="col-12 col-xl-8">
@@ -26,19 +38,19 @@
         <div class="conditional" data-show-when="lead">
           <div class="row g-3 flex-between-end mb-5">
             <div class="col-md-12">
-              <label class="form-label">Email</label>
+              <label class="form-label" for="{{ form.email.id_for_label }}">Email <span class="text-danger">*</span></label>
               {{ form.email }}
               {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
             </div>
 
             <div class="col-md-6">
-              <label class="form-label">First Name</label>
+              <label class="form-label" for="{{ form.first_name.id_for_label }}">First Name <span class="text-danger">*</span></label>
               {{ form.first_name }}
               {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors|striptags }}</div>{% endif %}
             </div>
 
             <div class="col-md-6">
-              <label class="form-label">Last Name</label>
+              <label class="form-label" for="{{ form.last_name.id_for_label }}">Last Name <span class="text-danger">*</span></label>
               {{ form.last_name }}
               {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors|striptags }}</div>{% endif %}
             </div>
@@ -50,7 +62,7 @@
             </div>
 
             <div class="col-6">
-              <label class="form-label">Phone Number</label>
+              <label class="form-label" for="{{ form.phone.id_for_label }}">Phone Number <span class="text-danger">*</span></label>
               {{ form.phone }}
               {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|striptags }}</div>{% endif %}
             </div>
@@ -150,17 +162,17 @@
               <div class="tab-pane fade show active" id="pricingTabContent" role="tabpanel">
                 <div class="row g-3">
                   <div class="col-md-6">
-                    <label class="form-label">Client Status</label>
+                    <label class="form-label" for="{{ form.client_status.id_for_label }}">Client Status <span class="text-danger">*</span></label>
                     {{ form.client_status }}
                     {% if form.client_status.errors %}<div class="invalid-feedback d-block">{{ form.client_status.errors|striptags }}</div>{% endif %}
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label">Priority</label>
+                    <label class="form-label" for="{{ form.priority.id_for_label }}">Priority <span class="text-danger">*</span></label>
                     {{ form.priority }}
                     {% if form.priority.errors %}<div class="invalid-feedback d-block">{{ form.priority.errors|striptags }}</div>{% endif %}
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label">Legal Company Name</label>
+                    <label class="form-label" for="{{ form.company_name.id_for_label }}">Legal Company Name <span class="text-danger">*</span></label>
                     {{ form.company_name }}
                     {% if form.company_name.errors %}<div class="invalid-feedback d-block">{{ form.company_name.errors|striptags }}</div>{% endif %}
                   </div>
@@ -172,7 +184,7 @@
                   </div>
 
                   <div class="col-md-6">
-                    <label class="form-label">Client Type</label>
+                    <label class="form-label" for="{{ form.client_type.id_for_label }}">Client Type <span class="text-danger">*</span></label>
                     {{ form.client_type }}
                     {% if form.client_type.errors %}<div class="invalid-feedback d-block">{{ form.client_type.errors|striptags }}</div>{% endif %}
                   </div>
@@ -222,7 +234,7 @@
                     </div>
 
                     <div class="col-md-6">
-                      <label class="form-label">Preferred Contact Method</label>
+                      <label class="form-label" for="{{ form.preferred_contact_method.id_for_label }}">Preferred Contact Method <span class="text-danger">*</span></label>
                       {{ form.preferred_contact_method }}
                       {% if form.preferred_contact_method.errors %}<div class="invalid-feedback d-block">{{ form.preferred_contact_method.errors|striptags }}</div>{% endif %}
                     </div>
@@ -241,7 +253,7 @@
                     </div>
 
                     <div class="col-md-6">
-                      <label class="form-label" for="{{ form.street_address.id_for_label }}" data-address-label="street">{{ form.street_address.label }}</label>
+                      <label class="form-label" for="{{ form.street_address.id_for_label }}"><span data-address-label="street">{{ form.street_address.label }}</span> <span class="text-danger">*</span></label>
                       {{ form.street_address }}
                       {% if form.street_address.errors %}<div class="invalid-feedback d-block">{{ form.street_address.errors|striptags }}</div>{% endif %}
                     </div>
@@ -466,6 +478,60 @@
   {{ form.address_style_data|json_script:"client-create-address-data" }}
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      const clientForm = document.querySelector('[data-client-form]');
+      const errorSummary = document.getElementById('client-form-error-summary');
+
+      function showTabForElement(element) {
+        const tabPane = element ? element.closest('.tab-pane') : null;
+        if (!tabPane || tabPane.classList.contains('active')) {
+          return;
+        }
+
+        const tabTrigger = document.querySelector(`[data-bs-target="#${tabPane.id}"]`);
+        if (tabTrigger && window.bootstrap) {
+          window.bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+        }
+      }
+
+      function fieldLabel(field) {
+        const label = field.labels && field.labels.length ? field.labels[0].textContent : field.name;
+        return String(label || 'Required field').replace('*', '').trim();
+      }
+
+      if (clientForm && errorSummary) {
+        clientForm.addEventListener('submit', function (event) {
+          if (clientForm.checkValidity()) {
+            return;
+          }
+
+          event.preventDefault();
+          const invalidFields = Array.from(clientForm.querySelectorAll(':invalid'));
+          const heading = document.createElement('div');
+          heading.className = 'fw-semibold mb-1';
+          heading.textContent = 'Client was not saved. Please complete the required fields:';
+          const errorList = document.createElement('ul');
+          errorList.className = 'mb-0';
+
+          invalidFields.forEach(function (field) {
+            const item = document.createElement('li');
+            item.textContent = fieldLabel(field);
+            errorList.appendChild(item);
+          });
+
+          errorSummary.replaceChildren(heading, errorList);
+          errorSummary.classList.remove('d-none');
+          showTabForElement(invalidFields[0]);
+          errorSummary.focus();
+          errorSummary.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        const firstServerError = clientForm.querySelector('.invalid-feedback.d-block');
+        if (firstServerError) {
+          showTabForElement(firstServerError);
+          errorSummary.focus();
+        }
+      }
+
       const addressRoot = document.querySelector('[data-client-create-address]');
       const addressDataElement = document.getElementById('client-create-address-data');
       if (!addressRoot || !addressDataElement) {

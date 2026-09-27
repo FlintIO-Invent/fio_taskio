@@ -191,6 +191,45 @@ class BusinessDataOperation(models.Model):
         )
 
 
+class DemoSeedRun(TimeStampedModel):
+    run_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    business = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="demo_seed_run",
+    )
+    planned_counts = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["business_id"]
+
+    def __str__(self) -> str:
+        return f"Demo seed {self.run_id} for business #{self.business_id}"
+
+
+class DemoSeedRecord(models.Model):
+    seed_run = models.ForeignKey(
+        DemoSeedRun,
+        on_delete=models.CASCADE,
+        related_name="owned_records",
+    )
+    model_label = models.CharField(max_length=100)
+    object_pk = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["model_label", "object_pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["seed_run", "model_label", "object_pk"],
+                name="businesses_demo_seed_record_unique_target",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.model_label}#{self.object_pk} owned by {self.seed_run_id}"
+
+
 class BusinessBookingSettings(TimeStampedModel):
     class ConfirmationMode(models.TextChoices):
         REQUEST_ONLY = "request_only", "Request first / manual confirmation"

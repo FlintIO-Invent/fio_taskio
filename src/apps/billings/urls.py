@@ -11,11 +11,17 @@ from .views import (
     invoice_email_send,
     invoice_list,
     invoice_pdf_download,
+    invoice_quick_create_client,
 )
 
 urlpatterns = [
     path("", invoice_list, name="invoice_list"),
     path("create/", invoice_create, name="invoice_create"),
+    path(
+        "clients/quick-create/",
+        invoice_quick_create_client,
+        name="invoice_quick_create_client",
+    ),
     path(
         "from-appointment/<int:appointment_id>/",
         invoice_create_from_appointment,

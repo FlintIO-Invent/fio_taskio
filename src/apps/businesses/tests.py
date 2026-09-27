@@ -25,6 +25,7 @@ from apps.accounts.beta_registration import BETA_PLAN_DISPLAY_NAME, BETA_PLAN_SL
 from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
+from apps.billings.services import calculate_tax_amount
 from apps.crm.models import ActivityLog, BusinessService, Client, Lead, ServiceCategory
 from config import Settings
 from helpers import build_public_url
@@ -58,6 +59,8 @@ from .models import (
     BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
+    DemoSeedRecord,
+    DemoSeedRun,
     SubscriptionAccessMode,
     SubscriptionNotification,
     UserOnboardingState,
@@ -9043,6 +9046,1149 @@ class BusinessDataOperationTests(TestCase):
         self.assertEqual(operation.record_counts, {"clients": 4, "invoices": 2})
         self.assertIsNone(operation.completed_at)
         self.assertEqual(operation.error_code, "")
+
+
+class DemoSeedTrackingTests(TestCase):
+    def test_seed_run_can_track_owned_records_without_changing_operational_models(self):
+        business = Business.objects.create(name="Demo Workspace", slug="demo-workspace")
+        seed_run = DemoSeedRun.objects.create(
+            business=business,
+            planned_counts={"services": 5},
+        )
+        owned_record = DemoSeedRecord.objects.create(
+            seed_run=seed_run,
+            model_label="crm.BusinessService",
+            object_pk="123",
+        )
+
+        self.assertIsNotNone(seed_run.run_id)
+        self.assertEqual(business.demo_seed_run, seed_run)
+        self.assertEqual(list(seed_run.owned_records.all()), [owned_record])
+
+
+class SeedDemoDataCommandTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(
+            name="Seed Target",
+            slug="seed-target",
+        )
+        self.other_business = Business.objects.create(
+            name="Other Workspace",
+            slug="other-workspace",
+        )
+
+    def _run_command(self, **options):
+        output = StringIO()
+        call_command("seed_demo_data", stdout=output, **options)
+        return output.getvalue()
+
+    def _non_seed_counts(self):
+        return {
+            "businesses": Business.objects.count(),
+            "users": TaskIOUser.objects.count(),
+            "memberships": BusinessUser.objects.count(),
+            "plans": ClarivoPlan.objects.count(),
+            "subscriptions": BusinessSubscription.objects.count(),
+            "services": BusinessService.objects.count(),
+            "clients": Client.objects.count(),
+            "requests": Lead.objects.count(),
+            "appointments": Appointment.objects.count(),
+            "invoices": Invoice.objects.count(),
+            "invoice_lines": InvoiceLine.objects.count(),
+        }
+
+    def _protected_counts(self):
+        return {
+            "users": TaskIOUser.objects.count(),
+            "memberships": BusinessUser.objects.count(),
+            "plans": ClarivoPlan.objects.count(),
+            "subscriptions": BusinessSubscription.objects.count(),
+            "booking_settings": BusinessBookingSettings.objects.count(),
+            "availability": WeeklyAvailability.objects.count(),
+        }
+
+    def test_resolves_business_by_id_and_prints_default_plan(self):
+        output = self._run_command(business_id=self.business.pk)
+
+        self.assertIn(f"- Business ID: {self.business.pk}", output)
+        self.assertIn("- Business slug: seed-target", output)
+        self.assertIn("  - services: 5", output)
+        self.assertIn("  - clients: 10", output)
+        self.assertIn("  - requests: 10", output)
+        self.assertIn("  - appointments: 6", output)
+        self.assertIn("  - invoices: 5", output)
+
+    def test_resolves_business_by_slug_and_prints_custom_plan(self):
+        output = self._run_command(
+            business_slug=self.business.slug,
+            services=1,
+            clients=2,
+            requests=3,
+            appointments=4,
+            invoices=5,
+        )
+
+        self.assertIn(f"- Business ID: {self.business.pk}", output)
+        self.assertIn("  - services: 1", output)
+        self.assertIn("  - clients: 2", output)
+        self.assertIn("  - requests: 3", output)
+        self.assertIn("  - appointments: 4", output)
+        self.assertIn("  - invoices: 5", output)
+
+    def test_requires_exactly_one_valid_business_selector(self):
+        invalid_options = (
+            {},
+            {"business_id": self.business.pk, "business_slug": self.business.slug},
+            {"business_id": 0},
+            {"business_id": 999999},
+            {"business_slug": "missing-workspace"},
+            {"business_slug": "   "},
+        )
+
+        for options in invalid_options:
+            with self.subTest(options=options), self.assertRaises(CommandError):
+                self._run_command(**options)
+
+    def test_rejects_invalid_counts(self):
+        with self.assertRaises(CommandError):
+            self._run_command(business_id=self.business.pk, services=-1)
+
+        with self.assertRaises(CommandError):
+            self._run_command(business_id=self.business.pk, clients="ten")
+
+        with self.assertRaises(CommandError):
+            self._run_command(
+                business_id=self.business.pk,
+                clients=0,
+                appointments=0,
+                invoices=1,
+                execute=True,
+            )
+
+        for missing_dependency in ("services", "clients", "requests"):
+            with (
+                self.subTest(missing_dependency=missing_dependency),
+                self.assertRaises(CommandError),
+            ):
+                self._run_command(
+                    business_id=self.business.pk,
+                    appointments=1,
+                    execute=True,
+                    **{missing_dependency: 0},
+                )
+
+    def test_dry_run_makes_zero_database_writes(self):
+        before_counts = self._non_seed_counts()
+
+        with CaptureQueriesContext(connection) as queries:
+            output = self._run_command(business_id=self.business.pk)
+
+        write_prefixes = ("INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "REPLACE")
+        write_queries = [
+            query["sql"]
+            for query in queries.captured_queries
+            if query["sql"].lstrip().upper().startswith(write_prefixes)
+        ]
+        self.assertEqual(write_queries, [])
+        self.assertEqual(DemoSeedRun.objects.count(), 0)
+        self.assertEqual(DemoSeedRecord.objects.count(), 0)
+        self.assertEqual(self._non_seed_counts(), before_counts)
+        self.assertIn("DRY RUN ONLY", output)
+
+    def test_execute_creates_expected_records_and_registers_every_object(self):
+        protected_counts = self._protected_counts()
+        output = self._run_command(
+            business_id=self.business.pk,
+            services=4,
+            clients=5,
+            requests=6,
+            appointments=3,
+            invoices=7,
+            execute=True,
+        )
+
+        seed_run = DemoSeedRun.objects.get(business=self.business)
+        self.assertEqual(
+            seed_run.planned_counts,
+            {
+                "services": 4,
+                "clients": 5,
+                "requests": 6,
+                "appointments": 3,
+                "invoices": 7,
+            },
+        )
+        self.assertEqual(BusinessService.objects.filter(business=self.business).count(), 4)
+        self.assertEqual(Client.objects.filter(business=self.business).count(), 5)
+        self.assertEqual(
+            Lead.objects.filter(
+                business=self.business,
+                lead_type=Lead.LeadType.REQUEST,
+            ).count(),
+            6,
+        )
+        self.assertEqual(Appointment.objects.filter(business=self.business).count(), 3)
+        self.assertEqual(ServiceCategory.objects.filter(business=self.business).count(), 3)
+        self.assertEqual(Invoice.objects.filter(business=self.business).count(), 7)
+        self.assertEqual(InvoiceLine.objects.count(), 14)
+
+        created_objects = [
+            *ServiceCategory.objects.filter(business=self.business),
+            *BusinessService.objects.filter(business=self.business),
+            *Client.objects.filter(business=self.business),
+            *Lead.objects.filter(business=self.business),
+            *Appointment.objects.filter(business=self.business),
+            *Invoice.objects.filter(business=self.business),
+            *InvoiceLine.objects.filter(invoice__business=self.business),
+        ]
+        tracked_targets = set(seed_run.owned_records.values_list("model_label", "object_pk"))
+        self.assertEqual(
+            tracked_targets,
+            {(obj._meta.label, str(obj.pk)) for obj in created_objects},
+        )
+        self.assertFalse(DemoSeedRun.objects.filter(business=self.other_business).exists())
+        self.assertEqual(self._protected_counts(), protected_counts)
+        self.assertIn("Created demo seed metadata", output)
+        self.assertIn("- services: 4", output)
+        self.assertIn("- clients: 5", output)
+        self.assertIn("- requests: 6", output)
+        self.assertIn("- appointments: 3", output)
+        self.assertIn("- invoices: 7", output)
+        self.assertIn("- invoice_lines: 14", output)
+
+    def test_seeded_relationships_are_valid_and_demo_marked(self):
+        self._run_command(
+            business_id=self.business.pk,
+            services=3,
+            clients=4,
+            requests=5,
+            appointments=4,
+            invoices=0,
+            execute=True,
+        )
+
+        for service in BusinessService.objects.filter(business=self.business):
+            self.assertEqual(service.category.business_id, self.business.pk)
+            self.assertTrue(service.name.startswith("[DEMO]"))
+
+        for client in Client.objects.filter(business=self.business):
+            self.assertTrue(client.company_name.startswith("[DEMO]"))
+            self.assertIn("[DEMO]", client.notes)
+
+        for request in Lead.objects.filter(business=self.business):
+            self.assertEqual(request.lead_type, Lead.LeadType.REQUEST)
+            self.assertEqual(request.requested_service.business_id, self.business.pk)
+            self.assertEqual(request.category_id, request.requested_service.category_id)
+            self.assertIn("[DEMO]", request.message)
+
+        for appointment in Appointment.objects.filter(business=self.business):
+            self.assertEqual(appointment.client.business_id, self.business.pk)
+            self.assertEqual(appointment.service.business_id, self.business.pk)
+            self.assertEqual(appointment.source_lead.business_id, self.business.pk)
+            self.assertEqual(
+                appointment.service_id,
+                appointment.source_lead.requested_service_id,
+            )
+            self.assertGreater(appointment.end_time, appointment.start_time)
+            self.assertTrue(appointment.title.startswith("[DEMO]"))
+
+    def test_zero_counts_create_only_seed_metadata(self):
+        output = self._run_command(
+            business_id=self.business.pk,
+            services=0,
+            clients=0,
+            requests=0,
+            appointments=0,
+            invoices=0,
+            execute=True,
+        )
+
+        seed_run = DemoSeedRun.objects.get(business=self.business)
+        self.assertFalse(seed_run.owned_records.exists())
+        self.assertEqual(ServiceCategory.objects.count(), 0)
+        self.assertEqual(BusinessService.objects.count(), 0)
+        self.assertEqual(Client.objects.count(), 0)
+        self.assertEqual(Lead.objects.count(), 0)
+        self.assertEqual(Appointment.objects.count(), 0)
+        self.assertEqual(Invoice.objects.count(), 0)
+        self.assertEqual(InvoiceLine.objects.count(), 0)
+        self.assertIn("- invoices: 0", output)
+        self.assertIn("- invoice_lines: 0", output)
+
+    def test_zero_optional_counts_can_create_clients_without_other_records(self):
+        self._run_command(
+            business_id=self.business.pk,
+            services=0,
+            clients=2,
+            requests=0,
+            appointments=0,
+            invoices=0,
+            execute=True,
+        )
+
+        self.assertEqual(Client.objects.filter(business=self.business).count(), 2)
+        self.assertEqual(BusinessService.objects.count(), 0)
+        self.assertEqual(Lead.objects.count(), 0)
+        self.assertEqual(Appointment.objects.count(), 0)
+        self.assertEqual(DemoSeedRecord.objects.count(), 2)
+
+    def test_execute_reuses_seed_metadata(self):
+        zero_counts = {
+            "services": 0,
+            "clients": 0,
+            "requests": 0,
+            "appointments": 0,
+            "invoices": 0,
+        }
+        self._run_command(business_id=self.business.pk, execute=True, **zero_counts)
+        seed_run = DemoSeedRun.objects.get(business=self.business)
+
+        original_run_id = seed_run.run_id
+        second_output = self._run_command(
+            business_slug=self.business.slug,
+            execute=True,
+            **zero_counts,
+        )
+        seed_run.refresh_from_db()
+
+        self.assertEqual(DemoSeedRun.objects.filter(business=self.business).count(), 1)
+        self.assertEqual(seed_run.run_id, original_run_id)
+        self.assertIn("Reused demo seed metadata", second_output)
+
+    def test_failure_rolls_back_seed_run_records_and_tracking(self):
+        with mock.patch(
+            "apps.businesses.management.commands.seed_demo_data.Appointment.objects.create",
+            side_effect=RuntimeError("simulated appointment failure"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "simulated appointment failure"):
+                self._run_command(
+                    business_id=self.business.pk,
+                    services=1,
+                    clients=1,
+                    requests=1,
+                    appointments=1,
+                    invoices=0,
+                    execute=True,
+                )
+
+        self.assertFalse(DemoSeedRun.objects.exists())
+        self.assertFalse(DemoSeedRecord.objects.exists())
+        self.assertFalse(ServiceCategory.objects.exists())
+        self.assertFalse(BusinessService.objects.exists())
+        self.assertFalse(Client.objects.exists())
+        self.assertFalse(Lead.objects.exists())
+        self.assertFalse(Appointment.objects.exists())
+
+    def test_invoice_failure_rolls_back_the_entire_seed_run(self):
+        with mock.patch(
+            "apps.businesses.management.commands.seed_demo_data.InvoiceLine.objects.create",
+            side_effect=RuntimeError("simulated invoice line failure"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "simulated invoice line failure"):
+                self._run_command(
+                    business_id=self.business.pk,
+                    services=1,
+                    clients=1,
+                    requests=0,
+                    appointments=0,
+                    invoices=1,
+                    execute=True,
+                )
+
+        self.assertFalse(DemoSeedRun.objects.exists())
+        self.assertFalse(DemoSeedRecord.objects.exists())
+        self.assertFalse(ServiceCategory.objects.exists())
+        self.assertFalse(BusinessService.objects.exists())
+        self.assertFalse(Client.objects.exists())
+        self.assertFalse(Invoice.objects.exists())
+        self.assertFalse(InvoiceLine.objects.exists())
+
+    def test_execute_does_not_overwrite_genuine_records_in_selected_business(self):
+        category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Genuine Category",
+        )
+        service = BusinessService.objects.create(
+            business=self.business,
+            category=category,
+            name="Genuine Service",
+            unit_price=Decimal("225.00"),
+        )
+        client = Client.objects.create(
+            business=self.business,
+            first_name="Real",
+            last_name="Customer",
+            email="real.customer@example.com",
+            phone="+1 721 555 9876",
+            company_name="Real Customer Company",
+            street_address="14 Existing Avenue",
+        )
+        request = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            category=category,
+            requested_service=service,
+            first_name="Real",
+            last_name="Customer",
+            email="real.customer@example.com",
+            phone="+1 721 555 9876",
+            company_name="Real Customer Company",
+            message="Genuine request",
+        )
+        start_time = timezone.now() + timedelta(days=2)
+        appointment = Appointment.objects.create(
+            business=self.business,
+            client=client,
+            service=service,
+            source_lead=request,
+            title="Genuine appointment",
+            start_time=start_time,
+            end_time=start_time + timedelta(hours=1),
+        )
+        originals = {
+            obj._meta.label: obj.__class__.objects.filter(pk=obj.pk).values().get()
+            for obj in (category, service, client, request, appointment)
+        }
+
+        self._run_command(
+            business_id=self.business.pk,
+            services=1,
+            clients=1,
+            requests=1,
+            appointments=1,
+            invoices=0,
+            execute=True,
+        )
+
+        for obj in (category, service, client, request, appointment):
+            with self.subTest(model=obj._meta.label):
+                self.assertEqual(
+                    obj.__class__.objects.filter(pk=obj.pk).values().get(),
+                    originals[obj._meta.label],
+                )
+                self.assertFalse(
+                    DemoSeedRecord.objects.filter(
+                        seed_run__business=self.business,
+                        model_label=obj._meta.label,
+                        object_pk=str(obj.pk),
+                    ).exists()
+                )
+
+    def test_execute_does_not_modify_another_business_or_its_seed_metadata(self):
+        other_category = ServiceCategory.objects.create(
+            business=self.other_business,
+            name="Genuine Other Category",
+        )
+        other_service = BusinessService.objects.create(
+            business=self.other_business,
+            category=other_category,
+            name="Genuine Other Service",
+        )
+        other_client = Client.objects.create(
+            business=self.other_business,
+            first_name="Genuine",
+            last_name="Customer",
+            email="genuine.customer@example.com",
+            phone="+1 721 555 9999",
+            company_name="Genuine Company",
+            street_address="99 Existing Road",
+        )
+        other_seed_run = DemoSeedRun.objects.create(
+            business=self.other_business,
+            planned_counts={"services": 99},
+        )
+        original_run_id = other_seed_run.run_id
+        original_updated_at = other_seed_run.updated_at
+        other_business_values = Business.objects.filter(pk=self.other_business.pk).values().get()
+        other_service_values = BusinessService.objects.filter(pk=other_service.pk).values().get()
+        other_client_values = Client.objects.filter(pk=other_client.pk).values().get()
+
+        self._run_command(
+            business_id=self.business.pk,
+            services=2,
+            clients=2,
+            requests=2,
+            appointments=1,
+            invoices=2,
+            execute=True,
+        )
+
+        other_seed_run.refresh_from_db()
+        self.assertEqual(other_seed_run.run_id, original_run_id)
+        self.assertEqual(other_seed_run.planned_counts, {"services": 99})
+        self.assertEqual(other_seed_run.updated_at, original_updated_at)
+        self.assertEqual(
+            Business.objects.filter(pk=self.other_business.pk).values().get(),
+            other_business_values,
+        )
+        self.assertEqual(
+            BusinessService.objects.filter(pk=other_service.pk).values().get(),
+            other_service_values,
+        )
+        self.assertEqual(
+            Client.objects.filter(pk=other_client.pk).values().get(),
+            other_client_values,
+        )
+        self.assertEqual(BusinessService.objects.filter(business=self.other_business).count(), 1)
+        self.assertEqual(Client.objects.filter(business=self.other_business).count(), 1)
+        self.assertEqual(Invoice.objects.filter(business=self.business).count(), 2)
+        self.assertEqual(Invoice.objects.filter(business=self.other_business).count(), 0)
+        self.assertFalse(InvoiceLine.objects.exclude(invoice__business=self.business).exists())
+
+    def test_execute_does_not_change_users_memberships_or_subscriptions(self):
+        user = TaskIOUser.objects.create_user(
+            email="existing.owner@seed.example",
+            password="StrongPass123!",
+        )
+        BusinessUser.objects.create(
+            business=self.business,
+            user=user,
+            role=BusinessUser.Role.OWNER,
+        )
+        plan = ClarivoPlan.objects.filter(is_active=True).first()
+        self.assertIsNotNone(plan)
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        BusinessBookingSettings.objects.create(business=self.business)
+        WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.MONDAY,
+            start_time=time(9, 0),
+            end_time=time(17, 0),
+        )
+        protected_counts = self._protected_counts()
+        user_values = TaskIOUser.objects.filter(pk=user.pk).values().get()
+        subscription_values = (
+            BusinessSubscription.objects.filter(business=self.business).values().get()
+        )
+
+        self._run_command(
+            business_id=self.business.pk,
+            services=1,
+            clients=1,
+            requests=1,
+            appointments=1,
+            invoices=4,
+            execute=True,
+        )
+
+        self.assertEqual(self._protected_counts(), protected_counts)
+        self.assertEqual(TaskIOUser.objects.filter(pk=user.pk).values().get(), user_values)
+        self.assertEqual(
+            BusinessSubscription.objects.filter(business=self.business).values().get(),
+            subscription_values,
+        )
+
+    def test_invoices_have_demo_numbers_lines_and_billing_totals(self):
+        self.business.tax_rate = Decimal("6.50")
+        self.business.invoice_prefix = "REAL"
+        self.business.invoice_start_number = 875
+        self.business.save(
+            update_fields=["tax_rate", "invoice_prefix", "invoice_start_number", "updated_at"]
+        )
+
+        self._run_command(
+            business_id=self.business.pk,
+            services=3,
+            clients=2,
+            requests=2,
+            appointments=2,
+            invoices=3,
+            execute=True,
+        )
+
+        invoices = list(Invoice.objects.filter(business=self.business).order_by("pk"))
+        self.assertEqual(len(invoices), 3)
+        self.assertEqual(InvoiceLine.objects.filter(invoice__in=invoices).count(), 6)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.invoice_prefix, "REAL")
+        self.assertEqual(self.business.invoice_start_number, 875)
+
+        for invoice in invoices:
+            with self.subTest(invoice=invoice.invoice_number):
+                lines = list(invoice.lines.all())
+                subtotal = sum(
+                    (line.line_total for line in lines),
+                    start=Decimal("0.00"),
+                )
+                self.assertTrue(invoice.invoice_number.startswith("DEMO-"))
+                self.assertEqual(invoice.client.business_id, self.business.pk)
+                self.assertEqual(invoice.appointment.business_id, self.business.pk)
+                self.assertEqual(invoice.appointment.client_id, invoice.client_id)
+                self.assertEqual(len(lines), 2)
+                self.assertTrue(all(line.service.business_id == self.business.pk for line in lines))
+                self.assertTrue(all(line.description.startswith("[DEMO]") for line in lines))
+                self.assertEqual(invoice.subtotal, subtotal)
+                self.assertEqual(
+                    invoice.tax,
+                    calculate_tax_amount(
+                        subtotal=subtotal,
+                        tax_rate=self.business.tax_rate,
+                    ),
+                )
+                self.assertEqual(invoice.total, invoice.subtotal + invoice.tax)
+                self.assertIsNone(invoice.emailed_at)
+                self.assertEqual(invoice.email_send_count, 0)
+
+        seed_run = DemoSeedRun.objects.get(business=self.business)
+        self.assertEqual(
+            seed_run.owned_records.filter(model_label=Invoice._meta.label).count(),
+            3,
+        )
+        self.assertEqual(
+            seed_run.owned_records.filter(model_label=InvoiceLine._meta.label).count(),
+            6,
+        )
+
+    def test_booking_setup_creates_tracked_defaults_and_can_enable_public_booking(self):
+        self._run_command(
+            business_id=self.business.pk,
+            services=1,
+            clients=0,
+            requests=0,
+            appointments=0,
+            invoices=0,
+            execute=True,
+        )
+        existing_demo_service = BusinessService.objects.get(business=self.business)
+        self.assertFalse(existing_demo_service.is_bookable_online)
+
+        plan = ClarivoPlan.objects.create(
+            name="Seed Public Booking Plan",
+            slug="seed-public-booking-plan",
+            allow_public_booking=True,
+        )
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        subscription_values = BusinessSubscription.objects.filter(pk=subscription.pk).values().get()
+
+        self._run_command(
+            business_id=self.business.pk,
+            services=1,
+            clients=0,
+            requests=0,
+            appointments=0,
+            invoices=0,
+            booking_setup=True,
+            enable_public_booking=True,
+            execute=True,
+        )
+
+        settings = BusinessBookingSettings.objects.get(business=self.business)
+        availability = WeeklyAvailability.objects.filter(business=self.business)
+        self.assertTrue(settings.booking_enabled)
+        self.assertIn("[DEMO]", settings.public_booking_instructions)
+        self.assertEqual(availability.count(), 5)
+        self.assertTrue(all(block.is_active for block in availability))
+        self.assertEqual(
+            BusinessService.objects.filter(
+                business=self.business,
+                is_bookable_online=True,
+            ).count(),
+            2,
+        )
+        seed_run = DemoSeedRun.objects.get(business=self.business)
+        self.assertTrue(
+            seed_run.owned_records.filter(
+                model_label=BusinessBookingSettings._meta.label,
+                object_pk=str(settings.pk),
+            ).exists()
+        )
+        self.assertEqual(
+            seed_run.owned_records.filter(
+                model_label=WeeklyAvailability._meta.label,
+            ).count(),
+            5,
+        )
+        self.assertEqual(
+            BusinessSubscription.objects.filter(pk=subscription.pk).values().get(),
+            subscription_values,
+        )
+
+    def test_public_booking_can_enable_existing_demo_owned_settings(self):
+        plan = ClarivoPlan.objects.create(
+            name="Owned Demo Booking Plan",
+            slug="owned-demo-booking-plan",
+            allow_public_booking=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        zero_counts = {
+            "services": 0,
+            "clients": 0,
+            "requests": 0,
+            "appointments": 0,
+            "invoices": 0,
+        }
+        self._run_command(
+            business_id=self.business.pk,
+            booking_setup=True,
+            execute=True,
+            **zero_counts,
+        )
+        settings = BusinessBookingSettings.objects.get(business=self.business)
+        original_pk = settings.pk
+        self.assertFalse(settings.booking_enabled)
+
+        self._run_command(
+            business_id=self.business.pk,
+            booking_setup=True,
+            enable_public_booking=True,
+            execute=True,
+            **zero_counts,
+        )
+
+        settings.refresh_from_db()
+        self.assertEqual(settings.pk, original_pk)
+        self.assertTrue(settings.booking_enabled)
+        self.assertEqual(BusinessBookingSettings.objects.filter(business=self.business).count(), 1)
+
+    def test_booking_setup_preserves_existing_genuine_settings_and_availability(self):
+        plan = ClarivoPlan.objects.create(
+            name="Existing Booking Plan",
+            slug="existing-booking-plan",
+            allow_public_booking=True,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        settings = BusinessBookingSettings.objects.create(
+            business=self.business,
+            booking_enabled=False,
+            default_duration_minutes=75,
+            minimum_notice_hours=12,
+            maximum_days_ahead=45,
+            buffer_minutes=20,
+            public_booking_instructions="Genuine instructions",
+        )
+        availability = WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.TUESDAY,
+            start_time=time(10, 0),
+            end_time=time(14, 0),
+        )
+        settings_values = BusinessBookingSettings.objects.filter(pk=settings.pk).values().get()
+        availability_values = WeeklyAvailability.objects.filter(pk=availability.pk).values().get()
+
+        self._run_command(
+            business_id=self.business.pk,
+            services=1,
+            clients=0,
+            requests=0,
+            appointments=0,
+            invoices=0,
+            booking_setup=True,
+            enable_public_booking=True,
+            execute=True,
+        )
+
+        self.assertEqual(
+            BusinessBookingSettings.objects.filter(pk=settings.pk).values().get(),
+            settings_values,
+        )
+        self.assertEqual(
+            WeeklyAvailability.objects.filter(pk=availability.pk).values().get(),
+            availability_values,
+        )
+        self.assertEqual(WeeklyAvailability.objects.filter(business=self.business).count(), 1)
+        self.assertTrue(BusinessService.objects.get(business=self.business).is_bookable_online)
+        seed_run = DemoSeedRun.objects.get(business=self.business)
+        self.assertFalse(
+            seed_run.owned_records.filter(
+                model_label=BusinessBookingSettings._meta.label,
+                object_pk=str(settings.pk),
+            ).exists()
+        )
+        self.assertFalse(
+            seed_run.owned_records.filter(
+                model_label=WeeklyAvailability._meta.label,
+                object_pk=str(availability.pk),
+            ).exists()
+        )
+
+    def test_public_booking_enable_requires_setup_and_allowed_active_plan(self):
+        with self.assertRaises(CommandError):
+            self._run_command(
+                business_id=self.business.pk,
+                enable_public_booking=True,
+                execute=True,
+            )
+
+        locked_plan = ClarivoPlan.objects.create(
+            name="Seed Locked Plan",
+            slug="seed-locked-plan",
+            allow_public_booking=False,
+        )
+        BusinessSubscription.objects.create(
+            business=self.business,
+            plan=locked_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+        )
+        with self.assertRaises(CommandError):
+            self._run_command(
+                business_id=self.business.pk,
+                services=0,
+                clients=0,
+                requests=0,
+                appointments=0,
+                invoices=0,
+                booking_setup=True,
+                enable_public_booking=True,
+                execute=True,
+            )
+
+        self.assertFalse(DemoSeedRun.objects.exists())
+        self.assertFalse(BusinessBookingSettings.objects.exists())
+        self.assertFalse(WeeklyAvailability.objects.exists())
+
+    def test_seed_invoices_send_no_email_and_make_no_external_billing_call(self):
+        with (
+            mock.patch("apps.notifications.emails.send_invoice_email") as send_invoice_email,
+            mock.patch(
+                "apps.businesses.stripe_checkout.configure_stripe_sdk"
+            ) as configure_stripe_sdk,
+        ):
+            self._run_command(
+                business_id=self.business.pk,
+                services=1,
+                clients=1,
+                requests=0,
+                appointments=0,
+                invoices=1,
+                execute=True,
+            )
+
+        send_invoice_email.assert_not_called()
+        configure_stripe_sdk.assert_not_called()
+        self.assertEqual(len(mail.outbox), 0)
+        invoice = Invoice.objects.get(business=self.business)
+        self.assertEqual(invoice.emailed_to, "")
+        self.assertIsNone(invoice.emailed_at)
+        self.assertEqual(invoice.email_send_count, 0)
+        self.assertFalse(BusinessSubscription.objects.exists())
+
+
+class ResetDemoDataCommandTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(
+            name="Reset Target",
+            slug="reset-target",
+        )
+        self.other_business = Business.objects.create(
+            name="Reset Other",
+            slug="reset-other",
+        )
+
+    def _run_command(self, *, business=None, **options):
+        output = StringIO()
+        call_command(
+            "seed_demo_data",
+            business_id=(business or self.business).pk,
+            stdout=output,
+            **options,
+        )
+        return output.getvalue()
+
+    def _seed(self, *, business=None, booking_setup=True):
+        return self._run_command(
+            business=business,
+            services=2,
+            clients=2,
+            requests=2,
+            appointments=1,
+            invoices=2,
+            booking_setup=booking_setup,
+            execute=True,
+        )
+
+    def _tenant_counts(self, business):
+        return {
+            "categories": ServiceCategory.objects.filter(business=business).count(),
+            "services": BusinessService.objects.filter(business=business).count(),
+            "clients": Client.objects.filter(business=business).count(),
+            "requests": Lead.objects.filter(business=business).count(),
+            "appointments": Appointment.objects.filter(business=business).count(),
+            "invoices": Invoice.objects.filter(business=business).count(),
+            "invoice_lines": InvoiceLine.objects.filter(invoice__business=business).count(),
+            "booking_settings": BusinessBookingSettings.objects.filter(business=business).count(),
+            "availability": WeeklyAvailability.objects.filter(business=business).count(),
+            "seed_runs": DemoSeedRun.objects.filter(business=business).count(),
+            "tracking": DemoSeedRecord.objects.filter(seed_run__business=business).count(),
+        }
+
+    def test_creation_reset_round_trip_removes_all_seeded_data(self):
+        self._seed()
+        seeded_counts = self._tenant_counts(self.business)
+        self.assertTrue(all(count > 0 for count in seeded_counts.values()))
+
+        output = self._run_command(reset_demo=True, execute=True)
+
+        self.assertEqual(
+            self._tenant_counts(self.business),
+            {key: 0 for key in seeded_counts},
+        )
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+        self.assertIn("Reset demo data", output)
+        self.assertIn("Deleted billings.InvoiceLine", output)
+        self.assertIn("Deleted demo seed run: True", output)
+
+    def test_reset_preview_is_read_only(self):
+        self._seed()
+        before_counts = self._tenant_counts(self.business)
+
+        with CaptureQueriesContext(connection) as queries:
+            output = self._run_command(reset_demo=True)
+
+        write_prefixes = ("INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "REPLACE")
+        write_queries = [
+            query["sql"]
+            for query in queries.captured_queries
+            if query["sql"].lstrip().upper().startswith(write_prefixes)
+        ]
+        self.assertEqual(write_queries, [])
+        self.assertEqual(self._tenant_counts(self.business), before_counts)
+        self.assertIn("RESET PREVIEW ONLY", output)
+        self.assertIn("Tracked records by dependency-safe deletion order", output)
+
+    def test_reset_preserves_genuine_data_in_selected_business(self):
+        category = ServiceCategory.objects.create(
+            business=self.business,
+            name="Genuine Category",
+        )
+        service = BusinessService.objects.create(
+            business=self.business,
+            category=category,
+            name="Genuine Service",
+            unit_price=Decimal("240.00"),
+        )
+        client = Client.objects.create(
+            business=self.business,
+            first_name="Real",
+            last_name="Customer",
+            email="real.reset@example.com",
+            phone="+1 721 555 8800",
+            company_name="Real Reset Company",
+            street_address="8 Genuine Road",
+        )
+        request = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            category=category,
+            requested_service=service,
+            first_name="Real",
+            last_name="Customer",
+            email="real.reset@example.com",
+            phone="+1 721 555 8800",
+            company_name="Real Reset Company",
+        )
+        start_time = timezone.now() + timedelta(days=1)
+        appointment = Appointment.objects.create(
+            business=self.business,
+            client=client,
+            service=service,
+            source_lead=request,
+            title="Genuine appointment",
+            start_time=start_time,
+            end_time=start_time + timedelta(hours=1),
+        )
+        invoice = Invoice.objects.create(
+            invoice_number="GENUINE-RESET-1",
+            business=self.business,
+            client=client,
+            appointment=appointment,
+        )
+        line = InvoiceLine.objects.create(
+            invoice=invoice,
+            service=service,
+            description="Genuine line",
+            unit_price=Decimal("240.00"),
+        )
+        settings = BusinessBookingSettings.objects.create(
+            business=self.business,
+            public_booking_instructions="Genuine booking instructions",
+        )
+        availability = WeeklyAvailability.objects.create(
+            business=self.business,
+            day_of_week=WeeklyAvailability.DayOfWeek.WEDNESDAY,
+            start_time=time(11, 0),
+            end_time=time(15, 0),
+        )
+        genuine_objects = (
+            category,
+            service,
+            client,
+            request,
+            appointment,
+            invoice,
+            line,
+            settings,
+            availability,
+        )
+
+        self._seed()
+        self._run_command(reset_demo=True, execute=True)
+
+        for obj in genuine_objects:
+            with self.subTest(model=obj._meta.label):
+                self.assertTrue(obj.__class__.objects.filter(pk=obj.pk).exists())
+        settings.refresh_from_db()
+        self.assertEqual(settings.public_booking_instructions, "Genuine booking instructions")
+        self.assertEqual(DemoSeedRun.objects.filter(business=self.business).count(), 0)
+
+    def test_reset_preserves_everything_in_another_business(self):
+        self._seed()
+        self._seed(business=self.other_business)
+        other_counts = self._tenant_counts(self.other_business)
+        other_run_id = DemoSeedRun.objects.get(business=self.other_business).run_id
+
+        self._run_command(reset_demo=True, execute=True)
+
+        self.assertEqual(self._tenant_counts(self.other_business), other_counts)
+        self.assertEqual(
+            DemoSeedRun.objects.get(business=self.other_business).run_id,
+            other_run_id,
+        )
+        self.assertEqual(self._tenant_counts(self.business), {key: 0 for key in other_counts})
+
+    def test_repeated_reset_is_a_safe_no_op(self):
+        self._seed()
+        self._run_command(reset_demo=True, execute=True)
+
+        output = self._run_command(reset_demo=True, execute=True)
+
+        self.assertIn("no demo seed metadata; no changes were made", output)
+        self.assertFalse(DemoSeedRun.objects.filter(business=self.business).exists())
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+
+    def test_cross_tenant_tracking_aborts_without_deleting_either_business(self):
+        self._run_command(
+            services=1,
+            clients=0,
+            requests=0,
+            appointments=0,
+            invoices=0,
+            execute=True,
+        )
+        self._run_command(
+            business=self.other_business,
+            services=1,
+            clients=0,
+            requests=0,
+            appointments=0,
+            invoices=0,
+            execute=True,
+        )
+        target_service = BusinessService.objects.get(business=self.business)
+        other_service = BusinessService.objects.get(business=self.other_business)
+        target_run = DemoSeedRun.objects.get(business=self.business)
+        DemoSeedRecord.objects.create(
+            seed_run=target_run,
+            model_label=BusinessService._meta.label,
+            object_pk=str(other_service.pk),
+        )
+
+        with self.assertRaisesRegex(CommandError, "does not belong to the selected business"):
+            self._run_command(reset_demo=True, execute=True)
+
+        self.assertTrue(BusinessService.objects.filter(pk=target_service.pk).exists())
+        self.assertTrue(BusinessService.objects.filter(pk=other_service.pk).exists())
+        self.assertTrue(DemoSeedRun.objects.filter(pk=target_run.pk).exists())
+
+    def test_reset_aborts_instead_of_nulling_a_genuine_reference(self):
+        self._run_command(
+            services=1,
+            clients=0,
+            requests=0,
+            appointments=0,
+            invoices=0,
+            execute=True,
+        )
+        service = BusinessService.objects.get(business=self.business)
+        genuine_lead = Lead.objects.create(
+            business=self.business,
+            lead_type=Lead.LeadType.REQUEST,
+            category=service.category,
+            requested_service=service,
+            first_name="Genuine",
+            last_name="Dependent",
+            email="genuine.dependent@example.com",
+            phone="+1 721 555 8811",
+            company_name="Genuine Dependent Company",
+        )
+
+        with self.assertRaisesRegex(CommandError, "genuine or untracked records depend"):
+            self._run_command(reset_demo=True, execute=True)
+
+        genuine_lead.refresh_from_db()
+        self.assertEqual(genuine_lead.requested_service_id, service.pk)
+        self.assertEqual(genuine_lead.category_id, service.category_id)
+        self.assertTrue(BusinessService.objects.filter(pk=service.pk).exists())
+        self.assertTrue(DemoSeedRun.objects.filter(business=self.business).exists())
+
+    def test_reset_aborts_before_cascading_an_untracked_invoice_line(self):
+        self._run_command(
+            services=1,
+            clients=1,
+            requests=0,
+            appointments=0,
+            invoices=1,
+            execute=True,
+        )
+        invoice = Invoice.objects.get(business=self.business)
+        genuine_line = InvoiceLine.objects.create(
+            invoice=invoice,
+            description="Genuine added line",
+            unit_price=Decimal("35.00"),
+        )
+
+        with self.assertRaisesRegex(CommandError, "genuine or untracked records depend"):
+            self._run_command(reset_demo=True, execute=True)
+
+        self.assertTrue(Invoice.objects.filter(pk=invoice.pk).exists())
+        self.assertTrue(InvoiceLine.objects.filter(pk=genuine_line.pk).exists())
+        self.assertTrue(DemoSeedRun.objects.filter(business=self.business).exists())
+
+    def test_demo_text_without_tracking_is_never_a_reset_target(self):
+        genuine_demo_named_service = BusinessService.objects.create(
+            business=self.business,
+            name="[DEMO] Manually entered but genuine",
+        )
+        self._run_command(
+            services=0,
+            clients=0,
+            requests=0,
+            appointments=0,
+            invoices=0,
+            execute=True,
+        )
+
+        self._run_command(reset_demo=True, execute=True)
+
+        self.assertTrue(BusinessService.objects.filter(pk=genuine_demo_named_service.pk).exists())
+
+    def test_reset_rejects_generation_and_booking_options(self):
+        invalid_options = (
+            {"services": 0},
+            {"clients": 10},
+            {"booking_setup": True},
+            {"booking_setup": True, "enable_public_booking": True},
+        )
+        for options in invalid_options:
+            with self.subTest(options=options), self.assertRaises(CommandError):
+                self._run_command(reset_demo=True, **options)
+
+        self.assertFalse(DemoSeedRun.objects.exists())
 
 
 class BusinessDataInventoryCommandTests(TestCase):
