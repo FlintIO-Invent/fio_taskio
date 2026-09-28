@@ -619,6 +619,11 @@ class BusinessSubscription(TimeStampedModel):
         LOCAL = "local", "Local"
         STRIPE = "stripe", "Stripe"
 
+    class ProvisioningSource(models.TextChoices):
+        STANDARD = "standard", "Standard"
+        BETA = "beta", "Beta"
+        FREE_TEST = "free_test", "Free Test"
+
     class BillingInterval(models.TextChoices):
         MONTHLY = "monthly", "Monthly"
         YEARLY = "yearly", "Yearly"
@@ -666,6 +671,12 @@ class BusinessSubscription(TimeStampedModel):
         max_length=20,
         choices=Status.choices,
         default=Status.TRIALING,
+    )
+    provisioning_source = models.CharField(
+        max_length=20,
+        choices=ProvisioningSource.choices,
+        default=ProvisioningSource.STANDARD,
+        db_index=True,
     )
     trial_start = models.DateTimeField(null=True, blank=True)
     trial_end = models.DateTimeField(null=True, blank=True)
