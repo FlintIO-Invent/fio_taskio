@@ -553,6 +553,17 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
     pending_plan_change = None
 
     if request.method == "POST":
+        if (
+            subscription is not None
+            and subscription.provisioning_source
+            == BusinessSubscription.ProvisioningSource.FREE_TEST
+        ):
+            messages.warning(
+                request,
+                "Plan changes are unavailable for free-test workspaces. Contact an administrator to convert or update this account.",
+            )
+            return redirect("business_subscription")
+
         if subscription is not None and not subscription.can_modify_workspace:
             messages.warning(
                 request,

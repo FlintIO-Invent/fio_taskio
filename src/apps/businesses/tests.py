@@ -383,6 +383,30 @@ class EmailConfigurationTests(TestCase):
         self.assertEqual(build_public_url("/relative/path/"), "/relative/path/")
 
 
+class PrivateRegistrationConfigurationTests(SimpleTestCase):
+    def test_free_test_registration_settings_default_disabled_and_empty(self):
+        app_settings = Settings(_env_file=None)
+
+        self.assertFalse(app_settings.free_test_registration_enabled)
+        self.assertEqual(app_settings.free_test_starter_token, "")
+        self.assertEqual(app_settings.free_test_pro_token, "")
+        self.assertEqual(app_settings.free_test_business_token, "")
+
+    def test_free_test_registration_tokens_are_trimmed(self):
+        app_settings = Settings(
+            _env_file=None,
+            free_test_registration_enabled=True,
+            free_test_starter_token=" starter-token ",
+            free_test_pro_token=" pro-token ",
+            free_test_business_token=" business-token ",
+        )
+
+        self.assertTrue(app_settings.free_test_registration_enabled)
+        self.assertEqual(app_settings.free_test_starter_token, "starter-token")
+        self.assertEqual(app_settings.free_test_pro_token, "pro-token")
+        self.assertEqual(app_settings.free_test_business_token, "business-token")
+
+
 class StripeConfigurationTests(SimpleTestCase):
     @staticmethod
     def _price_map(
@@ -8370,6 +8394,27 @@ class BusinessSubscriptionViewTests(TestCase):
         self.assertEqual(subscription.status, BusinessSubscription.Status.TRIALING)
         self.assertTrue(subscription.can_use_module("appointments"))
         self.assertContains(response, "Workspace plan updated to Pro")
+
+    def test_free_test_owner_cannot_change_subscription_plan(self):
+        self._login_with_role(BusinessUser.Role.OWNER)
+        subscription = BusinessSubscription.objects.create(
+            business=self.business,
+            plan=self.starter_plan,
+            status=BusinessSubscription.Status.ACTIVE,
+            provisioning_source=BusinessSubscription.ProvisioningSource.FREE_TEST,
+            payment_provider=BusinessSubscription.PaymentProvider.LOCAL,
+        )
+
+        response = self.client.post(
+            reverse("business_subscription"),
+            {"plan": self.business_plan.id},
+            follow=True,
+        )
+
+        subscription.refresh_from_db()
+        self.assertRedirects(response, reverse("business_subscription"))
+        self.assertEqual(subscription.plan, self.starter_plan)
+        self.assertContains(response, "Plan changes are unavailable for free-test workspaces")
 
     def test_over_quota_downgrade_requires_confirmation_before_plan_changes(self):
         self._login_with_role(BusinessUser.Role.OWNER)

@@ -267,7 +267,15 @@
                 {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
               </div>
               <div class="col-12">
-                {% if show_paid_plan_summary %}
+                {% if free_test_plan %}
+                  {{ form.plan }}
+                  <div class="registration-plan-card p-3">
+                    <div class="registration-plan-card__eyebrow mb-1">Free-test plan</div>
+                    <h4 class="fs-6 mb-1">{{ free_test_plan.name }}</h4>
+                    <p class="text-body-tertiary fs-9 mb-0">Private free-test access. No payment details are required.</p>
+                  </div>
+                  {% if form.plan.errors %}<div class="invalid-feedback d-block">{{ form.plan.errors|striptags }}</div>{% endif %}
+                {% elif show_paid_plan_summary %}
                   <div class="registration-plan-card" data-registration-plan-card data-trial-days="{{ standard_trial_days }}">
                     {% if selected_plan %}
                       <div class="registration-plan-card__summary">

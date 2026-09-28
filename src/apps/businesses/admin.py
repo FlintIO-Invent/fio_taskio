@@ -102,6 +102,7 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
         "business",
         "plan",
         "status",
+        "provisioning_source",
         "payment_provider",
         "billing_interval",
         "billing_currency",
@@ -112,7 +113,14 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
         "grace_period_ends_at",
         "updated_at",
     )
-    list_filter = ("status", "payment_provider", "billing_interval", "cancel_at_period_end", "plan")
+    list_filter = (
+        "status",
+        "provisioning_source",
+        "payment_provider",
+        "billing_interval",
+        "cancel_at_period_end",
+        "plan",
+    )
     search_fields = (
         "business__name",
         "business__slug",

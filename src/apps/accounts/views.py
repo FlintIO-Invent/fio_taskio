@@ -67,6 +67,10 @@ from .forms import (
     SaaSInvoiceSettingsForm,
     SaaSWorkspaceSettingsForm,
 )
+from .free_test_registration import (
+    is_allowed_free_test_plan_slug,
+    is_valid_free_test_registration_token,
+)
 
 
 class MotionmatePasswordResetView(PasswordResetView):
@@ -245,6 +249,23 @@ def register_business_beta(request: HttpRequest, token: str) -> HttpResponse:
     return _register_business(request, beta_eligible=True)
 
 
+@require_http_methods(["GET", "POST"])
+def register_business_free_test(request: HttpRequest, tier: str, token: str) -> HttpResponse:
+    """Register a tester with local active access to one server-selected paid tier."""
+    if not _free_test_registration_link_is_available(tier, token):
+        messages.warning(
+            request,
+            "Free-test registration is currently unavailable. You can still create a standard Motionmate workspace.",
+        )
+        return redirect("register_business")
+
+    return _register_business(
+        request,
+        beta_eligible=False,
+        free_test_plan_slug=tier,
+    )
+
+
 def _beta_registration_link_is_available(token: str) -> bool:
     return bool(
         getattr(settings, "BETA_REGISTRATION_ENABLED", False)
@@ -253,12 +274,22 @@ def _beta_registration_link_is_available(token: str) -> bool:
     )
 
 
+def _free_test_registration_link_is_available(tier: str, token: str) -> bool:
+    return bool(
+        getattr(settings, "FREE_TEST_REGISTRATION_ENABLED", False)
+        and is_allowed_free_test_plan_slug(tier)
+        and is_valid_free_test_registration_token(tier, token)
+        and ClarivoPlan.objects.filter(slug=tier, is_active=True).exists()
+    )
+
+
 def _selected_registration_pricing_currency(
     request: HttpRequest,
     *,
     beta_eligible: bool,
+    free_test_plan_slug: str | None = None,
 ) -> str:
-    if beta_eligible:
+    if beta_eligible or free_test_plan_slug:
         return ""
 
     raw_currency = (
@@ -369,26 +400,53 @@ def _register_business(
     request: HttpRequest,
     *,
     beta_eligible: bool,
+    free_test_plan_slug: str | None = None,
 ) -> HttpResponse:
     selected_pricing_currency = _selected_registration_pricing_currency(
         request,
         beta_eligible=beta_eligible,
+        free_test_plan_slug=free_test_plan_slug,
     )
     if request.method == "POST":
         form = BusinessRegistrationForm(
             request.POST,
             selected_pricing_currency=selected_pricing_currency,
             beta_eligible=beta_eligible,
+            free_test_plan_slug=free_test_plan_slug,
         )
 
         if form.is_valid():
-            if not beta_eligible:
+            if not beta_eligible and not free_test_plan_slug:
                 request.session[PUBLIC_PRICING_CURRENCY_SESSION_KEY] = (
                     form.selected_billing_currency_for_display
                 )
             user, business, _membership, subscription = form.save(
-                create_subscription=beta_eligible,
+                create_subscription=beta_eligible or bool(free_test_plan_slug),
+                provisioning_source=(
+                    BusinessSubscription.ProvisioningSource.FREE_TEST
+                    if free_test_plan_slug
+                    else BusinessSubscription.ProvisioningSource.STANDARD
+                ),
             )
+
+            if (
+                subscription is not None
+                and subscription.provisioning_source
+                == BusinessSubscription.ProvisioningSource.FREE_TEST
+            ):
+                login(request, user)
+                set_current_business(request, business)
+                logger.info(
+                    "New Motionmate free-test business registered with owner_email={} business_slug={} and plan_slug={}",
+                    user.email,
+                    business.slug,
+                    subscription.plan.slug,
+                )
+                messages.success(
+                    request,
+                    f"Your Motionmate workspace has been created with {subscription.plan.name} free-test access. You can now start from your dashboard.",
+                )
+                return redirect("agent_dashboard")
 
             if subscription is not None and subscription.plan.slug == BETA_PLAN_SLUG:
                 login(request, user)
@@ -426,17 +484,21 @@ def _register_business(
             selected_billing_interval=request.GET.get("interval"),
             selected_pricing_currency=selected_pricing_currency,
             beta_eligible=beta_eligible,
+            free_test_plan_slug=free_test_plan_slug,
         )
 
+    private_registration = beta_eligible or bool(free_test_plan_slug)
     selected_plan = None if beta_eligible else form.selected_plan_for_display
     registration_plan_options = []
-    if not beta_eligible:
+    if not private_registration:
         registration_plan_options = list(form.fields["plan"].queryset)
         ClarivoPlan.attach_display_pricing(
             registration_plan_options,
             region=form.selected_pricing_region_for_display,
         )
-    selected_billing_interval = "" if beta_eligible else form.selected_billing_interval_for_display
+    selected_billing_interval = (
+        "" if private_registration else form.selected_billing_interval_for_display
+    )
     selected_billing_interval_label = PUBLIC_BILLING_INTERVAL_LABELS.get(
         selected_billing_interval,
         "month",
@@ -454,16 +516,16 @@ def _register_business(
             else selected_plan_pricing["monthly_display"]
         )
     selected_billing_currency = (
-        "" if beta_eligible else form.selected_billing_currency_for_display.upper()
+        "" if private_registration else form.selected_billing_currency_for_display.upper()
     )
     selected_pricing_region_label = (
         ""
-        if beta_eligible
+        if private_registration
         else public_pricing_currency_label(form.selected_pricing_currency_for_display)
     )
     selected_pricing_currency_display = (
         ""
-        if beta_eligible
+        if private_registration
         else public_pricing_currency_display(form.selected_pricing_currency_for_display)
     )
     return render(
@@ -479,11 +541,12 @@ def _register_business(
             "selected_billing_interval_label": selected_billing_interval_label,
             "selected_billing_currency": selected_billing_currency,
             "selected_pricing_currency": (
-                "" if beta_eligible else form.selected_pricing_currency_for_display
+                "" if private_registration else form.selected_pricing_currency_for_display
             ),
             "selected_pricing_region_label": selected_pricing_region_label,
             "selected_pricing_currency_display": selected_pricing_currency_display,
-            "show_paid_plan_summary": not beta_eligible,
+            "show_paid_plan_summary": not private_registration,
+            "free_test_plan": selected_plan if free_test_plan_slug else None,
             "standard_trial_days": STANDARD_TRIAL_DAYS,
         },
     )
