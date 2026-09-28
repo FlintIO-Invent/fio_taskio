@@ -236,15 +236,21 @@ class BusinessRegistrationForm(forms.Form):
         selected_billing_interval: str | None = None,
         selected_pricing_currency: str | None = None,
         beta_eligible: bool = False,
+        free_test_plan_slug: str | None = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.beta_eligible = beta_eligible
+        self.free_test_plan_slug = free_test_plan_slug
         plans = self._plan_queryset()
         submitted_plan_slug = (
             self.data.get(self.add_prefix("plan")) if self.is_bound else selected_plan_slug
         )
-        if self.is_bound and not beta_eligible:
+        if self.free_test_plan_slug:
+            self.selected_plan_for_display = plans.filter(
+                slug=self.free_test_plan_slug,
+            ).first()
+        elif self.is_bound and not beta_eligible:
             self.selected_plan_for_display = self._submitted_public_plan(
                 plans,
                 submitted_plan_slug,
@@ -276,10 +282,18 @@ class BusinessRegistrationForm(forms.Form):
         self.fields["plan"].initial = self.selected_plan_for_display
         self.fields["billing_interval"].initial = self.selected_billing_interval_for_display
         self.fields["pricing_currency"].initial = self.selected_pricing_currency_for_display
-        if not beta_eligible:
+        if self.free_test_plan_slug:
+            self.fields["plan"].widget = forms.HiddenInput()
+        elif not beta_eligible:
             self.fields["plan"].widget = forms.HiddenInput()
 
     def _plan_queryset(self):
+        if self.free_test_plan_slug:
+            return ClarivoPlan.objects.filter(
+                is_active=True,
+                slug=self.free_test_plan_slug,
+            )
+
         if (
             not self.beta_eligible
             or not getattr(settings, "BETA_REGISTRATION_ENABLED", False)
@@ -352,6 +366,22 @@ class BusinessRegistrationForm(forms.Form):
 
     def clean_plan(self) -> ClarivoPlan | None:
         plan = self.cleaned_data.get("plan")
+        if self.free_test_plan_slug:
+            submitted_plan_slug = self.data.get(self.add_prefix("plan"))
+            if submitted_plan_slug and submitted_plan_slug != self.free_test_plan_slug:
+                raise ValidationError("Select a valid free-test plan.")
+
+            fixed_plan = (
+                self.fields["plan"]
+                .queryset.filter(
+                    slug=self.free_test_plan_slug,
+                )
+                .first()
+            )
+            if fixed_plan is None:
+                raise ValidationError("Select a valid free-test plan.")
+            return fixed_plan
+
         if plan is None:
             if not self.beta_eligible:
                 raise ValidationError(
@@ -375,7 +405,7 @@ class BusinessRegistrationForm(forms.Form):
         return plan
 
     def clean_billing_interval(self) -> str:
-        if self.beta_eligible:
+        if self.beta_eligible or self.free_test_plan_slug:
             return ""
 
         interval = self.cleaned_data.get("billing_interval") or DEFAULT_PUBLIC_BILLING_INTERVAL
@@ -385,7 +415,7 @@ class BusinessRegistrationForm(forms.Form):
         return normalized_interval
 
     def clean_pricing_currency(self) -> str:
-        if self.beta_eligible:
+        if self.beta_eligible or self.free_test_plan_slug:
             return ""
 
         value = self.cleaned_data.get("pricing_currency")
@@ -418,7 +448,7 @@ class BusinessRegistrationForm(forms.Form):
             except ValidationError as exc:
                 self.add_error("password1", exc)
 
-        if not self.beta_eligible:
+        if not self.beta_eligible and not self.free_test_plan_slug:
             self.selected_billing_interval_for_display = (
                 cleaned_data.get("billing_interval") or DEFAULT_PUBLIC_BILLING_INTERVAL
             )
@@ -457,6 +487,7 @@ class BusinessRegistrationForm(forms.Form):
         self,
         *,
         create_subscription: bool = True,
+        provisioning_source: str = BusinessSubscription.ProvisioningSource.STANDARD,
     ) -> tuple[TaskIOUser, Business, BusinessUser, BusinessSubscription | None]:
         user = TaskIOUser.objects.create_user(
             email=self.cleaned_data["email"],
@@ -488,6 +519,15 @@ class BusinessRegistrationForm(forms.Form):
                     business=business,
                     plan=selected_plan,
                     status=BusinessSubscription.Status.ACTIVE,
+                    provisioning_source=BusinessSubscription.ProvisioningSource.BETA,
+                )
+            elif provisioning_source == BusinessSubscription.ProvisioningSource.FREE_TEST:
+                subscription = BusinessSubscription.objects.create(
+                    business=business,
+                    plan=selected_plan,
+                    status=BusinessSubscription.Status.ACTIVE,
+                    provisioning_source=BusinessSubscription.ProvisioningSource.FREE_TEST,
+                    payment_provider=BusinessSubscription.PaymentProvider.LOCAL,
                 )
             else:
                 subscription = create_default_trial_subscription(

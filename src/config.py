@@ -166,6 +166,22 @@ class Settings(BaseSettings):
         default="",
         description="Reusable private token for hidden Beta business registration links.",
     )
+    free_test_registration_enabled: bool = Field(
+        default=False,
+        description="Enable private tier-locked free-test registration links.",
+    )
+    free_test_starter_token: str = Field(
+        default="",
+        description="Reusable private token for Starter free-test registration.",
+    )
+    free_test_pro_token: str = Field(
+        default="",
+        description="Reusable private token for Pro free-test registration.",
+    )
+    free_test_business_token: str = Field(
+        default="",
+        description="Reusable private token for Business free-test registration.",
+    )
     motionmate_support_email: str = Field(
         default="",
         description="Support email address shown in transactional emails.",
@@ -258,9 +274,15 @@ class Settings(BaseSettings):
             return value.strip().rstrip("/")
         return value
 
-    @field_validator("beta_registration_token", mode="before")
+    @field_validator(
+        "beta_registration_token",
+        "free_test_starter_token",
+        "free_test_pro_token",
+        "free_test_business_token",
+        mode="before",
+    )
     @classmethod
-    def normalize_beta_registration_token(cls, value: object) -> object:
+    def normalize_private_registration_token(cls, value: object) -> object:
         if isinstance(value, str):
             return value.strip()
         return value

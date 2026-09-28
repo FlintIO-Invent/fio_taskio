@@ -112,6 +112,11 @@ class CustomerRegistrationViewTests(TestCase):
 
 class BusinessRegistrationViewTests(TestCase):
     BETA_TOKEN = "shared-beta-token-for-tests-1234567890"
+    FREE_TEST_TOKENS = {
+        "starter": "shared-starter-free-test-token-1234567890",
+        "pro": "shared-pro-free-test-token-1234567890",
+        "business": "shared-business-free-test-token-1234567890",
+    }
 
     @staticmethod
     def _price_map(
@@ -169,6 +174,51 @@ class BusinessRegistrationViewTests(TestCase):
 
     def _beta_url(self, token: str | None = None) -> str:
         return reverse("register_business_beta", args=[token or self.BETA_TOKEN])
+
+    def _free_test_settings(self, *, enabled: bool = True) -> dict[str, object]:
+        return {
+            "FREE_TEST_REGISTRATION_ENABLED": enabled,
+            "FREE_TEST_STARTER_TOKEN": self.FREE_TEST_TOKENS["starter"],
+            "FREE_TEST_PRO_TOKEN": self.FREE_TEST_TOKENS["pro"],
+            "FREE_TEST_BUSINESS_TOKEN": self.FREE_TEST_TOKENS["business"],
+        }
+
+    def _free_test_url(self, tier: str, token: str | None = None) -> str:
+        return reverse(
+            "register_business_free_test",
+            args=[tier, token or self.FREE_TEST_TOKENS.get(tier, "unsupported-tier-token")],
+        )
+
+    def _assert_free_test_registration(self, tier: str) -> None:
+        with override_settings(**self._free_test_settings()):
+            response = self.client.post(
+                self._free_test_url(tier),
+                self._registration_payload(
+                    email=f"{tier}-free-test@example.com",
+                    business_name=f"{tier.title()} Free Test Workspace",
+                ),
+                follow=True,
+            )
+
+        business = Business.objects.get(name=f"{tier.title()} Free Test Workspace")
+        subscription = BusinessSubscription.objects.get(business=business)
+
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        self.assertEqual(subscription.plan.slug, tier)
+        self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertEqual(
+            subscription.provisioning_source,
+            BusinessSubscription.ProvisioningSource.FREE_TEST,
+        )
+        self.assertEqual(
+            subscription.payment_provider,
+            BusinessSubscription.PaymentProvider.LOCAL,
+        )
+        self.assertEqual(subscription.provider_customer_id, "")
+        self.assertEqual(subscription.provider_subscription_id, "")
+        self.assertEqual(subscription.provider_checkout_session_id, "")
+        self.assertEqual(subscription.provider_price_id, "")
+        self.assertTrue(subscription.has_access)
 
     def test_get_renders_business_registration_page(self):
         response = self.client.get(reverse("register_business"))
@@ -367,6 +417,126 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(plan_slugs, [*PUBLIC_PAID_PLAN_SLUGS, BETA_PLAN_SLUG])
         self.assertContains(response, BETA_PLAN_DISPLAY_NAME)
 
+    def test_starter_free_test_link_creates_starter_subscription(self):
+        self._assert_free_test_registration("starter")
+
+    def test_pro_free_test_link_creates_pro_subscription(self):
+        self._assert_free_test_registration("pro")
+
+    def test_business_free_test_link_creates_business_subscription(self):
+        self._assert_free_test_registration("business")
+
+    def test_free_test_link_hides_plan_selector_and_displays_locked_tier(self):
+        with override_settings(**self._free_test_settings()):
+            response = self.client.get(self._free_test_url("starter"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Free-test plan")
+        self.assertContains(response, "Starter")
+        self.assertNotContains(response, '<select name="plan"')
+        self.assertNotContains(response, "Business (Recommended)")
+
+    def test_free_test_registration_never_starts_stripe_checkout(self):
+        settings_overrides = {
+            **self._valid_stripe_settings(),
+            **self._free_test_settings(),
+        }
+        with override_settings(**settings_overrides):
+            with (
+                mock.patch(
+                    "apps.accounts.views.ensure_pending_checkout_subscription"
+                ) as ensure_pending,
+                mock.patch("apps.accounts.views.create_trial_checkout_session") as create_checkout,
+            ):
+                response = self.client.post(
+                    self._free_test_url("business"),
+                    self._registration_payload(
+                        email="stripe-free-test@example.com",
+                        business_name="Stripe Free Test Workspace",
+                        plan=ClarivoPlan.objects.get(slug="business"),
+                    ),
+                    follow=True,
+                )
+
+        subscription = BusinessSubscription.objects.get(
+            business__name="Stripe Free Test Workspace",
+        )
+        self.assertRedirects(response, reverse("agent_dashboard"))
+        ensure_pending.assert_not_called()
+        create_checkout.assert_not_called()
+        self.assertEqual(
+            subscription.provisioning_source,
+            BusinessSubscription.ProvisioningSource.FREE_TEST,
+        )
+
+    def test_same_free_test_link_can_register_more_than_one_business(self):
+        with override_settings(**self._free_test_settings()):
+            for index in (1, 2):
+                response = self.client.post(
+                    self._free_test_url("pro"),
+                    self._registration_payload(
+                        email=f"reusable-free-test-{index}@example.com",
+                        business_name=f"Reusable Free Test Workspace {index}",
+                    ),
+                    follow=True,
+                )
+                self.assertRedirects(response, reverse("agent_dashboard"))
+                self.client.logout()
+
+        subscriptions = BusinessSubscription.objects.filter(
+            provisioning_source=BusinessSubscription.ProvisioningSource.FREE_TEST,
+            plan__slug="pro",
+        )
+        self.assertEqual(subscriptions.count(), 2)
+
+    def test_wrong_free_test_token_is_rejected_without_creating_workspace(self):
+        with override_settings(**self._free_test_settings()):
+            response = self.client.post(
+                self._free_test_url("starter", "wrong-token"),
+                self._registration_payload(
+                    email="wrong-free-test@example.com",
+                    business_name="Wrong Free Test Workspace",
+                ),
+                follow=True,
+            )
+
+        self.assertRedirects(response, reverse("register_business"))
+        self.assertContains(response, "Free-test registration is currently unavailable.")
+        self.assertFalse(
+            get_user_model().objects.filter(email="wrong-free-test@example.com").exists()
+        )
+        self.assertFalse(Business.objects.filter(name="Wrong Free Test Workspace").exists())
+
+    def test_disabled_free_test_registration_is_rejected(self):
+        with override_settings(**self._free_test_settings(enabled=False)):
+            response = self.client.get(self._free_test_url("pro"), follow=True)
+
+        self.assertRedirects(response, reverse("register_business"))
+        self.assertContains(response, "Free-test registration is currently unavailable.")
+
+    def test_free_test_tier_tampering_is_rejected(self):
+        with override_settings(**self._free_test_settings()):
+            response = self.client.post(
+                self._free_test_url("starter"),
+                self._registration_payload(
+                    email="tampered-free-test@example.com",
+                    business_name="Tampered Free Test Workspace",
+                    plan=ClarivoPlan.objects.get(slug="business"),
+                ),
+            )
+            unsupported_response = self.client.get(
+                self._free_test_url("enterprise"),
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertRedirects(unsupported_response, reverse("register_business"))
+        self.assertFalse(
+            get_user_model().objects.filter(email="tampered-free-test@example.com").exists()
+        )
+        self.assertFalse(Business.objects.filter(name="Tampered Free Test Workspace").exists())
+
     @override_settings(BETA_REGISTRATION_ENABLED=True, BETA_REGISTRATION_TOKEN=BETA_TOKEN)
     def test_wrong_and_modified_beta_tokens_redirect_without_beta_plan(self):
         for token in ("wrong-token", f"{self.BETA_TOKEN}-modified"):
@@ -470,6 +640,10 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertRedirects(response, reverse("agent_dashboard"))
         self.assertEqual(subscription.plan.slug, BETA_PLAN_SLUG)
         self.assertEqual(subscription.status, BusinessSubscription.Status.ACTIVE)
+        self.assertEqual(
+            subscription.provisioning_source,
+            BusinessSubscription.ProvisioningSource.BETA,
+        )
         self.assertIsNone(subscription.trial_start)
         self.assertIsNone(subscription.trial_end)
         self.assertIsNone(subscription.current_period_start)
@@ -1076,6 +1250,10 @@ class BusinessRegistrationViewTests(TestCase):
         self.assertEqual(subscription.plan, starter_plan)
         self.assertEqual(subscription.status, BusinessSubscription.Status.PENDING_CHECKOUT)
         self.assertEqual(subscription.payment_provider, BusinessSubscription.PaymentProvider.STRIPE)
+        self.assertEqual(
+            subscription.provisioning_source,
+            BusinessSubscription.ProvisioningSource.STANDARD,
+        )
         self.assertEqual(subscription.billing_interval, BusinessSubscription.BillingInterval.YEARLY)
         self.assertEqual(subscription.billing_currency, BusinessSubscription.BillingCurrency.EUR)
         self.assertEqual(subscription.provider_price_id, "price_starter_yearly_eur")

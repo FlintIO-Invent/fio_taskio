@@ -22,6 +22,7 @@ from .views import (
     customer_registration,
     register_business,
     register_business_beta,
+    register_business_free_test,
     saas_profile,
 )
 
@@ -97,6 +98,11 @@ urlpatterns = [
         "register-business/beta/<str:token>/",
         register_business_beta,
         name="register_business_beta",
+    ),
+    path(
+        "free-test/<str:tier>/<str:token>/",
+        register_business_free_test,
+        name="register_business_free_test",
     ),
     path("profile", saas_profile, name="saas_profile"),
 ]
