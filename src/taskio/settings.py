@@ -22,6 +22,7 @@ from apps.businesses.billing_policy import BILLING_OFFERINGS
 from apps.businesses.plan_catalog import (
     PUBLIC_PRICING_CURRENCIES,
 )
+from apps.logistics.policy import LogisticsEligibilityPolicy
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNNING_TESTS = (
@@ -56,6 +57,7 @@ INSTALLED_APPS = [
     "apps.crm",
     "apps.appointments",
     "apps.billings",
+    "apps.logistics",
 ]
 
 MIDDLEWARE = [
@@ -206,6 +208,17 @@ STRIPE_PRICE_ID_MAP = {
     for billing_interval in offering.intervals
     for currency in PUBLIC_PRICING_CURRENCIES
 }
+
+LOGISTICS_ELIGIBILITY_POLICY = LogisticsEligibilityPolicy(
+    rule_version=settings.logistics_rule_version,
+    auto_approve_monthly_parcels=settings.logistics_auto_approve_monthly_parcels,
+    review_above_monthly_parcels=settings.logistics_review_above_monthly_parcels,
+    high_resource_monthly_parcels=settings.logistics_high_resource_monthly_parcels,
+    auto_approve_staff_count=settings.logistics_auto_approve_staff_count,
+    auto_approve_location_count=settings.logistics_auto_approve_location_count,
+    supported_territories=tuple(settings.logistics_supported_territories),
+    registration_required_for_auto_approval=settings.logistics_registration_required_for_auto_approval,
+)
 
 LOGGING = {
     "version": 1,

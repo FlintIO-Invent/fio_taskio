@@ -1,0 +1,31 @@
+{% extends "public_site/base.html" %}
+
+{% block content %}
+<section class="container py-5">
+  <a href="{% url 'home' %}" class="d-inline-block mb-4">Motionmate</a>
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <h1>Apply for Motionmate Logistics</h1>
+      <p>Tell us about your business and parcel operations. We will assess your application and contact you about the next steps.</p>
+      <p>Submitting an application does not create an account or require payment.</p>
+      <form method="post" action="{% url 'logistics_application_create' %}">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form %}
+          <div class="mb-3">
+            {% if field.field.widget.input_type == "checkbox" %}
+              <div class="form-check">{{ field }} {{ field.label_tag }}</div>
+            {% else %}
+              {{ field.label_tag }}{% if field.field.required %} <span aria-label="required">*</span>{% endif %}
+              {{ field }}
+            {% endif %}
+            {% if field.help_text %}<p class="form-text" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</p>{% endif %}
+            {{ field.errors }}
+          </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Submit application</button>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

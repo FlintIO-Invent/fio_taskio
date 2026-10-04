@@ -224,12 +224,22 @@ class Settings(BaseSettings):
     stripe_price_business_yearly_eur: str = Field(default="")
     stripe_price_logistics_yearly_usd: str = Field(default="")
     stripe_price_logistics_yearly_eur: str = Field(default="")
+    logistics_rule_version: str = Field(default="pilot-v1", min_length=1, max_length=100)
+    logistics_auto_approve_monthly_parcels: int = Field(default=1000, ge=0)
+    logistics_review_above_monthly_parcels: int = Field(default=5000, ge=0)
+    logistics_high_resource_monthly_parcels: int = Field(default=10000, ge=1)
+    logistics_auto_approve_staff_count: int = Field(default=10, ge=1)
+    logistics_auto_approve_location_count: int = Field(default=1, ge=1)
+    logistics_supported_territories: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    logistics_registration_required_for_auto_approval: bool = Field(default=True)
     log_level: str = Field(
         default="INFO",
         description="Application log level.",
     )
 
-    @field_validator("allowed_hosts", "csrf_trusted_origins", mode="before")
+    @field_validator(
+        "allowed_hosts", "csrf_trusted_origins", "logistics_supported_territories", mode="before"
+    )
     @classmethod
     def parse_list_env(cls, value: object) -> object:
         if value is None:

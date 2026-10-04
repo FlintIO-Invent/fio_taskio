@@ -1,0 +1,14 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <h2>{{ application.business_name }}</h2>
+  <p>Status: {{ application.get_status_display }} · Revision: {{ application.revision }}</p>
+  <p>Last evaluation: {{ application.evaluated_at }} · Rules: {{ application.rule_version }}</p>
+  <p>Reasons: {{ application.reason_codes|join:", "|default:"No review triggers" }}</p>
+  <p><a href="{% url 'admin:logistics_logisticsapplication_change' application.pk %}">View all application details and decision history</a></p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Record decision">
+  </form>
+{% endblock %}
