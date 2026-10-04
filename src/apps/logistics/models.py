@@ -413,6 +413,14 @@ class Parcel(ParcelDomainModel):
         "businesses.Business", on_delete=models.PROTECT, related_name="parcels"
     )
     client = models.ForeignKey("crm.Client", on_delete=models.PROTECT, related_name="parcels")
+    shipment = models.ForeignKey(
+        "Shipment",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="parcels",
+        editable=False,
+    )
     tracking_code = models.CharField(
         max_length=48,
         unique=True,
@@ -499,6 +507,13 @@ class Parcel(ParcelDomainModel):
             raise ValidationError({"client": "Select a client owned by this workspace."})
         if self._state.adding:
             self._validate_actor("created_by")
+        if (
+            self.shipment_id
+            and not Shipment.objects.filter(
+                pk=self.shipment_id, business_id=self.business_id
+            ).exists()
+        ):
+            raise ValidationError({"shipment": "Select a shipment owned by this workspace."})
         if self.pk and not self._state.adding:
             previous = type(self).objects.filter(pk=self.pk, business_id=self.business_id).first()
             if previous is None:
@@ -573,3 +588,84 @@ class ParcelEvent(ParcelDomainModel):
         self._validate_actor("actor")
         if not self._state.adding:
             raise ValidationError("Parcel events are immutable.")
+
+
+def generate_shipment_reference():
+    return f"SHP-{uuid.uuid4().hex.upper()}"
+
+
+class Shipment(ParcelDomainModel):
+    """One operational grouping; all writes go through shipment_services."""
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        READY = "READY", "Ready"
+        IN_TRANSIT = "IN_TRANSIT", "In transit"
+        ARRIVED = "ARRIVED", "Arrived"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    business = models.ForeignKey(
+        "businesses.Business", on_delete=models.PROTECT, related_name="shipments"
+    )
+    reference = models.CharField(
+        max_length=36, unique=True, default=generate_shipment_reference, editable=False
+    )
+    origin = models.CharField(max_length=255)
+    destination = models.CharField(max_length=255)
+    departure_at = models.DateTimeField(null=True, blank=True)
+    estimated_arrival_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT, editable=False
+    )
+    notes = models.TextField(blank=True, max_length=2000, validators=[MaxLengthValidator(2000)])
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_shipments",
+        editable=False,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        indexes = [models.Index(fields=["business", "status", "created_at"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(
+                    status__in=["DRAFT", "READY", "IN_TRANSIT", "ARRIVED", "COMPLETED", "CANCELLED"]
+                ),
+                name="shipment_status_known",
+            )
+        ]
+
+    def __str__(self):
+        return self.reference
+
+    def clean(self):
+        from apps.businesses.models import Business
+
+        super().clean()
+        if not Business.objects.filter(
+            pk=self.business_id, vertical=Business.Vertical.LOGISTICS
+        ).exists():
+            raise ValidationError({"business": "Shipments require a Logistics workspace."})
+        if self._state.adding:
+            self._validate_actor("created_by")
+        else:
+            previous = type(self).objects.filter(pk=self.pk).first()
+            if previous is None or (self.business_id, self.reference, self.created_by_id) != (
+                previous.business_id,
+                previous.reference,
+                previous.created_by_id,
+            ):
+                raise ValidationError("Shipment ownership, reference and creator are immutable.")
+        if self.departure_at and self.estimated_arrival_at:
+            if self.estimated_arrival_at < self.departure_at:
+                raise ValidationError({"estimated_arrival_at": "ETA cannot precede departure."})
+
+    def save(self, *args, **kwargs):
+        raise ValidationError("Use the shipment services to change shipments.")

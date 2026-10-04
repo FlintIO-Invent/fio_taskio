@@ -1,0 +1,6 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<h1>{{ title }}</h1>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Save shipment</button></form>
+<p><a href="{% url 'logistics_shipment_list' %}">Back to shipments</a></p>
+{% endblock %}

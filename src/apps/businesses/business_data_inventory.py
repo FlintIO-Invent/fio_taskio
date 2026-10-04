@@ -14,7 +14,7 @@ from django.utils import timezone
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
-from apps.logistics.models import Parcel, ParcelEvent
+from apps.logistics.models import Parcel, ParcelEvent, Shipment
 
 from .business_sessions import decode_session_data_safely
 from .models import (
@@ -238,6 +238,17 @@ class BusinessDataInventory:
 
 
 DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
+    InventoryRegistration(
+        "shipments",
+        "logistics.Shipment",
+        "business",
+        "Business.shipments",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+        "status",
+        ("DRAFT", "READY", "IN_TRANSIT", "ARRIVED"),
+    ),
     InventoryRegistration(
         "parcels",
         "logistics.Parcel",
@@ -893,6 +904,7 @@ def _cross_business_user_references(
         (ActivityLog, "actor_id", "business_id", "activity_logs"),
         (ImportJob, "created_by_id", "business_id", "import_jobs"),
         (Parcel, "created_by_id", "business_id", "parcels"),
+        (Shipment, "created_by_id", "business_id", "shipments"),
         (ParcelEvent, "actor_id", "business_id", "parcel_events"),
         (UserOnboardingState, "user_id", "business_id", "onboarding_states"),
         (
@@ -928,6 +940,30 @@ def _cross_business_user_references(
 def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ...]:
     selected_members = BusinessUser.objects.filter(business_id=business_id).values("user_id")
     checks = (
+        _blocker_check(
+            "cross_tenant_parcel_shipment",
+            "logistics.Parcel.shipment -> logistics.Shipment.business",
+            Parcel.objects.filter(business_id=business_id, shipment__isnull=False)
+            .exclude(shipment__business_id=business_id)
+            .count(),
+            "Selected-business parcels reference shipments from another business.",
+        ),
+        _blocker_check(
+            "cross_tenant_external_parcel_shipment",
+            "other logistics.Parcel.shipment -> selected logistics.Shipment",
+            Parcel.objects.filter(shipment__business_id=business_id)
+            .exclude(business_id=business_id)
+            .count(),
+            "Another business has parcels referencing selected-business shipments.",
+        ),
+        _blocker_check(
+            "cross_tenant_shipment_creator",
+            "logistics.Shipment.created_by -> BusinessUser",
+            Shipment.objects.filter(business_id=business_id, created_by__isnull=False)
+            .exclude(created_by_id__in=selected_members)
+            .count(),
+            "Selected-business shipments reference creators without a membership.",
+        ),
         _blocker_check(
             "cross_tenant_parcel_client",
             "logistics.Parcel.client -> crm.Client.business",

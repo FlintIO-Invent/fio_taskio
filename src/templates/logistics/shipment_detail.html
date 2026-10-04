@@ -1,0 +1,31 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<p><a href="{% url 'logistics_shipment_list' %}">Shipments</a></p>
+<h1>{{ shipment.reference }}</h1>
+<p>{{ shipment.get_status_display }} · {{ shipment.origin }} → {{ shipment.destination }}</p>
+<p>Departure: {{ shipment.departure_at|default_if_none:'—' }} · ETA: {{ shipment.estimated_arrival_at|default_if_none:'—' }}</p>
+{% if shipment.notes %}<p>{{ shipment.notes }}</p>{% endif %}
+{% if error %}<p class="alert alert-danger" role="alert">{{ error }}</p>{% endif %}
+{% if module_access.manifests %}<p><a href="{% url 'logistics_shipment_manifest' shipment.pk %}">View manifest</a> · <a href="{% url 'logistics_shipment_manifest' shipment.pk %}?download=csv">Download manifest (CSV)</a></p>{% endif %}
+{% if role_access.can_manage_shipments and module_write_access.shipments %}
+{% if shipment.status == 'DRAFT' %}<p><a href="{% url 'logistics_shipment_edit' shipment.pk %}">Edit draft</a></p>{% endif %}
+{% if status_form.fields.status.choices %}
+<h2>Change shipment status</h2>
+<p>Readiness and departure require all parcels received. Arrival records parcel arrival. Completion requires all parcels delivered. Cancellation before departure releases parcels.</p>
+<form method="post" action="{% url 'logistics_shipment_status' shipment.pk %}">{% csrf_token %}{{ status_form.as_p }}<button type="submit" class="btn btn-primary">Change status</button></form>
+{% endif %}
+{% if can_assign and module_write_access.parcels %}
+<h2>Assign parcel</h2>
+<p>Only registered or received parcels are available. To move a parcel, remove it from its current shipment before assigning it here.</p>
+<form method="post" action="{% url 'logistics_shipment_assign' shipment.pk %}">{% csrf_token %}{{ assignment_form.as_p }}<button type="submit" class="btn btn-primary">Assign parcel</button></form>
+{% endif %}
+{% endif %}
+<h2>Assigned parcels</h2>
+<table class="table"><thead><tr><th>Tracking code</th><th>Client</th><th>Status</th><th>Quantity</th><th></th></tr></thead><tbody>
+{% for parcel in parcels %}<tr><td><a href="{% url 'logistics_parcel_detail' parcel.pk %}">{{ parcel.tracking_code }}</a></td><td>{{ parcel.client.first_name }} {{ parcel.client.last_name }}</td><td>{{ parcel.get_current_status_display }}</td><td>{{ parcel.quantity }}</td><td>
+{% if can_assign and role_access.can_manage_shipments and module_write_access.shipments and module_write_access.parcels %}
+<form method="post" action="{% url 'logistics_shipment_remove' shipment.pk parcel.pk %}">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary">Remove</button></form>
+{% endif %}
+</td></tr>{% empty %}<tr><td colspan="5">No parcels assigned.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

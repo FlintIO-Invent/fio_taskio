@@ -155,7 +155,23 @@ def parcel_detail(request, parcel_id):
         .select_related("actor")
         .order_by("timestamp", "pk")
     )
-    return render(request, "logistics/parcel_detail.html", {"parcel": parcel, "events": events})
+    from .shipment_services import shipments_for_business
+
+    shipment = None
+    if parcel.shipment_id:
+        try:
+            shipment = (
+                shipments_for_business(business=request.current_business, actor=request.user)
+                .filter(pk=parcel.shipment_id)
+                .first()
+            )
+        except PermissionDenied:
+            pass
+    return render(
+        request,
+        "logistics/parcel_detail.html",
+        {"parcel": parcel, "events": events, "shipment": shipment},
+    )
 
 
 @business_module_required("parcels")

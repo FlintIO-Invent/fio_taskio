@@ -10,7 +10,7 @@ from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
-from apps.logistics.models import Parcel, ParcelEvent
+from apps.logistics.models import Parcel, ParcelEvent, Shipment
 
 from .business_data_inventory import (
     DIRECT_BUSINESS_RELATION_REGISTRY,
@@ -48,6 +48,7 @@ PURGE_DELETION_ORDER = (
     "leads",
     "parcel_events",
     "parcels",
+    "shipments",
     "clients",
     "business_services",
     "service_categories",
@@ -364,6 +365,7 @@ def _has_cross_business_operational_references(*, user_id: int, business_id: int
         (ActivityLog, "actor_id"),
         (ImportJob, "created_by_id"),
         (Parcel, "created_by_id"),
+        (Shipment, "created_by_id"),
         (ParcelEvent, "actor_id"),
         (UserOnboardingState, "user_id"),
         (SubscriptionNotification, "recipient_user_id"),
@@ -398,6 +400,7 @@ def _delete_business_records(
             ParcelEvent.objects.filter(business_id=business_id)
         ),
         "parcels": _delete_parcel_history(Parcel.objects.filter(business_id=business_id)),
+        "shipments": _delete_parcel_history(Shipment.objects.filter(business_id=business_id)),
         "clients": _delete_queryset(Client.objects.filter(business_id=business_id)),
         "business_services": _delete_queryset(
             BusinessService.objects.filter(business_id=business_id)

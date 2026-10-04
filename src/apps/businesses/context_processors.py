@@ -35,6 +35,9 @@ def current_business(request):
 
     module_access = {
         "parcels": can_view_module(business, "parcels") and can_view_module(business, "tracking"),
+        "shipments": can_view_module(business, "shipments"),
+        "manifests": can_view_module(business, "shipments")
+        and can_view_module(business, "manifests"),
         "invoicing": can_view_module(business, "invoicing"),
         "appointments": can_view_module(business, "appointments"),
         "public_booking": can_view_module(business, "public_booking"),
@@ -42,6 +45,7 @@ def current_business(request):
     }
     module_write_access = {
         "parcels": can_use_module(business, "parcels") and can_use_module(business, "tracking"),
+        "shipments": can_use_module(business, "shipments"),
         "invoicing": can_use_module(business, "invoicing"),
         "appointments": can_use_module(business, "appointments"),
         "public_booking": can_use_module(business, "public_booking"),
@@ -54,6 +58,7 @@ def current_business(request):
         "can_manage_subscription": membership_has_any_role(membership, ("owner",)),
         "can_manage_clients": membership_has_any_role(membership, CLIENT_MANAGE_ROLES),
         "can_delete_clients": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
+        "can_manage_shipments": membership_has_any_role(membership, LEAD_MANAGE_ROLES),
         "can_manage_parcels": membership_has_any_role(membership, LEAD_MANAGE_ROLES),
         "can_manage_leads": membership_has_any_role(membership, LEAD_MANAGE_ROLES),
         "can_view_appointments": membership_has_any_role(membership, APPOINTMENT_VIEW_ROLES),

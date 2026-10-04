@@ -16,6 +16,7 @@ from .models import (
     LogisticsEnrollmentToken,
     Parcel,
     ParcelEvent,
+    Shipment,
 )
 from .parcel_services import parcels_for_business
 from .services import reevaluate_application, review_application
@@ -259,11 +260,12 @@ class ParcelAdmin(ParcelInspectionAdmin):
         "origin",
         "destination",
         "current_status",
+        "shipment",
         "created_at",
     )
     list_filter = (("business", admin.RelatedOnlyFieldListFilter), "current_status", "created_at")
     search_fields = ("tracking_code", "internal_reference")
-    list_select_related = ("client", "business")
+    list_select_related = ("client", "business", "shipment")
 
 
 @admin.register(ParcelEvent)
@@ -277,3 +279,28 @@ class ParcelEventAdmin(ParcelInspectionAdmin):
     )
     search_fields = ("parcel__tracking_code", "location")
     list_select_related = ("parcel", "actor", "business")
+
+
+@admin.register(Shipment)
+class ShipmentAdmin(ParcelInspectionAdmin):
+    list_display = (
+        "reference",
+        "origin",
+        "destination",
+        "status",
+        "departure_at",
+        "estimated_arrival_at",
+    )
+    list_filter = (("business", admin.RelatedOnlyFieldListFilter), "status", "created_at")
+    search_fields = ("reference",)
+
+    def get_queryset(self, request):
+        from .shipment_services import shipments_for_business
+
+        try:
+            shipments = shipments_for_business(
+                business=get_current_business(request), actor=request.user
+            )
+        except PermissionDenied:
+            return self.model.objects.none()
+        return shipments

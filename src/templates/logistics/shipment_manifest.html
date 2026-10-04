@@ -1,0 +1,13 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<h1>Manifest · {{ manifest.reference }}</h1>
+<p><a href="{% url 'logistics_shipment_detail' shipment_id %}">Back to shipment</a> · <a href="?download=csv">Download CSV</a></p>
+<p>{{ manifest.origin }} → {{ manifest.destination }}</p>
+<p>Departure: {{ manifest.departure_at|default_if_none:'—' }} · ETA: {{ manifest.estimated_arrival_at|default_if_none:'—' }}</p>
+<p>Current shipment contents. This output is regenerated when viewed or downloaded.</p>
+<table class="table"><thead><tr><th>Tracking code</th><th>Client name</th><th>Description</th><th>Quantity</th><th>Weight (kg)</th></tr></thead><tbody>
+{% for parcel in manifest.parcels %}<tr><td>{{ parcel.tracking_code }}</td><td>{{ parcel.client_name }}</td><td>{{ parcel.package_description }}</td><td>{{ parcel.quantity }}</td><td>{{ parcel.weight_kg|default_if_none:'—' }}</td></tr>
+{% empty %}<tr><td colspan="5">No parcels assigned.</td></tr>{% endfor %}
+</tbody></table>
+<p>Parcels: {{ manifest.parcel_count }} · Total quantity: {{ manifest.total_quantity }} · Known weight: {{ manifest.total_known_weight_kg }} kg · Parcels without weight: {{ manifest.unknown_weight_count }}</p>
+{% endblock %}
