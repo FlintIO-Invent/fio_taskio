@@ -91,7 +91,7 @@
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
                                             {% if role_access.can_manage_team %}
-                                                <a class="nav-link" href="{% url 'business_team_members' %}">
+                                                <a class="nav-link" href="{% url 'business_team_members' %}" data-onboarding-target="team">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Team Members</span></div>
                                                 </a>
                                             {% endif %}
@@ -100,7 +100,7 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                                 </a>
                                             {% endif %}
-                                            {% if role_access.can_manage_services %}
+                                            {% if module_capabilities.services and role_access.can_manage_services %}
                                                 <a class="nav-link" href="{% url 'business_service_list' %}" data-onboarding-target="services">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Services</span></div>
                                                 </a>
@@ -169,15 +169,23 @@
 
                             {% if module_access.shipments %}
                                 <div class="nav-item-wrapper">
-                                    <a class="nav-link label-1" href="{% url 'logistics_shipment_list' %}">
+                                    <a class="nav-link label-1" href="{% url 'logistics_shipment_list' %}" data-onboarding-target="shipments">
                                         <span class="nav-link-text">Shipments</span>
                                     </a>
                                 </div>
                             {% endif %}
                             {% if module_access.parcels %}
                             <div class="nav-item-wrapper">
-                                <a class="nav-link label-1" href="{% url 'logistics_parcel_list' %}">
+                                <a class="nav-link label-1" href="{% url 'logistics_parcel_list' %}" data-onboarding-target="parcels">
                                     <span class="nav-link-icon"><span data-feather="package"></span></span><span class="nav-link-text">Parcels</span>
+                                </a>
+                            </div>
+                            {% endif %}
+
+                            {% if module_access.tracking %}
+                            <div class="nav-item-wrapper">
+                                <a class="nav-link label-1" href="{% url 'logistics_public_tracking' %}">
+                                    <span class="nav-link-icon"><span data-feather="search"></span></span><span class="nav-link-text">Public Tracking</span>
                                 </a>
                             </div>
                             {% endif %}
@@ -212,6 +220,7 @@
 
                         </li>
 
+                        {% if module_capabilities.appointments or module_capabilities.public_booking %}
                         <!-- Module Section -->
                         <li class="nav-item">
                             <!-- label-->
@@ -278,7 +287,7 @@
                                                     <span class="badge badge-phoenix badge-phoenix-secondary">OFF</span>
                                                 {% endif %}
                                             </span>
-                                            {% if role_access.can_manage_booking_availability and workspace_can_modify %}
+                                            {% if module_capabilities.public_booking and role_access.can_manage_booking_availability and workspace_can_modify %}
                                                 <a class="nav-link" href="{% url 'business_booking_settings' %}" data-onboarding-target="availability">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Booking Settings</span></div>
                                                 </a>
@@ -289,6 +298,7 @@
                             </div>
                             
                         </li>
+                        {% endif %}
                   </ul>
               </div>
           </div>
@@ -364,13 +374,13 @@
                                           <span data-feather="layers" style="width: 16px; height: 16px;"></span>Subscription
                                       </a>
                                     {% endif %}
-                                    {% if role_access.can_manage_booking_availability and workspace_can_modify %}
+                                    {% if module_capabilities.public_booking and role_access.can_manage_booking_availability and workspace_can_modify %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_booking_settings' %}">
                                           <span data-feather="calendar" style="width: 16px; height: 16px;"></span>{% if role_access.can_manage_business_settings %}Booking Settings{% else %}Availability{% endif %}
                                       </a>
                                     {% endif %}
                                     {% if role_access.can_manage_team %}
-                                      <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_team_members' %}">
+                                      <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_team_members' %}" data-onboarding-target="team">
                                           <span data-feather="users" style="width: 16px; height: 16px;"></span>Team
                                       </a>
                                     {% endif %}

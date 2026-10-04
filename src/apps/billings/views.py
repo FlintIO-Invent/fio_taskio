@@ -541,8 +541,14 @@ def _invoice_create_response(
     available_clients = list(
         _client_queryset_for_business(current_business).order_by("first_name", "last_name", "pk")
     )
-    available_services = list(_service_queryset_for_business(current_business))
-    service_categories = list(_service_category_queryset_for_business(current_business))
+    available_services = (
+        list(_service_queryset_for_business(current_business))
+        if current_business.has_capability("services") else []
+    )
+    service_categories = (
+        list(_service_category_queryset_for_business(current_business))
+        if current_business.has_capability("services") else []
+    )
     active_services_by_id = {str(service.pk): service for service in available_services}
     selected_client = client
     appointment_notes = (
@@ -908,8 +914,14 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
         _invoice_queryset_for_business(current_business).prefetch_related("lines"),
         pk=invoice_id,
     )
-    available_services = list(_service_queryset_for_business(current_business))
-    service_categories = list(_service_category_queryset_for_business(current_business))
+    available_services = (
+        list(_service_queryset_for_business(current_business))
+        if current_business.has_capability("services") else []
+    )
+    service_categories = (
+        list(_service_category_queryset_for_business(current_business))
+        if current_business.has_capability("services") else []
+    )
     active_services_by_id = {str(service.pk): service for service in available_services}
     existing_line_rows = _invoice_line_rows(invoice)
     new_line_rows = _new_line_rows()

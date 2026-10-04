@@ -1,0 +1,74 @@
+<h3 class="mb-3">Logistics operations</h3>
+<div class="d-flex flex-wrap gap-2 mb-4">
+  {% if role_access.can_manage_parcels and module_write_access.parcels %}
+    <a class="btn btn-primary" href="{% url 'logistics_parcel_register' %}">Register Parcel</a>
+  {% endif %}
+  {% if role_access.can_manage_shipments and module_write_access.shipments %}
+    <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_create' %}">Create Shipment</a>
+  {% endif %}
+  {% if dashboard_parcels_enabled %}
+    <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_list' %}">View Parcels</a>
+  {% endif %}
+  {% if module_access.tracking %}
+    <a class="btn btn-phoenix-secondary" href="{% url 'logistics_public_tracking' %}">Track Parcel</a>
+  {% endif %}
+</div>
+<div class="row g-3 mb-4">
+  {% if dashboard_parcels_enabled %}
+    <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">
+      <p class="text-body-secondary mb-1">Active parcels</p><h3>{{ active_parcel_count }}</h3>
+      <p class="mb-0 text-body-tertiary">{{ parcel_count }} registered in total.</p>
+    </div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">
+      <p class="text-body-secondary mb-1">Awaiting shipment</p><h3>{{ pending_movement_parcel_count }}</h3>
+      <p class="mb-0 text-body-tertiary">Registered or received parcels without a shipment.</p>
+    </div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">
+      <p class="text-body-secondary mb-1">Ready for collection / delivery</p><h3>{{ ready_parcel_count }}</h3>
+      <p class="mb-0 text-body-tertiary">{{ recently_delivered_parcel_count }} delivered in the last 7 days.</p>
+    </div></div></div>
+  {% endif %}
+  {% if dashboard_shipments_enabled %}
+    <div class="col-sm-6 col-xl-3"><div class="card h-100" data-onboarding-target="shipments"><div class="card-body">
+      <p class="text-body-secondary mb-1">Active shipments</p><h3>{{ active_shipment_count }}</h3>
+      <p class="mb-0 text-body-tertiary">Draft, ready, in transit or arrived.</p>
+      <a href="{% url 'logistics_shipment_list' %}">View Shipments</a>
+      {% if not shipment_count %}<p class="mt-2 mb-0">No shipments yet. Group parcels for movement when needed.</p>{% endif %}
+    </div></div></div>
+  {% endif %}
+</div>
+{% if dashboard_parcels_enabled %}
+  <div class="row g-3 mb-4">
+    <div class="col-lg-4"><div class="card h-100" data-onboarding-target="parcels"><div class="card-body">
+      <h4>Parcels by current status</h4>
+      {% if not parcel_count %}
+        <p>No parcels yet. Add a client, then register their first parcel to start tracking.</p>
+        {% if role_access.can_manage_clients and workspace_can_modify %}<a href="{% url 'staff_client_create' %}">Add Client</a>{% endif %}
+      {% endif %}
+      <dl class="mb-0">{% for item in parcel_status_counts %}
+        <div class="d-flex justify-content-between py-2 border-bottom"><dt>{{ item.label }}</dt><dd class="mb-0">{{ item.count }}</dd></div>
+      {% endfor %}</dl>
+    </div></div></div>
+    <div class="col-lg-8"><div class="card h-100"><div class="card-body">
+      <h4>Recent tracking events</h4>
+      <ul class="list-unstyled mb-0">{% for event in recent_tracking_events %}
+        <li class="py-2 border-bottom">
+          <a href="{% url 'logistics_parcel_detail' event.parcel_id %}">{{ event.parcel.tracking_code }}</a>
+          <span>{{ event.get_status_display|default:event.get_event_type_display }}</span>
+          <span class="text-body-tertiary">{{ event.timestamp|date:"M j, Y H:i" }}</span>
+          {% if event.public_message %}<p class="mb-0">{{ event.public_message }}</p>{% endif %}
+        </li>
+      {% empty %}<li>No tracking events yet. Register a parcel to begin its history.</li>{% endfor %}</ul>
+    </div></div></div>
+  </div>
+  <div class="card mb-4"><div class="card-body">
+    <h4>Recently delivered parcels</h4><p class="text-body-tertiary">Last 7 days</p>
+    <ul class="list-unstyled mb-0">{% for event in recent_deliveries %}
+      <li class="py-2 border-bottom"><a href="{% url 'logistics_parcel_detail' event.parcel_id %}">{{ event.parcel.tracking_code }}</a>
+        · {{ event.parcel.client }} · {{ event.timestamp|date:"M j, Y H:i" }}</li>
+    {% empty %}<li>No parcels delivered in the last 7 days.</li>{% endfor %}</ul>
+  </div></div>
+{% endif %}
+{% if module_access.tracking %}
+  <p class="text-body-secondary">Customers can use <a href="{% url 'logistics_public_tracking' %}">Public Tracking</a> with the parcel's tracking code. Share the tracking link from its parcel page.</p>
+{% endif %}

@@ -60,6 +60,7 @@ from .utils import (
     SAME_WORKSPACE_EMAIL_MESSAGE,
     assign_business_subscription_plan,
     business_limit_reached,
+    business_module_required,
     business_role_required,
     business_workspace_access_required,
     can_assign_business_role,
@@ -363,17 +364,21 @@ def business_settings(request: HttpRequest) -> HttpResponse:
         "business": business,
         "membership": membership,
         "form": form,
-        "service_category_count": business.service_categories.count(),
-        "active_service_category_count": business.service_categories.filter(is_active=True).count(),
-        "business_service_count": business.business_services.count(),
-        "active_business_service_count": business.business_services.filter(is_active=True).count(),
-        **get_public_booking_share_context(request, business),
     }
+    if business.has_capability("services"):
+        context.update({
+            "service_category_count": business.service_categories.count(),
+            "active_service_category_count": business.service_categories.filter(is_active=True).count(),
+            "business_service_count": business.business_services.count(),
+            "active_business_service_count": business.business_services.filter(is_active=True).count(),
+            **get_public_booking_share_context(request, business),
+        })
     return render(request, "businesses/settings.html", context)
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
-@business_workspace_access_required()
+# Availability is part of the service vertical, including plans without public booking.
+@business_module_required("services")
 @require_http_methods(["GET", "POST"])
 def business_booking_settings(request: HttpRequest) -> HttpResponse:
     business = request.current_business
@@ -532,7 +537,7 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
-@business_workspace_access_required()
+@business_module_required("services")
 @require_http_methods(["POST"])
 def business_weekly_availability_deactivate(
     request: HttpRequest,

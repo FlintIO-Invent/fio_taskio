@@ -10,7 +10,8 @@
 <td><a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a></td>
 <td>{{ shipment.origin }} → {{ shipment.destination }}</td><td>{{ shipment.get_status_display }}</td>
 <td>{{ shipment.departure_at|default_if_none:'—' }}</td><td>{{ shipment.estimated_arrival_at|default_if_none:'—' }}</td>
-</tr>{% empty %}<tr><td colspan="5">No shipments.</td></tr>{% endfor %}
+</tr>{% empty %}<tr><td colspan="5">No shipments yet. Create a shipment to group parcels for movement.
+{% if role_access.can_manage_shipments and module_write_access.shipments %}<a href="{% url 'logistics_shipment_create' %}">Create Shipment</a>{% endif %}</td></tr>{% endfor %}
 </tbody></table>
 {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
 {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next</a>{% endif %}

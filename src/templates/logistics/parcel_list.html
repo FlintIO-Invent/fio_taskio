@@ -9,7 +9,8 @@
 <td><a href="{% url 'logistics_parcel_detail' parcel.pk %}">{{ parcel.tracking_code }}</a></td>
 <td>{{ parcel.client }}</td><td>{{ parcel.origin }} → {{ parcel.destination }}</td>
 <td>{{ parcel.get_current_status_display }}</td><td>{{ parcel.created_at }}</td>
-</tr>{% empty %}<tr><td colspan="5">No parcels registered.</td></tr>{% endfor %}
+</tr>{% empty %}<tr><td colspan="5">No parcels registered. Add a client, then register their first parcel to start tracking.
+{% if role_access.can_manage_parcels and module_write_access.parcels %}<a href="{% url 'logistics_parcel_register' %}">Register Parcel</a>{% endif %}</td></tr>{% endfor %}
 </tbody></table>
 {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
 {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next</a>{% endif %}

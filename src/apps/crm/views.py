@@ -63,6 +63,7 @@ from apps.businesses.utils import (
     membership_has_any_role,
     redirect_for_unavailable_business_module,
 )
+from apps.logistics.dashboard import get_logistics_dashboard_context
 from apps.notifications.emails import (
     send_appointment_confirmation_email,
     send_internal_booking_notification_email,
@@ -714,6 +715,25 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         current_business,
         now,
     )
+
+    if current_business.has_capability("parcels"):
+        context = {
+            "current_business": current_business,
+            "onboarding_status": onboarding_status,
+            "open_onboarding_guide": (
+                onboarding_status["visible"]
+                and bool(onboarding_status["selected_journey"])
+                and request.GET.get("setup_guide") == "1"
+            ),
+            "dashboard_today": start_of_today.date(),
+            **get_logistics_dashboard_context(
+                business=current_business,
+                actor=request.user,
+                membership=current_membership,
+                now=now,
+            ),
+        }
+        return render(request, "crm/agent_dashboard/agent_dashboard.html", context)
 
     appointments_enabled = can_view_module(current_business, "appointments")
     invoices_enabled = can_view_module(current_business, "invoicing")
