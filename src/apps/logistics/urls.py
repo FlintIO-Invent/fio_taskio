@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .public_tracking_views import public_tracking
 from .views import (
     application_checkout,
     application_create,
@@ -13,6 +14,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("track/", public_tracking, name="logistics_public_tracking"),
     path("parcels/", parcel_list, name="logistics_parcel_list"),
     path("parcels/register/", parcel_register, name="logistics_parcel_register"),
     path("parcels/<int:parcel_id>/", parcel_detail, name="logistics_parcel_detail"),
