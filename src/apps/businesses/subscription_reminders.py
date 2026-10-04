@@ -10,6 +10,7 @@ from django.db.models import Prefetch, Q
 from django.urls import reverse
 from django.utils import timezone
 
+from .billing_policy import BILLABLE_PLAN_SLUGS, billing_offering, offering_allows_interval
 from .models import (
     BusinessSubscription,
     BusinessUser,
@@ -18,7 +19,6 @@ from .models import (
 )
 from .plan_catalog import (
     PUBLIC_BILLING_INTERVALS,
-    PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
 )
 from .subscription_notifications import (
@@ -223,7 +223,7 @@ def _candidate_subscriptions(*, evaluation_time, notification_type: str | None):
             query,
             business__is_active=True,
             plan__is_active=True,
-            plan__slug__in=PUBLIC_PAID_PLAN_SLUGS,
+            plan__slug__in=BILLABLE_PLAN_SLUGS,
             payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
             billing_interval__in=PUBLIC_BILLING_INTERVALS,
             billing_currency__in=PUBLIC_PRICING_CURRENCIES,
@@ -349,6 +349,8 @@ def _trial_reminder_base_eligible(
 ) -> bool:
     if not _provider_identity_is_internally_consistent(subscription):
         return False
+    if billing_offering(subscription.plan.slug).trial_days == 0:
+        return False
     if subscription.status != BusinessSubscription.Status.TRIALING:
         return False
     if not _is_aware_datetime(subscription.trial_end):
@@ -376,8 +378,8 @@ def _provider_identity_is_internally_consistent(subscription: BusinessSubscripti
         subscription.business.is_active
         and subscription.plan.is_active
         and subscription.payment_provider == BusinessSubscription.PaymentProvider.STRIPE
-        and subscription.plan.slug in PUBLIC_PAID_PLAN_SLUGS
-        and subscription.billing_interval in PUBLIC_BILLING_INTERVALS
+        and subscription.is_stripe_billable
+        and offering_allows_interval(subscription.plan.slug, subscription.billing_interval)
         and subscription.billing_currency in PUBLIC_PRICING_CURRENCIES
         and not subscription.is_beta_plan
         and str(subscription.provider_customer_id or "").startswith("cus_")

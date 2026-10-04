@@ -31,9 +31,13 @@ def business_has_capability(business: Business | None, module_name: str) -> bool
     """Check the domain only; unknown verticals and capabilities fail closed."""
     if business is None:
         return False
+    return vertical_has_capability(business.vertical, module_name)
+
+
+def vertical_has_capability(vertical: str, module_name: str) -> bool:
     normalized_name = normalize_module_name(module_name)
     capability = MODULE_CAPABILITY_ALIASES.get(normalized_name, normalized_name)
-    return capability in VERTICAL_CAPABILITIES.get(business.vertical, frozenset())
+    return capability in VERTICAL_CAPABILITIES.get(vertical, frozenset())
 
 
 def plan_module_name(module_name: str) -> str:

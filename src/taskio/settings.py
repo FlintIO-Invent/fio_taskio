@@ -18,9 +18,8 @@ try:
 except ImportError:
     from config import settings
 
+from apps.businesses.billing_policy import BILLING_OFFERINGS
 from apps.businesses.plan_catalog import (
-    PUBLIC_BILLING_INTERVALS,
-    PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
 )
 
@@ -203,8 +202,8 @@ STRIPE_PRICE_ID_MAP = {
         settings,
         f"stripe_price_{plan_slug}_{billing_interval}_{currency}",
     )
-    for plan_slug in PUBLIC_PAID_PLAN_SLUGS
-    for billing_interval in PUBLIC_BILLING_INTERVALS
+    for plan_slug, offering in BILLING_OFFERINGS.items()
+    for billing_interval in offering.intervals
     for currency in PUBLIC_PRICING_CURRENCIES
 }
 

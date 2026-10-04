@@ -19,6 +19,7 @@ from django.utils.text import slugify
 
 from helpers import build_public_url
 
+from .billing_policy import plan_matches_business
 from .capabilities import plan_module_name
 from .models import (
     Business,
@@ -855,6 +856,11 @@ def create_default_trial_subscription(
     if existing_subscription is not None:
         return existing_subscription
 
+    if business.vertical != Business.Vertical.SERVICE:
+        return None
+    if plan is not None and not plan_matches_business(business, plan):
+        raise ValueError("Plan family does not match this workspace.")
+
     if plan is not None and (not plan.is_active or not is_public_paid_plan_slug(plan.slug)):
         plan = None
 
@@ -928,6 +934,10 @@ def assign_business_subscription_plan(
     *,
     trial_days: int = STANDARD_TRIAL_DAYS,
 ) -> BusinessSubscription:
+    if not plan_matches_business(business, plan):
+        raise ValueError("Plan family does not match this workspace.")
+    if plan.family == ClarivoPlan.Family.LOGISTICS:
+        raise ValueError("Logistics subscriptions require paid Checkout provisioning.")
     subscription = get_business_subscription(business)
     now = timezone.now()
 

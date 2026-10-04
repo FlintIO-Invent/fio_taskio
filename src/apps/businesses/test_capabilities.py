@@ -87,6 +87,12 @@ class VerticalAccessTests(TestCase):
     def logistics(self):
         self.business.vertical = Business.Vertical.LOGISTICS
         self.business.save(update_fields=["vertical", "updated_at"])
+        self.plan = ClarivoPlan.objects.get(slug="logistics")
+        self.plan.is_active = True
+        self.plan.save(update_fields=["is_active"])
+        self.subscription.plan = self.plan
+        self.subscription.billing_interval = BusinessSubscription.BillingInterval.YEARLY
+        self.subscription.save()
 
     def test_persisted_creation_defaults_and_industry_remain_compatible(self):
         self.business.refresh_from_db()
@@ -145,6 +151,8 @@ class VerticalAccessTests(TestCase):
 
     def test_logistics_domain_capabilities_do_not_bypass_plan_entitlements(self):
         self.logistics()
+        self.plan = ClarivoPlan.objects.get(slug="pro")
+        self.subscription.plan = self.plan
         for module in ("parcels", "tracking", "shipments", "manifests"):
             with self.subTest(module=module):
                 self.assertTrue(self.business.has_capability(module))
@@ -189,7 +197,7 @@ class VerticalAccessTests(TestCase):
         now = timezone.now()
         self.subscription.status = BusinessSubscription.Status.PAST_DUE
         self.subscription.payment_provider = BusinessSubscription.PaymentProvider.STRIPE
-        self.subscription.billing_interval = BusinessSubscription.BillingInterval.MONTHLY
+        self.subscription.billing_interval = BusinessSubscription.BillingInterval.YEARLY
         self.subscription.billing_currency = BusinessSubscription.BillingCurrency.USD
         self.subscription.provider_customer_id = "cus_vertical_test"
         self.subscription.provider_subscription_id = "sub_vertical_test"

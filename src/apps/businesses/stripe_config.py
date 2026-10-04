@@ -8,12 +8,12 @@ import stripe
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
+from .billing_policy import BILLABLE_PLAN_SLUGS, billing_offering, offering_allows_interval
 from .plan_catalog import (
     PUBLIC_BILLING_INTERVALS,
     PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
     normalize_plan_slug,
-    normalize_public_paid_plan_slug,
 )
 
 StripeMode = Literal["disabled", "test", "live"]
@@ -160,21 +160,20 @@ def _normalize_price_dimensions(
     if normalized_plan == _BETA_PLAN_SLUG:
         raise StripeConfigurationError("Beta is not a public Stripe subscription plan.")
 
-    public_plan = normalize_public_paid_plan_slug(normalized_plan)
-    if public_plan is None:
+    if billing_offering(normalized_plan) is None:
         raise StripeConfigurationError(
             "Unsupported Motionmate public plan for Stripe Price mapping."
         )
 
     normalized_interval = _normalize_interval(billing_interval)
-    if normalized_interval not in PUBLIC_BILLING_INTERVALS:
+    if not offering_allows_interval(normalized_plan, normalized_interval):
         raise StripeConfigurationError("Unsupported Stripe billing interval.")
 
     normalized_currency = _normalize_currency(currency)
     if normalized_currency not in PUBLIC_PRICING_CURRENCIES:
         raise StripeConfigurationError("Unsupported Stripe Price currency.")
 
-    return public_plan, normalized_interval, normalized_currency
+    return normalized_plan, normalized_interval, normalized_currency
 
 
 def _configured_price_lookup() -> dict[StripePriceKey, str]:
@@ -313,7 +312,7 @@ def _validate_price_mapping(*, require_all_supported: bool) -> list[StripeConfig
                 )
             )
             key_is_supported = False
-        elif normalized_plan not in PUBLIC_PAID_PLAN_SLUGS:
+        elif normalized_plan not in BILLABLE_PLAN_SLUGS:
             issues.append(
                 StripeConfigurationIssue(
                     STRIPE_CHECK_UNKNOWN_PLAN,
@@ -322,7 +321,10 @@ def _validate_price_mapping(*, require_all_supported: bool) -> list[StripeConfig
             )
             key_is_supported = False
 
-        if normalized_interval not in PUBLIC_BILLING_INTERVALS:
+        if normalized_interval not in PUBLIC_BILLING_INTERVALS or (
+            normalized_plan in BILLABLE_PLAN_SLUGS
+            and not offering_allows_interval(normalized_plan, normalized_interval)
+        ):
             issues.append(
                 StripeConfigurationIssue(
                     STRIPE_CHECK_UNSUPPORTED_INTERVAL,

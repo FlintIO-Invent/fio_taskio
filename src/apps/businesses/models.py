@@ -12,10 +12,14 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from .capabilities import business_has_capability, plan_module_name
+from .billing_policy import (
+    is_stripe_billable_plan,
+    offering_allows_interval,
+    plan_matches_business,
+)
+from .capabilities import business_has_capability, plan_module_name, vertical_has_capability
 from .localization import format_business_address_lines, uses_europe_pricing_region
 from .plan_catalog import (
-    PUBLIC_BILLING_INTERVALS,
     PUBLIC_PAID_PLAN_ORDERING,
     PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
@@ -406,6 +410,10 @@ class WeeklyAvailability(TimeStampedModel):
 
 
 class ClarivoPlan(TimeStampedModel):
+    class Family(models.TextChoices):
+        SERVICE = "SERVICE", "Service"
+        LOGISTICS = "LOGISTICS", "Logistics"
+
     MOTIONMATE_PLAN_SLUGS = PUBLIC_PAID_PLAN_SLUGS
     USD_PRICING_REGION = "usd"
     EUR_PRICING_REGION = "eur"
@@ -435,6 +443,7 @@ class ClarivoPlan(TimeStampedModel):
     }
 
     name = models.CharField(max_length=120)
+    family = models.CharField(max_length=20, choices=Family.choices, default=Family.SERVICE)
     slug = models.SlugField(max_length=150, unique=True)
     description = models.TextField(blank=True)
     price_monthly = models.DecimalField(
@@ -485,6 +494,7 @@ class ClarivoPlan(TimeStampedModel):
         return cls.objects.filter(
             is_active=True,
             slug__in=PUBLIC_PAID_PLAN_SLUGS,
+            family=cls.Family.SERVICE,
         ).order_by(cls.motionmate_plan_ordering(), "pk")
 
     @classmethod
@@ -608,6 +618,10 @@ class ClarivoPlan(TimeStampedModel):
 
     def allows_module(self, module_name: str) -> bool:
         normalized_name = module_name.strip().lower().replace("-", "_")
+        if self.family == self.Family.LOGISTICS:
+            if not vertical_has_capability(self.family, normalized_name):
+                return False
+            return self.allow_invoicing if normalized_name == "invoicing" else True
         if normalized_name in self.CORE_MODULES:
             return True
 
@@ -651,6 +665,7 @@ class BusinessSubscription(TimeStampedModel):
     }
 
     class AccessCode:
+        INCOMPATIBLE_OFFERING = "incompatible_offering"
         BUSINESS_INACTIVE = "business_inactive"
         PLAN_INACTIVE = "plan_inactive"
         PENDING_CHECKOUT = "pending_checkout"
@@ -803,6 +818,14 @@ class BusinessSubscription(TimeStampedModel):
     def effective_access_state_at(self, at_time) -> SubscriptionAccessState:
         at_time = self._normalize_evaluation_time(at_time)
 
+        if not self._offering_is_compatible():
+            return self._access_state(
+                self.AccessCode.INCOMPATIBLE_OFFERING,
+                has_access=False,
+                billing_attention_required=True,
+                should_contact_support=True,
+            )
+
         if not self.business.is_active:
             return self._access_state(
                 self.AccessCode.BUSINESS_INACTIVE,
@@ -901,14 +924,46 @@ class BusinessSubscription(TimeStampedModel):
 
     @property
     def is_public_paid_plan(self) -> bool:
-        return self.plan.slug in PUBLIC_PAID_PLAN_SLUGS
+        return (
+            self.plan.family == ClarivoPlan.Family.SERVICE
+            and self.plan.slug in PUBLIC_PAID_PLAN_SLUGS
+        )
+
+    @property
+    def is_stripe_billable(self) -> bool:
+        return is_stripe_billable_plan(self.plan) and self._offering_is_compatible()
+
+    def _offering_is_compatible(self) -> bool:
+        if not plan_matches_business(self.business, self.plan):
+            return False
+        if self.plan.family == ClarivoPlan.Family.LOGISTICS:
+            return (
+                is_stripe_billable_plan(self.plan)
+                and offering_allows_interval(self.plan.slug, self.billing_interval)
+                and self.status != self.Status.TRIALING
+                and self.trial_start is None
+                and self.trial_end is None
+            )
+        return True
+
+    def clean(self):
+        super().clean()
+        if self.business_id and self.plan_id and not self._offering_is_compatible():
+            raise ValidationError(
+                "Subscription offering is incompatible with this workspace or billing interval."
+            )
+
+    def save(self, *args, **kwargs):
+        # Validate only the new offering boundary; do not change SERVICE field validation.
+        self.clean()
+        return super().save(*args, **kwargs)
 
     def _has_recoverable_stripe_identity(self) -> bool:
         return (
             self.is_provider_backed
-            and self.is_public_paid_plan
+            and self.is_stripe_billable
             and not self.is_beta_plan
-            and self.billing_interval in PUBLIC_BILLING_INTERVALS
+            and offering_allows_interval(self.plan.slug, self.billing_interval)
             and self.billing_currency in PUBLIC_PRICING_CURRENCIES
             and self.provider_customer_id.startswith("cus_")
             and self.provider_subscription_id.startswith("sub_")
@@ -1025,7 +1080,7 @@ class BusinessSubscription(TimeStampedModel):
                 has_access=False,
                 billing_attention_required=True,
                 should_contact_support=True,
-                payment_recovery_available=True,
+                payment_recovery_available=self.is_public_paid_plan,
             )
 
         if at_time < self.grace_period_ends_at:
@@ -1034,7 +1089,7 @@ class BusinessSubscription(TimeStampedModel):
                 has_access=True,
                 billing_attention_required=True,
                 access_ends_at=self.grace_period_ends_at,
-                payment_recovery_available=True,
+                payment_recovery_available=self.is_public_paid_plan,
             )
 
         return self._access_state(
@@ -1043,7 +1098,7 @@ class BusinessSubscription(TimeStampedModel):
             access_mode=SubscriptionAccessMode.RESTRICTED,
             billing_attention_required=True,
             access_ends_at=self.grace_period_ends_at,
-            payment_recovery_available=True,
+            payment_recovery_available=self.is_public_paid_plan,
         )
 
     def _scheduled_access_end_at(self):

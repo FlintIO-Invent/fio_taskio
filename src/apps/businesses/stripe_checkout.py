@@ -9,12 +9,18 @@ from django.utils import timezone
 
 from apps.accounts.models import TaskIOUser
 
+from .billing_policy import (
+    billing_offering,
+    is_stripe_billable_plan,
+    offering_allows_interval,
+    plan_matches_business,
+)
 from .models import Business, BusinessSubscription, ClarivoPlan
 from .plan_catalog import (
     PUBLIC_PRICING_CURRENCIES,
     STANDARD_TRIAL_DAYS,
+    normalize_plan_slug,
     normalize_public_billing_interval,
-    normalize_public_paid_plan_slug,
 )
 from .stripe_config import (
     StripeConfigurationError,
@@ -42,6 +48,7 @@ def ensure_pending_checkout_subscription(
     _require_active_business_for_checkout(business)
     _require_stripe_checkout_ready()
     plan_slug, normalized_interval, normalized_currency = _validated_checkout_dimensions(
+        business=business,
         plan=plan,
         billing_interval=billing_interval,
         currency=currency,
@@ -124,6 +131,13 @@ def resume_trial_checkout_session(
     if subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT:
         raise StripeCheckoutError("This workspace subscription is not pending checkout.")
 
+    _validated_checkout_dimensions(
+        business=subscription.business,
+        plan=subscription.plan,
+        billing_interval=subscription.billing_interval,
+        currency=subscription.billing_currency,
+    )
+
     _require_stripe_checkout_ready()
     stripe_client = configure_stripe_sdk()
     existing_session_id = subscription.provider_checkout_session_id
@@ -170,6 +184,7 @@ def _create_checkout_session(
 
     plan = subscription.plan
     plan_slug, billing_interval, currency = _validated_checkout_dimensions(
+        business=subscription.business,
         plan=plan,
         billing_interval=subscription.billing_interval,
         currency=subscription.billing_currency,
@@ -191,6 +206,7 @@ def _create_checkout_session(
         stripe_client=stripe_client,
         customer_email=user.email,
         price_id=price_id,
+        trial_days=billing_offering(plan_slug).trial_days,
         success_url=(
             f"{request.build_absolute_uri(reverse('billing_checkout_success'))}"
             "?session_id={CHECKOUT_SESSION_ID}"
@@ -235,20 +251,25 @@ def _require_active_business_for_checkout(business: Business) -> None:
 
 def _validated_checkout_dimensions(
     *,
+    business: Business,
     plan: ClarivoPlan | None,
     billing_interval: object,
     currency: object,
 ) -> tuple[str, str, str]:
     if plan is None or not plan.is_active:
-        raise StripeCheckoutError("Select an active public Motionmate plan before checkout.")
+        raise StripeCheckoutError("Select an active Motionmate billing plan before checkout.")
 
-    plan_slug = normalize_public_paid_plan_slug(plan.slug)
-    if plan_slug is None:
-        raise StripeCheckoutError("Only public Motionmate plans can use Stripe Checkout.")
+    if not is_stripe_billable_plan(plan):
+        raise StripeCheckoutError("This plan cannot use Stripe Checkout.")
+    if not plan_matches_business(business, plan):
+        raise StripeCheckoutError("Plan family does not match this workspace.")
+    plan_slug = normalize_plan_slug(plan.slug)
 
     normalized_interval = normalize_public_billing_interval(billing_interval)
     if normalized_interval is None:
         raise StripeCheckoutError("Select monthly or yearly billing before checkout.")
+    if not offering_allows_interval(plan_slug, normalized_interval):
+        raise StripeCheckoutError("This offering only supports yearly billing.")
 
     normalized_currency = str(currency or "").strip().lower()
     if normalized_currency not in PUBLIC_PRICING_CURRENCIES:
@@ -267,15 +288,16 @@ def _stripe_create_checkout_session(
     client_reference_id: str,
     metadata: dict[str, str],
     idempotency_key: str,
+    trial_days: int = STANDARD_TRIAL_DAYS,
 ) -> Any:
+    subscription_data = {"metadata": metadata}
+    if trial_days:
+        subscription_data["trial_period_days"] = trial_days
     try:
         return stripe_client.checkout.Session.create(
             mode="subscription",
             line_items=[{"price": price_id, "quantity": 1}],
-            subscription_data={
-                "trial_period_days": STANDARD_TRIAL_DAYS,
-                "metadata": metadata,
-            },
+            subscription_data=subscription_data,
             payment_method_collection="always",
             payment_method_types=["card"],
             customer_email=customer_email,

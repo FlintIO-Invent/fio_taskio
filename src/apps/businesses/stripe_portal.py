@@ -57,6 +57,9 @@ def get_customer_portal_availability(
     if subscription.business_id != business.pk:
         return CustomerPortalAvailability(False, "subscription_business_mismatch")
 
+    if business.vertical == Business.Vertical.LOGISTICS or subscription.plan.family == "LOGISTICS":
+        return CustomerPortalAvailability(False, "logistics_portal_disabled")
+
     if not business.is_active:
         return CustomerPortalAvailability(False, BusinessSubscription.AccessCode.BUSINESS_INACTIVE)
 
@@ -119,6 +122,9 @@ def get_payment_recovery_portal_availability(
 
     if subscription.business_id != business.pk:
         return CustomerPortalAvailability(False, "subscription_business_mismatch")
+
+    if business.vertical == Business.Vertical.LOGISTICS or subscription.plan.family == "LOGISTICS":
+        return CustomerPortalAvailability(False, "logistics_portal_disabled")
 
     if not _user_is_business_owner(business=business, user=user):
         return CustomerPortalAvailability(False, "owner_required")

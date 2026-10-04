@@ -222,6 +222,8 @@ class Settings(BaseSettings):
     stripe_price_business_yearly_usd: str = Field(default="")
     stripe_price_business_monthly_eur: str = Field(default="")
     stripe_price_business_yearly_eur: str = Field(default="")
+    stripe_price_logistics_yearly_usd: str = Field(default="")
+    stripe_price_logistics_yearly_eur: str = Field(default="")
     log_level: str = Field(
         default="INFO",
         description="Application log level.",
@@ -305,6 +307,8 @@ class Settings(BaseSettings):
         "stripe_price_business_yearly_usd",
         "stripe_price_business_monthly_eur",
         "stripe_price_business_yearly_eur",
+        "stripe_price_logistics_yearly_usd",
+        "stripe_price_logistics_yearly_eur",
         mode="before",
     )
     @classmethod

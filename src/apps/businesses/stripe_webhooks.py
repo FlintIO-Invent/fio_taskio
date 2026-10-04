@@ -9,8 +9,8 @@ from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.utils import timezone
 
+from .billing_policy import billing_offering, is_stripe_billable_plan, plan_matches_business
 from .models import BillingProviderWebhookEvent, BusinessSubscription, SubscriptionNotification
-from .plan_catalog import normalize_public_paid_plan_slug
 from .stripe_config import (
     StripeConfigurationError,
     StripePriceMetadata,
@@ -403,6 +403,13 @@ def _sync_subscription_object(
         price_metadata = _validated_subscription_price_metadata(provider_subscription)
         local_status = _local_status_for_provider_subscription(provider_subscription)
         date_values = _subscription_date_values(provider_subscription)
+        offering = billing_offering(local_subscription.plan.slug)
+        if offering.trial_days == 0 and (
+            local_status == BusinessSubscription.Status.TRIALING
+            or date_values.get("trial_start") is not None
+            or date_values.get("trial_end") is not None
+        ):
+            raise StripeWebhookProcessingError("This offering does not support trials.")
         _validate_price_matches_local_subscription(
             local_subscription=local_subscription,
             price_metadata=price_metadata,
@@ -505,8 +512,12 @@ def _locked_local_subscription(
 def _validate_public_local_subscription(local_subscription: BusinessSubscription) -> None:
     if local_subscription.plan is None or not local_subscription.plan.is_active:
         raise StripeWebhookProcessingError("Local subscription plan is not active.")
-    if normalize_public_paid_plan_slug(local_subscription.plan.slug) is None:
+    if not is_stripe_billable_plan(local_subscription.plan):
         raise StripeWebhookIgnored("Local subscription is not a public paid Stripe plan.")
+    if not plan_matches_business(local_subscription.business, local_subscription.plan):
+        raise StripeWebhookProcessingError(
+            "Local subscription plan family does not match the workspace."
+        )
     if local_subscription.payment_provider not in (
         "",
         BusinessSubscription.PaymentProvider.STRIPE,

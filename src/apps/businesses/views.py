@@ -23,6 +23,7 @@ from .forms import (
     WeeklyAvailabilityForm,
 )
 from .models import (
+    Business,
     BusinessBookingSettings,
     BusinessInvitation,
     BusinessSubscription,
@@ -548,6 +549,8 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
     membership = request.current_business_membership
     subscription = get_business_subscription(business)
     available_plan_queryset = ClarivoPlan.motionmate_plans()
+    if business.vertical != Business.Vertical.SERVICE:
+        available_plan_queryset = available_plan_queryset.none()
     available_plans = list(available_plan_queryset)
     ClarivoPlan.attach_display_pricing(available_plans, business=business)
     pending_plan_change = None
