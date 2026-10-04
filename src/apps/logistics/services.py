@@ -108,6 +108,8 @@ def _record_decision(application, *, result=None, actor=None, override_reason=""
         actor_identifier=actor.pk if actor else None,
         override_reason=override_reason,
     )
+    # A new decision requires fresh authorization even when it approves the same revision.
+    application.enrollment_tokens.filter(revoked_at__isnull=True).update(revoked_at=evaluated_at)
     LogisticsApplication.objects.filter(pk=application.pk).update(
         status=result,
         decision_result=result,

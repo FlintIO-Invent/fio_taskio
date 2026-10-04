@@ -3,10 +3,10 @@
 The public page is `/logistics/apply/`. A valid submission creates only a
 `LogisticsApplication` and an immutable decision record. All outcomes receive the
 same `/logistics/apply/received/` response; existing-user/business matches and
-decision reasons stay internal. There is no conversion, subscription or Stripe call.
+decision reasons stay internal. Submission performs no conversion, subscription or Stripe call.
 
 Application statuses are SUBMITTED, APPROVED, UNDER_REVIEW, DECLINED and WITHDRAWN.
-No payment or enrollment state is stored. `LogisticsApplicationDecision` records
+Decisions do not encode payment/enrollment state. `LogisticsApplicationDecision` records
 each evaluation/manual decision, its application revision, result and deterministic
 recommendation, ordered reason codes, time, rule/config snapshot, relevant operational
 inputs, relationship flags, and reviewer/reason for overrides. Reviewer IDs are also
@@ -18,7 +18,7 @@ changes without reevaluation. `approved_revision` is set only by the new decisio
 reviewing a stale revision fails. Decision/status fields are read-only in forms and
 cannot be assigned through ordinary model saves. Do not use bulk updates/raw SQL to
 edit application inputs or audit history; future enrollment must revalidate the
-stored approved revision and current eligibility. No enrollment is implemented here.
+stored approved revision. Block 4 enrollment is documented in [LOGISTICS_ENROLLMENT.md](LOGISTICS_ENROLLMENT.md).
 
 ## Pilot eligibility configuration
 
@@ -63,12 +63,11 @@ None of these actions provisions
 an account, starts billing or sends applicant notifications.
 
 `inspect_logistics_application --application-id <uuid>` provides a read-only inventory
-without contact details. Applications have no Business/User ownership/provisioning
-link. Matching an email/name is only an eligibility signal and never a purge selector.
+without contact details. Converted applications now have explicit protected Business/User
+links; unconverted applications have none. Matching an email/name is only an eligibility signal and never a purge selector.
 Application deletion is blocked by decision PROTECT; Admin deletion is disabled.
-Existing tenant inventory/purge, user and demo behavior is unchanged. Any future
-business linkage must be nullable initially, explicitly registered in tenant inventory,
-and covered by a deliberate retention/deletion policy before conversion is enabled.
+The nullable conversion link is registered in tenant inventory and protects converted
+businesses from purge. Existing SERVICE tenant and demo behavior is unchanged.
 
-Block 4 still needs approved-revision enrollment, identity reconciliation, explicit
-pilot territories, commercial activation and any applicant notification policy.
+Block 5 still needs checkout and commercial activation. Explicit pilot territories
+and any automated applicant notification policy remain configuration/product decisions.

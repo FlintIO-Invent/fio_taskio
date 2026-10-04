@@ -238,6 +238,15 @@ class BusinessDataInventory:
 
 DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
     InventoryRegistration(
+        "logistics_application",
+        "logistics.LogisticsApplication",
+        "business",
+        "Business.logistics_application",
+        InventoryClassification.PROTECT_BLOCKER,
+        False,
+        False,
+    ),
+    InventoryRegistration(
         "demo_seed_runs",
         "businesses.DemoSeedRun",
         "business",

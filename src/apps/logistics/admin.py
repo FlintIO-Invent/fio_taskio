@@ -3,9 +3,12 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 
+from .enrollment import issue_enrollment_link, revoke_enrollment_links
 from .forms import ApplicationReviewForm
-from .models import LogisticsApplication, LogisticsApplicationDecision
+from .models import LogisticsApplication, LogisticsApplicationDecision, LogisticsEnrollmentToken
 from .services import reevaluate_application, review_application
 
 
@@ -36,6 +39,19 @@ class DecisionHistoryInline(admin.TabularInline):
         return request.user.has_perm("logistics.change_logisticsapplication")
 
 
+class EnrollmentHistoryInline(DecisionHistoryInline):
+    model = LogisticsEnrollmentToken
+    fields = (
+        "application_revision",
+        "created_at",
+        "expires_at",
+        "used_at",
+        "revoked_at",
+        "issued_by",
+    )
+    readonly_fields = fields
+
+
 @admin.register(LogisticsApplication)
 class LogisticsApplicationAdmin(admin.ModelAdmin):
     list_display = (
@@ -54,8 +70,12 @@ class LogisticsApplicationAdmin(admin.ModelAdmin):
         "normalized_registration_number",
         "created_at",
         "updated_at",
+        "business",
+        "enrolled_user",
+        "converted_at",
+        "converted_revision",
     )
-    inlines = (DecisionHistoryInline,)
+    inlines = (DecisionHistoryInline, EnrollmentHistoryInline)
     change_form_template = "admin/logistics/application_change_form.html"
 
     def has_delete_permission(self, request, obj=None):
@@ -70,11 +90,53 @@ class LogisticsApplicationAdmin(admin.ModelAdmin):
     def get_urls(self):
         return [
             path(
+                "<uuid:application_id>/enrollment/",
+                self.admin_site.admin_view(self.enrollment_view),
+                name="logistics_logisticsapplication_enrollment",
+            ),
+            path(
                 "<uuid:application_id>/review/",
                 self.admin_site.admin_view(self.review_view),
                 name="logistics_logisticsapplication_review",
-            )
+            ),
         ] + super().get_urls()
+
+    @method_decorator(never_cache)
+    def enrollment_view(self, request, application_id):
+        application = get_object_or_404(LogisticsApplication, pk=application_id)
+        if not self.has_change_permission(request, application):
+            raise PermissionDenied
+        link = error = None
+        if request.method == "POST":
+            try:
+                if request.POST.get("action") == "revoke":
+                    revoke_enrollment_links(application.pk, actor=request.user)
+                    self.message_user(request, "Enrollment links revoked.", messages.SUCCESS)
+                else:
+                    secret = issue_enrollment_link(
+                        application.pk,
+                        actor=request.user,
+                        expected_revision=int(request.POST.get("revision", "0")),
+                    )
+                    link = request.build_absolute_uri(
+                        reverse("logistics_application_enroll", args=[secret])
+                    )
+            except (ValidationError, ValueError) as exc:
+                error = str(exc)
+        response = TemplateResponse(
+            request,
+            "admin/logistics/application_enrollment.html",
+            {
+                **self.admin_site.each_context(request),
+                "opts": self.model._meta,
+                "title": "Logistics enrollment authorization",
+                "application": application,
+                "enrollment_link": link,
+                "error": error,
+            },
+        )
+        response["Referrer-Policy"] = "no-referrer"
+        return response
 
     def review_view(self, request, application_id):
         application = get_object_or_404(LogisticsApplication, pk=application_id)

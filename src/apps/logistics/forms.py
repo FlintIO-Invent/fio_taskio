@@ -50,3 +50,39 @@ class ApplicationReviewForm(forms.Form):
         ):
             self.add_error("reason", "Explain the manual decision.")
         return cleaned
+
+
+class EnrollmentForm(forms.Form):
+    """Only security inputs; approved business/contact fields are never resubmitted."""
+
+    password1 = forms.CharField(label="Password", widget=forms.PasswordInput)
+    password2 = forms.CharField(label="Confirm password", widget=forms.PasswordInput)
+
+    def __init__(self, *args, application, request, **kwargs):
+        from django.contrib.auth import get_user_model
+
+        super().__init__(*args, **kwargs)
+        self.application = application
+        self.request = request
+        self.authenticated_user = None
+        self.existing = get_user_model().objects.filter(email__iexact=application.email).first()
+        if self.existing and request.user.is_authenticated and request.user.pk == self.existing.pk:
+            self.fields.clear()
+            self.authenticated_user = request.user
+        elif self.existing:
+            self.fields.pop("password2")
+            self.fields["password1"].label = "Existing account password"
+
+    def clean(self):
+        from django.contrib.auth import authenticate
+
+        cleaned = super().clean()
+        if self.existing and self.authenticated_user is None:
+            self.authenticated_user = authenticate(
+                self.request, email=self.existing.email, password=cleaned.get("password1")
+            )
+            if self.authenticated_user is None:
+                raise forms.ValidationError("Unable to verify this account. Check your password.")
+        elif not self.existing and cleaned.get("password1") != cleaned.get("password2"):
+            self.add_error("password2", "Passwords do not match.")
+        return cleaned

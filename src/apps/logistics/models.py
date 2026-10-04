@@ -76,6 +76,7 @@ class LogisticsApplication(models.Model):
         "rule_version",
         "threshold_snapshot",
     )
+    CONVERSION_FIELDS = ("business_id", "enrolled_user_id", "converted_at", "converted_revision")
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     business_name = models.CharField("Legal / business name", max_length=120)
     trading_name = models.CharField(max_length=120, blank=True)
@@ -145,9 +146,46 @@ class LogisticsApplication(models.Model):
     threshold_snapshot = models.JSONField(default=dict, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    business = models.OneToOneField(
+        "businesses.Business",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="logistics_application",
+        editable=False,
+    )
+    enrolled_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="logistics_applications",
+        editable=False,
+    )
+    converted_at = models.DateTimeField(null=True, blank=True, editable=False)
+    converted_revision = models.PositiveIntegerField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        business__isnull=True,
+                        enrolled_user__isnull=True,
+                        converted_at__isnull=True,
+                        converted_revision__isnull=True,
+                    )
+                    | models.Q(
+                        business__isnull=False,
+                        enrolled_user__isnull=False,
+                        converted_at__isnull=False,
+                        converted_revision__isnull=False,
+                    )
+                ),
+                name="logistics_conversion_complete_or_absent",
+            )
+        ]
 
     def __str__(self):
         return self.business_name
@@ -201,6 +239,9 @@ class LogisticsApplication(models.Model):
                     raise ValidationError(
                         "Decision fields must be changed through the Logistics review workflow."
                     )
+            for name in self.CONVERSION_FIELDS:
+                if getattr(self, name) != (getattr(previous, name) if previous else None):
+                    raise ValidationError("Conversion fields must be changed through enrollment.")
             if previous is not None and update_fields is not None:
                 for name in self.MATERIAL_FIELDS:
                     if name not in update_fields:
@@ -275,3 +316,26 @@ class LogisticsApplicationDecision(models.Model):
         if not self._state.adding:
             raise ValidationError("Application decision history is immutable.")
         return super().save(*args, **kwargs)
+
+
+class LogisticsEnrollmentToken(models.Model):
+    """Only a digest is persisted; the bearer secret is returned once at issuance."""
+
+    application = models.ForeignKey(
+        LogisticsApplication, on_delete=models.CASCADE, related_name="enrollment_tokens"
+    )
+    token_digest = models.CharField(max_length=64, unique=True, editable=False)
+    application_revision = models.PositiveIntegerField(editable=False)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="issued_logistics_enrollments",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]

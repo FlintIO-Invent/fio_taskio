@@ -117,6 +117,11 @@ class BusinessPurgePlan:
             blockers.append("cross_tenant_integrity_blockers")
         if self.has_inventory_registry_blocker:
             blockers.append("inventory_registry_incomplete")
+        if any(
+            record.key == "logistics_application" and record.total_count
+            for record in self.inventory.records
+        ):
+            blockers.append("logistics_conversion_protected")
         if self.has_stripe_references:
             blockers.append("stripe_references_present")
         if self.invoice_confirmation_required:
@@ -286,6 +291,9 @@ def _enforce_purge_safety(plan: BusinessPurgePlan) -> None:
         ),
         "inventory_registry_incomplete": (
             "The tenant-data inventory registry is incomplete; purge is not safe."
+        ),
+        "logistics_conversion_protected": (
+            "A retained Logistics application conversion protects this business from purge."
         ),
         "stripe_references_present": (
             "Stripe customer, subscription, checkout, or webhook references block purge."

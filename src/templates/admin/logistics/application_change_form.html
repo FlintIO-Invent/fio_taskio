@@ -3,6 +3,7 @@
 {% block object-tools-items %}
   {% if original and has_change_permission %}
     <li><a href="{% url 'admin:logistics_logisticsapplication_review' original.pk %}">Review decision</a></li>
+    <li><a href="{% url 'admin:logistics_logisticsapplication_enrollment' original.pk %}">Enrollment link</a></li>
   {% endif %}
   {{ block.super }}
 {% endblock %}

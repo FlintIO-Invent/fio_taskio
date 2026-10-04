@@ -595,12 +595,14 @@ class PublicAndAdminTests(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'name="business_name"')
-        formset = response.context["inline_admin_formsets"][0].formset
-        post_data = {field.html_name: field.value() for field in formset.management_form}
-        for inline_form in formset.initial_forms:
-            post_data.update(
-                {field.html_name: field.value() for field in inline_form.hidden_fields()}
-            )
+        post_data = {}
+        for inline in response.context["inline_admin_formsets"]:
+            formset = inline.formset
+            post_data.update({field.html_name: field.value() for field in formset.management_form})
+            for inline_form in formset.initial_forms:
+                post_data.update(
+                    {field.html_name: field.value() for field in inline_form.hidden_fields()}
+                )
         post_data.update({"business_name": "Injected new name", "_save": "Save"})
         response = self.client.post(url, post_data)
         self.assertEqual(response.status_code, 302)
