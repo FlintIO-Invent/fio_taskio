@@ -344,9 +344,10 @@ def execute_service_import(
         # Lock order is stable for concurrent Service imports: Business,
         # membership, ImportJob, then matching Services and Categories.
         locked_business = Business.objects.select_for_update().get(pk=business.pk)
-        if not locked_business.is_active or not _locked_membership_allows_import(
-            business=locked_business,
-            actor=actor,
+        if (
+            not locked_business.is_active
+            or not locked_business.has_capability("services")
+            or not _locked_membership_allows_import(business=locked_business, actor=actor)
         ):
             raise PermissionDenied("Service import access denied.")
 

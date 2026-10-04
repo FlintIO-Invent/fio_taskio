@@ -12,6 +12,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
+from .capabilities import business_has_capability, plan_module_name
 from .localization import format_business_address_lines, uses_europe_pricing_region
 from .plan_catalog import (
     PUBLIC_BILLING_INTERVALS,
@@ -64,6 +65,10 @@ class SubscriptionAccessState:
 
 
 class Business(TimeStampedModel):
+    class Vertical(models.TextChoices):
+        SERVICE = "SERVICE", "Service"
+        LOGISTICS = "LOGISTICS", "Logistics"
+
     class Currency(models.TextChoices):
         USD = "USD", "US Dollar (USD)"
         XCD = "XCD", "East Caribbean Dollar (XCD)"
@@ -73,6 +78,11 @@ class Business(TimeStampedModel):
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=150, unique=True)
     business_type = models.CharField(max_length=120, blank=True, default="")
+    vertical = models.CharField(
+        max_length=20,
+        choices=Vertical.choices,
+        default=Vertical.SERVICE,
+    )
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
     address_line_1 = models.CharField(max_length=255, blank=True, default="")
@@ -136,6 +146,9 @@ class Business(TimeStampedModel):
         except BusinessSubscription.DoesNotExist:
             return False
         return subscription.is_trialing
+
+    def has_capability(self, module_name: str) -> bool:
+        return business_has_capability(self, module_name)
 
     def can_use_module(self, module_name: str) -> bool:
         try:
@@ -862,16 +875,21 @@ class BusinessSubscription(TimeStampedModel):
         return self.can_modify_module_at(module_name, at_time)
 
     def can_view_module(self, module_name: str) -> bool:
-        return self.can_view_workspace and self.plan.allows_module(module_name)
+        return self._allows_module(module_name) and self.can_view_workspace
 
     def can_view_module_at(self, module_name: str, at_time) -> bool:
-        return self.can_view_workspace_at(at_time) and self.plan.allows_module(module_name)
+        return self._allows_module(module_name) and self.can_view_workspace_at(at_time)
 
     def can_modify_module(self, module_name: str) -> bool:
-        return self.can_modify_workspace and self.plan.allows_module(module_name)
+        return self._allows_module(module_name) and self.can_modify_workspace
 
     def can_modify_module_at(self, module_name: str, at_time) -> bool:
-        return self.can_modify_workspace_at(at_time) and self.plan.allows_module(module_name)
+        return self._allows_module(module_name) and self.can_modify_workspace_at(at_time)
+
+    def _allows_module(self, module_name: str) -> bool:
+        return self.business.has_capability(module_name) and self.plan.allows_module(
+            plan_module_name(module_name)
+        )
 
     @property
     def is_provider_backed(self) -> bool:

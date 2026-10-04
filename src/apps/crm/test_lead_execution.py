@@ -170,6 +170,17 @@ class LeadImportExecutionSuccessTests(LeadExecutionTestMixin, TestCase):
 
 
 class LeadImportExecutionSafetyTests(LeadExecutionTestMixin, TestCase):
+    def test_execution_reloads_vertical_and_blocks_logistics_before_writing(self):
+        job = self.ready_job([self.base_row])
+        Business.objects.filter(pk=self.business.pk).update(vertical=Business.Vertical.LOGISTICS)
+
+        with self.assertRaises(PermissionDenied):
+            self.execute(job)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, ImportJob.Status.READY)
+        self.assertFalse(Lead.objects.exists())
+
     def test_wrong_business_and_wrong_creator_are_denied(self):
         job = self.ready_job([self.base_row])
         other_business = Business.objects.create(name="Other", slug="other-lead-execution")

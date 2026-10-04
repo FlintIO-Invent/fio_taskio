@@ -1099,7 +1099,7 @@ def public_thank_you(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to create or edit service requests.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("service_requests")
 @require_http_methods(["GET", "POST"])
 def staff_lead_create(request: HttpRequest) -> HttpResponse:
     """
@@ -1133,7 +1133,7 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to view service requests.",
     raise_exception=False,
 )
-@business_module_required("crm", access="read")
+@business_module_required("service_requests", access="read")
 @require_http_methods(["GET", "POST"])
 def staff_lead_list(request: HttpRequest) -> HttpResponse:
     """
@@ -1404,7 +1404,7 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
     permission_message="You do not have permission to view service requests.",
     raise_exception=False,
 )
-@business_module_required("crm", access="read")
+@business_module_required("service_requests", access="read")
 @require_http_methods(["GET"])
 def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     """Display staff-facing details for a single lead."""
@@ -1444,7 +1444,7 @@ def staff_lead_detail(request: HttpRequest, lead_id: int) -> HttpResponse:
     permission_message="You do not have permission to create or edit service requests.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("service_requests")
 @require_http_methods(["GET", "POST"])
 def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1477,7 +1477,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
     permission_message="You do not have permission to convert service requests into clients.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("service_requests")
 @require_http_methods(["GET", "POST"])
 def staff_lead_convert_to_client(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1527,6 +1527,7 @@ def staff_lead_convert_to_client(request: HttpRequest, lead_id: int) -> HttpResp
     permission_message="You do not have permission to manage invoices.",
     raise_exception=False,
 )
+@business_module_required("service_requests")
 @business_module_required("invoicing")
 @require_http_methods(["GET"])
 def staff_lead_create_invoice(request: HttpRequest, lead_id: int) -> HttpResponse:
@@ -1580,7 +1581,7 @@ def client_detail_view(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm", access="read")
+@business_module_required("services", access="read")
 @require_http_methods(["GET"])
 def business_service_category_list(request: HttpRequest) -> HttpResponse:
     return redirect("business_service_list")
@@ -1592,7 +1593,7 @@ def business_service_category_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["GET", "POST"])
 def business_service_category_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1625,7 +1626,7 @@ def business_service_category_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["GET", "POST"])
 def business_service_category_update(request: HttpRequest, category_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1664,7 +1665,7 @@ def business_service_category_update(request: HttpRequest, category_id: int) -> 
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["POST"])
 def business_service_category_archive(request: HttpRequest, category_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1689,7 +1690,7 @@ def business_service_category_archive(request: HttpRequest, category_id: int) ->
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm", access="read")
+@business_module_required("services", access="read")
 @require_http_methods(["GET"])
 def business_service_list(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1731,7 +1732,7 @@ def business_service_list(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["GET", "POST"])
 def business_service_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1777,7 +1778,7 @@ def business_service_create(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["GET", "POST"])
 def business_service_update(request: HttpRequest, service_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1822,7 +1823,7 @@ def business_service_update(request: HttpRequest, service_id: int) -> HttpRespon
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["POST"])
 def business_service_archive(request: HttpRequest, service_id: int) -> HttpResponse:
     current_business = request.current_business
@@ -1847,7 +1848,7 @@ def business_service_archive(request: HttpRequest, service_id: int) -> HttpRespo
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["GET", "POST"])
 def business_service_import(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -1895,7 +1896,7 @@ def business_service_import(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to import services.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["GET"])
 def business_service_import_preview(request: HttpRequest, job_id) -> HttpResponse:
     current_business = request.current_business
@@ -1940,7 +1941,7 @@ def business_service_import_preview(request: HttpRequest, job_id) -> HttpRespons
     permission_message="You do not have permission to import services.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["POST"])
 def business_service_import_execute(request: HttpRequest, job_id) -> HttpResponse:
     execute_service_import(
@@ -1957,7 +1958,7 @@ def business_service_import_execute(request: HttpRequest, job_id) -> HttpRespons
     permission_message="You do not have permission to view this Service import.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("services")
 @require_http_methods(["GET"])
 def business_service_import_result(request: HttpRequest, job_id) -> HttpResponse:
     job = get_import_job_for_owner(
@@ -2244,7 +2245,7 @@ def client_import_template(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to import leads.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("service_requests")
 @require_http_methods(["GET", "POST"])
 def lead_import_upload(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
@@ -2284,7 +2285,7 @@ def lead_import_upload(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to import leads.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("service_requests")
 @require_http_methods(["GET"])
 def lead_import_preview(request: HttpRequest, job_id) -> HttpResponse:
     current_business = request.current_business
@@ -2330,7 +2331,7 @@ def lead_import_preview(request: HttpRequest, job_id) -> HttpResponse:
     permission_message="You do not have permission to import leads.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("service_requests")
 @require_http_methods(["POST"])
 def lead_import_execute(request: HttpRequest, job_id) -> HttpResponse:
     execute_lead_import(
@@ -2347,7 +2348,7 @@ def lead_import_execute(request: HttpRequest, job_id) -> HttpResponse:
     permission_message="You do not have permission to view this Lead import.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("service_requests")
 @require_http_methods(["GET"])
 def lead_import_result(request: HttpRequest, job_id) -> HttpResponse:
     job = get_import_job_for_owner(
@@ -2384,7 +2385,7 @@ def lead_import_result(request: HttpRequest, job_id) -> HttpResponse:
     permission_message="You do not have permission to import leads.",
     raise_exception=False,
 )
-@business_module_required("crm")
+@business_module_required("service_requests")
 @require_http_methods(["GET"])
 def lead_import_template(request: HttpRequest) -> HttpResponse:
     output = io.StringIO(newline="")
@@ -2402,7 +2403,7 @@ def lead_import_template(request: HttpRequest) -> HttpResponse:
     permission_message="You do not have permission to manage services or categories.",
     raise_exception=False,
 )
-@business_module_required("crm", access="read")
+@business_module_required("services", access="read")
 @require_http_methods(["GET"])
 def business_service_sample_csv(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business

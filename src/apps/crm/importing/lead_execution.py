@@ -258,9 +258,10 @@ def execute_lead_import(
     with transaction.atomic():
         # Stable lock order: Business, membership, ImportJob, Leads, categories.
         locked_business = Business.objects.select_for_update().get(pk=business.pk)
-        if not locked_business.is_active or not _locked_membership_allows_import(
-            business=locked_business,
-            actor=actor,
+        if (
+            not locked_business.is_active
+            or not locked_business.has_capability("service_requests")
+            or not _locked_membership_allows_import(business=locked_business, actor=actor)
         ):
             raise PermissionDenied("Lead import access denied.")
 

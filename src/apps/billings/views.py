@@ -351,6 +351,10 @@ def _clean_line_rows(
         service_category_id = str(row.get("service_category_id", "")).strip()
         new_service_category_name = str(row.get("new_service_category_name", "")).strip()
 
+        if (service_id or save_as_service) and not business.has_capability("services"):
+            errors.append(f"{line_label} {index}: services are not available for this business vertical.")
+            continue
+
         if (
             not service_id
             and not description

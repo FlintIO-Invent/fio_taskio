@@ -250,6 +250,18 @@ class ServiceImportExecutionSuccessTests(ServiceExecutionTestMixin, TestCase):
 
 
 class ServiceImportExecutionSafetyTests(ServiceExecutionTestMixin, TestCase):
+    def test_execution_reloads_vertical_and_blocks_logistics_before_writing(self):
+        job = self.ready_job([self.base_row])
+        Business.objects.filter(pk=self.business.pk).update(vertical=Business.Vertical.LOGISTICS)
+
+        with self.assertRaises(PermissionDenied):
+            self.execute(job)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, ImportJob.Status.READY)
+        self.assertFalse(BusinessService.objects.exists())
+        self.assertFalse(ServiceCategory.objects.exists())
+
     def test_category_creation_rolls_back_when_service_write_fails(self):
         job = self.ready_job([self.base_row])
 
