@@ -86,3 +86,53 @@ class EnrollmentForm(forms.Form):
         elif not self.existing and cleaned.get("password1") != cleaned.get("password2"):
             self.add_error("password2", "Passwords do not match.")
         return cleaned
+
+
+class ParcelRegistrationForm(forms.ModelForm):
+    idempotency_key = forms.UUIDField(widget=forms.HiddenInput)
+
+    class Meta:
+        from .models import Parcel
+        from .parcel_services import PARCEL_INPUT_FIELDS
+
+        model = Parcel
+        fields = ("client",) + PARCEL_INPUT_FIELDS
+
+    def __init__(self, *args, business, **kwargs):
+        from apps.crm.models import Client
+
+        super().__init__(*args, **kwargs)
+        self.instance.business = business
+        self.fields["declared_value"].label = f"Declared value ({business.currency})"
+        self.fields["client"].queryset = Client.objects.filter(business=business).order_by(
+            "first_name", "last_name", "pk"
+        )
+
+    def save(self, commit=True):
+        raise NotImplementedError("Use register_parcel with the validated form data.")
+
+
+class ParcelEventForm(forms.Form):
+    status = forms.ChoiceField(required=False)
+    location = forms.CharField(max_length=255, required=False)
+    public_message = forms.CharField(
+        max_length=1000,
+        required=False,
+        widget=forms.Textarea,
+        help_text="Customer-facing text. Keep private information in the internal note.",
+    )
+    internal_note = forms.CharField(max_length=2000, required=False, widget=forms.Textarea)
+    idempotency_key = forms.UUIDField(widget=forms.HiddenInput)
+    expected_status = forms.CharField(widget=forms.HiddenInput)
+
+    def __init__(self, *args, parcel, **kwargs):
+        from .models import Parcel
+        from .parcel_policy import ALLOWED_TRANSITIONS
+
+        super().__init__(*args, **kwargs)
+        allowed = ALLOWED_TRANSITIONS[parcel.current_status]
+        self.fields["status"].choices = [("", "Tracking note (keep status)")] + [
+            (value, label)
+            for value, label in Parcel.Status.choices
+            if value in allowed or self.is_bound
+        ]

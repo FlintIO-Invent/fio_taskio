@@ -6,9 +6,18 @@ from django.urls import path, reverse
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 
+from apps.businesses.utils import get_current_business
+
 from .enrollment import issue_enrollment_link, revoke_enrollment_links
 from .forms import ApplicationReviewForm
-from .models import LogisticsApplication, LogisticsApplicationDecision, LogisticsEnrollmentToken
+from .models import (
+    LogisticsApplication,
+    LogisticsApplicationDecision,
+    LogisticsEnrollmentToken,
+    Parcel,
+    ParcelEvent,
+)
+from .parcel_services import parcels_for_business
 from .services import reevaluate_application, review_application
 
 
@@ -206,3 +215,65 @@ class LogisticsApplicationDecisionAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+class ParcelInspectionAdmin(admin.ModelAdmin):
+    """Inspection only; staff mutations must use the domain workflow."""
+
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        try:
+            parcels = parcels_for_business(
+                business=get_current_business(request), actor=request.user
+            )
+        except PermissionDenied:
+            return super().get_queryset(request).none()
+        if self.model is Parcel:
+            return super().get_queryset(request).filter(pk__in=parcels.values("pk"))
+        return (
+            super()
+            .get_queryset(request)
+            .filter(
+                business=get_current_business(request),
+                parcel__in=parcels,
+            )
+        )
+
+
+@admin.register(Parcel)
+class ParcelAdmin(ParcelInspectionAdmin):
+    list_display = (
+        "tracking_code",
+        "client",
+        "origin",
+        "destination",
+        "current_status",
+        "created_at",
+    )
+    list_filter = (("business", admin.RelatedOnlyFieldListFilter), "current_status", "created_at")
+    search_fields = ("tracking_code", "internal_reference")
+    list_select_related = ("client", "business")
+
+
+@admin.register(ParcelEvent)
+class ParcelEventAdmin(ParcelInspectionAdmin):
+    list_display = ("parcel", "event_type", "status", "timestamp", "actor", "location")
+    list_filter = (
+        ("business", admin.RelatedOnlyFieldListFilter),
+        "event_type",
+        "status",
+        "timestamp",
+    )
+    search_fields = ("parcel__tracking_code", "location")
+    list_select_related = ("parcel", "actor", "business")

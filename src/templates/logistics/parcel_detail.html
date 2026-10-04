@@ -1,0 +1,26 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<p><a href="{% url 'logistics_parcel_list' %}">Parcels</a></p>
+<h1>{{ parcel.tracking_code }}</h1>
+<p>{{ parcel.get_current_status_display }} · {{ parcel.client }}</p>
+{% if role_access.can_manage_parcels and module_write_access.parcels %}
+<p><a class="btn btn-primary" href="{% url 'logistics_parcel_update' parcel.pk %}">Record update</a></p>
+{% endif %}
+<dl>
+<dt>Route</dt><dd>{{ parcel.origin }} → {{ parcel.destination }}</dd>
+<dt>Description</dt><dd>{{ parcel.package_description }}</dd>
+<dt>Quantity</dt><dd>{{ parcel.quantity }}</dd>
+<dt>Internal reference</dt><dd>{{ parcel.internal_reference|default:'—' }}</dd>
+<dt>Weight (kg)</dt><dd>{{ parcel.weight_kg|default_if_none:'—' }}</dd>
+<dt>Dimensions</dt><dd>{{ parcel.dimensions|default:'—' }}</dd>
+<dt>Declared value ({{ current_business.currency }})</dt><dd>{{ parcel.declared_value|default_if_none:'—' }}</dd>
+<dt>Registered</dt><dd>{{ parcel.created_at }} · {{ parcel.created_by|default:'—' }}</dd>
+</dl>
+<h2>Tracking history</h2>
+{% for event in events %}<article class="card mb-3"><div class="card-body">
+<p>{{ event.timestamp }} · {{ event.get_status_display|default:event.get_event_type_display }} · {{ event.actor|default:'—' }}</p>
+{% if event.location %}<p>{{ event.location }}</p>{% endif %}
+{% if event.public_message %}<p><strong>Public message:</strong> {{ event.public_message }}</p>{% endif %}
+{% if event.internal_note %}<p><strong>Internal note:</strong> {{ event.internal_note }}</p>{% endif %}
+</div></article>{% endfor %}
+{% endblock %}

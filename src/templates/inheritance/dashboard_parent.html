@@ -167,6 +167,14 @@
                                 </div>
                             {% endif %}
 
+                            {% if module_access.parcels %}
+                            <div class="nav-item-wrapper">
+                                <a class="nav-link label-1" href="{% url 'logistics_parcel_list' %}">
+                                    <span class="nav-link-icon"><span data-feather="package"></span></span><span class="nav-link-text">Parcels</span>
+                                </a>
+                            </div>
+                            {% endif %}
+
                             <!-- client navigation -->
                             <div class="nav-item-wrapper">
                                 <a class="nav-link dropdown-indicator label-1" href="#nv-client" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-client" data-onboarding-target="clients">

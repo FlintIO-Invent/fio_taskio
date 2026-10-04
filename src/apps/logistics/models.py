@@ -339,3 +339,237 @@ class LogisticsEnrollmentToken(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+def generate_tracking_code():
+    """192 random bits, URL-safe, independent of the database identity."""
+    import secrets
+
+    return secrets.token_hex(24).upper()
+
+
+class ParcelDomainQuerySet(models.QuerySet):
+    """Normal ORM writes cannot bypass the parcel event services."""
+
+    def update(self, **kwargs):
+        raise ValidationError("Use the parcel services to change parcel data.")
+
+    def bulk_create(self, objs, **kwargs):
+        raise ValidationError("Use the parcel services to create parcel data.")
+
+    def bulk_update(self, objs, fields, **kwargs):
+        raise ValidationError("Use the parcel services to change parcel data.")
+
+    def delete(self):
+        raise ValidationError("Parcel history can only be removed by the business purge workflow.")
+
+    def _purge_delete(self):
+        # Only the gated business purge calls this, after integrity checks.
+        return super().delete()
+
+
+class ParcelDomainModel(models.Model):
+    objects = ParcelDomainQuerySet.as_manager()
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        raise ValidationError("Use the parcel services to register parcels and append events.")
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Parcel history can only be removed by the business purge workflow.")
+
+    def _validate_actor(self, field_name):
+        from apps.businesses.models import BusinessUser
+
+        actor_id = getattr(self, f"{field_name}_id")
+        if (
+            actor_id is not None
+            and not BusinessUser.objects.filter(
+                business_id=self.business_id,
+                user_id=actor_id,
+            ).exists()
+        ):
+            raise ValidationError({field_name: "Actor must belong to this workspace."})
+
+    def _domain_save(self, **kwargs):
+        self.full_clean()
+        return super().save(**kwargs)
+
+
+class Parcel(ParcelDomainModel):
+    class Status(models.TextChoices):
+        REGISTERED = "REGISTERED", "Registered"
+        RECEIVED = "RECEIVED", "Received"
+        IN_TRANSIT = "IN_TRANSIT", "In transit"
+        ARRIVED = "ARRIVED", "Arrived"
+        READY = "READY", "Ready for collection / delivery"
+        DELIVERED = "DELIVERED", "Delivered"
+        CANCELLED = "CANCELLED", "Cancelled"
+        HOLD = "HOLD", "On hold"
+
+    business = models.ForeignKey(
+        "businesses.Business", on_delete=models.PROTECT, related_name="parcels"
+    )
+    client = models.ForeignKey("crm.Client", on_delete=models.PROTECT, related_name="parcels")
+    tracking_code = models.CharField(
+        max_length=48,
+        unique=True,
+        default=generate_tracking_code,
+        editable=False,
+        validators=[RegexValidator(r"\A[A-F0-9]{48}\Z")],
+    )
+    internal_reference = models.CharField(max_length=100, blank=True)
+    origin = models.CharField(max_length=255)
+    destination = models.CharField(max_length=255)
+    package_description = models.CharField(max_length=1000)
+    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
+    weight_kg = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    dimensions = models.CharField(
+        max_length=100, blank=True, help_text="Optional dimensions, including units."
+    )
+    declared_value = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    current_status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.REGISTERED, editable=False
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="registered_parcels",
+        editable=False,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        indexes = [models.Index(fields=["business", "current_status", "created_at"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=1), name="parcel_quantity_positive"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(weight_kg__isnull=True) | models.Q(weight_kg__gte=0),
+                name="parcel_weight_nonnegative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(declared_value__isnull=True) | models.Q(declared_value__gte=0),
+                name="parcel_value_nonnegative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    current_status__in=[
+                        "REGISTERED",
+                        "RECEIVED",
+                        "IN_TRANSIT",
+                        "ARRIVED",
+                        "READY",
+                        "DELIVERED",
+                        "CANCELLED",
+                        "HOLD",
+                    ]
+                ),
+                name="parcel_status_known",
+            ),
+        ]
+
+    def __str__(self):
+        return self.tracking_code
+
+    def clean(self):
+        from apps.businesses.models import Business
+        from apps.crm.models import Client
+
+        super().clean()
+        if not Business.objects.filter(
+            pk=self.business_id, vertical=Business.Vertical.LOGISTICS
+        ).exists():
+            raise ValidationError({"business": "Parcels require a Logistics workspace."})
+        if (
+            not self.client_id
+            or not Client.objects.filter(pk=self.client_id, business_id=self.business_id).exists()
+        ):
+            raise ValidationError({"client": "Select a client owned by this workspace."})
+        if self._state.adding:
+            self._validate_actor("created_by")
+        if self.pk and not self._state.adding:
+            previous = type(self).objects.filter(pk=self.pk, business_id=self.business_id).first()
+            if previous is None:
+                raise ValidationError("Parcel is unavailable in this workspace.")
+            if (self.business_id, self.client_id, self.tracking_code) != (
+                previous.business_id,
+                previous.client_id,
+                previous.tracking_code,
+            ):
+                raise ValidationError("Parcel ownership, client and tracking code are immutable.")
+
+
+class ParcelEvent(ParcelDomainModel):
+    class Type(models.TextChoices):
+        STATUS = "STATUS", "Status change"
+        NOTE = "NOTE", "Tracking update"
+
+    business = models.ForeignKey(
+        "businesses.Business", on_delete=models.PROTECT, related_name="parcel_events"
+    )
+    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT, related_name="events")
+    event_type = models.CharField(max_length=10, choices=Type.choices)
+    status = models.CharField(max_length=20, choices=Parcel.Status.choices, blank=True)
+    timestamp = models.DateTimeField(default=timezone.now, editable=False)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="parcel_events",
+    )
+    location = models.CharField(max_length=255, blank=True)
+    public_message = models.CharField(max_length=1000, blank=True)
+    internal_note = models.CharField(max_length=2000, blank=True)
+    idempotency_key = models.UUIDField(null=True, blank=True, editable=False)
+
+    class Meta:
+        ordering = ["timestamp", "pk"]
+        indexes = [models.Index(fields=["business", "parcel", "timestamp"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "idempotency_key"], name="parcel_event_retry_unique"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(event_type="NOTE", status="")
+                    | models.Q(
+                        event_type="STATUS",
+                        status__in=[
+                            "REGISTERED",
+                            "RECEIVED",
+                            "IN_TRANSIT",
+                            "ARRIVED",
+                            "READY",
+                            "DELIVERED",
+                            "CANCELLED",
+                            "HOLD",
+                        ],
+                    )
+                ),
+                name="parcel_event_status_consistent",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.parcel_id}: {self.status or self.event_type}"
+
+    def clean(self):
+        super().clean()
+        if not Parcel.objects.filter(pk=self.parcel_id, business_id=self.business_id).exists():
+            raise ValidationError({"parcel": "Select a parcel owned by this workspace."})
+        self._validate_actor("actor")
+        if not self._state.adding:
+            raise ValidationError("Parcel events are immutable.")

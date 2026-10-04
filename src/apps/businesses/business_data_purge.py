@@ -10,6 +10,7 @@ from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
+from apps.logistics.models import Parcel, ParcelEvent
 
 from .business_data_inventory import (
     DIRECT_BUSINESS_RELATION_REGISTRY,
@@ -45,6 +46,8 @@ PURGE_DELETION_ORDER = (
     "import_jobs",
     "activity_logs",
     "leads",
+    "parcel_events",
+    "parcels",
     "clients",
     "business_services",
     "service_categories",
@@ -360,6 +363,8 @@ def _has_cross_business_operational_references(*, user_id: int, business_id: int
         (Client, "assigned_to_id"),
         (ActivityLog, "actor_id"),
         (ImportJob, "created_by_id"),
+        (Parcel, "created_by_id"),
+        (ParcelEvent, "actor_id"),
         (UserOnboardingState, "user_id"),
         (SubscriptionNotification, "recipient_user_id"),
         (BusinessInvitation, "invited_by_id"),
@@ -389,6 +394,10 @@ def _delete_business_records(
         "import_jobs": _delete_queryset(ImportJob.objects.filter(business_id=business_id)),
         "activity_logs": _delete_queryset(ActivityLog.objects.filter(business_id=business_id)),
         "leads": _delete_queryset(Lead.objects.filter(business_id=business_id)),
+        "parcel_events": _delete_parcel_history(
+            ParcelEvent.objects.filter(business_id=business_id)
+        ),
+        "parcels": _delete_parcel_history(Parcel.objects.filter(business_id=business_id)),
         "clients": _delete_queryset(Client.objects.filter(business_id=business_id)),
         "business_services": _delete_queryset(
             BusinessService.objects.filter(business_id=business_id)
@@ -422,6 +431,12 @@ def _delete_business_records(
     )
     deletion_counts["business"] = _delete_queryset(Business.objects.filter(pk=business_id))
     return deletion_counts
+
+
+def _delete_parcel_history(queryset) -> int:
+    count = queryset.count()
+    queryset._purge_delete()
+    return count
 
 
 def _delete_queryset(queryset) -> int:

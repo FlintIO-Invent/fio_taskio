@@ -1,0 +1,16 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<h1>Parcels</h1>
+{% if role_access.can_manage_parcels and module_write_access.parcels %}
+<p><a class="btn btn-primary" href="{% url 'logistics_parcel_register' %}">Register parcel</a></p>
+{% endif %}
+<table class="table"><thead><tr><th>Tracking code</th><th>Client</th><th>Route</th><th>Status</th><th>Registered</th></tr></thead><tbody>
+{% for parcel in page_obj %}<tr>
+<td><a href="{% url 'logistics_parcel_detail' parcel.pk %}">{{ parcel.tracking_code }}</a></td>
+<td>{{ parcel.client }}</td><td>{{ parcel.origin }} → {{ parcel.destination }}</td>
+<td>{{ parcel.get_current_status_display }}</td><td>{{ parcel.created_at }}</td>
+</tr>{% empty %}<tr><td colspan="5">No parcels registered.</td></tr>{% endfor %}
+</tbody></table>
+{% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+{% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+{% endblock %}

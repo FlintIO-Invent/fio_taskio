@@ -1,18 +1,25 @@
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.shortcuts import redirect, render
+from django.core.paginator import Paginator
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_safe
 
 from apps.businesses.stripe_checkout import StripeCheckoutAlreadyCompleted, StripeCheckoutError
 from apps.businesses.stripe_config import StripeConfigurationError
-from apps.businesses.utils import set_current_business
+from apps.businesses.utils import (
+    business_module_required,
+    business_role_required,
+    set_current_business,
+)
 
 from .billing import checkout_for_application
 from .enrollment import enroll_application, inspect_enrollment_link
-from .forms import EnrollmentForm, LogisticsApplicationForm
-from .models import LogisticsApplication
+from .forms import EnrollmentForm, LogisticsApplicationForm, ParcelEventForm, ParcelRegistrationForm
+from .models import LogisticsApplication, ParcelEvent
+from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
+from .parcel_services import parcels_for_business, record_parcel_event, register_parcel
 
 
 @require_http_methods(["GET", "POST"])
@@ -113,3 +120,97 @@ def application_checkout(request, application_id):
         )
     set_current_business(request, application.business)
     return redirect(checkout_url)
+
+
+@business_module_required("parcels", access="read")
+@business_module_required("tracking", access="read")
+@business_role_required(*PARCEL_VIEW_ROLES)
+@require_safe
+def parcel_list(request):
+    parcels = parcels_for_business(
+        business=request.current_business, actor=request.user
+    ).select_related("client")
+    return render(
+        request,
+        "logistics/parcel_list.html",
+        {
+            "page_obj": Paginator(parcels, 50).get_page(request.GET.get("page")),
+        },
+    )
+
+
+@business_module_required("parcels", access="read")
+@business_module_required("tracking", access="read")
+@business_role_required(*PARCEL_VIEW_ROLES)
+@require_safe
+def parcel_detail(request, parcel_id):
+    parcel = get_object_or_404(
+        parcels_for_business(business=request.current_business, actor=request.user).select_related(
+            "client"
+        ),
+        pk=parcel_id,
+    )
+    events = (
+        ParcelEvent.objects.filter(business=request.current_business, parcel=parcel)
+        .select_related("actor")
+        .order_by("timestamp", "pk")
+    )
+    return render(request, "logistics/parcel_detail.html", {"parcel": parcel, "events": events})
+
+
+@business_module_required("parcels")
+@business_module_required("tracking")
+@business_role_required(*PARCEL_MANAGE_ROLES)
+@require_http_methods(["GET", "POST"])
+def parcel_register(request):
+    import uuid
+
+    form = ParcelRegistrationForm(
+        request.POST if request.method == "POST" else None,
+        business=request.current_business,
+        initial={"idempotency_key": uuid.uuid4()},
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            parcel = register_parcel(
+                business=request.current_business, actor=request.user, **form.cleaned_data
+            )
+        except ValidationError as exc:
+            form.add_error(None, "; ".join(exc.messages))
+        else:
+            return redirect("logistics_parcel_detail", parcel_id=parcel.pk)
+    return render(request, "logistics/parcel_form.html", {"form": form, "title": "Register parcel"})
+
+
+@business_module_required("parcels")
+@business_module_required("tracking")
+@business_role_required(*PARCEL_MANAGE_ROLES)
+@require_http_methods(["GET", "POST"])
+def parcel_update(request, parcel_id):
+    import uuid
+
+    parcel = get_object_or_404(
+        parcels_for_business(business=request.current_business, actor=request.user), pk=parcel_id
+    )
+    form = ParcelEventForm(
+        request.POST if request.method == "POST" else None,
+        parcel=parcel,
+        initial={"idempotency_key": uuid.uuid4(), "expected_status": parcel.current_status},
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            record_parcel_event(
+                business=request.current_business,
+                parcel=parcel,
+                actor=request.user,
+                **{**form.cleaned_data, "status": form.cleaned_data["status"] or None},
+            )
+        except ValidationError as exc:
+            form.add_error(None, "; ".join(exc.messages))
+        else:
+            return redirect("logistics_parcel_detail", parcel_id=parcel.pk)
+    return render(
+        request,
+        "logistics/parcel_form.html",
+        {"form": form, "parcel": parcel, "title": "Record parcel update"},
+    )

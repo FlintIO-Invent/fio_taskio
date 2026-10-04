@@ -14,6 +14,7 @@ from django.utils import timezone
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
+from apps.logistics.models import Parcel, ParcelEvent
 
 from .business_sessions import decode_session_data_safely
 from .models import (
@@ -237,6 +238,24 @@ class BusinessDataInventory:
 
 
 DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
+    InventoryRegistration(
+        "parcels",
+        "logistics.Parcel",
+        "business",
+        "Business.parcels",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
+    InventoryRegistration(
+        "parcel_events",
+        "logistics.ParcelEvent",
+        "business",
+        "Business.parcel_events",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
     InventoryRegistration(
         "logistics_application",
         "logistics.LogisticsApplication",
@@ -873,6 +892,8 @@ def _cross_business_user_references(
         (Client, "assigned_to_id", "business_id", "assigned_clients"),
         (ActivityLog, "actor_id", "business_id", "activity_logs"),
         (ImportJob, "created_by_id", "business_id", "import_jobs"),
+        (Parcel, "created_by_id", "business_id", "parcels"),
+        (ParcelEvent, "actor_id", "business_id", "parcel_events"),
         (UserOnboardingState, "user_id", "business_id", "onboarding_states"),
         (
             SubscriptionNotification,
@@ -907,6 +928,54 @@ def _cross_business_user_references(
 def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ...]:
     selected_members = BusinessUser.objects.filter(business_id=business_id).values("user_id")
     checks = (
+        _blocker_check(
+            "cross_tenant_parcel_client",
+            "logistics.Parcel.client -> crm.Client.business",
+            Parcel.objects.filter(business_id=business_id)
+            .exclude(client__business_id=business_id)
+            .count(),
+            "Selected-business parcels reference clients without the same business.",
+        ),
+        _blocker_check(
+            "cross_tenant_parcel_event",
+            "logistics.ParcelEvent.parcel -> logistics.Parcel.business",
+            ParcelEvent.objects.filter(business_id=business_id)
+            .exclude(parcel__business_id=business_id)
+            .count(),
+            "Selected-business events reference parcels without the same business.",
+        ),
+        _blocker_check(
+            "cross_tenant_external_parcel_client",
+            "other logistics.Parcel.client -> selected crm.Client",
+            Parcel.objects.filter(client__business_id=business_id)
+            .exclude(business_id=business_id)
+            .count(),
+            "Another business has parcels referencing selected-business clients.",
+        ),
+        _blocker_check(
+            "cross_tenant_external_parcel_event",
+            "other logistics.ParcelEvent.parcel -> selected logistics.Parcel",
+            ParcelEvent.objects.filter(parcel__business_id=business_id)
+            .exclude(business_id=business_id)
+            .count(),
+            "Another business has events referencing selected-business parcels.",
+        ),
+        _blocker_check(
+            "cross_tenant_parcel_creator",
+            "logistics.Parcel.created_by -> BusinessUser",
+            Parcel.objects.filter(business_id=business_id, created_by__isnull=False)
+            .exclude(created_by_id__in=selected_members)
+            .count(),
+            "Selected-business parcels reference creators without a membership.",
+        ),
+        _blocker_check(
+            "cross_tenant_parcel_actor",
+            "logistics.ParcelEvent.actor -> BusinessUser",
+            ParcelEvent.objects.filter(business_id=business_id, actor__isnull=False)
+            .exclude(actor_id__in=selected_members)
+            .count(),
+            "Selected-business parcel events reference actors without a membership.",
+        ),
         _blocker_check(
             "cross_tenant_invoice_client",
             "billings.Invoice.client -> crm.Client.business",
