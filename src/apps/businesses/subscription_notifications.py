@@ -326,6 +326,16 @@ def build_subscription_notification_email_context(
         display_timezone=display_timezone,
     )
     if plan.family == "LOGISTICS":
+        if (
+            notification.notification_type
+            == SubscriptionNotification.NotificationType.SUBSCRIPTION_ACTIVATED
+        ):
+            type_context["email_title"] = type_context["email_subject"] = (
+                "Your Motionmate Logistics subscription is active"
+            )
+            type_context["body_intro"] = (
+                "Your annual Motionmate Logistics payment is confirmed and workspace access is available."
+            )
         recovery_instructions = {
             "Open the Motionmate subscription page to update your payment method.",
             "Open the Motionmate subscription page to update payment.",

@@ -74,10 +74,12 @@ transaction tests exercise simultaneous requests and conflicting applications fo
 one User. PostgreSQL is required to verify row-lock concurrency; SQLite does not
 provide that verification.
 
-## Block 5 decisions
+## Block 5 checkout
 
-Supply commercial prices, activate the Logistics offering, configure annual USD/EUR
-Stripe Prices and implement checkout from the authenticated converted application.
+Block 5 implements checkout from the authenticated converted application through the
+shared Stripe pipeline; see [LOGISTICS_CHECKOUT.md](LOGISTICS_CHECKOUT.md). Supply
+commercial prices, configure supported annual USD/EUR Stripe Prices and activate the
+offering through its validated Admin form before accepting payments.
 Keep the existing Logistics Customer Portal disabled until its configuration can
 prove vertical and annual-only switching restrictions. Decide pilot territories
 and any automated applicant-email delivery separately; existing eligibility rules

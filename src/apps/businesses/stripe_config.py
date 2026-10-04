@@ -238,6 +238,8 @@ def get_stripe_price_id(
         )
     if not _is_valid_price_id(price_id):
         raise StripeConfigurationError("Configured Stripe Price ID must start with price_.")
+    # A Price shared by different configured offerings cannot be selected safely.
+    resolve_stripe_price_id(price_id)
     return price_id
 
 

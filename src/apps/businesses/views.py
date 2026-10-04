@@ -113,6 +113,7 @@ def _checkout_status_context(
         "success_state": success_state,
         "can_enter_dashboard": bool(subscription is not None and subscription.has_access),
         "can_resume_checkout": bool(access_state is not None and access_state.can_resume_checkout),
+        "is_logistics": business.vertical == Business.Vertical.LOGISTICS,
     }
 
 
@@ -141,6 +142,18 @@ def billing_checkout_cancelled(request: HttpRequest) -> HttpResponse:
 def billing_checkout_resume(request: HttpRequest) -> HttpResponse:
     business = request.current_business
     subscription = get_business_subscription(business)
+
+    if business.vertical == Business.Vertical.LOGISTICS or (
+        subscription is not None and subscription.plan.family == ClarivoPlan.Family.LOGISTICS
+    ):
+        from apps.logistics.models import LogisticsApplication
+        from apps.logistics.views import application_checkout
+
+        application = LogisticsApplication.objects.filter(business=business).first()
+        if application is None:
+            messages.error(request, "Checkout requires an existing approved Logistics enrollment.")
+            return redirect("logistics_enrollment_complete")
+        return application_checkout(request, application.pk)
 
     if subscription is None or subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT:
         messages.info(request, "This workspace does not have payment setup waiting to resume.")

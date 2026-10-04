@@ -4,7 +4,8 @@
 0026 seeds one `logistics` plan in the `LOGISTICS` family. Its inactive state and
 zero prices mean **commercial pricing is unset**, not a free offer. Nullable limits
 are also awaiting a commercial decision. Configure prices/limits before deliberately
-activating this plan; no final pricing or enrollment is implemented here.
+activating this plan; no final pricing is supplied. Block 5 admission, commercial
+validation and checkout are documented in [LOGISTICS_CHECKOUT.md](LOGISTICS_CHECKOUT.md).
 Existing rows are backfilled to SERVICE by the new field default. Reapplying the
 seed preserves configured values; rollback refuses to delete an activated/priced
 offering, and subscription references retain the existing PROTECT safeguard.
@@ -30,9 +31,9 @@ and Stripe annual prices before activation. No Stripe prices are created by migr
 
 The shared Checkout service, webhook lifecycle, notification outbox, reminder discovery
 and grace/restricted access evaluation recognize annual Logistics subscriptions. Trial
-reminders do not apply. The existing public registration and browser checkout-resume
-route remain SERVICE-only. Future approved enrollment must call the shared service;
-approval and enrollment are Block 3 work.
+reminders do not apply. Public registration remains SERVICE-only. The billing resume
+route now admits current converted Logistics approvals through the shared pipeline;
+approval and enrollment were added in Blocks 3–4.
 
 Logistics Customer Portal and payment-recovery Portal sessions are deliberately disabled.
 The single existing portal configuration ID does not establish a safe offering-specific

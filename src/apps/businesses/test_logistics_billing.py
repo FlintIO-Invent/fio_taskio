@@ -346,12 +346,53 @@ class LogisticsOfferingTests(TestCase):
 
     @override_settings(**stripe_settings())
     def test_stripe_yearly_checkout_omits_trial_and_preserves_metadata(self):
+        from apps.logistics.models import LogisticsApplication
+        from apps.logistics.services import review_application
+        from apps.logistics.tests import application_data
+
+        # Block 5 requires a current converted approval at the shared entry point.
+        application = LogisticsApplication.objects.create(
+            **application_data(email=self.user.email, preferred_currency="USD")
+        )
+        reviewer = TaskIOUser.objects.create_superuser(email="billing-reviewer@example.com")
+        review_application(
+            application.pk,
+            result="APPROVED",
+            actor=reviewer,
+            reason="Checkout fixture approved",
+            expected_revision=1,
+        )
+        LogisticsApplication.objects.filter(pk=application.pk).update(
+            business=self.business,
+            enrolled_user=self.user,
+            converted_revision=1,
+            converted_at=self.now,
+        )
+        self.logistics_plan.regional_prices = {"usd": {"currency": "USD", "yearly": "100.00"}}
+        self.logistics_plan.save(update_fields=["regional_prices"])
         subscription = self.pending()
         session_create = mock.Mock(
             return_value={"id": "cs_logistics", "url": "https://checkout.stripe.test/logistics"}
         )
         sdk = SimpleNamespace(
-            checkout=SimpleNamespace(Session=SimpleNamespace(create=session_create))
+            checkout=SimpleNamespace(Session=SimpleNamespace(create=session_create)),
+            Price=SimpleNamespace(
+                retrieve=mock.Mock(
+                    return_value={
+                        "id": "price_logistics_yearly_usd",
+                        "active": True,
+                        "type": "recurring",
+                        "currency": "usd",
+                        "unit_amount": 10000,
+                        "billing_scheme": "per_unit",
+                        "recurring": {
+                            "interval": "year",
+                            "interval_count": 1,
+                            "usage_type": "licensed",
+                        },
+                    }
+                )
+            ),
         )
         with mock.patch("apps.businesses.stripe_checkout.configure_stripe_sdk", return_value=sdk):
             url = create_trial_checkout_session(

@@ -1,4 +1,6 @@
+from django import forms
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 
 from .models import (
     BillingProviderWebhookEvent,
@@ -72,8 +74,34 @@ class BusinessAdmin(admin.ModelAdmin):
         return subscription.get_status_display()
 
 
+class CommercialPlanAdminForm(forms.ModelForm):
+    class Meta:
+        model = ClarivoPlan
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("family") == ClarivoPlan.Family.LOGISTICS and cleaned.get("is_active"):
+            from apps.logistics.billing import validate_offering_activation
+
+            from .stripe_config import StripeConfigurationError
+
+            candidate = ClarivoPlan(
+                family=cleaned["family"],
+                slug=cleaned.get("slug"),
+                price_yearly=cleaned.get("price_yearly"),
+                regional_prices=cleaned.get("regional_prices"),
+            )
+            try:
+                validate_offering_activation(candidate)
+            except StripeConfigurationError as exc:
+                raise ValidationError(str(exc)) from exc
+        return cleaned
+
+
 @admin.register(ClarivoPlan)
 class ClarivoPlanAdmin(admin.ModelAdmin):
+    form = CommercialPlanAdminForm
     list_display = (
         "name",
         "slug",
