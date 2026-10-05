@@ -6,12 +6,14 @@ import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.text import slugify
+from django.views.decorators.debug import sensitive_variables
 
 from apps.accounts.models import SaaSUserProfile
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
@@ -104,6 +106,7 @@ class EnrollmentResult:
 
 
 @transaction.atomic
+@sensitive_variables("password")
 def enroll_application(secret, *, authenticated_user=None, password=None):
     application, grant = _load(secret, lock=True)
     User = get_user_model()
@@ -128,6 +131,36 @@ def enroll_application(secret, *, authenticated_user=None, password=None):
     if grant.used_at is not None:
         raise ValidationError(INVALID_LINK)
 
+    result = _provision_approved_application(application, verified=verified, password=password)
+    grant.used_at = timezone.now()
+    grant.save(update_fields=["used_at"])
+    return result
+
+
+@transaction.atomic
+@sensitive_variables("password")
+def enroll_new_pilot_application(application_id, *, password):
+    """Trusted signup entry: new identities only, with no public enrollment grant."""
+    application = LogisticsApplication.objects.select_for_update().get(pk=application_id)
+    _require_approved(application, application.revision)
+    decision = application.decisions.order_by("-evaluated_at", "-pk").first()
+    if (
+        not settings.LOGISTICS_AUTO_APPROVE_ALL
+        or decision is None
+        or decision.source != decision.Source.AUTOMATIC
+        or not decision.threshold_snapshot.get("auto_approve_all")
+        or application.converted_at is not None
+    ):
+        raise PermissionDenied("Use the secure enrollment process for this application.")
+    # Passing no verified identity intentionally rejects ALL existing accounts,
+    # including races after the public form's initial identity check.
+    return _provision_approved_application(application, verified=None, password=password)
+
+
+@sensitive_variables("password")
+def _provision_approved_application(application, *, verified, password):
+    """Shared conversion routine; callers hold the application lock and authorization."""
+    User = get_user_model()
     matches = list(User.objects.select_for_update().filter(email__iexact=application.email))
     if len(matches) > 1 or (matches and (verified is None or matches[0].pk != verified.pk)):
         raise PermissionDenied("Authenticate as the applicant account to enroll.")
@@ -206,6 +239,4 @@ def enroll_application(secret, *, authenticated_user=None, password=None):
         converted_revision=application.revision,
         updated_at=now,
     )
-    grant.used_at = now
-    grant.save(update_fields=["used_at"])
     return EnrollmentResult(user, business, subscription, False)

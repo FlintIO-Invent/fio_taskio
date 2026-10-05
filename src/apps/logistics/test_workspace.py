@@ -391,10 +391,13 @@ class LogisticsWorkspaceTests(TestCase):
             )
             for event in snapshot["recent_deliveries"]:
                 str(event.parcel.client)
+            for parcel in snapshot["parcels_requiring_attention"]:
+                str(parcel.client)
+            list(snapshot["active_shipments"])
             for event in snapshot["recent_tracking_events"]:
                 str(event.parcel)
         domain_queries = [q for q in queries if '"logistics_' in q["sql"]]
-        self.assertEqual(len(domain_queries), 6)
+        self.assertEqual(len(domain_queries), 9)
         self.assertEqual(len(snapshot["recent_deliveries"]), 5)
         self.assertEqual(len(snapshot["recent_tracking_events"]), 5)
 

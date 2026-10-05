@@ -59,9 +59,15 @@ def _record_decision(application, *, result=None, actor=None, override_reason=""
     inputs = application.material_inputs()
     signals = relationship_signals(application)
     evaluated = evaluate_eligibility(inputs, policy, signals)
-    result = result or evaluated.result
+    # Keep the strict recommendation for audit; pilot approval never overrides
+    # a manual decision or the separate enrollment/checkout safeguards.
+    pilot_auto_approval = settings.LOGISTICS_AUTO_APPROVE_ALL
+    result = result or (
+        LogisticsApplication.Status.APPROVED if pilot_auto_approval else evaluated.result
+    )
     evaluated_at = timezone.now()
     snapshot = policy.model_dump(mode="json")
+    snapshot["auto_approve_all"] = pilot_auto_approval
     # Record operational rule inputs without duplicating contact/address data in
     # the decision ledger. Registration presence is sufficient for this rule.
     operational_inputs = {

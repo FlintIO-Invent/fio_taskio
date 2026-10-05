@@ -1,5 +1,8 @@
 # Logistics operational tooling (Block 10)
 
+For optional local payment bypass and configuration-only promotion, see
+[LOGISTICS_LOCAL_DEVELOPMENT.md](LOGISTICS_LOCAL_DEVELOPMENT.md).
+
 Run commands with the normal deployment settings. Select an existing tenant by
 its exact Business ID. `seed_demo_data` retains its existing SERVICE behavior.
 
@@ -92,7 +95,8 @@ Delivery counts use delivery events, including parcels registered earlier.
 
 `logistics_operational_summary` adds safe subscription/application state and
 `logistics_threshold_summary` review signals. Existing
-`LOGISTICS_ELIGIBILITY_POLICY` thresholds remain approval rules: auto-approval,
+`LOGISTICS_ELIGIBILITY_POLICY` thresholds remain advisory while the pilot default
+`LOGISTICS_AUTO_APPROVE_ALL=True` is enabled. False restores strict approval rules: auto-approval,
 review and high-resource parcel volumes, staff count and location count.
 Locations are explicitly an **application estimate**, not observed usage.
 There is no location model yet.

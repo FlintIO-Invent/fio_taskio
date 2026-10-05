@@ -4,8 +4,10 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
+from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_safe
 
+from apps.businesses.models import BusinessUser
 from apps.businesses.stripe_checkout import StripeCheckoutAlreadyCompleted, StripeCheckoutError
 from apps.businesses.stripe_config import StripeConfigurationError
 from apps.businesses.utils import (
@@ -15,19 +17,60 @@ from apps.businesses.utils import (
 )
 
 from .billing import checkout_for_application
-from .enrollment import enroll_application, inspect_enrollment_link
-from .forms import EnrollmentForm, LogisticsApplicationForm, ParcelEventForm, ParcelRegistrationForm
+from .enrollment import enroll_application, enroll_new_pilot_application, inspect_enrollment_link
+from .forms import EnrollmentForm, LogisticsSignupForm, ParcelEventForm, ParcelRegistrationForm
 from .models import LogisticsApplication, ParcelEvent
 from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 from .parcel_services import parcels_for_business, record_parcel_event, register_parcel
 
 
+@never_cache
+@sensitive_post_parameters("password1", "password2")
 @require_http_methods(["GET", "POST"])
 def application_create(request):
-    form = LogisticsApplicationForm(request.POST if request.method == "POST" else None)
+    form = LogisticsSignupForm(request.POST if request.method == "POST" else None)
     if request.method == "POST" and form.is_valid():
-        form.save()
-        # Identical public response for all decisions and relationship signals.
+        # A session reference allows a retry to reuse its own unchanged application.
+        # It stores no credentials and never authorizes access by email alone.
+        previous_id = request.session.get("logistics_signup_application_id")
+        application = (
+            LogisticsApplication.objects.filter(pk=previous_id).first() if previous_id else None
+        )
+        if application is None or application.material_inputs() != form.instance.material_inputs():
+            application = form.save()
+            request.session["logistics_signup_application_id"] = str(application.pk)
+        if application.converted_at is not None:
+            if (
+                request.user.is_authenticated
+                and request.user.is_active
+                and application.enrolled_user_id == request.user.pk
+                and application.business_id is not None
+                and BusinessUser.objects.filter(
+                    user=request.user,
+                    business=application.business,
+                    is_active=True,
+                    business__is_active=True,
+                    role=BusinessUser.Role.OWNER,
+                ).exists()
+            ):
+                set_current_business(request, application.business)
+                return redirect("agent_dashboard")
+        elif (
+            form.new_account_password and application.status == LogisticsApplication.Status.APPROVED
+        ):
+            try:
+                result = enroll_new_pilot_application(
+                    application.pk, password=form.new_account_password
+                )
+            except (ValidationError, PermissionDenied):
+                # Generic recovery for identity races, conflicts or unavailable offerings.
+                # The approved application remains available to secure reviewer enrollment.
+                pass
+            else:
+                login(request, result.user)
+                set_current_business(request, result.business)
+                request.session["logistics_signup_application_id"] = str(application.pk)
+                return redirect("agent_dashboard")
         return redirect("logistics_application_received")
     return render(request, "logistics/application_form.html", {"form": form})
 

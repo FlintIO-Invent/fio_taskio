@@ -1,0 +1,32 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  <h2 class="mb-2">Motionmate Logistics dashboard</h2>
+  <p class="text-body-tertiary mb-4">{{ current_business.name }}</p>
+  <div class="card"><div class="card-body p-4 p-md-5">
+    {% if restricted_subscription %}
+      <h3 class="mb-3">Review your annual Logistics subscription</h3>
+      <p>Your subscription requires attention before full operational access is available.</p>
+      {% if role_access.can_manage_subscription %}
+        <a class="btn btn-primary" href="{% url 'business_subscription' %}">Review subscription</a>
+      {% else %}
+        <p class="mb-0">Contact your workspace owner to resolve payment.</p>
+      {% endif %}
+    {% else %}
+    <span class="badge badge-phoenix badge-phoenix-success mb-3">Account successfully created</span>
+    <h3 class="mb-3">Continue with your annual Logistics subscription</h3>
+    <p>Your account and Logistics workspace are ready. An annual Logistics subscription is required to start operating.</p>
+    <p class="text-body-secondary">Parcels, Shipments and operational actions will be available after payment is confirmed.</p>
+    {% if application %}
+      <form method="post" action="{% url 'logistics_application_checkout' application.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">Continue to payment</button>
+      </form>
+    {% else %}
+      <p class="mb-0">Contact Motionmate to resolve your enrollment before continuing to payment.</p>
+    {% endif %}
+    {% endif %}
+  </div></div>
+</div>
+{% endblock %}

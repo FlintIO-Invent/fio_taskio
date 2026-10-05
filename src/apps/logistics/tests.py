@@ -168,7 +168,7 @@ class EligibilityTests(SimpleTestCase):
         self.assertEqual(config.logistics_auto_approve_staff_count, 12)
 
 
-@override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY)
+@override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY, LOGISTICS_AUTO_APPROVE_ALL=False)
 class ApplicationLifecycleTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -206,7 +206,10 @@ class ApplicationLifecycleTests(TestCase):
         self.assertEqual(application.status, "UNDER_REVIEW")
         self.assertIn("HIGH_MONTHLY_VOLUME", application.reason_codes)
         self.assertEqual(application.rule_version, "pilot-v1")
-        self.assertEqual(application.threshold_snapshot, PILOT_POLICY.model_dump(mode="json"))
+        self.assertEqual(
+            application.threshold_snapshot,
+            {**PILOT_POLICY.model_dump(mode="json"), "auto_approve_all": False},
+        )
         decision = application.decisions.get()
         self.assertEqual(decision.reason_codes, application.reason_codes)
         self.assertEqual(decision.application_revision, 1)
@@ -439,7 +442,7 @@ class ApplicationLifecycleTests(TestCase):
             application.delete()
 
 
-@override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY)
+@override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY, LOGISTICS_AUTO_APPROVE_ALL=False)
 class PublicAndAdminTests(TestCase):
     def test_public_page_is_anonymous_and_includes_csrf(self):
         response = self.client.get(reverse("logistics_application_create"))

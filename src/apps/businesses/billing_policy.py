@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from django.conf import settings
+
 from .plan_catalog import PUBLIC_PAID_PLAN_SLUGS, STANDARD_TRIAL_DAYS, normalize_plan_slug
 
 
@@ -20,6 +22,15 @@ BILLING_OFFERINGS = {
     "logistics": BillingOffering("LOGISTICS", ("yearly",), 0),
 }
 BILLABLE_PLAN_SLUGS = tuple(BILLING_OFFERINGS)
+
+
+def logistics_local_billing_bypass_enabled() -> bool:
+    """Environment-only permission; never accepts request or persisted tenant inputs."""
+    return bool(
+        getattr(settings, "LOGISTICS_LOCAL_BILLING_BYPASS", False)
+        and settings.DEBUG
+        and getattr(settings, "MOTIONMATE_ENVIRONMENT", "") == "local"
+    )
 
 
 def billing_offering(plan_slug: object) -> BillingOffering | None:

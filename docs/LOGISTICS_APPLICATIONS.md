@@ -1,9 +1,18 @@
 # Logistics applications (Block 3)
 
-The public page is `/logistics/apply/`. A valid submission creates only a
-`LogisticsApplication` and an immutable decision record. All outcomes receive the
-same `/logistics/apply/received/` response; existing-user/business matches and
-decision reasons stay internal. Submission performs no conversion, subscription or Stripe call.
+The public page is `/logistics/apply/`. A valid submission creates a
+`LogisticsApplication` and an immutable decision record. With pilot auto-approval
+enabled, new applicants set and confirm a Django-validated password and approved
+applications convert through the shared Block 4 provisioning routine. The new owner
+is logged in, their Business is selected, and they reach payment onboarding at the
+Logistics dashboard. Signup never calls Stripe or grants unpaid operational access.
+Passwords are transient signup fields, absent from application and decision data.
+
+Applicants choosing **I already have a Motionmate account**, existing-user emails,
+strict-mode submissions and conversion failures receive the generic
+`/logistics/apply/received/` sign-in/contact response. Existing-account passwords are
+neither changed nor used as ownership authority. Reviewer-issued secure enrollment
+remains available; identity matches and decision reasons stay internal.
 
 Application statuses are SUBMITTED, APPROVED, UNDER_REVIEW, DECLINED and WITHDRAWN.
 Decisions do not encode payment/enrollment state. `LogisticsApplicationDecision` records
@@ -24,8 +33,26 @@ stored approved revision. Block 4 enrollment is documented in [LOGISTICS_ENROLLM
 
 Typed configuration follows the existing environment settings pattern:
 
+`LOGISTICS_AUTO_APPROVE_ALL=True` is the pilot default. Every valid application is
+approved automatically, including high-volume, complex, unsupported-territory and
+relationship/duplicate review signals. The existing evaluator still calculates
+ordered advisory reason codes and resource classification. Decision history keeps
+its strict recommendation in `evaluated_result`, the actual approval in `result`,
+and `auto_approve_all` in the configuration snapshot. Manual decisions remain
+authoritative; reevaluation applies the current pilot setting.
+
+Approved new-user pilot signups provision without an enrollment token. Existing
+identities and reviewed applications continue through reviewer-issued Block 4
+enrollment. Both paths share atomic conversion and the existing identity/workspace,
+revision, offering-family and annual checkout safeguards. Strict mode omits signup
+password fields and never provisions during public application submission.
+
+Set `LOGISTICS_AUTO_APPROVE_ALL=False` to restore the strict rules below. Changing
+the setting affects new evaluations; use reevaluation for existing applications.
+
 | Setting | Default | Meaning |
 | --- | --- | --- |
+| LOGISTICS_AUTO_APPROVE_ALL | True | Approve valid applications with advisory reasons; False enables strict review |
 | LOGISTICS_RULE_VERSION | pilot-v1 | Evaluator rule version |
 | LOGISTICS_AUTO_APPROVE_MONTHLY_PARCELS | 1000 | Ordinary-volume band |
 | LOGISTICS_REVIEW_ABOVE_MONTHLY_PARCELS | 5000 | Mandatory volume review above this value |
@@ -35,7 +62,7 @@ Typed configuration follows the existing environment settings pattern:
 | LOGISTICS_SUPPORTED_TERRITORIES | empty | Comma-separated or JSON country/territory names eligible for automatic approval |
 | LOGISTICS_REGISTRATION_REQUIRED_FOR_AUTO_APPROVAL | True | Missing company registration sends the application to review |
 
-Territories require an explicit pilot decision. Empty or unknown territories review;
+In strict mode, empty or unknown territories review;
 country matching ignores case, spacing and punctuation. A registration number remains
 optional on the form: its absence can request further review rather than reject intake.
 Thresholds are eligibility decisions, not commercial limits, pricing or cost estimates.
@@ -71,6 +98,6 @@ ordinary Business deletion. Controlled purge retains application history and
 releases only the Business FK into a conversion identity snapshot (Block 11).
 Existing SERVICE tenant and demo behavior is unchanged.
 
-Checkout and operational workflows are implemented. Explicit pilot territories,
-commercial activation and delivery of private enrollment grants must be configured
-before pilot. Application decision/approval notification delivery remains manual.
+Checkout and operational workflows are implemented. Commercial activation and
+delivery of private enrollment grants must be configured before accepting payments.
+Application decision/approval notification delivery remains manual.

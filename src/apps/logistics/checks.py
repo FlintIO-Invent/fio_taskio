@@ -7,6 +7,7 @@ from django.core.checks import Error, Tags, Warning, register
 from django.db import connections
 from django.db.utils import DatabaseError
 
+from apps.businesses.billing_policy import logistics_local_billing_bypass_enabled
 from apps.businesses.stripe_config import StripeConfigurationError, validate_stripe_configuration
 
 from .enrollment import TOKEN_LIFETIME
@@ -17,6 +18,23 @@ ATOMIC_SHARED_CACHES = {
     "django.core.cache.backends.memcached.PyMemcacheCache": "pymemcache",
     "django.core.cache.backends.memcached.PyLibMCCache": "pylibmc",
 }
+
+
+@register("logistics", Tags.security)
+def check_logistics_local_billing_bypass(app_configs, **kwargs):
+    """Always checked at startup; independent of the opt-in deployment checks."""
+    if (
+        getattr(settings, "LOGISTICS_LOCAL_BILLING_BYPASS", False)
+        and not logistics_local_billing_bypass_enabled()
+    ):
+        return [
+            Error(
+                "LOGISTICS_LOCAL_BILLING_BYPASS requires ENV=local and DEBUG=True.",
+                hint="Set LOGISTICS_LOCAL_BILLING_BYPASS=False in Development/Staging and Production.",
+                id="logistics.E014",
+            )
+        ]
+    return []
 
 
 @register("logistics", Tags.security, deploy=True)

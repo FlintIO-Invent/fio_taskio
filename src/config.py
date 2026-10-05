@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     env: str = Field(
         default="development",
-        description="Runtime environment name (for example: development or production).",
+        description="Runtime environment name: local, development, staging or production.",
     )
     debug: bool = Field(
         default=False,
@@ -224,7 +224,15 @@ class Settings(BaseSettings):
     stripe_price_business_yearly_eur: str = Field(default="")
     stripe_price_logistics_yearly_usd: str = Field(default="")
     stripe_price_logistics_yearly_eur: str = Field(default="")
+    logistics_local_billing_bypass: bool = Field(
+        default=False,
+        description="Allow pending Logistics operations only with ENV=local and DEBUG=True.",
+    )
     logistics_rule_version: str = Field(default="pilot-v1", min_length=1, max_length=100)
+    logistics_auto_approve_all: bool = Field(
+        default=True,
+        description="Auto-approve valid Logistics applications; eligibility reasons remain advisory.",
+    )
     logistics_deployment_checks_enabled: bool = Field(default=False)
     logistics_tracking_cache_alias: str = Field(default="default", min_length=1)
     logistics_tracking_cache_backend: str = Field(

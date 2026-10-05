@@ -1,6 +1,7 @@
 """Read-only workspace presentation; lifecycle decisions stay in domain services."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Q
 
@@ -28,6 +29,14 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
         "dashboard_shipments_enabled": shipments_enabled,
     }
     if parcels_enabled:
+        local_now = now.astimezone(ZoneInfo(business.timezone))
+        month_start = datetime(local_now.year, local_now.month, 1, tzinfo=local_now.tzinfo)
+        month_end = datetime(
+            local_now.year + (local_now.month == 12),
+            local_now.month % 12 + 1,
+            1,
+            tzinfo=local_now.tzinfo,
+        )
         parcels = parcels_for_business(business=business, actor=actor)
         status_counts = dict(
             parcels.order_by()
@@ -62,6 +71,25 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
                     for status, label in Parcel.Status.choices
                 ],
                 "ready_parcel_count": status_counts.get(Parcel.Status.READY, 0),
+                "received_waiting_parcel_count": sum(
+                    status_counts.get(status, 0) for status in ASSIGNABLE_PARCEL_STATUSES
+                ),
+                "in_transit_parcel_count": status_counts.get(Parcel.Status.IN_TRANSIT, 0),
+                "delivered_this_month_count": events.filter(
+                    event_type=ParcelEvent.Type.STATUS,
+                    status=Parcel.Status.DELIVERED,
+                    timestamp__gte=month_start,
+                    timestamp__lt=month_end,
+                )
+                .values("parcel_id")
+                .distinct()
+                .count(),
+                "parcels_requiring_attention": parcels.filter(
+                    Q(current_status=Parcel.Status.HOLD)
+                    | Q(current_status__in=ASSIGNABLE_PARCEL_STATUSES, shipment__isnull=True)
+                )
+                .select_related("client")
+                .order_by("created_at", "pk")[:5],
                 "pending_movement_parcel_count": parcels.filter(
                     current_status__in=ASSIGNABLE_PARCEL_STATUSES, shipment__isnull=True
                 ).count(),
@@ -73,8 +101,9 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             }
         )
     if shipments_enabled:
+        shipments = shipments_for_business(business=business, actor=actor)
         context.update(
-            shipments_for_business(business=business, actor=actor).aggregate(
+            shipments.aggregate(
                 shipment_count=Count("pk"),
                 active_shipment_count=Count(
                     "pk",
@@ -82,4 +111,7 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
                 ),
             )
         )
+        context["active_shipments"] = shipments.exclude(
+            status__in=(Shipment.Status.COMPLETED, Shipment.Status.CANCELLED)
+        ).order_by("-updated_at", "-pk")[:5]
     return context

@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from .billing_policy import (
     is_stripe_billable_plan,
+    logistics_local_billing_bypass_enabled,
     offering_allows_interval,
     plan_matches_business,
 )
@@ -55,6 +56,10 @@ class SubscriptionAccessState:
     can_resume_checkout: bool = False
     should_contact_support: bool = False
     payment_recovery_available: bool = False
+
+    @property
+    def local_billing_bypass_active(self) -> bool:
+        return self.code == BusinessSubscription.AccessCode.LOCAL_LOGISTICS_BILLING_BYPASS
 
     @property
     def can_view_workspace(self) -> bool:
@@ -669,6 +674,7 @@ class BusinessSubscription(TimeStampedModel):
         BUSINESS_INACTIVE = "business_inactive"
         PLAN_INACTIVE = "plan_inactive"
         PENDING_CHECKOUT = "pending_checkout"
+        LOCAL_LOGISTICS_BILLING_BYPASS = "local_logistics_billing_bypass"
         TRIAL_ACTIVE = "trial_active"
         TRIAL_EXPIRED = "trial_expired"
         TRIAL_MISSING_END = "trial_missing_end"
@@ -832,6 +838,22 @@ class BusinessSubscription(TimeStampedModel):
                 has_access=False,
                 billing_attention_required=True,
                 should_contact_support=True,
+            )
+
+        # This changes effective access only. A compatible staged Logistics
+        # offering can be tested locally without activating it or inventing payment.
+        if (
+            logistics_local_billing_bypass_enabled()
+            and self.business.vertical == Business.Vertical.LOGISTICS
+            and self.status == self.Status.PENDING_CHECKOUT
+            and self.payment_provider == self.PaymentProvider.STRIPE
+            and self.billing_currency in PUBLIC_PRICING_CURRENCIES
+        ):
+            return self._access_state(
+                self.AccessCode.LOCAL_LOGISTICS_BILLING_BYPASS,
+                has_access=True,
+                billing_attention_required=False,
+                can_resume_checkout=True,
             )
 
         if not self.plan.is_active:

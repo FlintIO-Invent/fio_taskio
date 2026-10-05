@@ -34,6 +34,7 @@ RUNNING_TESTS = (
 AUTH_USER_MODEL = "accounts.TaskIOUser"
 
 DEBUG = settings.debug
+MOTIONMATE_ENVIRONMENT = settings.env.strip().lower()
 
 if settings.secret_key:
     SECRET_KEY = settings.secret_key
@@ -209,6 +210,8 @@ STRIPE_PRICE_ID_MAP = {
     for currency in PUBLIC_PRICING_CURRENCIES
 }
 
+LOGISTICS_AUTO_APPROVE_ALL = settings.logistics_auto_approve_all
+LOGISTICS_LOCAL_BILLING_BYPASS = settings.logistics_local_billing_bypass
 LOGISTICS_ELIGIBILITY_POLICY = LogisticsEligibilityPolicy(
     rule_version=settings.logistics_rule_version,
     auto_approve_monthly_parcels=settings.logistics_auto_approve_monthly_parcels,

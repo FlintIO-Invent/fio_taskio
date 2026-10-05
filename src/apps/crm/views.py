@@ -30,6 +30,7 @@ from apps.businesses.models import (
     BusinessBookingSettings,
     BusinessSubscription,
     BusinessUser,
+    SubscriptionAccessMode,
     WeeklyAvailability,
 )
 from apps.businesses.onboarding import (
@@ -64,6 +65,7 @@ from apps.businesses.utils import (
     redirect_for_unavailable_business_module,
 )
 from apps.logistics.dashboard import get_logistics_dashboard_context
+from apps.logistics.models import LogisticsApplication
 from apps.notifications.emails import (
     send_appointment_confirmation_email,
     send_internal_booking_notification_email,
@@ -577,6 +579,20 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     subscription = get_business_subscription(current_business)
     access_state = subscription.effective_access_state if subscription is not None else None
     if (
+        current_business.vertical == Business.Vertical.LOGISTICS
+        and access_state is not None
+        and access_state.mode == SubscriptionAccessMode.RESTRICTED
+    ):
+        return render(
+            request,
+            "logistics/pending_checkout_dashboard.html",
+            {
+                "current_business": current_business,
+                "logistics_dashboard": True,
+                "restricted_subscription": True,
+            },
+        )
+    if (
         subscription is not None
         and access_state is not None
         and access_state.billing_attention_required
@@ -584,6 +600,30 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         and current_membership is not None
     ):
         if current_membership.role == BusinessUser.Role.OWNER:
+            if (
+                current_business.vertical == Business.Vertical.LOGISTICS
+                and subscription.status == BusinessSubscription.Status.PENDING_CHECKOUT
+                and access_state.code
+                in {
+                    BusinessSubscription.AccessCode.PENDING_CHECKOUT,
+                    BusinessSubscription.AccessCode.PLAN_INACTIVE,
+                }
+            ):
+                # Payment onboarding is presentation only. Do not change the
+                # access state or query operational dashboard data before payment.
+                return render(
+                    request,
+                    "logistics/pending_checkout_dashboard.html",
+                    {
+                        "current_business": current_business,
+                        "logistics_dashboard": True,
+                        "application": LogisticsApplication.objects.filter(
+                            business=current_business,
+                            enrolled_user=request.user,
+                            converted_at__isnull=False,
+                        ).first(),
+                    },
+                )
             if access_state.code == BusinessSubscription.AccessCode.PENDING_CHECKOUT:
                 messages.info(
                     request,

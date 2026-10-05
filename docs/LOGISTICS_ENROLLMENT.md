@@ -1,5 +1,37 @@
 # Logistics enrollment (Block 4)
 
+## Direct pilot signup
+
+With `LOGISTICS_AUTO_APPROVE_ALL=True`, public signup collects a new-account password
+and confirmation. `LogisticsSignupForm` validates them with Django's existing password
+policy; credentials never enter `LogisticsApplication`, decision audits or session
+data. An applicant can choose the existing-account flow without entering a new
+password. Registered emails always require the secure existing-account enrollment
+process, even if a new password was submitted or the applicant is already logged in.
+There is no public account-existence lookup.
+
+`enroll_new_pilot_application` locks and rechecks the automatically approved current
+revision and pilot configuration, then calls the same conversion routine as token
+enrollment. It rejects converted applications and all existing identities, including
+email races; failures roll back conversion while preserving the application for
+review/recovery. Session-bound identical POST retries reuse their own application;
+only its authenticated active owner can resume a converted workspace.
+
+Success uses Django login, selects the current Business, and redirects to the
+dashboard. A pending Logistics owner sees account-created/payment onboarding only,
+including when the offering is still staged/inactive. No operational dashboard data
+is queried. **Continue to payment** posts to the existing approved Logistics checkout
+endpoint. Subscription guards still block operational reads and writes; annual-only,
+no-trial billing and authoritative webhook activation are unchanged. SERVICE dashboard
+and registration behavior are unchanged.
+
+Strict mode, existing accounts, manual review and administrative recovery retain the
+token architecture below. Strict-mode application submission does not collect or
+retain passwords and never provisions, even for a strict automatically approved
+application.
+
+## Secure enrollment links
+
 An authorized application reviewer uses **Enrollment link** in Django Admin to
 issue or replace a link for an APPROVED application at its displayed current
 revision. Issuing requires POST and the existing application change permission.
@@ -83,5 +115,6 @@ commercial prices, configure supported annual USD/EUR Stripe Prices and activate
 offering through its validated Admin form before accepting payments.
 Keep the existing Logistics Customer Portal disabled until its configuration can
 prove vertical and annual-only switching restrictions. Decide pilot territories
-and any automated applicant-email delivery separately; existing eligibility rules
-and empty territory defaults are preserved. No Parcel/PWA/API/scanner work is added.
+and any automated applicant-email delivery separately. Eligibility reasons are
+advisory with the pilot default `LOGISTICS_AUTO_APPROVE_ALL=True`; False restores
+strict review, including empty territory defaults. No Parcel/PWA/API/scanner work is added.

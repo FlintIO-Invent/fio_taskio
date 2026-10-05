@@ -48,7 +48,11 @@ from .usage import logistics_operational_summary
 @override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY, **stripe_settings())
 class LogisticsReadinessFlowTests(LogisticsCheckoutFixture, TestCase):
     def create_application(self):
-        response = self.client.post(reverse("logistics_application_create"), application_data())
+        # Keep the reviewed/token enrollment path covered alongside direct signup.
+        response = self.client.post(
+            reverse("logistics_application_create"),
+            {**application_data(), "use_existing_account": "on"},
+        )
         self.assertRedirects(response, reverse("logistics_application_received"))
         application = LogisticsApplication.objects.get()
         self.assertEqual(application.status, "APPROVED")

@@ -41,7 +41,11 @@ tests; timeline/manifest response size still grows with their event/parcel count
   recurring Price details through Admin activation/checkout; static checks do
   not contact Stripe. Keep Logistics Customer Portal disabled.
 - Set `LOGISTICS_SUPPORTED_TERRITORIES` explicitly and review the existing
-  eligibility thresholds and rule version. They remain approval rules.
+  eligibility thresholds and rule version. With `LOGISTICS_AUTO_APPROVE_ALL=True`
+  (the pilot default), reasons are advisory; False restores strict approval rules.
+- Keep `LOGISTICS_LOCAL_BILLING_BYPASS=False` on Development/Staging and Production.
+  The optional bypass requires `ENV=local` and `DEBUG=True`; invalid configurations
+  fail the ordinary Django system check. See [LOGISTICS_LOCAL_DEVELOPMENT.md](LOGISTICS_LOCAL_DEVELOPMENT.md).
 - For shared throttling, install `uv sync --no-install-project --extra logistics-cache` (include
   other deployment extras as needed), then configure:
 

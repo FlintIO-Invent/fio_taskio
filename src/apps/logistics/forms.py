@@ -1,9 +1,83 @@
 from django import forms
+from django.conf import settings
+from django.contrib.auth import get_user_model, password_validation
+from django.core.exceptions import ValidationError
 
 from .models import LogisticsApplication
 
 
 class LogisticsApplicationForm(forms.ModelForm):
+    APPLICATION_STEPS = (
+        (
+            "business",
+            "Business",
+            "fa-building",
+            "Tell us about your business and where you operate.",
+            (
+                "business_name",
+                "trading_name",
+                "registration_number",
+                "website",
+                "country",
+                "timezone",
+                "business_address",
+                "preferred_currency",
+            ),
+        ),
+        (
+            "contact",
+            "Contact",
+            "fa-user",
+            "Who should we contact about your application?",
+            ("contact_first_name", "contact_last_name", "email", "phone", "whatsapp"),
+        ),
+        (
+            "operations",
+            "Operations",
+            "fa-truck-fast",
+            "Help us understand your parcel routes, volume and team.",
+            (
+                "operation_type",
+                "routes",
+                "monthly_parcel_estimate",
+                "expected_staff_count",
+                "location_count",
+                "current_process_method",
+                "current_process_details",
+            ),
+        ),
+        (
+            "requirements",
+            "Requirements",
+            "fa-list-check",
+            "Select the features you need and share any special requirements.",
+            (
+                "customer_tracking_needed",
+                "manifest_needed",
+                "api_integration_needed",
+                "custom_workflow",
+                "custom_workflow_details",
+                "multi_jurisdiction",
+                "custom_pricing_requested",
+                "operational_notes",
+            ),
+        ),
+    )
+    HALF_WIDTH_FIELDS = frozenset(
+        {
+            "trading_name",
+            "registration_number",
+            "country",
+            "timezone",
+            "contact_first_name",
+            "contact_last_name",
+            "phone",
+            "whatsapp",
+            "expected_staff_count",
+            "location_count",
+        }
+    )
+
     class Meta:
         model = LogisticsApplication
         fields = LogisticsApplication.MATERIAL_FIELDS
@@ -14,16 +88,128 @@ class LogisticsApplicationForm(forms.ModelForm):
             field.widget.attrs["class"] = (
                 "form-check-input"
                 if isinstance(field.widget, forms.CheckboxInput)
+                else "form-select"
+                if isinstance(field.widget, forms.Select)
                 else "form-control"
             )
             if isinstance(field.widget, forms.Textarea):
                 field.widget.attrs["rows"] = 3
-        self.fields["timezone"].help_text = (
-            "IANA timezone, for example America/Curacao or Europe/Amsterdam."
-        )
-        self.fields["registration_number"].help_text = (
-            "Optional at submission; further registration details may be requested."
-        )
+        self.fields[
+            "timezone"
+        ].help_text = "IANA timezone, for example America/Curacao or Europe/Amsterdam."
+        self.fields[
+            "registration_number"
+        ].help_text = "Optional at submission; further registration details may be requested."
+        for name, autocomplete in {
+            "business_name": "organization",
+            "contact_first_name": "given-name",
+            "contact_last_name": "family-name",
+            "email": "email",
+            "phone": "tel",
+            "whatsapp": "tel",
+            "country": "country-name",
+            "business_address": "street-address",
+            "website": "url",
+        }.items():
+            self.fields[name].widget.attrs["autocomplete"] = autocomplete
+        for name in ("phone", "whatsapp"):
+            self.fields[name].widget.attrs["inputmode"] = "tel"
+        for name in ("expected_staff_count", "location_count"):
+            self.fields[name].widget.attrs["min"] = 1
+        self.fields["timezone"].widget.attrs["placeholder"] = "e.g. America/Curacao"
+
+    @property
+    def application_steps(self):
+        return [
+            {
+                "slug": slug,
+                "label": label,
+                "icon": icon,
+                "description": description,
+                "fields": [
+                    {
+                        "field": self[name],
+                        "columns": "col-sm-6" if name in self.HALF_WIDTH_FIELDS else "",
+                    }
+                    for name in names
+                ],
+            }
+            for slug, label, icon, description, names in self.APPLICATION_STEPS
+        ]
+
+
+class LogisticsSignupForm(LogisticsApplicationForm):
+    """Credentials are transient form inputs, never application or decision fields."""
+
+    use_existing_account = forms.BooleanField(
+        label="I already have a Motionmate account",
+        required=False,
+        help_text="Use your existing account through secure sign-in and enrollment.",
+    )
+    password1 = forms.CharField(
+        label="Password",
+        required=False,
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        help_text=password_validation.password_validators_help_text_html(),
+    )
+    password2 = forms.CharField(
+        label="Confirm password",
+        required=False,
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.new_account_password = None
+        if not settings.LOGISTICS_AUTO_APPROVE_ALL:
+            for name in ("use_existing_account", "password1", "password2"):
+                self.fields.pop(name)
+
+    @property
+    def application_steps(self):
+        steps = super().application_steps
+        if "password1" in self.fields:
+            steps[1]["fields"].extend(
+                {"field": self[name], "columns": ""}
+                for name in ("use_existing_account", "password1", "password2")
+            )
+        return steps
+
+    def clean(self):
+        cleaned = super().clean()
+        email = cleaned.get("email", "").strip().casefold()
+        User = get_user_model()
+        if (
+            "password1" not in self.fields
+            or cleaned.get("use_existing_account")
+            or User.objects.filter(email__iexact=email).exists()
+        ):
+            # Never treat a submitted password as authority over an existing user.
+            cleaned.pop("password1", None)
+            cleaned.pop("password2", None)
+            return cleaned
+        password = cleaned.get("password1")
+        if not password:
+            self.add_error("password1", "Set a password for your new account.")
+        if not cleaned.get("password2"):
+            self.add_error("password2", "Confirm your password.")
+        elif password != cleaned["password2"]:
+            self.add_error("password2", "Passwords do not match.")
+        if password:
+            candidate = User(
+                email=email,
+                first_name=cleaned.get("contact_first_name", "")[:30],
+                last_name=cleaned.get("contact_last_name", "")[:30],
+            )
+            try:
+                password_validation.validate_password(password, candidate)
+            except ValidationError as exc:
+                self.add_error("password1", exc)
+        if not self.errors:
+            self.new_account_password = password
+        return cleaned
 
 
 class ApplicationReviewForm(forms.Form):
