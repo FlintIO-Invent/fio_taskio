@@ -68,13 +68,16 @@ never the raw IP or tracking code. All attempts count, including invalid codes.
 Cache failures return generic 429 without querying parcels; 429 includes
 `Retry-After: 60`. GET only serves the blank form and performs no parcel lookup.
 
-Forwarded headers are ignored because there is no project trust policy. Behind
-a proxy, the direct peer limit may be shared by customers. The default local
-memory cache protects each process separately, and fixed windows allow bursts
-across boundaries. A deployment-wide limit needs an existing shared Django cache
-with atomic add/incr or an independently configured edge limit, plus a verified
-proxy peer policy. No external service is added. This bounded minimal protection
-and high-entropy exact lookup are not a general distributed abuse solution.
+Forwarded headers are ignored because there is no application-level proxy trust
+policy. Behind a proxy, the direct peer limit may be shared by customers. Verify
+that a trusted server/proxy chain supplies the correct `REMOTE_ADDR`; never trust
+arbitrary client-supplied forwarding headers. The default local memory cache
+protects each process separately, and fixed windows allow bursts across boundaries.
+Block 11 configures a dedicated shared cache through `LOGISTICS_TRACKING_CACHE_*`
+and checks for Redis/Memcached atomic add/incr in opt-in pilot deployment checks.
+All workers must share the cache, key prefix and Django SECRET_KEY. An independent
+edge limit is useful additional protection; it does not change the application
+counter. This bounded protection is not a general distributed abuse solution.
 
 ## Block 8
 

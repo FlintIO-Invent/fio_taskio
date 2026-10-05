@@ -225,11 +225,20 @@ class Settings(BaseSettings):
     stripe_price_logistics_yearly_usd: str = Field(default="")
     stripe_price_logistics_yearly_eur: str = Field(default="")
     logistics_rule_version: str = Field(default="pilot-v1", min_length=1, max_length=100)
+    logistics_deployment_checks_enabled: bool = Field(default=False)
+    logistics_tracking_cache_alias: str = Field(default="default", min_length=1)
+    logistics_tracking_cache_backend: str = Field(
+        default="django.core.cache.backends.locmem.LocMemCache"
+    )
+    logistics_tracking_cache_location: str = Field(default="")
+    logistics_tracking_cache_key_prefix: str = Field(default="clarivo-logistics-tracking")
     logistics_auto_approve_monthly_parcels: int = Field(default=1000, ge=0)
     logistics_review_above_monthly_parcels: int = Field(default=5000, ge=0)
     logistics_high_resource_monthly_parcels: int = Field(default=10000, ge=1)
     logistics_auto_approve_staff_count: int = Field(default=10, ge=1)
     logistics_auto_approve_location_count: int = Field(default=1, ge=1)
+    logistics_usage_approaching_ratio: float = Field(default=0.8, gt=0, le=1)
+    logistics_monthly_event_review_threshold: int | None = Field(default=None, ge=0)
     logistics_supported_territories: Annotated[list[str], NoDecode] = Field(default_factory=list)
     logistics_registration_required_for_auto_approval: bool = Field(default=True)
     log_level: str = Field(

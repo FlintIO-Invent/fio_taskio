@@ -62,11 +62,12 @@ A failed transaction leaves the grant unused and no partial conversion.
 Application inspection includes conversion IDs/revision/time and subscription
 presence, without raw grants or contact details. Admin shows readonly conversion
 and grant lifecycle history. Tenant inventory explicitly registers the protected
-application relation. Converted businesses cannot be purged: the planner reports
-`logistics_conversion_protected`, and the existing failed-operation audit/rollback
-behavior remains intact. User/Business deletion is also protected by the linkage.
-A future explicit retention/release policy is required before deleting converted
-Logistics tenants; matching email/name remains neither ownership nor a selector.
+application relation. Ordinary User/Business deletion is protected by the linkage.
+Block 11 lets the existing controlled purge release the Business FK into a retained
+`business_id_snapshot` only after all original safety gates pass. Application
+inputs, decisions, grants and the enrolled User survive; grants are revoked and
+purged conversions cannot enroll again. Retention release rolls back with any
+failed purge. Matching email/name remains neither ownership nor a selector.
 
 SQLite tests exercise authorization, identity, idempotent retries, rollback,
 constraints, browser/admin security, inventory and pending access. PostgreSQL-only

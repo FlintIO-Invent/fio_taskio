@@ -22,7 +22,7 @@ from apps.businesses.billing_policy import BILLING_OFFERINGS
 from apps.businesses.plan_catalog import (
     PUBLIC_PRICING_CURRENCIES,
 )
-from apps.logistics.policy import LogisticsEligibilityPolicy
+from apps.logistics.policy import LogisticsEligibilityPolicy, LogisticsUsageReviewPolicy
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNNING_TESTS = (
@@ -219,6 +219,23 @@ LOGISTICS_ELIGIBILITY_POLICY = LogisticsEligibilityPolicy(
     supported_territories=tuple(settings.logistics_supported_territories),
     registration_required_for_auto_approval=settings.logistics_registration_required_for_auto_approval,
 )
+
+LOGISTICS_USAGE_REVIEW_POLICY = LogisticsUsageReviewPolicy(
+    approaching_ratio=settings.logistics_usage_approaching_ratio,
+    monthly_event_review_threshold=settings.logistics_monthly_event_review_threshold,
+)
+
+LOGISTICS_DEPLOYMENT_CHECKS_ENABLED = settings.logistics_deployment_checks_enabled
+LOGISTICS_TRACKING_CACHE_ALIAS = settings.logistics_tracking_cache_alias
+# A dedicated tracking cache leaves SERVICE cache behavior unchanged.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    "logistics_tracking": {
+        "BACKEND": settings.logistics_tracking_cache_backend,
+        "LOCATION": settings.logistics_tracking_cache_location,
+        "KEY_PREFIX": settings.logistics_tracking_cache_key_prefix,
+    },
+}
 
 LOGGING = {
     "version": 1,

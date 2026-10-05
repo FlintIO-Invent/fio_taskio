@@ -59,11 +59,13 @@ def annual_price(price_id):
     }
 
 
-@override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY, **stripe_settings())
-class LogisticsCheckoutTests(TestCase):
+class LogisticsCheckoutFixture:
+    def create_application(self):
+        return LogisticsApplication.objects.create(**application_data())
+
     def setUp(self):
         self.actor = reviewer()
-        self.application = LogisticsApplication.objects.create(**application_data())
+        self.application = self.create_application()
         token = issue_enrollment_link(self.application.pk, actor=self.actor, expected_revision=1)
         result = enroll_application(token, password=PASSWORD)
         self.user, self.business, self.subscription = (
@@ -209,6 +211,9 @@ class LogisticsCheckoutTests(TestCase):
             HTTP_STRIPE_SIGNATURE=f"t={timestamp},v1={signature}",
         )
 
+
+@override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY, **stripe_settings())
+class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
     def test_converted_owner_enters_shared_annual_checkout_with_no_trial(self):
         self.assertEqual(self.checkout(), "https://checkout.stripe.test/logistics")
         params = self.sessions.create.call_args.kwargs

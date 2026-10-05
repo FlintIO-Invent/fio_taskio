@@ -66,13 +66,15 @@ class EnrollmentHistoryInline(DecisionHistoryInline):
 class LogisticsApplicationAdmin(admin.ModelAdmin):
     list_display = (
         "business_name",
+        "business",
         "country",
         "status",
         "revision",
         "monthly_parcel_estimate",
         "evaluated_at",
     )
-    list_filter = ("status", "country", "operation_type")
+    list_filter = ("status", "country", "operation_type", ("business", admin.EmptyFieldListFilter))
+    list_select_related = ("business",)
     search_fields = ("business_name", "trading_name", "email", "registration_number")
     readonly_fields = LogisticsApplication.DECISION_FIELDS + (
         "normalized_email",
@@ -82,6 +84,7 @@ class LogisticsApplicationAdmin(admin.ModelAdmin):
         "updated_at",
         "business",
         "enrolled_user",
+        "business_id_snapshot",
         "converted_at",
         "converted_revision",
     )

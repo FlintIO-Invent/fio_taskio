@@ -66,8 +66,11 @@ an account, starts billing or sends applicant notifications.
 without contact details. Converted applications now have explicit protected Business/User
 links; unconverted applications have none. Matching an email/name is only an eligibility signal and never a purge selector.
 Application deletion is blocked by decision PROTECT; Admin deletion is disabled.
-The nullable conversion link is registered in tenant inventory and protects converted
-businesses from purge. Existing SERVICE tenant and demo behavior is unchanged.
+The nullable conversion link is registered in tenant inventory and protects
+ordinary Business deletion. Controlled purge retains application history and
+releases only the Business FK into a conversion identity snapshot (Block 11).
+Existing SERVICE tenant and demo behavior is unchanged.
 
-Block 5 still needs checkout and commercial activation. Explicit pilot territories
-and any automated applicant notification policy remain configuration/product decisions.
+Checkout and operational workflows are implemented. Explicit pilot territories,
+commercial activation and delivery of private enrollment grants must be configured
+before pilot. Application decision/approval notification delivery remains manual.

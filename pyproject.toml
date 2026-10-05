@@ -23,6 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+logistics-cache = ["redis>=5"]
 
 # Dev tooling
 dev = [

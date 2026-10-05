@@ -11,6 +11,14 @@ def normalized_identity(value: str) -> str:
     )
 
 
+class LogisticsUsageReviewPolicy(BaseModel):
+    """Optional operational signals, independent of approval and plan limits."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    approaching_ratio: float = Field(default=0.8, gt=0, le=1)
+    monthly_event_review_threshold: int | None = Field(default=None, ge=0)
+
+
 class LogisticsEligibilityPolicy(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 

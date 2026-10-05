@@ -3,7 +3,8 @@
 import re
 import time
 
-from django.core.cache import cache
+from django.conf import settings
+from django.core.cache import cache, caches
 from django.db.models import F
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
@@ -29,9 +30,11 @@ def allow_tracking_lookup(remote_address):
     peer = salted_hmac("logistics.public_tracking.peer", remote_address or "unknown").hexdigest()
     key = f"logistics:public-tracking:{window}:{peer}"
     try:
-        if cache.add(key, 1, timeout=LOOKUP_WINDOW_SECONDS * 2):
+        alias = getattr(settings, "LOGISTICS_TRACKING_CACHE_ALIAS", "default")
+        tracking_cache = cache if alias == "default" else caches[alias]
+        if tracking_cache.add(key, 1, timeout=LOOKUP_WINDOW_SECONDS * 2):
             return True
-        return cache.incr(key) <= LOOKUP_LIMIT
+        return tracking_cache.incr(key) <= LOOKUP_LIMIT
     except Exception:
         return False
 

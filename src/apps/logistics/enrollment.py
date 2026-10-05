@@ -82,6 +82,8 @@ def _load(secret, *, lock=False):
         grants = grants.select_for_update()
     application = applications.get(pk=grant.application_id)
     grant = grants.get(pk=grant.pk)
+    if application.converted_at is not None and application.business_id is None:
+        raise ValidationError(INVALID_LINK)
     if grant.revoked_at is not None or grant.expires_at <= timezone.now():
         raise ValidationError(INVALID_LINK)
     _require_approved(application, grant.application_revision)
@@ -198,6 +200,7 @@ def enroll_application(secret, *, authenticated_user=None, password=None):
     now = timezone.now()
     LogisticsApplication.objects.filter(pk=application.pk).update(
         business=business,
+        business_id_snapshot=business.pk,
         enrolled_user=user,
         converted_at=now,
         converted_revision=application.revision,

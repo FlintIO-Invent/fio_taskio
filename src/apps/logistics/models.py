@@ -76,7 +76,13 @@ class LogisticsApplication(models.Model):
         "rule_version",
         "threshold_snapshot",
     )
-    CONVERSION_FIELDS = ("business_id", "enrolled_user_id", "converted_at", "converted_revision")
+    CONVERSION_FIELDS = (
+        "business_id",
+        "business_id_snapshot",
+        "enrolled_user_id",
+        "converted_at",
+        "converted_revision",
+    )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     business_name = models.CharField("Legal / business name", max_length=120)
     trading_name = models.CharField(max_length=120, blank=True)
@@ -164,6 +170,7 @@ class LogisticsApplication(models.Model):
     )
     converted_at = models.DateTimeField(null=True, blank=True, editable=False)
     converted_revision = models.PositiveIntegerField(null=True, blank=True, editable=False)
+    business_id_snapshot = models.PositiveBigIntegerField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["-created_at"]
@@ -175,12 +182,18 @@ class LogisticsApplication(models.Model):
                         enrolled_user__isnull=True,
                         converted_at__isnull=True,
                         converted_revision__isnull=True,
+                        business_id_snapshot__isnull=True,
                     )
-                    | models.Q(
-                        business__isnull=False,
-                        enrolled_user__isnull=False,
-                        converted_at__isnull=False,
-                        converted_revision__isnull=False,
+                    | (
+                        models.Q(
+                            enrolled_user__isnull=False,
+                            converted_at__isnull=False,
+                            converted_revision__isnull=False,
+                        )
+                        & (
+                            models.Q(business__isnull=False)
+                            | models.Q(business_id_snapshot__isnull=False)
+                        )
                     )
                 ),
                 name="logistics_conversion_complete_or_absent",
@@ -364,7 +377,7 @@ class ParcelDomainQuerySet(models.QuerySet):
         raise ValidationError("Parcel history can only be removed by the business purge workflow.")
 
     def _purge_delete(self):
-        # Only the gated business purge calls this, after integrity checks.
+        # Controlled tenant purge or ownership-validated demo reset only.
         return super().delete()
 
 
