@@ -381,6 +381,7 @@ class LogisticsOfferingTests(TestCase):
                     return_value={
                         "id": "price_logistics_yearly_usd",
                         "active": True,
+                        "livemode": False,
                         "type": "recurring",
                         "currency": "usd",
                         "unit_amount": 10000,

@@ -167,29 +167,6 @@
                                 </div>
                             {% endif %}
 
-                            {% if module_access.shipments %}
-                                <div class="nav-item-wrapper">
-                                    <a class="nav-link label-1" href="{% url 'logistics_shipment_list' %}" data-onboarding-target="shipments">
-                                        <span class="nav-link-text">Shipments</span>
-                                    </a>
-                                </div>
-                            {% endif %}
-                            {% if module_access.parcels %}
-                            <div class="nav-item-wrapper">
-                                <a class="nav-link label-1" href="{% url 'logistics_parcel_list' %}" data-onboarding-target="parcels">
-                                    <span class="nav-link-icon"><span data-feather="package"></span></span><span class="nav-link-text">Parcels</span>
-                                </a>
-                            </div>
-                            {% endif %}
-
-                            {% if module_access.tracking %}
-                            <div class="nav-item-wrapper">
-                                <a class="nav-link label-1" href="{% url 'logistics_public_tracking' %}">
-                                    <span class="nav-link-icon"><span data-feather="search"></span></span><span class="nav-link-text">Public Tracking</span>
-                                </a>
-                            </div>
-                            {% endif %}
-
                             <!-- client navigation -->
                             <div class="nav-item-wrapper">
                                 <a class="nav-link dropdown-indicator label-1" href="#nv-client" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-client" data-onboarding-target="clients">
@@ -217,6 +194,58 @@
 	                                    </ul>
 	                                </div>
 	                            </div>
+
+                            {% if module_access.parcels %}
+                            <div class="nav-item-wrapper">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-parcels" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-parcels" data-onboarding-target="parcels">
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                        <span class="nav-link-icon"><span data-feather="package"></span></span><span class="nav-link-text">Parcels</span>
+                                    </div>
+                                </a>
+                                <div class="parent-wrapper label-1">
+                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-parcels">
+                                        <li class="collapsed-nav-item-title d-none"></li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'logistics_parcel_list' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">All Parcels</span></div>
+                                            </a>
+                                            {% if role_access.can_manage_parcels and module_write_access.parcels %}
+                                            <a class="nav-link" href="{% url 'logistics_parcel_register' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Register Parcel</span></div>
+                                            </a>
+                                            {% endif %}
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if module_access.shipments %}
+                            <div class="nav-item-wrapper">
+                                <a class="nav-link dropdown-indicator label-1" href="#nv-shipments" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-shipments" data-onboarding-target="shipments">
+                                    <div class="d-flex align-items-center">
+                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
+                                        <span class="nav-link-icon"><span data-feather="truck"></span></span><span class="nav-link-text">Shipments</span>
+                                    </div>
+                                </a>
+                                <div class="parent-wrapper label-1">
+                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-shipments">
+                                        <li class="collapsed-nav-item-title d-none"></li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'logistics_shipment_list' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">All Shipments</span></div>
+                                            </a>
+                                            {% if role_access.can_manage_shipments and module_write_access.shipments %}
+                                            <a class="nav-link" href="{% url 'logistics_shipment_create' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Create Shipment</span></div>
+                                            </a>
+                                            {% endif %}
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            {% endif %}
 
                         </li>
 
@@ -478,7 +507,7 @@
     <script src="{% static 'vendors/dropzone/dropzone-min.js' %}"></script>
     <script src="{% static 'vendors/choices/choices.min.js' %}"></script>
     <script src="{% static 'vendors/flatpickr/flatpickr.min.js' %}"></script>
-    {% if not logistics_dashboard %}
+    {% if not logistics_dashboard and current_business.vertical != 'LOGISTICS' %}
     <script src="{% static 'assets/js/dashboards/crm-dashboard.js' %}"></script>
     {% endif %}
 

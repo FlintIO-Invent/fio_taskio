@@ -66,6 +66,8 @@ from apps.businesses.utils import (
 )
 from apps.logistics.dashboard import get_logistics_dashboard_context
 from apps.logistics.models import LogisticsApplication
+from apps.logistics.parcel_policy import PARCEL_MANAGE_ROLES
+from apps.logistics.parcel_services import parcels_for_business
 from apps.notifications.emails import (
     send_appointment_confirmation_email,
     send_internal_booking_notification_email,
@@ -82,6 +84,7 @@ from .forms import (
     PrivateLeadForm,
     PublicBookingForm,
     PublicLeadForm,
+    QuickClientForm,
     ServiceCategoryForm,
 )
 from .importing.client_execution import execute_client_import, execution_result_from_job
@@ -1258,12 +1261,32 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
     Create a new client for staff.
     """
     current_business = request.current_business
+    parcel_flow = request.method == "POST" and request.POST.get("workflow") == "parcel"
+    if parcel_flow:
+        if not (
+            current_business.vertical == Business.Vertical.LOGISTICS
+            and membership_has_any_role(
+                get_current_business_membership(request), PARCEL_MANAGE_ROLES
+            )
+            and can_use_module(current_business, "parcels")
+            and can_use_module(current_business, "tracking")
+        ):
+            raise PermissionDenied("Parcel registration is unavailable in this workspace.")
+        form = QuickClientForm(request.POST, prefix="new_client")
+    else:
+        form = PrivateClientForm(
+            request.POST if request.method == "POST" else None, business=current_business
+        )
     if business_limit_reached(current_business, "clients"):
+        if parcel_flow:
+            form.add_error(None, get_business_limit_reached_message(current_business, "clients"))
+            return render(
+                request, "logistics/includes/client_fields.html", {"form": form}, status=400
+            )
         messages.error(request, get_business_limit_reached_message(current_business, "clients"))
         return redirect("staff_client_list")
 
     if request.method == "POST":
-        form = PrivateClientForm(request.POST, business=current_business)
         if form.is_valid():
             client = None
             with transaction.atomic():
@@ -1274,15 +1297,29 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
                     client.save()
                     form.save_m2m()
             if client is None:
+                if parcel_flow:
+                    form.add_error(
+                        None, get_business_limit_reached_message(current_business, "clients")
+                    )
+                    return render(
+                        request, "logistics/includes/client_fields.html", {"form": form}, status=400
+                    )
                 messages.error(
                     request,
                     get_business_limit_reached_message(current_business, "clients"),
                 )
                 return redirect("staff_client_list")
+            if parcel_flow:
+                return render(
+                    request,
+                    "logistics/includes/client_created.html",
+                    {"client": client},
+                    status=201,
+                )
             messages.success(request, "Client created successfully.")
             return redirect("staff_client_list")
-    else:
-        form = PrivateClientForm(business=current_business)
+    if parcel_flow:
+        return render(request, "logistics/includes/client_fields.html", {"form": form}, status=400)
 
     context = {"form": form}
     return render(request, "crm/forms/client_create.html", context)
@@ -1455,6 +1492,22 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
         "client_upcoming_appointments": upcoming_appointments,
         "client_recent_appointment_history": recent_appointment_history,
     }
+    if (
+        current_business.vertical == Business.Vertical.LOGISTICS
+        and can_view_module(current_business, "parcels")
+        and can_view_module(current_business, "tracking")
+    ):
+        client_parcels = parcels_for_business(business=current_business, actor=request.user).filter(
+            client=client
+        )
+        context.update(
+            logistics_client_parcels=True,
+            client_parcel_count=client_parcels.count(),
+            client_open_parcels=client_parcels.exclude(
+                current_status__in=("DELIVERED", "CANCELLED")
+            ).order_by("-created_at", "-pk")[:5],
+            client_recent_parcels=client_parcels.order_by("-created_at", "-pk")[:5],
+        )
     return render(request, "crm/main/client_detail.html", context)
 
 

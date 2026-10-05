@@ -1,6 +1,71 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% block content %}
-<h1>{{ title }}</h1>
-<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Save shipment</button></form>
-<p><a href="{% url 'logistics_shipment_list' %}">Back to shipments</a></p>
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'logistics_shipment_list' %}">Shipments</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ title|title }}</li>
+    </ol>
+  </nav>
+  <div class="mb-4">
+    <h2 class="mb-2 text-body-emphasis">{{ title|title }}</h2>
+    <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
+  </div>
+  <form method="post" class="mb-5">
+    {% csrf_token %}
+    {% include 'logistics/includes/form_errors.html' %}
+    {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+    <div class="row g-4">
+      <div class="col-12 col-xl-8">
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3">Route</h4>
+            <div class="row g-3">
+              {% include 'logistics/includes/form_field.html' with field=form.origin column_class='col-12 col-md-6' %}
+              {% include 'logistics/includes/form_field.html' with field=form.destination column_class='col-12 col-md-6' %}
+            </div>
+          </div>
+        </div>
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3">Schedule</h4>
+            <div class="row g-3">
+              {% include 'logistics/includes/form_field.html' with field=form.departure_at column_class='col-12 col-md-6' %}
+              {% include 'logistics/includes/form_field.html' with field=form.estimated_arrival_at column_class='col-12 col-md-6' %}
+            </div>
+          </div>
+        </div>
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3">Notes</h4>
+            <div class="row g-3">
+              {% include 'logistics/includes/form_field.html' with field=form.notes %}
+            </div>
+          </div>
+        </div>
+        {% if form.parcel %}
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3">Parcel assignment</h4>
+            {% if has_eligible_parcels or form.parcel.errors %}
+            <div class="row g-3">{% include 'logistics/includes/form_field.html' with field=form.parcel %}</div>
+            {% else %}
+            <p class="text-body-secondary mb-0">No parcels are currently eligible for this shipment.</p>
+            {% if role_access.can_manage_parcels and module_write_access.parcels %}
+            <a class="btn btn-phoenix-secondary mt-3" href="{% url 'logistics_parcel_register' %}">Register Parcel</a>
+            {% endif %}
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-primary" type="submit">Save Shipment</button>
+          <a class="btn btn-phoenix-secondary" href="{% if form.instance.pk %}{% url 'logistics_shipment_detail' form.instance.pk %}{% else %}{% url 'logistics_shipment_list' %}{% endif %}">Cancel</a>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% include 'logistics/includes/scripts.html' %}
 {% endblock %}

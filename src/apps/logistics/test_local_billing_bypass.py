@@ -150,6 +150,49 @@ class LocalLogisticsAccessTests(TestCase):
                     (module, access),
                 )
 
+    def test_normal_owner_login_can_create_and_view_client_and_open_operations(self):
+        self.user.set_password(PASSWORD)
+        self.user.save(update_fields=["password"])
+        self.client.logout()
+        before = BusinessSubscription.objects.values().get(pk=self.subscription.pk)
+        with mock.patch("apps.businesses.stripe_checkout.configure_stripe_sdk") as stripe:
+            login = self.client.post(
+                reverse("business_login"), {"email": self.user.email, "password": PASSWORD}
+            )
+            self.assertRedirects(login, reverse("agent_dashboard"))
+            self.assertEqual(self.client.session["current_business_id"], self.business.pk)
+            dashboard = self.client.get(reverse("agent_dashboard"))
+            self.assertTemplateUsed(dashboard, "crm/agent_dashboard/agent_dashboard.html")
+            self.assertContains(dashboard, "billing bypass active")
+            response = self.client.post(
+                reverse("staff_client_create"),
+                {
+                    "client_type": "INDIVIDUAL",
+                    "first_name": "Local",
+                    "last_name": "Customer",
+                    "company_name": "Local Customer",
+                    "email": "local-client@example.com",
+                    "phone": "+59991234567",
+                    "preferred_contact_method": "EMAIL",
+                    "client_status": "ACTIVE",
+                    "priority": "MEDIUM",
+                    "street_address": "Local test street 1",
+                },
+            )
+            self.assertRedirects(response, reverse("staff_client_list"))
+            customer = Client.objects.get(business=self.business, email="local-client@example.com")
+            for name, args in (
+                ("staff_client_detail", [customer.pk]),
+                ("logistics_parcel_list", []),
+                ("logistics_parcel_register", []),
+                ("logistics_shipment_list", []),
+                ("logistics_shipment_create", []),
+            ):
+                with self.subTest(route=name):
+                    self.assertEqual(self.client.get(reverse(name, args=args)).status_code, 200)
+        stripe.assert_not_called()
+        self.assertEqual(BusinessSubscription.objects.values().get(pk=self.subscription.pk), before)
+
     def test_operational_services_work_without_mutating_billing_or_calling_stripe(self):
         before = BusinessSubscription.objects.values().get(pk=self.subscription.pk)
         plan_before = ClarivoPlan.objects.values().get(pk=self.plan.pk)

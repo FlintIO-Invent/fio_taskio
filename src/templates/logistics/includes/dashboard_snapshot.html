@@ -65,7 +65,7 @@
       <ul class="list-unstyled mb-0">{% for event in recent_tracking_events %}
         <li class="py-2 border-bottom">
           <a class="logistics-tracking-code" href="{% url 'logistics_parcel_detail' event.parcel_id %}">{{ event.parcel.tracking_code }}</a>
-          <span>{{ event.get_status_display|default:event.get_event_type_display }}</span>
+          {% if event.status %}{% include 'logistics/includes/status_badge.html' with status=event.status label=event.get_status_display %}{% else %}<span>{{ event.get_event_type_display }}</span>{% endif %}
           <span class="text-body-tertiary">{{ event.timestamp|date:"M j, Y H:i" }}</span>
           {% if event.public_message %}<p class="mb-0">{{ event.public_message }}</p>{% endif %}
         </li>
@@ -80,7 +80,7 @@
       <ul class="list-unstyled mb-3">{% for shipment in active_shipments %}
         <li class="py-2 border-bottom">
           <a class="logistics-tracking-code" href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a>
-          <span class="badge badge-phoenix badge-phoenix-secondary">{{ shipment.get_status_display }}</span>
+          {% include 'logistics/includes/status_badge.html' with status=shipment.status label=shipment.get_status_display %}
           <p class="text-body-tertiary mb-0 mt-1">{{ shipment.origin }} → {{ shipment.destination }}</p>
         </li>
       {% empty %}<li>No active shipments. Group parcels for movement when needed.</li>{% endfor %}</ul>
@@ -94,7 +94,7 @@
       <ul class="list-unstyled mb-0">{% for parcel in parcels_requiring_attention %}
         <li class="py-2 border-bottom">
           <a class="logistics-tracking-code" href="{% url 'logistics_parcel_detail' parcel.pk %}">{{ parcel.tracking_code }}</a>
-          <span class="badge badge-phoenix badge-phoenix-secondary">{{ parcel.get_current_status_display }}</span>
+          {% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}
           <p class="text-body-tertiary mb-0 mt-1">{{ parcel.client }}</p>
         </li>
       {% empty %}<li>No parcels requiring attention.</li>{% endfor %}</ul>

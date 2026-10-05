@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model, password_validation
 from django.core.exceptions import ValidationError
 
+from .dashboard_forms import style_dashboard_fields
 from .models import LogisticsApplication
 
 
@@ -290,9 +291,23 @@ class ParcelRegistrationForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.instance.business = business
         self.fields["declared_value"].label = f"Declared value ({business.currency})"
+        self.fields["weight_kg"].label = "Weight (kg)"
         self.fields["client"].queryset = Client.objects.filter(business=business).order_by(
             "first_name", "last_name", "pk"
         )
+        style_dashboard_fields(self.fields)
+        self.fields["client"].widget.attrs.update(
+            {
+                "data-logistics-search-select": "",
+                "data-search-placeholder": "Search clients by name or email",
+            }
+        )
+        self.fields["client"].label_from_instance = lambda client: f"{client} · {client.email}"
+        self.fields["origin"].widget.attrs["placeholder"] = "e.g. Miami"
+        self.fields["destination"].widget.attrs["placeholder"] = "e.g. Curaçao"
+        self.fields["package_description"].widget.attrs[
+            "placeholder"
+        ] = "Briefly describe the parcel"
 
     def save(self, commit=True):
         raise NotImplementedError("Use register_parcel with the validated form data.")
@@ -322,3 +337,31 @@ class ParcelEventForm(forms.Form):
             for value, label in Parcel.Status.choices
             if value in allowed or self.is_bound
         ]
+        style_dashboard_fields(self.fields)
+
+
+class ParcelFilterForm(forms.Form):
+    q = forms.CharField(required=False, max_length=200, label="Search parcels")
+    status = forms.ChoiceField(required=False)
+    client = forms.ModelChoiceField(queryset=None, required=False)
+
+    def __init__(self, *args, business, **kwargs):
+        from apps.crm.models import Client
+
+        from .models import Parcel
+
+        super().__init__(*args, **kwargs)
+        self.fields["status"].choices = [("", "All statuses"), *Parcel.Status.choices]
+        self.fields["client"].queryset = Client.objects.filter(business=business).order_by(
+            "first_name", "last_name", "pk"
+        )
+        self.fields["client"].empty_label = "All clients"
+        style_dashboard_fields(self.fields)
+        self.fields["q"].widget = forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "type": "search",
+                "placeholder": "Tracking code, client or route",
+            }
+        )
+        self.fields["client"].widget.attrs["data-logistics-search-select"] = ""

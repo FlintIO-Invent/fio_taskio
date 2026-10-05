@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.db import transaction
 
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
@@ -10,6 +11,7 @@ from apps.businesses.stripe_checkout import StripeCheckoutError, resume_trial_ch
 from apps.businesses.stripe_config import (
     StripeConfigurationError,
     configure_stripe_sdk,
+    get_stripe_mode,
     get_stripe_price_id,
     is_stripe_enabled,
     resolve_stripe_price_id,
@@ -29,7 +31,10 @@ def require_checkout_enrollment(subscription, user):
         or application.converted_at is None
         or application.enrolled_user_id is None
     ):
-        raise StripeCheckoutError("Checkout requires a current approved Logistics enrollment.")
+        raise StripeCheckoutError(
+            "Checkout requires a current approved Logistics enrollment.",
+            code="logistics_application_invalid",
+        )
     if (
         not user.is_authenticated
         or not user.is_active
@@ -43,7 +48,10 @@ def require_checkout_enrollment(subscription, user):
             role=BusinessUser.Role.OWNER,
         ).exists()
     ):
-        raise StripeCheckoutError("Only the enrolled account owner can start Logistics checkout.")
+        raise StripeCheckoutError(
+            "Only the enrolled account owner can start Logistics checkout.",
+            code="logistics_owner_invalid",
+        )
     if (
         subscription.business.vertical != Business.Vertical.LOGISTICS
         or subscription.plan.family != ClarivoPlan.Family.LOGISTICS
@@ -56,11 +64,13 @@ def require_checkout_enrollment(subscription, user):
         or subscription.trial_end is not None
     ):
         raise StripeCheckoutError(
-            "The enrolled subscription is not ready for annual Logistics checkout."
+            "The enrolled subscription is not ready for annual Logistics checkout.",
+            code="logistics_subscription_not_eligible",
         )
     if not subscription.plan.is_active:
         raise StripeConfigurationError(
-            "The Logistics offering is inactive. Contact Motionmate for configuration."
+            "The Logistics offering is inactive. Contact Motionmate for configuration.",
+            code="logistics_offering_inactive",
         )
     return application
 
@@ -70,7 +80,16 @@ def configured_annual_price(plan, currency):
     if plan.family != ClarivoPlan.Family.LOGISTICS or plan.slug != "logistics":
         raise StripeConfigurationError("Select the Logistics offering before activation.")
     if not is_stripe_enabled():
-        raise StripeConfigurationError("Stripe subscription billing is disabled.")
+        raise StripeConfigurationError(
+            "Stripe subscription billing is disabled.", code="stripe_disabled"
+        )
+    # Use the shared key-mode resolver; TEST and LIVE never use different pipelines.
+    mode = get_stripe_mode()
+    if mode == "live" and settings.MOTIONMATE_ENVIRONMENT in {"local", "development", "staging"}:
+        raise StripeConfigurationError(
+            "Logistics checkout requires Stripe TEST keys in Local/Development/Staging.",
+            code="logistics_test_mode_required",
+        )
     price_id = get_stripe_price_id(
         plan_slug="logistics", billing_interval="yearly", currency=currency
     )
@@ -93,7 +112,8 @@ def configured_annual_price(plan, currency):
             raise ValueError
     except (InvalidOperation, ValueError, TypeError, KeyError, AttributeError) as exc:
         raise StripeConfigurationError(
-            f"Configure a positive Logistics yearly display price in {currency.upper()} before checkout."
+            f"Configure a positive Logistics yearly display price in {currency.upper()} before checkout.",
+            code="logistics_annual_amount_invalid",
         ) from exc
     return price_id, int(amount * 100)
 
@@ -109,13 +129,18 @@ def validate_annual_stripe_price(*, plan, currency, stripe_client):
             price = price.to_dict()
     except Exception as exc:
         raise StripeConfigurationError(
-            "The configured Logistics annual Stripe Price could not be verified."
+            "The configured Logistics annual Stripe Price could not be verified.",
+            code="stripe_price_verification_failed",
         ) from exc
     if not isinstance(price, Mapping) or not isinstance(price.get("recurring"), Mapping):
-        raise StripeConfigurationError("The configured Logistics annual Stripe Price is invalid.")
+        raise StripeConfigurationError(
+            "The configured Logistics annual Stripe Price is invalid.",
+            code="logistics_stripe_price_invalid",
+        )
     recurring = price["recurring"]
     if (
         price.get("id") != price_id
+        or price.get("livemode") is not (get_stripe_mode() == "live")
         or price.get("active") is not True
         or price.get("type") != "recurring"
         or price.get("currency") != currency
@@ -127,7 +152,8 @@ def validate_annual_stripe_price(*, plan, currency, stripe_client):
         or price.get("unit_amount") != expected_amount
     ):
         raise StripeConfigurationError(
-            "Logistics Stripe Price must be active, annual, and match its configured currency and positive price."
+            "Logistics Stripe Price must be active, annual, and match its configured currency and positive price.",
+            code="logistics_stripe_price_invalid",
         )
     return price_id
 
@@ -161,7 +187,10 @@ def checkout_for_application(application_id, *, request, user):
     # remote success followed by a local transaction failure.
     application = LogisticsApplication.objects.select_for_update().filter(pk=application_id).first()
     if application is None or application.business_id is None or application.converted_at is None:
-        raise StripeCheckoutError("Checkout requires an existing Logistics enrollment.")
+        raise StripeCheckoutError(
+            "Checkout requires an existing Logistics enrollment.",
+            code="logistics_application_invalid",
+        )
     subscription = (
         BusinessSubscription.objects.select_for_update(of=("self",))
         .select_related("business", "plan")
@@ -169,6 +198,8 @@ def checkout_for_application(application_id, *, request, user):
         .first()
     )
     if subscription is None:
-        raise StripeCheckoutError("The enrolled subscription is unavailable.")
+        raise StripeCheckoutError(
+            "The enrolled subscription is unavailable.", code="logistics_subscription_not_eligible"
+        )
     require_checkout_enrollment(subscription, user)
     return resume_trial_checkout_session(request=request, subscription=subscription, user=user)

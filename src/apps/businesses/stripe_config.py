@@ -58,6 +58,10 @@ class StripePriceMetadata:
 class StripeConfigurationError(ImproperlyConfigured):
     """Raised when Stripe subscription configuration is missing or inconsistent."""
 
+    def __init__(self, message: str = "", *, code: str = "stripe_configuration_invalid"):
+        super().__init__(message)
+        self.code = code
+
 
 def _clean_setting(value: object | None) -> str | None:
     if value is None:
@@ -110,7 +114,16 @@ def get_stripe_mode() -> StripeMode:
     secret_key = get_stripe_secret_key()
     if publishable_key is None or secret_key is None:
         raise StripeConfigurationError(
-            "Stripe publishable and secret keys are required when Stripe is enabled."
+            (
+                "STRIPE_SECRET_KEY is required when Stripe is enabled."
+                if secret_key is None
+                else "STRIPE_PUBLISHABLE_KEY is required when Stripe is enabled."
+            ),
+            code=(
+                STRIPE_CHECK_MISSING_SECRET_KEY
+                if secret_key is None
+                else STRIPE_CHECK_MISSING_PUBLISHABLE_KEY
+            ),
         )
 
     publishable_mode = _mode_for_publishable_key(publishable_key)
@@ -171,7 +184,9 @@ def _normalize_price_dimensions(
 
     normalized_currency = _normalize_currency(currency)
     if normalized_currency not in PUBLIC_PRICING_CURRENCIES:
-        raise StripeConfigurationError("Unsupported Stripe Price currency.")
+        raise StripeConfigurationError(
+            "Unsupported Stripe Price currency.", code=STRIPE_CHECK_UNSUPPORTED_CURRENCY
+        )
 
     return normalized_plan, normalized_interval, normalized_currency
 
@@ -234,7 +249,8 @@ def get_stripe_price_id(
     if price_id is None:
         plan, interval, normalized_currency = price_key
         raise StripeConfigurationError(
-            f"Stripe Price ID is not configured for {plan} {interval} {normalized_currency}."
+            f"Stripe Price ID is not configured for {plan} {interval} {normalized_currency}.",
+            code=STRIPE_CHECK_MISSING_PRICE_ID,
         )
     if not _is_valid_price_id(price_id):
         raise StripeConfigurationError("Configured Stripe Price ID must start with price_.")
@@ -462,11 +478,13 @@ def validate_stripe_configuration() -> list[StripeConfigurationIssue]:
 
 def configure_stripe_sdk():
     if not is_stripe_enabled():
-        raise StripeConfigurationError("Stripe subscription billing is disabled.")
+        raise StripeConfigurationError(
+            "Stripe subscription billing is disabled.", code="stripe_disabled"
+        )
 
     issues = validate_stripe_configuration()
     if issues:
-        raise StripeConfigurationError(issues[0].message)
+        raise StripeConfigurationError(issues[0].message, code=issues[0].id)
 
     secret_key = get_stripe_secret_key()
     if secret_key is None:

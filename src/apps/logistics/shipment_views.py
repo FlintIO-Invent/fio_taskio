@@ -3,12 +3,13 @@ from io import StringIO
 
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.http import HttpResponse
+from django.db import transaction
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST, require_safe
 
-from apps.businesses.utils import business_module_required, business_role_required
+from apps.businesses.utils import business_module_required, business_role_required, can_use_module
 
 from .models import Parcel, Shipment
 from .shipment_forms import ShipmentAssignmentForm, ShipmentForm, ShipmentStatusForm
@@ -18,6 +19,7 @@ from .shipment_policy import (
     SHIPMENT_VIEW_ROLES,
 )
 from .shipment_services import (
+    SHIPMENT_INPUT_FIELDS,
     assign_parcel,
     change_shipment_status,
     create_shipment,
@@ -35,7 +37,28 @@ def _get_shipment(request, shipment_id):
     )
 
 
-def _detail(request, shipment, *, error=None):
+def _can_assign_parcels(request):
+    return all(
+        can_use_module(request.current_business, module) for module in ("parcels", "tracking")
+    )
+
+
+def _initial_parcel(request):
+    if request.method != "GET" or not request.GET.get("parcel"):
+        return None
+    if not _can_assign_parcels(request):
+        raise Http404("Parcel assignment is unavailable in this workspace.")
+    try:
+        return (
+            ShipmentAssignmentForm(business=request.current_business)
+            .fields["parcel"]
+            .to_python(request.GET["parcel"])
+        )
+    except ValidationError as exc:
+        raise Http404("Parcel is unavailable for assignment in this workspace.") from exc
+
+
+def _detail(request, shipment, *, error=None, assignment_form=None, status_form=None):
     parcels = (
         Parcel.objects.filter(
             shipment=shipment,
@@ -45,6 +68,10 @@ def _detail(request, shipment, *, error=None):
         .select_related("client")
         .order_by("tracking_code")
     )
+    if assignment_form is None:
+        assignment_form = ShipmentAssignmentForm(
+            business=request.current_business, initial={"parcel": _initial_parcel(request)}
+        )
     return render(
         request,
         "logistics/shipment_detail.html",
@@ -53,8 +80,15 @@ def _detail(request, shipment, *, error=None):
             "parcels": parcels,
             "error": error,
             "can_assign": shipment.status in ASSIGNABLE_SHIPMENT_STATUSES,
-            "assignment_form": ShipmentAssignmentForm(business=request.current_business),
-            "status_form": ShipmentStatusForm(shipment=shipment),
+            "assignment_form": assignment_form,
+            "has_eligible_parcels": (
+                assignment_form.fields["parcel"].queryset.exists()
+                if _can_assign_parcels(request)
+                else False
+            ),
+            "status_form": (
+                status_form if status_form is not None else ShipmentStatusForm(shipment=shipment)
+            ),
         },
         status=400 if error else 200,
     )
@@ -66,11 +100,16 @@ def _detail(request, shipment, *, error=None):
 @require_safe
 def shipment_list(request):
     shipments = shipments_for_business(business=request.current_business, actor=request.user)
+    parcel = _initial_parcel(request)
+    if parcel:
+        shipments = shipments.filter(status__in=ASSIGNABLE_SHIPMENT_STATUSES)
     return render(
         request,
         "logistics/shipment_list.html",
         {
             "page_obj": Paginator(shipments, 50).get_page(request.GET.get("page")),
+            "assignment_parcel": parcel,
+            "pagination_query": f"parcel={parcel.pk}" if parcel else "",
         },
     )
 
@@ -88,20 +127,47 @@ def shipment_detail(request, shipment_id):
 @business_role_required(*SHIPMENT_MANAGE_ROLES)
 @require_http_methods(["GET", "POST"])
 def shipment_create(request):
+    parcel = _initial_parcel(request)
+    initial = (
+        {"parcel": parcel, "origin": parcel.origin, "destination": parcel.destination}
+        if parcel
+        else None
+    )
     form = ShipmentForm(
-        request.POST if request.method == "POST" else None, business=request.current_business
+        request.POST if request.method == "POST" else None,
+        business=request.current_business,
+        allow_assignment=_can_assign_parcels(request),
+        initial=initial,
     )
     if request.method == "POST" and form.is_valid():
         try:
-            shipment = create_shipment(
-                business=request.current_business, actor=request.user, **form.cleaned_data
-            )
+            with transaction.atomic():
+                shipment = create_shipment(
+                    business=request.current_business,
+                    actor=request.user,
+                    **{key: form.cleaned_data[key] for key in SHIPMENT_INPUT_FIELDS},
+                )
+                if form.cleaned_data.get("parcel"):
+                    assign_parcel(
+                        business=request.current_business,
+                        shipment=shipment,
+                        parcel=form.cleaned_data["parcel"],
+                        actor=request.user,
+                    )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
             return redirect("logistics_shipment_detail", shipment_id=shipment.pk)
     return render(
-        request, "logistics/shipment_form.html", {"form": form, "title": "Create shipment"}
+        request,
+        "logistics/shipment_form.html",
+        {
+            "form": form,
+            "title": "Create shipment",
+            "has_eligible_parcels": (
+                form.fields["parcel"].queryset.exists() if "parcel" in form.fields else False
+            ),
+        },
     )
 
 
@@ -117,21 +183,38 @@ def shipment_edit(request, shipment_id):
         request.POST if request.method == "POST" else None,
         instance=shipment,
         business=request.current_business,
+        allow_assignment=_can_assign_parcels(request),
     )
     if request.method == "POST" and form.is_valid():
         try:
-            update_shipment(
-                business=request.current_business,
-                shipment=shipment,
-                actor=request.user,
-                **form.cleaned_data,
-            )
+            with transaction.atomic():
+                update_shipment(
+                    business=request.current_business,
+                    shipment=shipment,
+                    actor=request.user,
+                    **{key: form.cleaned_data[key] for key in SHIPMENT_INPUT_FIELDS},
+                )
+                if form.cleaned_data.get("parcel"):
+                    assign_parcel(
+                        business=request.current_business,
+                        shipment=shipment,
+                        parcel=form.cleaned_data["parcel"],
+                        actor=request.user,
+                    )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
             return redirect("logistics_shipment_detail", shipment_id=shipment.pk)
     return render(
-        request, "logistics/shipment_form.html", {"form": form, "title": "Edit draft shipment"}
+        request,
+        "logistics/shipment_form.html",
+        {
+            "form": form,
+            "title": "Edit draft shipment",
+            "has_eligible_parcels": (
+                form.fields["parcel"].queryset.exists() if "parcel" in form.fields else False
+            ),
+        },
     )
 
 
@@ -145,7 +228,12 @@ def shipment_assign(request, shipment_id):
     shipment = _get_shipment(request, shipment_id)
     form = ShipmentAssignmentForm(request.POST, business=request.current_business)
     if not form.is_valid():
-        return _detail(request, shipment, error="Select an available parcel in this workspace.")
+        return _detail(
+            request,
+            shipment,
+            error="Select an available parcel in this workspace.",
+            assignment_form=form,
+        )
     try:
         assign_parcel(
             business=request.current_business,
@@ -154,7 +242,8 @@ def shipment_assign(request, shipment_id):
             actor=request.user,
         )
     except ValidationError as exc:
-        return _detail(request, shipment, error="; ".join(exc.messages))
+        form.add_error(None, "; ".join(exc.messages))
+        return _detail(request, shipment, error="; ".join(exc.messages), assignment_form=form)
     return redirect("logistics_shipment_detail", shipment_id=shipment.pk)
 
 
@@ -192,7 +281,10 @@ def shipment_status(request, shipment_id):
     form = ShipmentStatusForm(request.POST, shipment=shipment)
     if not form.is_valid():
         return _detail(
-            request, shipment, error="Select a valid shipment transition and reload if needed."
+            request,
+            shipment,
+            error="Select a valid shipment transition and reload if needed.",
+            status_form=form,
         )
     try:
         change_shipment_status(
@@ -202,7 +294,7 @@ def shipment_status(request, shipment_id):
             **form.cleaned_data,
         )
     except ValidationError as exc:
-        return _detail(request, shipment, error="; ".join(exc.messages))
+        return _detail(request, shipment, error="; ".join(exc.messages), status_form=form)
     return redirect("logistics_shipment_detail", shipment_id=shipment.pk)
 
 

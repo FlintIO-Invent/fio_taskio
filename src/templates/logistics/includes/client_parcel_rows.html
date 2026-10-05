@@ -1,0 +1,19 @@
+{% if parcels %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="text-body-secondary"><tr><th scope="col">Tracking code</th><th scope="col">Route</th><th scope="col">Status</th><th scope="col">Registered</th></tr></thead>
+    <tbody>
+      {% for parcel in parcels %}
+      <tr>
+        <td><a href="{% url 'logistics_parcel_detail' parcel.pk %}" class="fw-bold font-monospace">{{ parcel.tracking_code }}</a></td>
+        <td>{{ parcel.origin }} → {{ parcel.destination }}</td>
+        <td>{% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}</td>
+        <td>{{ parcel.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-body-secondary mb-0">{{ empty_message }}</p>
+{% endif %}

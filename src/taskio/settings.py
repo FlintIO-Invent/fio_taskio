@@ -259,6 +259,13 @@ LOGGING = {
         "level": settings.log_level,
     },
     "loggers": {
+        # The SDK's INFO errors and DEBUG payloads include provider details.
+        # Application billing wrappers emit safe diagnostics instead.
+        "stripe": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
         "django": {
             "handlers": ["console"],
             "level": settings.log_level,

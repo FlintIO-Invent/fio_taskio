@@ -1,7 +1,11 @@
+import logging
+
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
+from django.db.models import Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
@@ -13,15 +17,27 @@ from apps.businesses.stripe_config import StripeConfigurationError
 from apps.businesses.utils import (
     business_module_required,
     business_role_required,
+    can_use_module,
+    can_view_module,
     set_current_business,
 )
+from apps.crm.forms import QuickClientForm
 
 from .billing import checkout_for_application
 from .enrollment import enroll_application, enroll_new_pilot_application, inspect_enrollment_link
-from .forms import EnrollmentForm, LogisticsSignupForm, ParcelEventForm, ParcelRegistrationForm
+from .forms import (
+    EnrollmentForm,
+    LogisticsSignupForm,
+    ParcelEventForm,
+    ParcelFilterForm,
+    ParcelRegistrationForm,
+)
 from .models import LogisticsApplication, ParcelEvent
 from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 from .parcel_services import parcels_for_business, record_parcel_event, register_parcel
+from .shipment_policy import ASSIGNABLE_PARCEL_STATUSES
+
+logger = logging.getLogger(__name__)
 
 
 @never_cache
@@ -152,6 +168,15 @@ def application_checkout(request, application_id):
         set_current_business(request, application.business)
         return redirect("billing_checkout_success")
     except (StripeConfigurationError, StripeCheckoutError) as exc:
+        # Only our safe wrapper message/code and local identifiers. Never log the
+        # chained provider exception, request data, keys or provider response.
+        logger.warning(
+            "Logistics checkout rejected application=%s business=%s reason=%s: %s",
+            application.pk,
+            application.business_id,
+            exc.code,
+            str(exc),
+        )
         return render(
             request,
             "logistics/enrollment_complete.html",
@@ -173,11 +198,36 @@ def parcel_list(request):
     parcels = parcels_for_business(
         business=request.current_business, actor=request.user
     ).select_related("client")
+    filters = ParcelFilterForm(request.GET, business=request.current_business)
+    if filters.is_valid():
+        query = filters.cleaned_data["q"]
+        if query:
+            parcels = parcels.filter(
+                Q(tracking_code__icontains=query)
+                | Q(internal_reference__icontains=query)
+                | Q(origin__icontains=query)
+                | Q(destination__icontains=query)
+                | Q(package_description__icontains=query)
+                | Q(client__first_name__icontains=query)
+                | Q(client__last_name__icontains=query)
+                | Q(client__email__icontains=query)
+            )
+        if filters.cleaned_data["status"]:
+            parcels = parcels.filter(current_status=filters.cleaned_data["status"])
+        if filters.cleaned_data["client"]:
+            parcels = parcels.filter(client=filters.cleaned_data["client"])
+    else:
+        parcels = parcels.none()
+    pagination_query = request.GET.copy()
+    pagination_query.pop("page", None)
     return render(
         request,
         "logistics/parcel_list.html",
         {
             "page_obj": Paginator(parcels, 50).get_page(request.GET.get("page")),
+            "filter_form": filters,
+            "filters_active": any(request.GET.get(key) for key in ("q", "status", "client")),
+            "pagination_query": pagination_query.urlencode(),
         },
     )
 
@@ -213,7 +263,14 @@ def parcel_detail(request, parcel_id):
     return render(
         request,
         "logistics/parcel_detail.html",
-        {"parcel": parcel, "events": events, "shipment": shipment},
+        {
+            "parcel": parcel,
+            "events": events,
+            "shipment": shipment,
+            "can_view_client": can_view_module(request.current_business, "crm"),
+            "parcel_can_be_assigned": parcel.shipment_id is None
+            and parcel.current_status in ASSIGNABLE_PARCEL_STATUSES,
+        },
     )
 
 
@@ -229,6 +286,11 @@ def parcel_register(request):
         business=request.current_business,
         initial={"idempotency_key": uuid.uuid4()},
     )
+    if request.method == "GET" and request.GET.get("client"):
+        try:
+            form.initial["client"] = form.fields["client"].to_python(request.GET["client"])
+        except ValidationError as exc:
+            raise Http404("Client is unavailable in this workspace.") from exc
     if request.method == "POST" and form.is_valid():
         try:
             parcel = register_parcel(
@@ -238,7 +300,17 @@ def parcel_register(request):
             form.add_error(None, "; ".join(exc.messages))
         else:
             return redirect("logistics_parcel_detail", parcel_id=parcel.pk)
-    return render(request, "logistics/parcel_form.html", {"form": form, "title": "Register parcel"})
+    return render(
+        request,
+        "logistics/parcel_form.html",
+        {
+            "form": form,
+            "title": "Register parcel",
+            "quick_client_form": QuickClientForm(prefix="new_client"),
+            "has_clients": form.fields["client"].queryset.exists(),
+            "can_add_client": can_use_module(request.current_business, "crm"),
+        },
+    )
 
 
 @business_module_required("parcels")

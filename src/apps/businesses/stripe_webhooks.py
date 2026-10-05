@@ -905,6 +905,10 @@ def _local_status_for_provider_subscription(provider_subscription: Any) -> str:
 
 def _subscription_date_values(provider_subscription: Any) -> dict[str, datetime | bool | None]:
     stripe_cancelled_at = _stripe_value(provider_subscription, "canceled_at")
+    # Basil and newer APIs put billing periods on the subscription item. The
+    # price validator already requires exactly one item; keep older events valid.
+    items = _stripe_value(_stripe_value(provider_subscription, "items") or {}, "data") or []
+    period_source = items[0] if len(items) == 1 else {}
     return {
         "trial_start": _stripe_timestamp_to_datetime(
             _stripe_value(provider_subscription, "trial_start")
@@ -914,9 +918,11 @@ def _subscription_date_values(provider_subscription: Any) -> dict[str, datetime 
         ),
         "current_period_start": _stripe_timestamp_to_datetime(
             _stripe_value(provider_subscription, "current_period_start")
+            or _stripe_value(period_source, "current_period_start")
         ),
         "current_period_end": _stripe_timestamp_to_datetime(
             _stripe_value(provider_subscription, "current_period_end")
+            or _stripe_value(period_source, "current_period_end")
         ),
         "cancel_at_period_end": bool(_stripe_value(provider_subscription, "cancel_at_period_end")),
         "cancelled_at": _stripe_timestamp_to_datetime(stripe_cancelled_at),

@@ -1,9 +1,11 @@
 """Block 9: vertical presentation, tenant isolation, permissions and regressions."""
 
 from datetime import timedelta
+from html.parser import HTMLParser
 from unittest.mock import patch
 
 from django.db import connection
+from django.test import Client as WebClient
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -27,6 +29,17 @@ from .dashboard import get_logistics_dashboard_context
 from .models import Parcel, Shipment
 from .parcel_services import change_parcel_status, register_parcel
 from .shipment_services import assign_parcel, change_shipment_status, create_shipment
+
+
+class FormControls(HTMLParser):
+    def __init__(self, html):
+        super().__init__()
+        self.controls = []
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("input", "select", "textarea"):
+            self.controls.append(dict(attrs))
 
 
 class LogisticsWorkspaceTests(TestCase):
@@ -133,7 +146,6 @@ class LogisticsWorkspaceTests(TestCase):
             "Invoices",
             "Team Members",
             "Business Settings",
-            "Public Tracking",
         ):
             self.assertContains(response, f'nav-link-text">{label}</span>')
         for route in (
@@ -151,10 +163,87 @@ class LogisticsWorkspaceTests(TestCase):
         ):
             self.assertNotContains(response, label)
 
+    def sidebar(self, response):
+        return (
+            response.content.decode()
+            .split('<nav class="navbar navbar-vertical', 1)[1]
+            .split("</nav>", 1)[0]
+        )
+
+    def test_logistics_sidebar_order_and_dropdown_items(self):
+        sidebar = self.sidebar(self.dashboard())
+        labels = ["Invoices", "Clients", "Parcels", "Shipments"]
+        positions = [sidebar.index(f'nav-link-text">{label}</span>') for label in labels]
+        self.assertEqual(positions, sorted(positions))
+        for module, items in (
+            (
+                "parcels",
+                [
+                    ("logistics_parcel_list", "All Parcels"),
+                    ("logistics_parcel_register", "Register Parcel"),
+                ],
+            ),
+            (
+                "shipments",
+                [
+                    ("logistics_shipment_list", "All Shipments"),
+                    ("logistics_shipment_create", "Create Shipment"),
+                ],
+            ),
+        ):
+            with self.subTest(module=module):
+                self.assertIn(f'href="#nv-{module}"', sidebar)
+                self.assertIn(
+                    f'data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-{module}"',
+                    sidebar,
+                )
+                dropdown = sidebar.split(f'id="nv-{module}">', 1)[1].split("</ul>", 1)[0]
+                positions = []
+                for route, label in items:
+                    positions.append(dropdown.index(f'href="{reverse(route)}"'))
+                    self.assertIn(f'nav-link-text">{label}</span>', dropdown)
+                self.assertEqual(positions, sorted(positions))
+        self.assertNotIn("Public Tracking", sidebar)
+        self.assertNotIn(reverse("logistics_public_tracking"), sidebar)
+
+    def test_public_tracking_remains_available_without_login(self):
+        url = reverse("logistics_public_tracking")
+        self.assertEqual(url, "/logistics/track/")
+        response = WebClient().get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "logistics/public_tracking.html")
+
+    def test_logistics_sidebar_write_links_respect_roles(self):
+        for role in BusinessUser.Role.values:
+            self.membership.role = role
+            self.membership.save(update_fields=["role"])
+            sidebar = self.sidebar(self.dashboard())
+            for route in ("logistics_parcel_register", "logistics_shipment_create"):
+                with self.subTest(role=role, route=route):
+                    link = f'href="{reverse(route)}"'
+                    if role in (
+                        BusinessUser.Role.OWNER,
+                        BusinessUser.Role.ADMIN,
+                        BusinessUser.Role.STAFF,
+                    ):
+                        self.assertIn(link, sidebar)
+                    else:
+                        self.assertNotIn(link, sidebar)
+                        self.assertEqual(self.client.get(reverse(route)).status_code, 403)
+            for route in ("logistics_parcel_list", "logistics_shipment_list"):
+                self.assertIn(f'href="{reverse(route)}"', sidebar)
+
     def test_service_navigation_and_onboarding_remain_unchanged(self):
         self.switch(self.service)
         response = self.dashboard()
         self.assertFalse(response.context.get("logistics_dashboard", False))
+        sidebar = self.sidebar(response)
+        self.assertLess(sidebar.index('href="#nv-billing"'), sidebar.index('href="#nv-client"'))
+        self.assertLess(
+            sidebar.index('href="#nv-client"'), sidebar.index('href="#nv-appointments"')
+        )
+        for dropdown in ("nv-parcels", "nv-shipments"):
+            self.assertNotIn(dropdown, sidebar)
         for route in (
             "business_service_list",
             "staff_lead_list",
@@ -527,9 +616,96 @@ class LogisticsWorkspaceTests(TestCase):
 
     def test_logistics_empty_states_guide_next_action(self):
         for route, message in (
-            ("logistics_parcel_list", "Add a client, then register their first parcel"),
+            ("logistics_parcel_list", "No parcels match these filters."),
             ("logistics_shipment_list", "Create a shipment to group parcels for movement"),
             ("staff_client_list", "Add your first client to register parcels"),
         ):
             response = self.client.get(reverse(route), {"q": "no-matches"})
             self.assertContains(response, message)
+
+    def test_logistics_empty_states_are_separate_from_tables(self):
+        response = self.client.get(reverse("logistics_shipment_list"))
+        self.assertContains(response, "No shipments created yet.")
+        self.assertNotContains(response, "<table")
+        shipment = self.shipment()
+        for route, args, message in (
+            ("logistics_parcel_list", [], "No parcels registered yet."),
+            ("logistics_shipment_detail", [shipment.pk], "No parcels assigned yet."),
+        ):
+            response = self.client.get(reverse(route, args=args))
+            content = response.content.decode().split('<div class="content">', 1)[1]
+            self.assertContains(response, message)
+            self.assertIn('class="card-body text-center py-5"', content)
+            self.assertNotIn("<table", content)
+            self.assertNotIn("<thead", content)
+
+    def test_logistics_pages_use_dashboard_content_and_responsive_cards(self):
+        parcel, shipment = self.parcel(), self.shipment()
+        self.assertEqual(
+            self.client.post(
+                reverse("logistics_shipment_assign", args=[shipment.pk]), {"parcel": parcel.pk}
+            ).status_code,
+            302,
+        )
+        for route, args in (
+            ("logistics_parcel_list", []),
+            ("logistics_parcel_detail", [parcel.pk]),
+            ("logistics_parcel_register", []),
+            ("logistics_parcel_update", [parcel.pk]),
+            ("logistics_shipment_list", []),
+            ("logistics_shipment_detail", [shipment.pk]),
+            ("logistics_shipment_create", []),
+            ("logistics_shipment_edit", [shipment.pk]),
+        ):
+            with self.subTest(route=route):
+                response = self.client.get(reverse(route, args=args))
+                self.assertEqual(response.status_code, 200)
+                self.assertTemplateUsed(response, "inheritance/dashboard_parent.html")
+                self.assertContains(response, '<div class="content">', count=1)
+                self.assertContains(response, 'aria-label="breadcrumb"')
+                self.assertContains(response, 'class="card')
+                if route.endswith("list") or route == "logistics_shipment_detail":
+                    self.assertContains(response, 'class="table-responsive"')
+                    self.assertContains(response, 'class="table table-hover align-middle mb-0"')
+
+    def test_shipment_form_keeps_fields_and_shows_validation(self):
+        url = reverse("logistics_shipment_create")
+        response = self.client.get(url)
+        for label in ("Create Shipment", "Route", "Schedule", "Notes", "Save Shipment"):
+            self.assertContains(response, label)
+        controls = FormControls(response.content.decode()).controls
+        fields = {"origin", "destination", "departure_at", "estimated_arrival_at", "notes"}
+        for name in fields:
+            control = [c for c in controls if c.get("name") == name]
+            self.assertEqual(len(control), 1, name)
+            self.assertEqual(control[0]["class"], "form-control")
+        for name in ("departure_at", "estimated_arrival_at"):
+            self.assertEqual(
+                next(c for c in controls if c.get("name") == name)["type"], "datetime-local"
+            )
+        response = self.client.post(
+            url, {"origin": "Miami", "destination": "", "notes": "Keep this note"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Please correct the errors below.")
+        self.assertContains(response, 'class="invalid-feedback d-block"')
+        self.assertContains(response, 'aria-invalid="true"')
+        self.assertContains(response, "Keep this note")
+        self.assertEqual(Shipment.objects.count(), 0)
+
+    def test_parcel_forms_keep_hidden_tokens_and_themed_controls(self):
+        parcel = self.parcel()
+        for route, args, hidden_fields in (
+            ("logistics_parcel_register", [], ["idempotency_key"]),
+            ("logistics_parcel_update", [parcel.pk], ["idempotency_key", "expected_status"]),
+        ):
+            response = self.client.get(reverse(route, args=args))
+            controls = FormControls(response.content.decode()).controls
+            for name in hidden_fields:
+                control = [c for c in controls if c.get("name") == name]
+                self.assertEqual(len(control), 1, name)
+                self.assertEqual(control[0]["type"], "hidden")
+                self.assertTrue(control[0]["value"])
+            for field in response.context["form"].visible_fields():
+                control = next(c for c in controls if c.get("name") == field.name)
+                self.assertIn(control["class"], ("form-control", "form-select"))

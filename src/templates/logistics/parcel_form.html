@@ -1,7 +1,59 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% block content %}
-<h1>{{ title }}</h1>
-{% if parcel %}<p>{{ parcel.tracking_code }} · {{ parcel.get_current_status_display }}</p>{% endif %}
-<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Save</button></form>
-<p><a href="{% url 'logistics_parcel_list' %}">Back to parcels</a></p>
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'logistics_parcel_list' %}">Parcels</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ title|title }}</li>
+    </ol>
+  </nav>
+  <div class="mb-4">
+    <h2 class="mb-2 text-body-emphasis">{{ title|title }}</h2>
+    {% if parcel %}<p class="mb-2 text-body-secondary text-break">{{ parcel.tracking_code }} · {{ parcel.get_current_status_display }}</p>{% endif %}
+    <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
+  </div>
+  <form method="post" class="mb-5">
+    {% csrf_token %}
+    {% include 'logistics/includes/form_errors.html' %}
+    {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+    {% if quick_client_form %}
+      {% if not has_clients %}
+      <div class="alert alert-subtle-info mb-4" data-no-clients>Add your first client before registering a parcel.</div>
+      {% endif %}
+      <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+        {% if can_add_client and role_access.can_manage_clients and workspace_can_modify %}
+        <button class="btn btn-phoenix-primary" type="button" data-bs-toggle="modal" data-bs-target="#parcelClientModal">Add Client</button>
+        {% endif %}
+        <p class="mb-0 text-body-secondary fs-9" role="status" data-client-selection-status>Search for an existing client or add one here.</p>
+      </div>
+    {% endif %}
+    <div class="row g-4">
+      <div class="col-12 col-xl-8">
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3">{% if parcel %}Tracking update{% else %}Parcel details{% endif %}</h4>
+            <div class="row g-3">
+              {% for field in form.visible_fields %}
+                {% if field.name == 'package_description' or field.name == 'public_message' or field.name == 'internal_note' %}
+                  {% include 'logistics/includes/form_field.html' with column_class='col-12' %}
+                {% else %}
+                  {% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-primary" type="submit">{% if parcel %}Save Update{% else %}Register Parcel{% endif %}</button>
+          <a class="btn btn-phoenix-secondary" href="{% if parcel %}{% url 'logistics_parcel_detail' parcel.pk %}{% else %}{% url 'logistics_parcel_list' %}{% endif %}">Cancel</a>
+        </div>
+      </div>
+    </div>
+  </form>
+  {% if quick_client_form and can_add_client and role_access.can_manage_clients and workspace_can_modify %}
+    {% include 'logistics/includes/client_modal.html' %}
+  {% endif %}
+</div>
+{% include 'logistics/includes/scripts.html' %}
 {% endblock %}

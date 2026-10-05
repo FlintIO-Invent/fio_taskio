@@ -1,0 +1,9 @@
+{% if page_obj.has_other_pages %}
+<nav class="d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4" aria-label="Pagination">
+  <span class="text-body-secondary fs-9">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  <div class="d-flex gap-2">
+    {% if page_obj.has_previous %}<a class="btn btn-sm btn-phoenix-secondary" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+    {% if page_obj.has_next %}<a class="btn btn-sm btn-phoenix-secondary" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+  </div>
+</nav>
+{% endif %}

@@ -33,6 +33,10 @@ from .stripe_config import (
 class StripeCheckoutError(Exception):
     """Raised when a Stripe-hosted Checkout Session cannot be prepared safely."""
 
+    def __init__(self, message: str = "", *, code: str = "checkout_not_eligible"):
+        super().__init__(message)
+        self.code = code
+
 
 class StripeCheckoutAlreadyCompleted(StripeCheckoutError):
     """Raised when Stripe already reports the checkout session as completed."""
@@ -342,7 +346,9 @@ def _stripe_create_checkout_session(
             idempotency_key=idempotency_key,
         )
     except Exception as exc:
-        raise StripeCheckoutError("Stripe Checkout Session could not be created.") from exc
+        raise StripeCheckoutError(
+            "Stripe Checkout Session could not be created.", code="stripe_provider_error"
+        ) from exc
 
 
 def _retrieve_checkout_session(stripe_client: Any, session_id: str, *, expand_price=False) -> Any:
@@ -353,7 +359,9 @@ def _retrieve_checkout_session(stripe_client: Any, session_id: str, *, expand_pr
             )
         return stripe_client.checkout.Session.retrieve(session_id)
     except Exception as exc:
-        raise StripeCheckoutError("Stripe Checkout Session could not be retrieved.") from exc
+        raise StripeCheckoutError(
+            "Stripe Checkout Session could not be retrieved.", code="stripe_provider_error"
+        ) from exc
 
 
 def _expire_checkout_session_if_open(
@@ -368,7 +376,9 @@ def _expire_checkout_session_if_open(
     try:
         stripe_client.checkout.Session.expire(session_id)
     except Exception as exc:
-        raise StripeCheckoutError("Stripe Checkout Session could not be refreshed.") from exc
+        raise StripeCheckoutError(
+            "Stripe Checkout Session could not be refreshed.", code="stripe_provider_error"
+        ) from exc
 
 
 def _validate_session_belongs_to_subscription(

@@ -1,0 +1,12 @@
+<div data-client-fields>
+  {% include 'logistics/includes/form_errors.html' %}
+  <div class="row g-3">
+    {% for field in form.visible_fields %}
+      {% if field.name == 'street_address' or field.name == 'company_name' %}
+        {% include 'logistics/includes/form_field.html' with column_class='col-12' %}
+      {% else %}
+        {% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
