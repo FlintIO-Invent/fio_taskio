@@ -708,4 +708,7 @@ class LogisticsWorkspaceTests(TestCase):
                 self.assertTrue(control[0]["value"])
             for field in response.context["form"].visible_fields():
                 control = next(c for c in controls if c.get("name") == field.name)
-                self.assertIn(control["class"], ("form-control", "form-select"))
+                if control.get("type") == "checkbox":
+                    self.assertEqual(control["class"], "form-check-input")
+                else:
+                    self.assertIn(control["class"], ("form-control", "form-select"))

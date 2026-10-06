@@ -28,13 +28,15 @@ from .enrollment import enroll_application, enroll_new_pilot_application, inspec
 from .forms import (
     EnrollmentForm,
     LogisticsSignupForm,
+    ParcelEditForm,
     ParcelEventForm,
     ParcelFilterForm,
+    ParcelMetadataForm,
     ParcelRegistrationForm,
 )
 from .models import LogisticsApplication, ParcelEvent
 from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
-from .parcel_services import parcels_for_business, record_parcel_event, register_parcel
+from .parcel_services import edit_parcel, parcels_for_business, record_parcel_event, register_parcel
 from .shipment_policy import ASSIGNABLE_PARCEL_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -239,17 +241,30 @@ def parcel_list(request):
 def parcel_detail(request, parcel_id):
     parcel = get_object_or_404(
         parcels_for_business(business=request.current_business, actor=request.user).select_related(
-            "client"
+            "client", "created_by"
         ),
         pk=parcel_id,
     )
-    events = (
+    events = list(
         ParcelEvent.objects.filter(business=request.current_business, parcel=parcel)
         .select_related("actor")
         .order_by("timestamp", "pk")
     )
     from .shipment_services import shipments_for_business
 
+    metadata_form = ParcelMetadataForm(instance=parcel, business=request.current_business)
+    detail_sections = []
+    for section in metadata_form.sections:
+        fields = []
+        for field in section["fields"]:
+            value = getattr(parcel, field.name)
+            fields.append(
+                {
+                    "label": field.label,
+                    "value": ("Yes" if value else "No") if isinstance(value, bool) else value,
+                }
+            )
+        detail_sections.append({"title": section["title"], "fields": fields})
     shipment = None
     if parcel.shipment_id:
         try:
@@ -267,9 +282,55 @@ def parcel_detail(request, parcel_id):
             "parcel": parcel,
             "events": events,
             "shipment": shipment,
+            "detail_sections": detail_sections,
+            "latest_location": next((event for event in reversed(events) if event.location), None),
+            "latest_status_event": next(
+                (event for event in reversed(events) if event.status), None
+            ),
             "can_view_client": can_view_module(request.current_business, "crm"),
             "parcel_can_be_assigned": parcel.shipment_id is None
             and parcel.current_status in ASSIGNABLE_PARCEL_STATUSES,
+        },
+    )
+
+
+@business_module_required("parcels")
+@business_module_required("tracking")
+@business_role_required(*PARCEL_MANAGE_ROLES)
+@require_http_methods(["GET", "POST"])
+def parcel_edit(request, parcel_id):
+    parcel = get_object_or_404(
+        parcels_for_business(business=request.current_business, actor=request.user).select_related(
+            "client"
+        ),
+        pk=parcel_id,
+    )
+    form = ParcelEditForm(
+        request.POST if request.method == "POST" else None,
+        instance=parcel,
+        business=request.current_business,
+        initial={"expected_updated_at": parcel.updated_at.isoformat()},
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            edit_parcel(
+                business=request.current_business,
+                parcel=parcel,
+                actor=request.user,
+                **form.cleaned_data,
+            )
+        except ValidationError as exc:
+            form.add_error(None, "; ".join(exc.messages))
+        else:
+            return redirect("logistics_parcel_detail", parcel_id=parcel.pk)
+    return render(
+        request,
+        "logistics/parcel_form.html",
+        {
+            "form": form,
+            "parcel": parcel,
+            "title": "Edit parcel",
+            "editing_metadata": True,
         },
     )
 

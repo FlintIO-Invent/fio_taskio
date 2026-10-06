@@ -7,7 +7,7 @@ from unittest import skipUnless
 from unittest.mock import patch
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import close_old_connections, connection, transaction
+from django.db import close_old_connections, connection, connections, transaction
 from django.test import TransactionTestCase, override_settings
 
 from apps.accounts.models import TaskIOUser, TaskIOUserManager
@@ -17,7 +17,7 @@ from apps.crm.models import Client
 
 from .enrollment import enroll_application, issue_enrollment_link
 from .models import LogisticsApplication, Parcel, ParcelEvent, Shipment
-from .parcel_services import change_parcel_status, register_parcel
+from .parcel_services import change_parcel_status, edit_parcel, register_parcel
 from .shipment_services import assign_parcel, change_shipment_status, create_shipment
 from .test_enrollment import PASSWORD, approve, reviewer
 from .tests import PILOT_POLICY, application_data
@@ -35,7 +35,7 @@ def race(actions):
             except (ValidationError, PermissionDenied) as exc:
                 return "rejected", type(exc).__name__
         finally:
-            close_old_connections()
+            connections.close_all()
 
     with ThreadPoolExecutor(max_workers=len(actions)) as pool:
         futures = [pool.submit(worker, action) for action in actions]
@@ -139,6 +139,51 @@ class LogisticsOperationConcurrencyTests(TransactionTestCase):
         self.assertEqual(results[0], results[1])
         self.assertEqual(Parcel.objects.count(), 1)
         self.assertEqual(ParcelEvent.objects.count(), 1)
+
+    def test_competing_metadata_edits_reject_the_stale_writer(self):
+        parcel = self.parcel()
+        expected = parcel.updated_at
+        results = race(
+            [
+                lambda sender=sender: edit_parcel(
+                    business=self.business,
+                    actor=self.user,
+                    parcel=parcel,
+                    expected_updated_at=expected,
+                    sender_name=sender,
+                ).sender_name
+                for sender in ("First sender", "Second sender")
+            ]
+        )
+        self.assertCountEqual([status for status, _ in results], ["ok", "rejected"])
+        parcel.refresh_from_db()
+        winner = next(value for status, value in results if status == "ok")
+        self.assertEqual(parcel.sender_name, winner)
+        self.assertEqual(parcel.events.count(), 2)
+
+    def test_metadata_edit_and_status_change_preserve_both_changes(self):
+        parcel = self.parcel()
+        results = race(
+            [
+                lambda: edit_parcel(
+                    business=self.business,
+                    actor=self.user,
+                    parcel=parcel,
+                    sender_name="Edited sender",
+                ).pk,
+                lambda: change_parcel_status(
+                    business=self.business,
+                    actor=self.user,
+                    parcel=parcel,
+                    status="RECEIVED",
+                    expected_status="REGISTERED",
+                ).pk,
+            ]
+        )
+        self.assertEqual([status for status, _ in results], ["ok", "ok"])
+        parcel.refresh_from_db()
+        self.assertEqual((parcel.sender_name, parcel.current_status), ("Edited sender", "RECEIVED"))
+        self.assertEqual(parcel.events.count(), 3)
 
     def test_event_retry_race_appends_once_even_with_stale_expected_status(self):
         parcel = self.parcel()
@@ -246,7 +291,7 @@ class LogisticsOperationConcurrencyTests(TransactionTestCase):
                     self.assertTrue(contender.wait(timeout=10))
                     return purge_business(business_id=business.pk, reason_reference="PG-QA").purged
             finally:
-                close_old_connections()
+                connections.close_all()
 
         def writer():
             close_old_connections()
@@ -261,7 +306,7 @@ class LogisticsOperationConcurrencyTests(TransactionTestCase):
                 except PermissionDenied:
                     return "denied"
             finally:
-                close_old_connections()
+                connections.close_all()
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             close_future = pool.submit(closer)

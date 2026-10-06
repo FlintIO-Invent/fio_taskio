@@ -9,6 +9,7 @@ from .views import (
     application_received,
     enrollment_complete,
     parcel_detail,
+    parcel_edit,
     parcel_list,
     parcel_register,
     parcel_update,
@@ -51,6 +52,7 @@ urlpatterns = [
     path("parcels/", parcel_list, name="logistics_parcel_list"),
     path("parcels/register/", parcel_register, name="logistics_parcel_register"),
     path("parcels/<int:parcel_id>/", parcel_detail, name="logistics_parcel_detail"),
+    path("parcels/<int:parcel_id>/edit/", parcel_edit, name="logistics_parcel_edit"),
     path("parcels/<int:parcel_id>/update/", parcel_update, name="logistics_parcel_update"),
     path(
         "enroll/<uuid:application_id>/checkout/",

@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
@@ -455,6 +456,71 @@ class Parcel(ParcelDomainModel):
     declared_value = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)]
     )
+    hs_code = models.CharField("HS code", max_length=100, blank=True)
+    marks_numbers = models.CharField("Marks and numbers", max_length=100, blank=True)
+    length_cm = models.DecimalField(
+        "Length (cm)",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    width_cm = models.DecimalField(
+        "Width (cm)",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    height_cm = models.DecimalField(
+        "Height (cm)",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    volume_m3 = models.DecimalField(
+        "Volume (m³)",
+        max_digits=10,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+    sender_name = models.CharField(max_length=255, blank=True)
+    sender_contact = models.CharField(max_length=100, blank=True)
+    sender_address = models.CharField(max_length=1000, blank=True)
+    sender_country_code = models.CharField(
+        "Sender country code",
+        max_length=3,
+        blank=True,
+        validators=[
+            RegexValidator(r"\A[A-Za-z]{2,3}\Z", "Use a two or three letter country code.")
+        ],
+    )
+    sender_tax_id = models.CharField("Sender tax ID", max_length=100, blank=True)
+    recipient_name = models.CharField(max_length=255, blank=True)
+    recipient_contact = models.CharField(max_length=100, blank=True)
+    recipient_address = models.CharField(max_length=1000, blank=True)
+    mode_of_transport = models.CharField(max_length=100, blank=True)
+    vessel_name = models.CharField("Vessel / carrier name", max_length=255, blank=True)
+    voyage_no = models.CharField("Voyage number", max_length=100, blank=True)
+    imo_no = models.CharField("IMO number", max_length=100, blank=True)
+    port_load_unlocode = models.CharField("Loading port (UN/LOCODE)", max_length=100, blank=True)
+    port_discharge_unlocode = models.CharField(
+        "Discharge port (UN/LOCODE)", max_length=100, blank=True
+    )
+    master_bl_no = models.CharField("Master bill of lading", max_length=100, blank=True)
+    house_bl_no = models.CharField("House bill of lading", max_length=100, blank=True)
+    issue_date = models.DateField("Document issue date", null=True, blank=True)
+    incoterms = models.CharField("Incoterms", max_length=100, blank=True)
+    fragile_goods = models.BooleanField("Fragile goods", default=False)
+    biodegradable_goods = models.BooleanField("Biodegradable goods", default=False)
+    expiry_date = models.DateField(null=True, blank=True)
+    internal_notes = models.CharField("Internal notes", max_length=2000, blank=True)
     current_status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.REGISTERED, editable=False
     )
@@ -509,6 +575,8 @@ class Parcel(ParcelDomainModel):
         from apps.crm.models import Client
 
         super().clean()
+        if self.sender_country_code:
+            self.sender_country_code = self.sender_country_code.upper()
         if not Business.objects.filter(
             pk=self.business_id, vertical=Business.Vertical.LOGISTICS
         ).exists():

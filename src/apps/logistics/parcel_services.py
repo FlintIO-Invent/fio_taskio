@@ -20,6 +20,34 @@ PARCEL_INPUT_FIELDS = (
     "weight_kg",
     "dimensions",
     "declared_value",
+    "hs_code",
+    "marks_numbers",
+    "length_cm",
+    "width_cm",
+    "height_cm",
+    "volume_m3",
+    "sender_name",
+    "sender_contact",
+    "sender_address",
+    "sender_country_code",
+    "sender_tax_id",
+    "recipient_name",
+    "recipient_contact",
+    "recipient_address",
+    "mode_of_transport",
+    "vessel_name",
+    "voyage_no",
+    "imo_no",
+    "port_load_unlocode",
+    "port_discharge_unlocode",
+    "master_bl_no",
+    "house_bl_no",
+    "issue_date",
+    "incoterms",
+    "fragile_goods",
+    "biodegradable_goods",
+    "expiry_date",
+    "internal_notes",
 )
 
 
@@ -116,6 +144,48 @@ def register_parcel(*, business, client, actor, idempotency_key=None, **fields):
         idempotency_key=key,
     )._domain_save(force_insert=True)
     return parcel
+
+
+@transaction.atomic
+def edit_parcel(*, business, parcel, actor, expected_updated_at=None, **fields):
+    """Edit metadata with the same access, locking and history boundary as tracking."""
+    current = _locked_business(business, actor)
+    if set(fields) - set(PARCEL_INPUT_FIELDS):
+        raise ValidationError("Unsupported parcel editing fields.")
+    locked = (
+        Parcel.objects.select_for_update()
+        .filter(pk=getattr(parcel, "pk", parcel), business=current)
+        .first()
+    )
+    if locked is None:
+        raise ValidationError("Parcel is unavailable in this workspace.")
+    if (
+        not Client.objects.select_for_update()
+        .filter(pk=locked.client_id, business=current)
+        .exists()
+    ):
+        raise ValidationError("Parcel client is unavailable in this workspace.")
+    previous = {name: getattr(locked, name) for name in fields}
+    for name, value in fields.items():
+        setattr(locked, name, value)
+    locked.full_clean()
+    changed = [name for name in fields if previous[name] != getattr(locked, name)]
+    # An identical retry needs neither another write nor another history event.
+    if not changed:
+        return locked
+    if expected_updated_at is not None and locked.updated_at != expected_updated_at:
+        raise ValidationError("The parcel changed. Reload before saving your edits.")
+    locked._domain_save(update_fields=[*changed, "updated_at"])
+    ParcelEvent(
+        business=current,
+        parcel=locked,
+        actor=actor,
+        event_type=ParcelEvent.Type.NOTE,
+        internal_note="Parcel details updated: "
+        + ", ".join(str(Parcel._meta.get_field(name).verbose_name) for name in changed)
+        + ".",
+    )._domain_save(force_insert=True)
+    return locked
 
 
 @transaction.atomic

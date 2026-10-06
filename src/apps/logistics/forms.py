@@ -275,27 +275,149 @@ class EnrollmentForm(forms.Form):
         return cleaned
 
 
-class ParcelRegistrationForm(forms.ModelForm):
-    idempotency_key = forms.UUIDField(widget=forms.HiddenInput)
+PARCEL_FIELD_SECTIONS = (
+    (
+        "physical",
+        "Physical details",
+        "box",
+        (
+            "weight_kg",
+            "dimensions",
+            "length_cm",
+            "width_cm",
+            "height_cm",
+            "volume_m3",
+            "hs_code",
+            "marks_numbers",
+        ),
+    ),
+    (
+        "sender",
+        "Sender",
+        "user",
+        (
+            "sender_name",
+            "sender_contact",
+            "sender_address",
+            "sender_country_code",
+            "sender_tax_id",
+        ),
+    ),
+    (
+        "recipient",
+        "Recipient",
+        "users",
+        (
+            "recipient_name",
+            "recipient_contact",
+            "recipient_address",
+        ),
+    ),
+    (
+        "transport",
+        "Transport",
+        "truck",
+        (
+            "mode_of_transport",
+            "vessel_name",
+            "voyage_no",
+            "imo_no",
+            "port_load_unlocode",
+            "port_discharge_unlocode",
+        ),
+    ),
+    (
+        "documents",
+        "Documents and value",
+        "file-text",
+        (
+            "master_bl_no",
+            "house_bl_no",
+            "issue_date",
+            "declared_value",
+            "incoterms",
+        ),
+    ),
+    (
+        "handling",
+        "Handling and notes",
+        "clipboard",
+        (
+            "fragile_goods",
+            "biodegradable_goods",
+            "expiry_date",
+            "internal_notes",
+        ),
+    ),
+)
 
+
+class ParcelMetadataForm(forms.ModelForm):
     class Meta:
         from .models import Parcel
         from .parcel_services import PARCEL_INPUT_FIELDS
 
         model = Parcel
-        fields = ("client",) + PARCEL_INPUT_FIELDS
+        fields = PARCEL_INPUT_FIELDS
+        widgets = {
+            "package_description": forms.Textarea,
+            "sender_address": forms.Textarea,
+            "recipient_address": forms.Textarea,
+            "internal_notes": forms.Textarea,
+            "issue_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "expiry_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+        }
 
     def __init__(self, *args, business, **kwargs):
-        from apps.crm.models import Client
-
         super().__init__(*args, **kwargs)
         self.instance.business = business
         self.fields["declared_value"].label = f"Declared value ({business.currency})"
         self.fields["weight_kg"].label = "Weight (kg)"
+        self.fields["recipient_name"].help_text = (
+            "Optional delivery contact when different from the linked client."
+        )
+        self.fields["internal_notes"].help_text = "Workspace only. Never shown on public tracking."
+        style_dashboard_fields(self.fields)
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs["class"] = "form-check-input"
+        for name in ("length_cm", "width_cm", "height_cm"):
+            self.fields[name].widget.attrs["min"] = "0.01"
+        self.fields["volume_m3"].widget.attrs["min"] = "0"
+        self.fields["origin"].widget.attrs["placeholder"] = "e.g. Miami"
+        self.fields["destination"].widget.attrs["placeholder"] = "e.g. Curaçao"
+        self.fields["package_description"].widget.attrs[
+            "placeholder"
+        ] = "Briefly describe the parcel"
+
+    @property
+    def sections(self):
+        return [
+            {"id": section, "title": title, "icon": icon, "fields": [self[name] for name in names]}
+            for section, title, icon, names in PARCEL_FIELD_SECTIONS
+        ]
+
+    def save(self, commit=True):
+        raise NotImplementedError("Use the parcel services with the validated form data.")
+
+
+class ParcelEditForm(ParcelMetadataForm):
+    expected_updated_at = forms.DateTimeField(widget=forms.HiddenInput)
+
+
+class ParcelRegistrationForm(ParcelMetadataForm):
+    idempotency_key = forms.UUIDField(widget=forms.HiddenInput)
+
+    class Meta(ParcelMetadataForm.Meta):
+        fields = ("client",) + ParcelMetadataForm.Meta.fields
+
+    def __init__(self, *args, business, **kwargs):
+        from apps.crm.models import Client
+
+        super().__init__(*args, business=business, **kwargs)
         self.fields["client"].queryset = Client.objects.filter(business=business).order_by(
             "first_name", "last_name", "pk"
         )
-        style_dashboard_fields(self.fields)
         self.fields["client"].widget.attrs.update(
             {
                 "data-logistics-search-select": "",
@@ -303,14 +425,6 @@ class ParcelRegistrationForm(forms.ModelForm):
             }
         )
         self.fields["client"].label_from_instance = lambda client: f"{client} · {client.email}"
-        self.fields["origin"].widget.attrs["placeholder"] = "e.g. Miami"
-        self.fields["destination"].widget.attrs["placeholder"] = "e.g. Curaçao"
-        self.fields["package_description"].widget.attrs[
-            "placeholder"
-        ] = "Briefly describe the parcel"
-
-    def save(self, commit=True):
-        raise NotImplementedError("Use register_parcel with the validated form data.")
 
 
 class ParcelEventForm(forms.Form):

@@ -1,4 +1,40 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const parcelForm = document.querySelector('[data-logistics-parcel-form]');
+  if (parcelForm) {
+    const showFieldTab = field => {
+      const pane = field?.closest('.tab-pane');
+      if (!pane || pane.classList.contains('active')) return;
+      const trigger = parcelForm.querySelector(`[data-bs-target="#${pane.id}"]`);
+      if (trigger && window.bootstrap) window.bootstrap.Tab.getOrCreateInstance(trigger).show();
+    };
+    const serverError = parcelForm.querySelector('.invalid-feedback.d-block');
+    const serverSummary = parcelForm.querySelector('[data-logistics-form-errors]');
+    if (serverSummary) {
+      showFieldTab(serverError);
+      serverSummary.focus();
+    }
+    parcelForm.addEventListener('submit', event => {
+      if (parcelForm.checkValidity()) return;
+      event.preventDefault();
+      const invalidFields = Array.from(parcelForm.querySelectorAll(':invalid'));
+      const summary = parcelForm.querySelector('[data-parcel-browser-errors]');
+      const heading = document.createElement('div');
+      heading.className = 'fw-semibold mb-1';
+      heading.textContent = 'Parcel was not saved. Please correct the following fields:';
+      const list = document.createElement('ul');
+      list.className = 'mb-0';
+      invalidFields.forEach(field => {
+        const item = document.createElement('li');
+        item.textContent = field.labels?.[0]?.textContent.trim() || field.name;
+        list.appendChild(item);
+      });
+      summary.replaceChildren(heading, list);
+      summary.classList.remove('d-none');
+      showFieldTab(invalidFields[0]);
+      summary.focus();
+      summary.scrollIntoView({behavior: 'smooth', block: 'center'});
+    });
+  }
   const selections = new Map();
   document.querySelectorAll('[data-logistics-search-select]').forEach(select => {
     if (window.Choices && !select.disabled) {

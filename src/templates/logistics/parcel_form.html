@@ -8,12 +8,14 @@
       <li class="breadcrumb-item active" aria-current="page">{{ title|title }}</li>
     </ol>
   </nav>
-  <div class="mb-4">
-    <h2 class="mb-2 text-body-emphasis">{{ title|title }}</h2>
-    {% if parcel %}<p class="mb-2 text-body-secondary text-break">{{ parcel.tracking_code }} · {{ parcel.get_current_status_display }}</p>{% endif %}
-    <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
+  <div class="row g-3 flex-between-end mb-5">
+    <div class="col-auto">
+      <h2 class="mb-2 text-body-emphasis">{{ title|title }}</h2>
+      {% if parcel %}<p class="mb-2 text-body-secondary text-break">{{ parcel.tracking_code }} · {{ parcel.get_current_status_display }}</p>{% endif %}
+      <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
+    </div>
   </div>
-  <form method="post" class="mb-5">
+  <form method="post" class="mb-9" novalidate data-logistics-parcel-form>
     {% csrf_token %}
     {% include 'logistics/includes/form_errors.html' %}
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
@@ -28,8 +30,54 @@
         <p class="mb-0 text-body-secondary fs-9" role="status" data-client-selection-status>Search for an existing client or add one here.</p>
       </div>
     {% endif %}
-    <div class="row g-4">
+    <div class="alert alert-danger d-none" role="alert" tabindex="-1" data-parcel-browser-errors></div>
+    <div class="row g-5">
       <div class="col-12 col-xl-8">
+        {% if form.sections %}
+        <div class="row g-3 mb-5">
+          {% if form.client %}
+            {% include 'logistics/includes/form_field.html' with field=form.client %}
+          {% else %}
+          <div class="col-12"><p class="mb-0 text-body-secondary">Client: {{ parcel.client }}. The linked client and tracking code are fixed after registration.</p></div>
+          {% endif %}
+          {% include 'logistics/includes/form_field.html' with field=form.package_description %}
+          {% include 'logistics/includes/form_field.html' with field=form.origin column_class='col-12 col-md-6' %}
+          {% include 'logistics/includes/form_field.html' with field=form.destination column_class='col-12 col-md-6' %}
+          {% include 'logistics/includes/form_field.html' with field=form.quantity column_class='col-12 col-md-6' %}
+          {% include 'logistics/includes/form_field.html' with field=form.internal_reference column_class='col-12 col-md-6' %}
+        </div>
+        <h4 class="mb-3">Parcel information</h4>
+        <div class="row g-0 border-top border-bottom">
+          <div class="col-sm-4">
+            <div class="nav flex-sm-column border-bottom border-bottom-sm-0 border-end-sm fs-9 vertical-tab h-100" role="tablist" aria-orientation="vertical">
+              {% for section in form.sections %}
+              <button type="button" class="nav-link border-end border-end-sm-0 border-bottom-sm text-center text-sm-start d-sm-flex align-items-sm-center{% if forloop.first %} active{% endif %}"
+                      id="parcel-{{ section.id }}-tab" data-bs-toggle="tab" data-bs-target="#parcel-{{ section.id }}" role="tab" aria-controls="parcel-{{ section.id }}" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+                <span class="me-sm-2 nav-icons" data-feather="{{ section.icon }}" aria-hidden="true"></span>{{ section.title }}
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="col-sm-8">
+            <div class="tab-content py-3 ps-sm-4 h-100">
+              {% for section in form.sections %}
+              <div class="tab-pane fade{% if forloop.first %} show active{% endif %}" id="parcel-{{ section.id }}" role="tabpanel" aria-labelledby="parcel-{{ section.id }}-tab">
+                <h5 class="mb-3 text-body-highlight">{{ section.title }}</h5>
+                <div class="row g-3">
+                  {% for field in section.fields %}
+                    {% if field.name == 'sender_address' or field.name == 'recipient_address' or field.name == 'internal_notes' %}
+                      {% include 'logistics/includes/form_field.html' %}
+                    {% else %}
+                      {% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% else %}
         <div class="card mb-4">
           <div class="card-body">
             <h4 class="mb-3">{% if parcel %}Tracking update{% else %}Parcel details{% endif %}</h4>
@@ -44,11 +92,12 @@
             </div>
           </div>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-          <button class="btn btn-primary" type="submit">{% if parcel %}Save Update{% else %}Register Parcel{% endif %}</button>
-          <a class="btn btn-phoenix-secondary" href="{% if parcel %}{% url 'logistics_parcel_detail' parcel.pk %}{% else %}{% url 'logistics_parcel_list' %}{% endif %}">Cancel</a>
-        </div>
+        {% endif %}
       </div>
+    </div>
+    <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{% if parcel %}{% url 'logistics_parcel_detail' parcel.pk %}{% else %}{% url 'logistics_parcel_list' %}{% endif %}">Cancel</a>
+      <button class="btn btn-primary" type="submit">{% if editing_metadata %}Save Parcel{% elif parcel %}Save Update{% else %}Register Parcel{% endif %}</button>
     </div>
   </form>
   {% if quick_client_form and can_add_client and role_access.can_manage_clients and workspace_can_modify %}
