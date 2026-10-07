@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import uuid
+from pathlib import Path
 from unittest import skipUnless
 
 from django.core.cache import caches
@@ -64,6 +65,7 @@ print(json.dumps(result))
         env = os.environ.copy()
         env.update(
             DJANGO_SETTINGS_MODULE="taskio.settings",
+            PYTHONPATH=str(Path(__file__).resolve().parents[2]),
             TRACKING_TEST_CACHES=json.dumps(config),
             TRACKING_TEST_SECRET=secret,
         )
