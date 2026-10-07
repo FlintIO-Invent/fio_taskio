@@ -1,0 +1,16 @@
+<div class="col-12 col-sm-6 col-xl-4 col-xxl-2">
+  <div class="card h-100"{% if onboarding_target %} data-onboarding-target="{{ onboarding_target }}"{% endif %}>
+    <div class="card-body">
+      <div class="d-flex align-items-center mb-3">
+        <div class="icon-wrapper-sm bg-{{ tone }}-subtle text-{{ tone }}-emphasis me-3 flex-shrink-0" aria-hidden="true">
+          <span class="fa-solid {{ icon }}"></span>
+        </div>
+        <div class="logistics-min-w-0">
+          <p class="fs-9 text-body-tertiary mb-1">{{ label }}</p>
+          <h3 class="mb-0">{{ value }}</h3>
+        </div>
+      </div>
+      <p class="fs-9 text-body-tertiary mb-0">{{ description }}</p>
+    </div>
+  </div>
+</div>

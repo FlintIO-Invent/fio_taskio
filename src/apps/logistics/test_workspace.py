@@ -136,6 +136,56 @@ class LogisticsWorkspaceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         return response
 
+    def test_dashboard_empty_sections_and_zero_kpis_render(self):
+        response = self.dashboard()
+        self.assertTemplateUsed(response, "logistics/includes/kpi_card.html")
+        for label in (
+            "Active Parcels",
+            "Received / Waiting",
+            "In Transit",
+            "Ready",
+            "Active Shipments",
+            "Delivered This Month",
+            "Quick Actions",
+            "No active shipments.",
+            "No parcels require attention.",
+            "No recent parcel activity.",
+            "0 registered in total.",
+        ):
+            self.assertContains(response, label)
+        for metric in (
+            "active_parcel_count",
+            "received_waiting_parcel_count",
+            "in_transit_parcel_count",
+            "ready_parcel_count",
+            "active_shipment_count",
+            "delivered_this_month_count",
+        ):
+            self.assertEqual(response.context[metric], 0)
+
+    def test_dashboard_populated_sections_keep_links_statuses_and_timestamps(self):
+        parcel = self.parcel(status=Parcel.Status.RECEIVED)
+        shipment = self.shipment()
+        response = self.dashboard()
+        self.assertContains(
+            response, f'href="{reverse("logistics_parcel_detail", args=[parcel.pk])}"'
+        )
+        self.assertContains(
+            response, f'href="{reverse("logistics_shipment_detail", args=[shipment.pk])}"'
+        )
+        self.assertContains(response, parcel.tracking_code)
+        self.assertContains(response, shipment.reference)
+        self.assertContains(response, "1 registered in total.")
+        self.assertContains(response, 'class="badge badge-phoenix')
+        event = response.context["recent_tracking_events"][0]
+        self.assertContains(response, event.timestamp.strftime("%Y-%m-%d"))
+        for message in (
+            "No active shipments.",
+            "No parcels require attention.",
+            "No recent parcel activity.",
+        ):
+            self.assertNotContains(response, message)
+
     def test_logistics_navigation_and_shared_shell(self):
         response = self.dashboard()
         self.assertTemplateUsed(response, "inheritance/dashboard_parent.html")

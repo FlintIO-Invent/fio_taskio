@@ -1,3 +1,4 @@
+import csv
 from datetime import timedelta
 from decimal import Decimal
 from io import StringIO
@@ -135,6 +136,52 @@ class ShipmentTests(TestCase):
 
     def manifest(self, shipment):
         return generate_manifest(business=self.business, shipment=shipment, actor=self.user)
+
+    def test_manifest_layout_and_csv_contract(self):
+        shipment = self.shipment()
+        parcel = self.parcel(quantity=3, weight_kg=Decimal("1.250"))
+        self.assign(shipment, parcel)
+        url = reverse("logistics_shipment_manifest", args=[shipment.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "inheritance/dashboard_parent.html")
+        self.assertContains(response, '<div class="content logistics-manifest">', count=1)
+        self.assertContains(response, 'role="region" aria-label="Shipment manifest parcels"')
+        self.assertContains(response, '<th scope="col">Tracking code</th>')
+        self.assertContains(response, parcel.tracking_code)
+        self.assertContains(response, "@media print")
+        self.assertContains(response, 'onclick="window.print()"')
+        download = self.client.get(url, {"download": "csv"})
+        self.assertEqual(download.status_code, 200)
+        self.assertEqual(download["Content-Type"], "text/csv; charset=utf-8")
+        self.assertEqual(
+            download["Content-Disposition"],
+            f'attachment; filename="{shipment.reference}-manifest.csv"',
+        )
+        self.assertEqual(
+            list(csv.reader(StringIO(download.content.decode()))),
+            [
+                ["Shipment reference", shipment.reference],
+                ["Origin", "Miami"],
+                ["Destination", "Curacao"],
+                ["Departure", ""],
+                ["ETA", ""],
+                ["Parcel count", "1"],
+                ["Total quantity", "3"],
+                ["Known weight (kg)", "1.250"],
+                ["Parcels without weight", "0"],
+                [],
+                ["Tracking code", "Client name", "Package description", "Quantity", "Weight (kg)"],
+                [parcel.tracking_code, "Parcel Customer", "Books", "3", "1.250"],
+            ],
+        )
+
+    def test_empty_manifest_keeps_table_and_totals(self):
+        shipment = self.shipment()
+        response = self.client.get(reverse("logistics_shipment_manifest", args=[shipment.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No parcels assigned.")
+        self.assertEqual(response.context["manifest"]["parcel_count"], 0)
 
     def ready_shipment(self, count=1):
         shipment = self.shipment()
