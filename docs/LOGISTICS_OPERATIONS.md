@@ -4,11 +4,18 @@ For optional local payment bypass and configuration-only promotion, see
 [LOGISTICS_LOCAL_DEVELOPMENT.md](LOGISTICS_LOCAL_DEVELOPMENT.md).
 
 Run commands with the normal deployment settings. Select an existing tenant by
-its exact Business ID. `seed_demo_data` retains its existing SERVICE behavior.
+its exact Business ID. `seed_demo_data` retains its existing SERVICE behavior
+and dispatches LOGISTICS tenants to the same Logistics seed/reset implementation.
 
 ## Demo data and reset
 
 ```sh
+python3 src/manage.py seed_demo_data --business-id <ID>
+python3 src/manage.py seed_demo_data --business-id <ID> --execute
+python3 src/manage.py seed_demo_data --business-id <ID> --reset-demo
+python3 src/manage.py seed_demo_data --business-id <ID> --reset-demo --execute
+
+# Existing Logistics-specific entry point remains available:
 python src/manage.py seed_logistics_demo_data --business-id <ID>
 python src/manage.py seed_logistics_demo_data --business-id <ID> --execute
 python src/manage.py seed_logistics_demo_data --business-id <ID> --reset-demo
@@ -21,11 +28,49 @@ and an existing active operator. `--actor-id <USER_ID>` selects that operator;
 otherwise the first eligible member by user ID is used. It never creates users,
 activates plans, changes subscriptions or overwrites operational records.
 
-The fixed example contains three Clients, eight Parcels, 26 ParcelEvents, and
-three Shipments (draft, in transit, completed), with five assignments and a mix
-of registered, received, held, cancelled and delivered parcels. Parcel/Shipment
-services perform every lifecycle mutation. Tracking codes and shipment references
-retain the normal random generation; sample content and counts are repeatable.
+The normal command keeps its required `--business-id` / `--business-slug`
+selector and preview-by-default behavior; it never guesses the target tenant.
+SERVICE count/booking options are rejected for LOGISTICS rather than silently
+ignored. Both commands use the same ownership records and reset safeguards.
+
+The fixed Logistics example contains 10 Clients (eight businesses and two
+individuals), 20 Parcels, 83 ParcelEvents, and six Shipments, one in each shipment
+status. Twelve parcels are assigned to shipments; eight remain unassigned.
+
+| Parcel status | Count |
+| --- | ---: |
+| Registered | 3 |
+| Received | 4 |
+| In transit | 3 |
+| Arrived | 2 |
+| Ready for collection / delivery | 1 |
+| Delivered | 3 |
+| On hold | 2 |
+| Cancelled | 2 |
+
+Every client is linked to two parcels. Metadata varies across sea, air and local
+road routes, sender/recipient names and contacts, addresses, country/tax IDs,
+content, quantity, weight, structured centimetre measurements, volume, legacy
+dimensions, declared value, HS codes, marks, carrier/vessel and voyage details,
+ports, bills of lading, issue dates, Incoterms, handling flags, expiry dates and
+private notes. Status history follows normal parcel/shipment transitions. Location
+checkpoints include origin, en-route and destination locations; two parcels also
+have private metadata-edit history. This provides recent deliveries, waiting
+parcels, attention items and shipment/dashboard summaries for manual testing.
+
+`DEMO-020` deliberately has only required registration fields and a demo reference:
+its optional metadata, measurements and location are unknown. Some other parcels
+omit contacts, addresses, declared values, marks or notes to exercise empty states;
+legacy-dimension examples omit structured measurements. Sea-only voyage/IMO and
+bill-of-lading fields are empty on air/road parcels. Expiry dates are provided only
+for the compostable-container examples. Creation/update/event timestamps remain
+the real service-write times, preserving immutable history; document/expiry and
+shipment schedule dates vary relative to seeding time.
+
+Parcel/Shipment services perform every lifecycle mutation. Tracking codes and
+shipment references retain normal random generation; sample content and counts
+are repeatable. Seeding fails atomically on validation/access errors. Repeated
+execution requires preview/reset first and cannot append another Logistics dataset.
 
 The existing `DemoSeedRun`/`DemoSeedRecord` ownership metadata tracks every new
 record. A second seed refuses to append until the existing run is reset. Reset

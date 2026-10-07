@@ -138,10 +138,10 @@ class LogisticsOperationsTests(TestCase):
         self.assertFalse(Parcel.objects.exclude(created_by=self.user).exists())
         self.assertFalse(ParcelEvent.objects.exclude(actor=self.user).exists())
         self.assertFalse(Shipment.objects.exclude(created_by=self.user).exists())
-        self.assertEqual(Parcel.objects.filter(shipment__isnull=False).count(), 5)
+        self.assertEqual(Parcel.objects.filter(shipment__isnull=False).count(), 12)
         self.assertEqual(
             set(Shipment.objects.values_list("status", flat=True)),
-            {"DRAFT", "IN_TRANSIT", "COMPLETED"},
+            set(Shipment.Status.values),
         )
         for model in (Parcel, ParcelEvent, Shipment):
             self.assertEqual(
@@ -154,7 +154,7 @@ class LogisticsOperationsTests(TestCase):
             )
         with self.assertRaises(CommandError):
             self.command(execute=True)
-        self.assertEqual(Parcel.objects.count(), 8)
+        self.assertEqual(Parcel.objects.count(), LOGISTICS_DEMO_COUNTS["parcels"])
         self.genuine.refresh_from_db()
         self.assertEqual(self.genuine.email, "private@example.test")
 
@@ -184,7 +184,7 @@ class LogisticsOperationsTests(TestCase):
             business=self.business, actor=self.user, origin="Real", destination="Real"
         )
         self.assertIn("RESET PREVIEW ONLY", self.command(reset_demo=True))
-        self.assertEqual(Parcel.objects.count(), 9)
+        self.assertEqual(Parcel.objects.count(), LOGISTICS_DEMO_COUNTS["parcels"] + 1)
         self.command(reset_demo=True, execute=True)
         self.assertEqual(list(Parcel.objects.values_list("pk", flat=True)), [genuine_parcel.pk])
         self.assertEqual(list(Shipment.objects.values_list("pk", flat=True)), [genuine_shipment.pk])
@@ -193,7 +193,7 @@ class LogisticsOperationsTests(TestCase):
         self.assertFalse(DemoSeedRun.objects.exists())
         self.assertFalse(DemoSeedRecord.objects.exists())
         self.seed()
-        self.assertEqual(Parcel.objects.count(), 9)
+        self.assertEqual(Parcel.objects.count(), LOGISTICS_DEMO_COUNTS["parcels"] + 1)
 
     def test_reset_blocks_genuine_event_on_demo_parcel(self):
         seed = self.seed()
@@ -208,7 +208,7 @@ class LogisticsOperationsTests(TestCase):
             with self.assertRaisesMessage(CommandError, "genuine or untracked"):
                 self.command(reset_demo=True, execute=execute)
         self.assertTrue(ParcelEvent.objects.filter(pk=event.pk).exists())
-        self.assertEqual(seed.owned_records.count(), 40)
+        self.assertEqual(seed.owned_records.count(), sum(LOGISTICS_DEMO_COUNTS.values()))
 
     def test_reset_blocks_genuine_parcel_on_demo_client_or_shipment(self):
         self.seed()
@@ -230,7 +230,7 @@ class LogisticsOperationsTests(TestCase):
         shipment = create_shipment(
             business=self.business, actor=self.user, origin="Real", destination="Real"
         )
-        parcel = Parcel.objects.get(current_status="REGISTERED")
+        parcel = Parcel.objects.filter(current_status="REGISTERED", shipment__isnull=True).first()
         assign_parcel(business=self.business, shipment=shipment, parcel=parcel, actor=self.user)
         with self.assertRaisesMessage(CommandError, "genuine shipment"):
             self.command(reset_demo=True, execute=True)
@@ -287,11 +287,11 @@ class LogisticsOperationsTests(TestCase):
         self.assertEqual(summary["plan"], "logistics")
         self.assertEqual(summary["billing_interval"], "yearly")
         self.assertEqual(summary["application"]["id"], str(application.pk))
-        self.assertEqual(summary["usage"]["parcels"], 8)
-        self.assertEqual(summary["usage"]["parcel_events"], 26)
-        self.assertEqual(summary["usage"]["active_shipments"], 2)
+        self.assertEqual(summary["usage"]["parcels"], LOGISTICS_DEMO_COUNTS["parcels"])
+        self.assertEqual(summary["usage"]["parcel_events"], LOGISTICS_DEMO_COUNTS["parcel_events"])
+        self.assertEqual(summary["usage"]["active_shipments"], 4)
         self.assertEqual(summary["usage"]["completed_shipments"], 1)
-        self.assertEqual(summary["usage"]["parcel_status_summary"]["DELIVERED"], 2)
+        self.assertEqual(summary["usage"]["parcel_status_summary"]["DELIVERED"], 3)
         for private in (application.email, application.business_address, self.genuine.email):
             self.assertNotIn(private, output)
         self.assertIn("Logistics operational summary", self.command("inspect_business_data"))
@@ -359,7 +359,13 @@ class LogisticsOperationsTests(TestCase):
                 key: counts[key]
                 for key in ("parcels", "parcel_events", "shipments", "demo_seed_records")
             },
-            {"parcels": 8, "parcel_events": 26, "shipments": 3, "demo_seed_records": 40},
+            {
+                **{
+                    key: LOGISTICS_DEMO_COUNTS[key]
+                    for key in ("parcels", "parcel_events", "shipments")
+                },
+                "demo_seed_records": sum(LOGISTICS_DEMO_COUNTS.values()),
+            },
         )
         self.assertEqual(counts["logistics_application_decisions"], application.decisions.count())
         self.assertIn("logistics_enrollment_tokens", counts)
@@ -381,12 +387,16 @@ class LogisticsOperationsTests(TestCase):
         )
         self.inactive()
         self.assertIn("DRY RUN ONLY", self.command("purge_business"))
-        self.assertEqual(Parcel.objects.count(), 8)
+        self.assertEqual(Parcel.objects.count(), LOGISTICS_DEMO_COUNTS["parcels"])
         result = purge_business(
             business_id=self.business.pk, reason_reference="OPS-10", delete_eligible_users=True
         )
-        self.assertEqual(result.deletion_counts["demo_seed_records"], 40)
-        self.assertEqual(result.deletion_counts["parcel_events"], 26)
+        self.assertEqual(
+            result.deletion_counts["demo_seed_records"], sum(LOGISTICS_DEMO_COUNTS.values())
+        )
+        self.assertEqual(
+            result.deletion_counts["parcel_events"], LOGISTICS_DEMO_COUNTS["parcel_events"]
+        )
         self.assertFalse(Business.objects.filter(pk=self.business.pk).exists())
         for model in (Parcel, ParcelEvent, Shipment, DemoSeedRun, DemoSeedRecord):
             self.assertFalse(model.objects.exists())
@@ -417,7 +427,7 @@ class LogisticsOperationsTests(TestCase):
         ):
             with self.subTest(options=options), self.assertRaises(CommandError):
                 self.command("purge_business", **options)
-        self.assertEqual(Parcel.objects.count(), 8)
+        self.assertEqual(Parcel.objects.count(), LOGISTICS_DEMO_COUNTS["parcels"])
 
     def test_active_stripe_and_financial_guards_apply_to_logistics(self):
         self.seed()
@@ -437,7 +447,7 @@ class LogisticsOperationsTests(TestCase):
         with self.assertRaises(BusinessPurgeError) as error:
             purge_business(business_id=self.business.pk, reason_reference="OPS-10")
         self.assertEqual(error.exception.error_code, "test_financial_data_confirmation_required")
-        self.assertEqual(Parcel.objects.count(), 8)
+        self.assertEqual(Parcel.objects.count(), LOGISTICS_DEMO_COUNTS["parcels"])
 
     def test_purge_rollback_preserves_operations_and_metadata_and_records_failure(self):
         self.seed()
@@ -448,9 +458,9 @@ class LogisticsOperationsTests(TestCase):
         ):
             with self.assertRaises(BusinessPurgeError):
                 purge_business(business_id=self.business.pk, reason_reference="OPS-10")
-        self.assertEqual(Parcel.objects.count(), 8)
-        self.assertEqual(ParcelEvent.objects.count(), 26)
-        self.assertEqual(DemoSeedRecord.objects.count(), 40)
+        self.assertEqual(Parcel.objects.count(), LOGISTICS_DEMO_COUNTS["parcels"])
+        self.assertEqual(ParcelEvent.objects.count(), LOGISTICS_DEMO_COUNTS["parcel_events"])
+        self.assertEqual(DemoSeedRecord.objects.count(), sum(LOGISTICS_DEMO_COUNTS.values()))
         self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
         self.assertEqual(
             BusinessDataOperation.objects.get().status, BusinessDataOperation.Status.FAILED
@@ -477,14 +487,14 @@ class LogisticsOperationsTests(TestCase):
         self.genuine.client_status = "ARCHIVED"
         self.genuine.save(update_fields=["client_status"])
         usage = logistics_usage(business=self.business)
-        self.assertEqual(usage["parcels"], 8)
-        self.assertEqual(usage["monthly_parcels"], 8)
-        self.assertEqual(usage["monthly_parcel_events"], 26)
+        self.assertEqual(usage["parcels"], LOGISTICS_DEMO_COUNTS["parcels"])
+        self.assertEqual(usage["monthly_parcels"], LOGISTICS_DEMO_COUNTS["parcels"])
+        self.assertEqual(usage["monthly_parcel_events"], LOGISTICS_DEMO_COUNTS["parcel_events"])
         self.assertEqual(usage["active_users"], 0)
-        self.assertEqual(usage["active_clients"], 3)
-        self.assertEqual(usage["active_shipments"], 2)
-        self.assertEqual(usage["delivered_parcels_this_month"], 2)
-        self.assertEqual(usage["average_events_per_parcel"], 3.25)
+        self.assertEqual(usage["active_clients"], LOGISTICS_DEMO_COUNTS["clients"])
+        self.assertEqual(usage["active_shipments"], 4)
+        self.assertEqual(usage["delivered_parcels_this_month"], 3)
+        self.assertEqual(usage["average_events_per_parcel"], 4.15)
         self.assertIsNone(usage["reported_locations"])
         self.member.is_active = True
         self.member.save(update_fields=["is_active"])
@@ -522,9 +532,9 @@ class LogisticsOperationsTests(TestCase):
 
     @override_settings(
         LOGISTICS_ELIGIBILITY_POLICY=LogisticsEligibilityPolicy(
-            auto_approve_monthly_parcels=10,
-            review_above_monthly_parcels=20,
-            high_resource_monthly_parcels=30,
+            auto_approve_monthly_parcels=25,
+            review_above_monthly_parcels=50,
+            high_resource_monthly_parcels=75,
             auto_approve_staff_count=1,
         ),
         LOGISTICS_USAGE_REVIEW_POLICY=LogisticsUsageReviewPolicy(
@@ -581,8 +591,8 @@ class LogisticsOperationsTests(TestCase):
                 model_admin.logistics_application_link(row)
                 model_admin.subscription_plan(row)
         selected = next(row for row in rows if row.pk == self.business.pk)
-        self.assertEqual(selected._parcel_count, 8)
-        self.assertEqual(selected._shipment_count, 3)
+        self.assertEqual(selected._parcel_count, LOGISTICS_DEMO_COUNTS["parcels"])
+        self.assertEqual(selected._shipment_count, LOGISTICS_DEMO_COUNTS["shipments"])
         self.assertEqual(model_admin.logistics_application_link(selected), str(application.pk))
         link_filter = LogisticsApplicationLinkFilter(
             request, {"logistics_application_link": ["linked"]}, Business, model_admin
