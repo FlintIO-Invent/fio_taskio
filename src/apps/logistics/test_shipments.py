@@ -145,6 +145,28 @@ class ShipmentTests(TestCase):
         self.status(shipment, "READY")
         return shipment, parcels
 
+    def write_post(self, route, data=None, *, shipment=None, parcel=None):
+        args = [shipment.pk] if shipment else []
+        if route == "logistics_shipment_remove":
+            args.append(parcel.pk)
+        url = reverse(route, args=args)
+        if route in {"logistics_shipment_create", "logistics_shipment_edit"}:
+            form = self.client.get(url).context["form"]
+        else:
+            context = self.client.get(
+                reverse("logistics_shipment_detail", args=[shipment.pk])
+            ).context
+            if route == "logistics_shipment_remove":
+                form = next(
+                    item.shipment_remove_form for item in context["parcels"] if item.pk == parcel.pk
+                )
+            else:
+                form = context[
+                    "assignment_form" if route == "logistics_shipment_assign" else "status_form"
+                ]
+        hidden = {field.name: field.value() for field in form.hidden_fields()}
+        return self.client.post(url, {**hidden, **(data or {})})
+
     def test_logistics_creation_and_immutable_reference(self):
         first, second = self.shipment(), self.shipment()
         self.assertEqual(first.status, "DRAFT")
@@ -479,8 +501,8 @@ class ShipmentTests(TestCase):
         self.assertNotContains(html, "<script>destination</script>")
 
     def test_staff_ui_creation_edit_assignment_status_manifest_and_association(self):
-        response = self.client.post(
-            reverse("logistics_shipment_create"),
+        response = self.write_post(
+            "logistics_shipment_create",
             {
                 "origin": "Miami",
                 "destination": "Curacao",
@@ -491,19 +513,24 @@ class ShipmentTests(TestCase):
         shipment = Shipment.objects.get()
         self.assertContains(self.client.get(reverse("logistics_shipment_list")), shipment.reference)
         self.assertEqual(
-            self.client.post(
-                reverse("logistics_shipment_edit", args=[shipment.pk]),
+            self.write_post(
+                "logistics_shipment_edit",
                 {
                     "origin": "Orlando",
                     "destination": "Curacao",
                     "notes": "Updated",
                 },
+                shipment=shipment,
             ).status_code,
             302,
         )
         parcel = self.parcel()
-        assign_url = reverse("logistics_shipment_assign", args=[shipment.pk])
-        self.assertEqual(self.client.post(assign_url, {"parcel": parcel.pk}).status_code, 302)
+        self.assertEqual(
+            self.write_post(
+                "logistics_shipment_assign", {"parcel": parcel.pk}, shipment=shipment
+            ).status_code,
+            302,
+        )
         self.assertContains(
             self.client.get(reverse("logistics_parcel_detail", args=[parcel.pk])),
             shipment.reference,
@@ -512,20 +539,32 @@ class ShipmentTests(TestCase):
             self.client.get(reverse("logistics_shipment_detail", args=[shipment.pk])),
             parcel.tracking_code,
         )
-        remove_url = reverse("logistics_shipment_remove", args=[shipment.pk, parcel.pk])
-        self.assertEqual(self.client.post(remove_url).status_code, 302)
-        self.assertEqual(self.client.post(assign_url, {"parcel": parcel.pk}).status_code, 302)
-        status_url = reverse("logistics_shipment_status", args=[shipment.pk])
         self.assertEqual(
-            self.client.post(
-                status_url, {"status": "READY", "expected_status": "DRAFT"}
+            self.write_post(
+                "logistics_shipment_remove", shipment=shipment, parcel=parcel
+            ).status_code,
+            302,
+        )
+        self.assertEqual(
+            self.write_post(
+                "logistics_shipment_assign", {"parcel": parcel.pk}, shipment=shipment
+            ).status_code,
+            302,
+        )
+        self.assertEqual(
+            self.write_post(
+                "logistics_shipment_status",
+                {"status": "READY", "expected_status": "DRAFT"},
+                shipment=shipment,
             ).status_code,
             400,
         )
         self.parcel_status(parcel, "RECEIVED")
         self.assertEqual(
-            self.client.post(
-                status_url, {"status": "READY", "expected_status": "DRAFT"}
+            self.write_post(
+                "logistics_shipment_status",
+                {"status": "READY", "expected_status": "DRAFT"},
+                shipment=shipment,
             ).status_code,
             302,
         )

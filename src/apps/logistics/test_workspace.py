@@ -1,5 +1,6 @@
 """Block 9: vertical presentation, tenant isolation, permissions and regressions."""
 
+import re
 from datetime import timedelta
 from html.parser import HTMLParser
 from unittest.mock import patch
@@ -436,7 +437,9 @@ class LogisticsWorkspaceTests(TestCase):
         ):
             self.assertNotContains(response, f'href="{reverse(route)}"')
         # Onboarding still checks prior completion, but no operational aggregates/lists run.
-        logistics_queries = [q["sql"] for q in queries if '"logistics_' in q["sql"]]
+        logistics_queries = [
+            q["sql"] for q in queries if re.search(r'\b(?:FROM|JOIN) "logistics_', q["sql"])
+        ]
         self.assertTrue(all("SELECT 1 AS" in sql for sql in logistics_queries))
 
     def test_dashboard_queries_do_not_cross_verticals(self):
@@ -453,7 +456,7 @@ class LogisticsWorkspaceTests(TestCase):
         self.switch(self.service)
         with CaptureQueriesContext(connection) as queries:
             self.dashboard()
-        self.assertFalse(any('"logistics_' in q["sql"] for q in queries))
+        self.assertFalse(any(re.search(r'\b(?:FROM|JOIN) "logistics_', q["sql"]) for q in queries))
 
     def test_snapshot_reads_are_bounded_with_related_rows_loaded(self):
         for _ in range(6):
@@ -473,7 +476,7 @@ class LogisticsWorkspaceTests(TestCase):
             list(snapshot["active_shipments"])
             for event in snapshot["recent_tracking_events"]:
                 str(event.parcel)
-        domain_queries = [q for q in queries if '"logistics_' in q["sql"]]
+        domain_queries = [q for q in queries if re.search(r'\b(?:FROM|JOIN) "logistics_', q["sql"])]
         self.assertEqual(len(domain_queries), 9)
         self.assertEqual(len(snapshot["recent_deliveries"]), 5)
         self.assertEqual(len(snapshot["recent_tracking_events"]), 5)
@@ -622,9 +625,16 @@ class LogisticsWorkspaceTests(TestCase):
 
     def test_logistics_pages_use_dashboard_content_and_responsive_cards(self):
         parcel, shipment = self.parcel(), self.shipment()
+        assignment_form = self.client.get(
+            reverse("logistics_shipment_detail", args=[shipment.pk])
+        ).context["assignment_form"]
         self.assertEqual(
             self.client.post(
-                reverse("logistics_shipment_assign", args=[shipment.pk]), {"parcel": parcel.pk}
+                reverse("logistics_shipment_assign", args=[shipment.pk]),
+                {
+                    "parcel": parcel.pk,
+                    **{field.name: field.value() for field in assignment_form.hidden_fields()},
+                },
             ).status_code,
             302,
         )

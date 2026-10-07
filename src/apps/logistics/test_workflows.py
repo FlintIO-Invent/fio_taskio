@@ -12,6 +12,7 @@ from django.urls import reverse
 from apps.businesses.models import BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.crm.models import Client
 
+from . import test_shipments as shipment_fixtures
 from . import test_workspace as fixtures
 from .models import Parcel, Shipment
 from .parcel_services import register_parcel
@@ -24,6 +25,7 @@ class LogisticsWorkflowTests(TestCase):
     parcel = fixtures.LogisticsWorkspaceTests.parcel
     shipment = fixtures.LogisticsWorkspaceTests.shipment
     dashboard = fixtures.LogisticsWorkspaceTests.dashboard
+    write_post = shipment_fixtures.ShipmentTests.write_post
 
     def client_data(self, **overrides):
         return {
@@ -142,7 +144,7 @@ class LogisticsWorkflowTests(TestCase):
         self.assertEqual(list(response.context["client_open_parcels"]), [parcel])
         self.assertEqual(set(response.context["client_recent_parcels"]), {parcel, delivered})
         self.assertContains(
-            response, f'{reverse("logistics_parcel_register")}?client={self.customer.pk}'
+            response, f"{reverse('logistics_parcel_register')}?client={self.customer.pk}"
         )
         self.assertNotContains(response, foreign.tracking_code)
         self.assertEqual(
@@ -155,7 +157,7 @@ class LogisticsWorkflowTests(TestCase):
         self.membership.save(update_fields=["role"])
         response = self.client.get(reverse("staff_client_detail", args=[self.customer.pk]))
         self.assertNotContains(
-            response, f'{reverse("logistics_parcel_register")}?client={self.customer.pk}'
+            response, f"{reverse('logistics_parcel_register')}?client={self.customer.pk}"
         )
         self.assertContains(response, parcel.tracking_code)
 
@@ -226,9 +228,7 @@ class LogisticsWorkflowTests(TestCase):
         foreign = self.parcel(business=self.other, customer=self.other_customer)
         assigned = self.parcel()
         shipment = self.shipment()
-        self.client.post(
-            reverse("logistics_shipment_assign", args=[shipment.pk]), {"parcel": assigned.pk}
-        )
+        self.write_post("logistics_shipment_assign", {"parcel": assigned.pk}, shipment=shipment)
         form = ShipmentAssignmentForm(business=self.business)
         self.assertEqual(set(form.fields["parcel"].queryset), {registered, received})
         response = self.client.get(
@@ -246,10 +246,10 @@ class LogisticsWorkflowTests(TestCase):
                 ).status_code,
                 404,
             )
-            response = self.client.post(
-                reverse("logistics_shipment_assign", args=[shipment.pk]), {"parcel": value}
+            response = self.write_post(
+                "logistics_shipment_assign", {"parcel": value}, shipment=shipment
             )
-            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.status_code, 302 if value == assigned.pk else 400)
         self.assertEqual(Parcel.objects.get(pk=foreign.pk).shipment_id, None)
 
     def test_create_and_edit_shipment_assign_using_existing_services(self):
@@ -257,8 +257,8 @@ class LogisticsWorkflowTests(TestCase):
         response = self.client.get(reverse("logistics_shipment_create"), {"parcel": parcel.pk})
         self.assertEqual(response.context["form"]["parcel"].value(), parcel.pk)
         self.assertEqual(response.context["form"]["origin"].value(), parcel.origin)
-        response = self.client.post(
-            reverse("logistics_shipment_create"),
+        response = self.write_post(
+            "logistics_shipment_create",
             {"origin": "Miami", "destination": "Curaçao", "parcel": parcel.pk},
         )
         self.assertEqual(response.status_code, 302)
@@ -266,9 +266,10 @@ class LogisticsWorkflowTests(TestCase):
         parcel.refresh_from_db()
         self.assertEqual(parcel.shipment_id, shipment.pk)
         extra = self.parcel()
-        response = self.client.post(
-            reverse("logistics_shipment_edit", args=[shipment.pk]),
+        response = self.write_post(
+            "logistics_shipment_edit",
             {"origin": "Updated", "destination": "Curaçao", "parcel": extra.pk},
+            shipment=shipment,
         )
         self.assertEqual(response.status_code, 302)
         extra.refresh_from_db()
@@ -279,11 +280,11 @@ class LogisticsWorkflowTests(TestCase):
     def test_assignment_failure_rolls_back_create_and_preserves_values(self):
         parcel = self.parcel()
         with patch(
-            "apps.logistics.shipment_views.assign_parcel",
+            "apps.logistics.shipment_services.assign_parcel",
             side_effect=ValidationError("Parcel changed. Reload and try again."),
         ):
-            response = self.client.post(
-                reverse("logistics_shipment_create"),
+            response = self.write_post(
+                "logistics_shipment_create",
                 {
                     "origin": "Keep origin",
                     "destination": "Keep destination",
@@ -303,8 +304,8 @@ class LogisticsWorkflowTests(TestCase):
         foreign = self.parcel(business=self.other, customer=self.other_customer)
         transit = self.parcel(status=Parcel.Status.IN_TRANSIT)
         for parcel in (foreign, transit):
-            response = self.client.post(
-                reverse("logistics_shipment_create"),
+            response = self.write_post(
+                "logistics_shipment_create",
                 {"origin": "Miami", "destination": "Curaçao", "parcel": parcel.pk},
             )
             self.assertEqual(response.status_code, 200)
@@ -316,16 +317,17 @@ class LogisticsWorkflowTests(TestCase):
     def test_assignment_failure_rolls_back_shipment_edit(self):
         shipment, parcel = self.shipment(), self.parcel()
         with patch(
-            "apps.logistics.shipment_views.assign_parcel",
+            "apps.logistics.shipment_services.assign_parcel",
             side_effect=ValidationError("Parcel changed."),
         ):
-            response = self.client.post(
-                reverse("logistics_shipment_edit", args=[shipment.pk]),
+            response = self.write_post(
+                "logistics_shipment_edit",
                 {
                     "origin": "Keep entered origin",
                     "destination": "Keep destination",
                     "parcel": parcel.pk,
                 },
+                shipment=shipment,
             )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'value="Keep entered origin"')
@@ -337,11 +339,9 @@ class LogisticsWorkflowTests(TestCase):
 
     def test_stale_parcel_preselection_preserves_posted_shipment_values(self):
         parcel, shipment = self.parcel(), self.shipment()
-        self.client.post(
-            reverse("logistics_shipment_assign", args=[shipment.pk]), {"parcel": parcel.pk}
-        )
+        self.write_post("logistics_shipment_assign", {"parcel": parcel.pk}, shipment=shipment)
         response = self.client.post(
-            f'{reverse("logistics_shipment_create")}?parcel={parcel.pk}',
+            f"{reverse('logistics_shipment_create')}?parcel={parcel.pk}",
             {"origin": "Keep this origin", "destination": "Keep destination", "parcel": parcel.pk},
         )
         self.assertEqual(response.status_code, 200)
@@ -362,8 +362,8 @@ class LogisticsWorkflowTests(TestCase):
         ):
             response = self.client.get(reverse("logistics_shipment_create"))
             self.assertNotIn("parcel", response.context["form"].fields)
-            response = self.client.post(
-                reverse("logistics_shipment_create"),
+            response = self.write_post(
+                "logistics_shipment_create",
                 {"origin": "Miami", "destination": "Curacao", "parcel": parcel.pk},
             )
             self.assertEqual(response.status_code, 302)
@@ -387,21 +387,19 @@ class LogisticsWorkflowTests(TestCase):
         parcel, shipment = self.parcel(), self.shipment()
         response = self.client.get(reverse("logistics_parcel_detail", args=[parcel.pk]))
         self.assertContains(response, reverse("staff_client_detail", args=[self.customer.pk]))
-        self.assertContains(response, f'{reverse("logistics_shipment_create")}?parcel={parcel.pk}')
-        self.assertContains(response, f'{reverse("logistics_shipment_list")}?parcel={parcel.pk}')
+        self.assertContains(response, f"{reverse('logistics_shipment_create')}?parcel={parcel.pk}")
+        self.assertContains(response, f"{reverse('logistics_shipment_list')}?parcel={parcel.pk}")
         self.assertContains(response, 'method="post" action="/logistics/track/"')
         response = self.client.get(reverse("logistics_shipment_list"), {"parcel": parcel.pk})
         self.assertContains(
             response,
-            f'{reverse("logistics_shipment_detail", args=[shipment.pk])}?parcel={parcel.pk}#assign-parcel',
+            f"{reverse('logistics_shipment_detail', args=[shipment.pk])}?parcel={parcel.pk}#assign-parcel",
         )
-        self.client.post(
-            reverse("logistics_shipment_assign", args=[shipment.pk]), {"parcel": parcel.pk}
-        )
+        self.write_post("logistics_shipment_assign", {"parcel": parcel.pk}, shipment=shipment)
         response = self.client.get(reverse("logistics_parcel_detail", args=[parcel.pk]))
         self.assertContains(response, reverse("logistics_shipment_detail", args=[shipment.pk]))
         self.assertNotContains(
-            response, f'{reverse("logistics_shipment_create")}?parcel={parcel.pk}'
+            response, f"{reverse('logistics_shipment_create')}?parcel={parcel.pk}"
         )
         response = self.client.get(reverse("logistics_shipment_detail", args=[shipment.pk]))
         self.assertContains(response, reverse("logistics_parcel_detail", args=[parcel.pk]))
@@ -412,7 +410,7 @@ class LogisticsWorkflowTests(TestCase):
         parcel = self.parcel(status=Parcel.Status.DELIVERED)
         response = self.client.get(reverse("logistics_parcel_detail", args=[parcel.pk]))
         self.assertNotContains(
-            response, f'{reverse("logistics_shipment_create")}?parcel={parcel.pk}'
+            response, f"{reverse('logistics_shipment_create')}?parcel={parcel.pk}"
         )
         response = self.client.get(reverse("logistics_parcel_update", args=[parcel.pk]))
         self.assertEqual(

@@ -1,4 +1,7 @@
+import uuid
+
 from django import forms
+from django.db.models import Q
 
 from .dashboard_forms import style_dashboard_fields
 from .models import Parcel, Shipment
@@ -11,13 +14,15 @@ class EligibleParcelField(forms.ModelChoiceField):
         return f"{parcel.tracking_code} · {parcel.client} · {parcel.get_current_status_display()} · {parcel.origin} → {parcel.destination}"
 
 
-def eligible_parcels(business):
+def eligible_parcels(business, replay_shipment=None):
+    eligible = Q(shipment__isnull=True, current_status__in=ASSIGNABLE_PARCEL_STATUSES)
+    if replay_shipment is not None:
+        eligible |= Q(shipment=replay_shipment)
     return (
         Parcel.objects.filter(
+            eligible,
             business=business,
             client__business=business,
-            shipment__isnull=True,
-            current_status__in=ASSIGNABLE_PARCEL_STATUSES,
         )
         .select_related("client")
         .order_by("tracking_code")
@@ -30,6 +35,19 @@ def style_parcel_selection(field):
 
 
 class ShipmentForm(forms.ModelForm):
+    idempotency_key = forms.UUIDField(
+        widget=forms.HiddenInput,
+        error_messages={
+            "required": "The shipment retry token is missing. Reload before saving.",
+        },
+    )
+    expected_revision = forms.IntegerField(
+        min_value=1,
+        widget=forms.HiddenInput,
+        error_messages={
+            "required": "The loaded shipment revision is missing. Reload before saving.",
+        },
+    )
     parcel = EligibleParcelField(
         queryset=Parcel.objects.none(),
         required=False,
@@ -62,8 +80,23 @@ class ShipmentForm(forms.ModelForm):
     def __init__(self, *args, business, allow_assignment=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.instance.business = business
+        self.fields["idempotency_key"].initial = uuid.uuid4()
+        if self.instance.pk:
+            self.fields["expected_revision"].initial = self.instance.revision
+        else:
+            self.fields.pop("expected_revision")
+        replay_shipment = self.instance if self.is_bound and self.instance.pk else None
+        if self.is_bound and not self.instance.pk:
+            try:
+                key = self.fields["idempotency_key"].to_python(self.data.get("idempotency_key"))
+            except forms.ValidationError:
+                key = None
+            if key:
+                replay_shipment = Shipment.objects.filter(
+                    business=business, idempotency_key=key
+                ).first()
         if allow_assignment:
-            self.fields["parcel"].queryset = eligible_parcels(business)
+            self.fields["parcel"].queryset = eligible_parcels(business, replay_shipment)
             style_parcel_selection(self.fields["parcel"])
         else:
             self.fields.pop("parcel")
@@ -75,26 +108,57 @@ class ShipmentForm(forms.ModelForm):
         raise NotImplementedError("Use the shipment services with validated form data.")
 
 
-class ShipmentAssignmentForm(forms.Form):
+class ShipmentWriteForm(forms.Form):
+    idempotency_key = forms.UUIDField(
+        widget=forms.HiddenInput,
+        error_messages={
+            "required": "The shipment retry token is missing. Reload before saving.",
+        },
+    )
+    expected_revision = forms.IntegerField(
+        min_value=1,
+        widget=forms.HiddenInput,
+        error_messages={
+            "required": "The loaded shipment revision is missing. Reload before saving.",
+        },
+    )
+
+    def __init__(self, *args, shipment=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["idempotency_key"].initial = uuid.uuid4()
+        if shipment:
+            self.fields["expected_revision"].initial = shipment.revision
+
+
+class ShipmentAssignmentForm(ShipmentWriteForm):
     parcel = EligibleParcelField(queryset=Parcel.objects.none(), label="Parcel")
 
-    def __init__(self, *args, business, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["parcel"].queryset = eligible_parcels(business)
+    def __init__(self, *args, business, shipment=None, **kwargs):
+        super().__init__(*args, shipment=shipment, **kwargs)
+        self.fields["parcel"].queryset = eligible_parcels(
+            business, shipment if self.is_bound else None
+        )
         style_parcel_selection(self.fields["parcel"])
         style_dashboard_fields(self.fields)
 
 
-class ShipmentStatusForm(forms.Form):
+class ShipmentStatusForm(ShipmentWriteForm):
     status = forms.ChoiceField()
     expected_status = forms.CharField(widget=forms.HiddenInput)
 
     def __init__(self, *args, shipment, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, shipment=shipment, **kwargs)
         self.fields["status"].choices = [
             (value, label)
             for value, label in Shipment.Status.choices
             if value in ALLOWED_TRANSITIONS[shipment.status]
         ]
+        # A replay's target may now be the current status or a historical status.
+        # Services recognize its receipt before checking a new transition.
+        submitted = self.data.get("status") if self.is_bound else None
+        if submitted in Shipment.Status.values and submitted not in dict(
+            self.fields["status"].choices
+        ):
+            self.fields["status"].choices.append((submitted, Shipment.Status(submitted).label))
         self.fields["expected_status"].initial = shipment.status
         style_dashboard_fields(self.fields)

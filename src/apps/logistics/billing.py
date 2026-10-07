@@ -17,20 +17,13 @@ from apps.businesses.stripe_config import (
     resolve_stripe_price_id,
 )
 
+from .checkout_approval import approval_metadata, current_checkout_application
 from .models import LogisticsApplication
 
 
 def require_checkout_enrollment(subscription, user):
-    application = LogisticsApplication.objects.filter(business_id=subscription.business_id).first()
-    if (
-        application is None
-        or application.status != LogisticsApplication.Status.APPROVED
-        or application.approved_revision != application.revision
-        or application.evaluated_revision != application.revision
-        or application.converted_revision != application.revision
-        or application.converted_at is None
-        or application.enrolled_user_id is None
-    ):
+    application = current_checkout_application(subscription)
+    if application is None or approval_metadata(application) is None:
         raise StripeCheckoutError(
             "Checkout requires a current approved Logistics enrollment.",
             code="logistics_application_invalid",
@@ -62,6 +55,7 @@ def require_checkout_enrollment(subscription, user):
         or subscription.billing_currency != application.preferred_currency.lower()
         or subscription.trial_start is not None
         or subscription.trial_end is not None
+        or subscription.logistics_approval_review_required
     ):
         raise StripeCheckoutError(
             "The enrolled subscription is not ready for annual Logistics checkout.",

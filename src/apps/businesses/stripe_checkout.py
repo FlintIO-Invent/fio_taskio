@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from functools import wraps
 from typing import Any
 
+from django.db import transaction
 from django.http import HttpRequest
 from django.urls import reverse
 from django.utils import timezone
@@ -105,6 +107,29 @@ def ensure_pending_checkout_subscription(
     return subscription
 
 
+def _serialize_logistics_checkout(function):
+    @wraps(function)
+    def checkout(*, request, subscription, user):
+        if not _is_logistics_subscription(subscription):
+            return function(request=request, subscription=subscription, user=user)
+        from apps.logistics.models import LogisticsApplication
+
+        with transaction.atomic():
+            # Use the same lock order for all entry points, review and webhooks.
+            LogisticsApplication.objects.select_for_update().filter(
+                business_id=subscription.business_id
+            ).first()
+            subscription = (
+                BusinessSubscription.objects.select_for_update(of=("self",))
+                .select_related("business", "plan")
+                .get(pk=subscription.pk)
+            )
+            return function(request=request, subscription=subscription, user=user)
+
+    return checkout
+
+
+@_serialize_logistics_checkout
 def create_trial_checkout_session(
     *,
     request: HttpRequest,
@@ -117,6 +142,9 @@ def create_trial_checkout_session(
     This performs the network call outside the registration transaction. Return
     URLs are informational only; Block 5 webhooks will activate access.
     """
+    if _is_logistics_subscription(subscription):
+        # Direct callers must honor an existing provider session just like resume.
+        return resume_trial_checkout_session(request=request, subscription=subscription, user=user)
     return _create_checkout_session(
         request=request,
         subscription=subscription,
@@ -125,6 +153,7 @@ def create_trial_checkout_session(
     )
 
 
+@_serialize_logistics_checkout
 def resume_trial_checkout_session(
     *,
     request: HttpRequest,
@@ -173,13 +202,36 @@ def resume_trial_checkout_session(
         )
         _validate_session_belongs_to_subscription(session=session, subscription=subscription)
         if logistics:
-            _validate_logistics_session_price(session, subscription, price_id)
+            from apps.logistics.checkout_approval import matches_current_approval
+
+            metadata = _stripe_value(session, "metadata") or {}
+            approval_matches = matches_current_approval(subscription, metadata)
         session_status = str(_stripe_value(session, "status") or "").strip().lower()
         session_url = _stripe_value(session, "url")
         expires_at = _stripe_timestamp_to_datetime(_stripe_value(session, "expires_at"))
 
         if session_status == "complete":
             raise StripeCheckoutAlreadyCompleted("Checkout has already been completed.")
+
+        if logistics and not approval_matches:
+            # Legacy/unbound sessions and sessions from previous approval decisions
+            # must be expired before replacement. Provider errors fail closed.
+            if session_status not in {"open", "expired"}:
+                raise StripeCheckoutError("Stored Logistics Checkout Session requires review.")
+            _expire_checkout_session_if_open(
+                stripe_client=stripe_client,
+                session_id=existing_session_id,
+                session_status=session_status,
+            )
+            return _create_checkout_session(
+                request=request,
+                subscription=subscription,
+                user=user,
+                replacing_session_id=existing_session_id,
+            )
+
+        if logistics:
+            _validate_logistics_session_price(session, subscription, price_id)
 
         if session_status == "open" and session_url and _session_still_usable(expires_at):
             if subscription.checkout_session_expires_at != expires_at:
@@ -235,6 +287,11 @@ def _create_checkout_session(
         billing_interval=billing_interval,
         currency=currency,
     )
+    if _is_logistics_subscription(subscription):
+        from apps.logistics.checkout_approval import approval_metadata
+
+        application = require_checkout_enrollment(subscription, user)
+        metadata.update(approval_metadata(application))
     stripe_client = configure_stripe_sdk()
     if _is_logistics_subscription(subscription):
         from apps.logistics.billing import validate_annual_stripe_price
@@ -255,6 +312,7 @@ def _create_checkout_session(
         idempotency_key=_checkout_idempotency_key(
             subscription=subscription,
             replacing_session_id=replacing_session_id,
+            approval_decision_id=metadata.get("logistics_approval_decision_id", ""),
         ),
     )
     checkout_url = _stripe_value(checkout_session, "url")
@@ -449,10 +507,12 @@ def _checkout_idempotency_key(
     *,
     subscription: BusinessSubscription,
     replacing_session_id: str,
+    approval_decision_id: str = "",
 ) -> str:
+    approval_binding = f"-approval-{approval_decision_id}" if approval_decision_id else ""
     return (
         f"motionmate-checkout-{subscription.pk}-"
-        f"{subscription.billing_interval}-{subscription.billing_currency}-{replacing_session_id}"
+        f"{subscription.billing_interval}-{subscription.billing_currency}{approval_binding}-{replacing_session_id}"
     )[:255]
 
 

@@ -710,6 +710,9 @@ class Shipment(ParcelDomainModel):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    idempotency_key = models.UUIDField(null=True, blank=True, editable=False)
+    revision = models.PositiveBigIntegerField(default=1, editable=False)
+    write_receipts = models.JSONField(default=dict, blank=True, editable=False)
 
     class Meta:
         ordering = ["-created_at", "-pk"]
@@ -720,7 +723,10 @@ class Shipment(ParcelDomainModel):
                     status__in=["DRAFT", "READY", "IN_TRANSIT", "ARRIVED", "COMPLETED", "CANCELLED"]
                 ),
                 name="shipment_status_known",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["business", "idempotency_key"], name="shipment_creation_retry_unique"
+            ),
         ]
 
     def __str__(self):
@@ -738,12 +744,20 @@ class Shipment(ParcelDomainModel):
             self._validate_actor("created_by")
         else:
             previous = type(self).objects.filter(pk=self.pk).first()
-            if previous is None or (self.business_id, self.reference, self.created_by_id) != (
+            if previous is None or (
+                self.business_id,
+                self.reference,
+                self.created_by_id,
+                self.idempotency_key,
+            ) != (
                 previous.business_id,
                 previous.reference,
                 previous.created_by_id,
+                previous.idempotency_key,
             ):
-                raise ValidationError("Shipment ownership, reference and creator are immutable.")
+                raise ValidationError(
+                    "Shipment ownership, reference, creator and creation retry key are immutable."
+                )
         if self.departure_at and self.estimated_arrival_at:
             if self.estimated_arrival_at < self.departure_at:
                 raise ValidationError({"estimated_arrival_at": "ETA cannot precede departure."})

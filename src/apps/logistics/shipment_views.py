@@ -3,7 +3,6 @@ from io import StringIO
 
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.db import transaction
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
@@ -13,7 +12,12 @@ from apps.businesses.utils import business_module_required, business_role_requir
 
 from .billing_views import billing_context
 from .models import Parcel, Shipment
-from .shipment_forms import ShipmentAssignmentForm, ShipmentForm, ShipmentStatusForm
+from .shipment_forms import (
+    ShipmentAssignmentForm,
+    ShipmentForm,
+    ShipmentStatusForm,
+    ShipmentWriteForm,
+)
 from .shipment_policy import (
     ASSIGNABLE_SHIPMENT_STATUSES,
     SHIPMENT_MANAGE_ROLES,
@@ -69,9 +73,13 @@ def _detail(request, shipment, *, error=None, assignment_form=None, status_form=
         .select_related("client")
         .order_by("tracking_code")
     )
+    for parcel in parcels:
+        parcel.shipment_remove_form = ShipmentWriteForm(shipment=shipment)
     if assignment_form is None:
         assignment_form = ShipmentAssignmentForm(
-            business=request.current_business, initial={"parcel": _initial_parcel(request)}
+            business=request.current_business,
+            shipment=shipment,
+            initial={"parcel": _initial_parcel(request)},
         )
     return render(
         request,
@@ -143,19 +151,13 @@ def shipment_create(request):
     )
     if request.method == "POST" and form.is_valid():
         try:
-            with transaction.atomic():
-                shipment = create_shipment(
-                    business=request.current_business,
-                    actor=request.user,
-                    **{key: form.cleaned_data[key] for key in SHIPMENT_INPUT_FIELDS},
-                )
-                if form.cleaned_data.get("parcel"):
-                    assign_parcel(
-                        business=request.current_business,
-                        shipment=shipment,
-                        parcel=form.cleaned_data["parcel"],
-                        actor=request.user,
-                    )
+            shipment = create_shipment(
+                business=request.current_business,
+                actor=request.user,
+                idempotency_key=form.cleaned_data["idempotency_key"],
+                parcel=form.cleaned_data.get("parcel"),
+                **{key: form.cleaned_data[key] for key in SHIPMENT_INPUT_FIELDS},
+            )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
@@ -179,7 +181,7 @@ def shipment_create(request):
 @require_http_methods(["GET", "POST"])
 def shipment_edit(request, shipment_id):
     shipment = _get_shipment(request, shipment_id)
-    if shipment.status != Shipment.Status.DRAFT:
+    if shipment.status != Shipment.Status.DRAFT and request.method == "GET":
         return _detail(request, shipment, error="Only draft shipment details can be edited.")
     form = ShipmentForm(
         request.POST if request.method == "POST" else None,
@@ -189,20 +191,15 @@ def shipment_edit(request, shipment_id):
     )
     if request.method == "POST" and form.is_valid():
         try:
-            with transaction.atomic():
-                update_shipment(
-                    business=request.current_business,
-                    shipment=shipment,
-                    actor=request.user,
-                    **{key: form.cleaned_data[key] for key in SHIPMENT_INPUT_FIELDS},
-                )
-                if form.cleaned_data.get("parcel"):
-                    assign_parcel(
-                        business=request.current_business,
-                        shipment=shipment,
-                        parcel=form.cleaned_data["parcel"],
-                        actor=request.user,
-                    )
+            update_shipment(
+                business=request.current_business,
+                shipment=shipment,
+                actor=request.user,
+                expected_revision=form.cleaned_data["expected_revision"],
+                idempotency_key=form.cleaned_data["idempotency_key"],
+                parcel=form.cleaned_data.get("parcel"),
+                **{key: form.cleaned_data[key] for key in SHIPMENT_INPUT_FIELDS},
+            )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
@@ -228,7 +225,9 @@ def shipment_edit(request, shipment_id):
 @require_POST
 def shipment_assign(request, shipment_id):
     shipment = _get_shipment(request, shipment_id)
-    form = ShipmentAssignmentForm(request.POST, business=request.current_business)
+    form = ShipmentAssignmentForm(
+        request.POST, business=request.current_business, shipment=shipment
+    )
     if not form.is_valid():
         return _detail(
             request,
@@ -240,8 +239,8 @@ def shipment_assign(request, shipment_id):
         assign_parcel(
             business=request.current_business,
             shipment=shipment,
-            parcel=form.cleaned_data["parcel"],
             actor=request.user,
+            **form.cleaned_data,
         )
     except ValidationError as exc:
         form.add_error(None, "; ".join(exc.messages))
@@ -261,13 +260,23 @@ def shipment_remove(request, shipment_id, parcel_id):
         Parcel.objects.filter(
             business=request.current_business,
             client__business=request.current_business,
-            shipment=shipment,
         ),
         pk=parcel_id,
     )
+    form = ShipmentWriteForm(request.POST, shipment=shipment)
+    if not form.is_valid():
+        return _detail(
+            request,
+            shipment,
+            error="The shipment write token is missing or invalid. Reload before removing the parcel.",
+        )
     try:
         remove_parcel(
-            business=request.current_business, shipment=shipment, parcel=parcel, actor=request.user
+            business=request.current_business,
+            shipment=shipment,
+            parcel=parcel,
+            actor=request.user,
+            **form.cleaned_data,
         )
     except ValidationError as exc:
         return _detail(request, shipment, error="; ".join(exc.messages))

@@ -4,15 +4,19 @@ Business locks follow parcel_services' ordering and serialize membership, lifecy
 and parcel events within each tenant. Moving a parcel is explicit remove then assign.
 """
 
+import hashlib
+import json
+from datetime import datetime
 from decimal import Decimal
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 
 from .models import Parcel, Shipment
-from .parcel_services import change_parcel_status, require_parcel_access
+from .parcel_services import _key, change_parcel_status, require_parcel_access
 from .shipment_policy import (
     ALLOWED_TRANSITIONS,
     ASSIGNABLE_PARCEL_STATUSES,
@@ -22,6 +26,15 @@ from .shipment_policy import (
 )
 
 SHIPMENT_INPUT_FIELDS = ("origin", "destination", "departure_at", "estimated_arrival_at", "notes")
+
+
+class _ReceiptEncoder(DjangoJSONEncoder):
+    def default(self, value):
+        if isinstance(value, datetime):
+            # Django's default encoder truncates to milliseconds; retry identity
+            # must distinguish the full precision accepted by the services.
+            return value.isoformat()
+        return super().default(value)
 
 
 def require_shipment_access(*, business, actor, write=False, manifest=False):
@@ -93,35 +106,140 @@ def _input_fields(fields):
         raise ValidationError("Unsupported shipment fields.")
 
 
+def _fingerprint(kind, actor, payload):
+    return hashlib.sha256(
+        json.dumps(
+            {"operation": kind, "actor": actor.pk, "payload": payload},
+            cls=_ReceiptEncoder,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+
+def _replayed(shipment, key, fingerprint):
+    receipt = shipment.write_receipts.get(str(key)) if key else None
+    if receipt is None:
+        return False
+    if receipt != fingerprint:
+        raise ValidationError(
+            "This retry key was already used for a different shipment operation. Reload before retrying."
+        )
+    return True
+
+
+def _check_revision(shipment, expected_revision):
+    if expected_revision is not None and (
+        type(expected_revision) is not int or expected_revision != shipment.revision
+    ):
+        raise ValidationError(
+            "The shipment changed after this form was loaded. Reload before saving."
+        )
+
+
+def _save_write(shipment, *, fields, key, fingerprint):
+    shipment.revision += 1
+    if key:
+        shipment.write_receipts = {**shipment.write_receipts, str(key): fingerprint}
+    shipment._domain_save(update_fields=[*fields, "revision", "write_receipts", "updated_at"])
+
+
 @transaction.atomic
-def create_shipment(*, business, actor, **fields):
+def create_shipment(*, business, actor, idempotency_key=None, parcel=None, **fields):
     current = _locked_business(business, actor)
     _input_fields(fields)
-    shipment = Shipment(business=current, created_by=actor, **fields)
+    key = _key(idempotency_key)
+    existing = (
+        Shipment.objects.select_for_update().filter(business=current, idempotency_key=key).first()
+        if key
+        else None
+    )
+    item = _parcel(current, parcel) if parcel is not None else None
+    shipment = Shipment(business=current, created_by=actor, idempotency_key=key, **fields)
+    shipment.full_clean(exclude=["reference", "idempotency_key"])
+    fingerprint = _fingerprint(
+        "create",
+        actor,
+        {
+            "fields": {name: getattr(shipment, name) for name in SHIPMENT_INPUT_FIELDS},
+            "parcel": item.pk if item else None,
+        },
+    )
+    if existing:
+        if not _replayed(existing, key, fingerprint):
+            raise ValidationError(
+                "Shipment retry authorization is unavailable. Reload before retrying."
+            )
+        return existing
+    if key:
+        shipment.write_receipts = {str(key): fingerprint}
     shipment._domain_save(force_insert=True)
+    if item:
+        assign_parcel(business=current, shipment=shipment, parcel=item, actor=actor)
+        shipment.refresh_from_db()
     return shipment
 
 
 @transaction.atomic
-def update_shipment(*, business, shipment, actor, **fields):
+def update_shipment(
+    *,
+    business,
+    shipment,
+    actor,
+    expected_revision=None,
+    idempotency_key=None,
+    parcel=None,
+    **fields,
+):
     current = _locked_business(business, actor)
     locked = _shipment(current, shipment)
     _input_fields(fields)
+    if expected_revision is None:
+        expected_revision = getattr(shipment, "revision", None)
+    if expected_revision is None:
+        raise ValidationError("The loaded shipment revision is required. Reload before saving.")
+    key = _key(idempotency_key)
+    fields = {
+        name: Shipment._meta.get_field(name).clean(value, locked) for name, value in fields.items()
+    }
+    item = _parcel(current, parcel) if parcel is not None else None
+    fingerprint = _fingerprint(
+        "edit",
+        actor,
+        {
+            "fields": fields,
+            "revision": expected_revision,
+            "parcel": item.pk if item else None,
+        },
+    )
+    if _replayed(locked, key, fingerprint):
+        return locked
+    _check_revision(locked, expected_revision)
     if locked.status != Shipment.Status.DRAFT:
         raise ValidationError("Only draft shipment details can be edited.")
     for name, value in fields.items():
         setattr(locked, name, value)
-    locked._domain_save(update_fields=[*fields, "updated_at"])
+    _save_write(locked, fields=fields, key=key, fingerprint=fingerprint)
+    if item:
+        assign_parcel(business=current, shipment=locked, parcel=item, actor=actor)
+        locked.refresh_from_db()
     return locked
 
 
 @transaction.atomic
-def assign_parcel(*, business, shipment, parcel, actor):
+def assign_parcel(
+    *, business, shipment, parcel, actor, idempotency_key=None, expected_revision=None
+):
     current = _locked_business(business, actor)
     require_parcel_access(business=current, actor=actor, write=True)
     locked = _shipment(current, shipment)
-    _before_departure(locked)
     item = _parcel(current, parcel)
+    key = _key(idempotency_key)
+    fingerprint = _fingerprint("assign", actor, {"parcel": item.pk, "revision": expected_revision})
+    if _replayed(locked, key, fingerprint):
+        return item
+    _check_revision(locked, expected_revision)
+    _before_departure(locked)
     if item.current_status not in ASSIGNABLE_PARCEL_STATUSES:
         raise ValidationError("Only registered or received parcels can be assigned.")
     if item.shipment_id == locked.pk:
@@ -132,27 +250,58 @@ def assign_parcel(*, business, shipment, parcel, actor):
         raise ValidationError("A shipment with saved charges must retain a single billing client.")
     item.shipment = locked
     item._domain_save(update_fields=["shipment", "updated_at"])
+    _save_write(locked, fields=[], key=key, fingerprint=fingerprint)
     return item
 
 
 @transaction.atomic
-def remove_parcel(*, business, shipment, parcel, actor):
+def remove_parcel(
+    *, business, shipment, parcel, actor, idempotency_key=None, expected_revision=None
+):
     current = _locked_business(business, actor)
     require_parcel_access(business=current, actor=actor, write=True)
     locked = _shipment(current, shipment)
-    _before_departure(locked)
     item = _parcel(current, parcel)
+    key = _key(idempotency_key)
+    fingerprint = _fingerprint("remove", actor, {"parcel": item.pk, "revision": expected_revision})
+    if _replayed(locked, key, fingerprint):
+        return item
+    _check_revision(locked, expected_revision)
+    _before_departure(locked)
     if item.shipment_id != locked.pk:
         raise ValidationError("This parcel is not assigned to this shipment.")
     item.shipment = None
     item._domain_save(update_fields=["shipment", "updated_at"])
+    _save_write(locked, fields=[], key=key, fingerprint=fingerprint)
     return item
 
 
 @transaction.atomic
-def change_shipment_status(*, business, shipment, actor, status, expected_status=None):
+def change_shipment_status(
+    *,
+    business,
+    shipment,
+    actor,
+    status,
+    expected_status=None,
+    expected_revision=None,
+    idempotency_key=None,
+):
     current = _locked_business(business, actor)
     locked = _shipment(current, shipment)
+    key = _key(idempotency_key)
+    fingerprint = _fingerprint(
+        "status",
+        actor,
+        {
+            "status": status,
+            "expected_status": expected_status,
+            "revision": expected_revision,
+        },
+    )
+    if _replayed(locked, key, fingerprint):
+        return locked
+    _check_revision(locked, expected_revision)
     if expected_status is not None and expected_status != locked.status:
         raise ValidationError("The shipment status changed. Reload before recording this update.")
     if status not in Shipment.Status.values or status not in ALLOWED_TRANSITIONS[locked.status]:
@@ -206,8 +355,10 @@ def change_shipment_status(*, business, shipment, actor, status, expected_status
         # Cancellation before departure releases membership without cancelling parcels.
         for item in items:
             remove_parcel(business=current, shipment=locked, parcel=item, actor=actor)
+        # Nested removals advance the same row's revision; preserve their writes.
+        locked.refresh_from_db()
     locked.status = status
-    locked._domain_save(update_fields=["status", "updated_at"])
+    _save_write(locked, fields=["status"], key=key, fingerprint=fingerprint)
     return locked
 
 

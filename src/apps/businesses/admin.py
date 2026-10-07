@@ -192,6 +192,7 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
         "business",
         "plan",
         "status",
+        "logistics_approval_review_required",
         "provisioning_source",
         "payment_provider",
         "billing_interval",
@@ -205,6 +206,7 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
     )
     list_filter = (
         "status",
+        "logistics_approval_review_required",
         "provisioning_source",
         "payment_provider",
         "billing_interval",

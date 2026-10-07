@@ -62,6 +62,7 @@
         <form method="post" action="{% url 'logistics_shipment_assign' shipment.pk %}">
           {% csrf_token %}
           {% include 'logistics/includes/form_errors.html' with form=assignment_form %}
+          {% for hidden in assignment_form.hidden_fields %}{{ hidden }}{% endfor %}
           <div class="row g-3 mb-3">
             {% for field in assignment_form.visible_fields %}{% include 'logistics/includes/form_field.html' %}{% endfor %}
           </div>
@@ -94,7 +95,9 @@
               <td>
                 {% if can_assign and role_access.can_manage_shipments and module_write_access.shipments and module_write_access.parcels %}
                 <form method="post" action="{% url 'logistics_shipment_remove' shipment.pk parcel.pk %}">
-                  {% csrf_token %}<button type="submit" class="btn btn-sm btn-phoenix-secondary">Remove</button>
+                  {% csrf_token %}
+                  {% for hidden in parcel.shipment_remove_form.hidden_fields %}{{ hidden }}{% endfor %}
+                  <button type="submit" class="btn btn-sm btn-phoenix-secondary">Remove</button>
                 </form>
                 {% endif %}
               </td>

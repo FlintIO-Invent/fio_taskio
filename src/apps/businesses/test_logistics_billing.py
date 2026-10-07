@@ -167,6 +167,33 @@ class LogisticsOfferingTests(TestCase):
             source_provider_event_id="evt_logistics",
         )
 
+    def approved_enrollment(self):
+        from apps.logistics.checkout_approval import approval_metadata
+        from apps.logistics.models import LogisticsApplication
+        from apps.logistics.services import review_application
+        from apps.logistics.tests import application_data
+
+        application = LogisticsApplication.objects.create(
+            **application_data(email=self.user.email, preferred_currency="USD")
+        )
+        actor = TaskIOUser.objects.create_superuser(email="billing-reviewer@example.com")
+        review_application(
+            application.pk,
+            result="APPROVED",
+            actor=actor,
+            reason="Billing fixture approved",
+            expected_revision=1,
+        )
+        LogisticsApplication.objects.filter(pk=application.pk).update(
+            business=self.business,
+            business_id_snapshot=self.business.pk,
+            enrolled_user=self.user,
+            converted_revision=1,
+            converted_at=self.now,
+        )
+        application.refresh_from_db()
+        return approval_metadata(application)
+
     def test_public_catalog_and_existing_plan_families_are_unchanged(self):
         self.assertEqual(
             list(ClarivoPlan.motionmate_plans().values_list("slug", flat=True)),
@@ -371,6 +398,7 @@ class LogisticsOfferingTests(TestCase):
         )
         LogisticsApplication.objects.filter(pk=application.pk).update(
             business=self.business,
+            business_id_snapshot=self.business.pk,
             enrolled_user=self.user,
             converted_revision=1,
             converted_at=self.now,
@@ -467,8 +495,11 @@ class LogisticsOfferingTests(TestCase):
 
     @override_settings(**stripe_settings())
     def test_webhook_activates_annual_logistics_and_enqueues_activation(self):
+        binding = self.approved_enrollment()
         subscription = self.pending()
-        self.sync(self.remote(subscription))
+        remote = self.remote(subscription)
+        remote["metadata"].update(binding)
+        self.sync(remote)
         subscription.refresh_from_db()
         self.assertEqual(subscription.status, "active")
         self.assertIsNone(subscription.trial_end)
@@ -496,8 +527,11 @@ class LogisticsOfferingTests(TestCase):
 
     @override_settings(**stripe_settings())
     def test_past_due_grace_reminders_and_recovery_reuse_shared_lifecycle(self):
+        binding = self.approved_enrollment()
         subscription = self.active()
-        self.sync(self.remote(subscription, status="past_due"))
+        remote = self.remote(subscription, status="past_due")
+        remote["metadata"].update(binding)
+        self.sync(remote)
         subscription.refresh_from_db()
         self.assertEqual(subscription.status, "past_due")
         self.assertTrue(subscription.has_access)
@@ -535,9 +569,9 @@ class LogisticsOfferingTests(TestCase):
             ).exists()
         )
         recovered_at = subscription.grace_period_ends_at + timedelta(minutes=1)
-        self.sync(
-            self.remote(subscription, status="active"), source="invoice.paid", event_at=recovered_at
-        )
+        remote = self.remote(subscription, status="active")
+        remote["metadata"].update(binding)
+        self.sync(remote, source="invoice.paid", event_at=recovered_at)
         subscription.refresh_from_db()
         self.assertEqual(subscription.status, "active")
         self.assertIsNone(subscription.past_due_since)

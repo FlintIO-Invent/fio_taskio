@@ -1,4 +1,4 @@
-"""Application lifecycle services. No tenant provisioning, billing or notifications."""
+"""Application lifecycle services, including revocation of checkout authorization."""
 
 from dataclasses import asdict
 
@@ -129,6 +129,11 @@ def _record_decision(application, *, result=None, actor=None, override_reason=""
         ),
         updated_at=evaluated_at,
     )
+    from .checkout_approval import invalidate_checkout
+
+    # Read the persisted decision/revision, including material-change evaluation.
+    application.refresh_from_db()
+    invalidate_checkout(application)
     return decision
 
 

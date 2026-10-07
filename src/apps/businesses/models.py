@@ -675,6 +675,7 @@ class BusinessSubscription(TimeStampedModel):
         PLAN_INACTIVE = "plan_inactive"
         PENDING_CHECKOUT = "pending_checkout"
         LOCAL_LOGISTICS_BILLING_BYPASS = "local_logistics_billing_bypass"
+        LOGISTICS_APPROVAL_REVIEW_REQUIRED = "logistics_approval_review_required"
         TRIAL_ACTIVE = "trial_active"
         TRIAL_EXPIRED = "trial_expired"
         TRIAL_MISSING_END = "trial_missing_end"
@@ -746,6 +747,11 @@ class BusinessSubscription(TimeStampedModel):
     last_payment_failure_at = models.DateTimeField(null=True, blank=True)
     last_payment_failure_reason = models.CharField(max_length=255, blank=True, default="")
     checkout_session_expires_at = models.DateTimeField(null=True, blank=True)
+    logistics_approval_review_required = models.BooleanField(
+        default=False,
+        help_text="Logistics access is blocked until approval/payment reconciliation is reviewed. "
+        "After reviewing the application and Stripe payment, an admin must clear this hold.",
+    )
 
     class Meta:
         ordering = ["business__name"]
@@ -823,6 +829,17 @@ class BusinessSubscription(TimeStampedModel):
 
     def effective_access_state_at(self, at_time) -> SubscriptionAccessState:
         at_time = self._normalize_evaluation_time(at_time)
+
+        if (
+            self.business.vertical == Business.Vertical.LOGISTICS
+            and self.logistics_approval_review_required
+        ):
+            return self._access_state(
+                self.AccessCode.LOGISTICS_APPROVAL_REVIEW_REQUIRED,
+                has_access=False,
+                billing_attention_required=True,
+                should_contact_support=True,
+            )
 
         if not self._offering_is_compatible():
             return self._access_state(

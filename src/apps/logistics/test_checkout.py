@@ -41,6 +41,7 @@ from apps.businesses.test_logistics_billing import stripe_settings
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 
 from .billing import checkout_for_application, validate_offering_activation
+from .checkout_approval import approval_metadata
 from .enrollment import enroll_application, issue_enrollment_link
 from .models import LogisticsApplication, LogisticsEnrollmentToken
 from .test_enrollment import PASSWORD, approve, reviewer
@@ -78,6 +79,7 @@ class LogisticsCheckoutFixture:
             result.subscription,
         )
         self.application.refresh_from_db()
+        self.initial_approval_metadata = approval_metadata(self.application)
         self.plan = self.subscription.plan
         self.plan.regional_prices = {
             currency: {"currency": currency.upper(), "yearly": str(TEST_PRICE)}
@@ -132,6 +134,12 @@ class LogisticsCheckoutFixture:
 
     def metadata(self, subscription=None):
         sub = subscription or self.subscription
+        binding = self.initial_approval_metadata
+        if self.sessions.create.call_args is not None:
+            binding = {
+                key: self.sessions.create.call_args.kwargs["metadata"][key]
+                for key in self.initial_approval_metadata
+            }
         return {
             "motionmate_business_id": str(sub.business_id),
             "motionmate_subscription_id": str(sub.pk),
@@ -139,6 +147,7 @@ class LogisticsCheckoutFixture:
             "plan_slug": sub.plan.slug,
             "billing_interval": sub.billing_interval,
             "billing_currency": sub.billing_currency,
+            **binding,
         }
 
     def remote_session(self, **changes):
@@ -461,7 +470,9 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
         self.assertEqual(params["metadata"], self.metadata())
         self.assertEqual(params["subscription_data"]["metadata"], params["metadata"])
         self.assertEqual(
-            params["idempotency_key"], f"motionmate-checkout-{self.subscription.pk}-yearly-eur-new"
+            params["idempotency_key"],
+            f"motionmate-checkout-{self.subscription.pk}-yearly-eur"
+            f"-approval-{self.initial_approval_metadata['logistics_approval_decision_id']}-new",
         )
         self.assertIn(reverse("billing_checkout_success"), params["success_url"])
         self.subscription.refresh_from_db()
