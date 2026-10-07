@@ -1,0 +1,17 @@
+<div class="card mb-4">
+  <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <h4 class="mb-0">Parcels <span class="text-body-secondary fs-9">{{ client_parcel_count }} registered</span></h4>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-phoenix-secondary" href="{% url 'logistics_parcel_list' %}?client={{ single_client.pk }}">View All Parcels</a>
+      {% if role_access.can_manage_parcels and module_write_access.parcels %}
+      <a class="btn btn-sm btn-primary" href="{% url 'logistics_parcel_register' %}?client={{ single_client.pk }}">Register Parcel</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card-body">
+    <h5 class="mb-3">Open parcels</h5>
+    {% include 'logistics/includes/client_parcel_rows.html' with parcels=client_open_parcels empty_message='No open parcels for this client.' %}
+    <h5 class="mt-4 mb-3">Recent parcels</h5>
+    {% include 'logistics/includes/client_parcel_rows.html' with parcels=client_recent_parcels empty_message='No parcels registered for this client yet.' %}
+  </div>
+</div>

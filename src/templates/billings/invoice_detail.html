@@ -59,6 +59,8 @@
     {% endfor %}
   {% endif %}
 
+  {% if has_logistics_charges %}<div class="alert alert-info">Saved parcel and shipment charges are preserved for billing history. Add further charges from their Billing section to this invoice while it is a draft.</div>{% endif %}
+
   <div class="row mb-4 mb-xl-6 mb-xxl-4 gy-3 justify-content-between">
     <div class="col-auto">
       <h2 class="mb-0 text-body-emphasis">Invoice {{ invoice.invoice_number }}</h2>
@@ -77,7 +79,7 @@
         <button class="btn btn-phoenix-primary" onclick="window.print()">
           <span class="fa-solid fa-print me-2"></span>Print
         </button>
-        {% if role_access.can_delete_invoices and workspace_can_modify %}
+        {% if role_access.can_delete_invoices and workspace_can_modify and not has_logistics_charges %}
           <form method="post" action="{% url 'invoice_delete' invoice.pk %}">
             {% csrf_token %}
             <button
@@ -206,7 +208,10 @@
               <tbody>
                 {% for line in invoice.lines.all %}
                 <tr>
-                  <td>{{ line.description }}</td>
+                  <td>{{ line.description }}
+                    {% if line.parcel_id and module_access.parcels %}<br><a href="{% url 'logistics_parcel_detail' line.parcel_id %}" class="small">View parcel</a>{% endif %}
+                    {% if line.shipment_id and module_access.shipments %}<br><a href="{% url 'logistics_shipment_detail' line.shipment_id %}" class="small">View shipment</a>{% endif %}
+                  </td>
                   <td class="text-end">{{ line.quantity }}</td>
                   <td class="text-end">{{ line.unit_price|money:invoice.business }}</td>
                   <td class="text-end">{{ line.line_total|money:invoice.business }}</td>
@@ -301,7 +306,7 @@
 
           {% if role_access.can_manage_invoices and workspace_can_modify %}
             <div class="d-grid gap-2">
-              {% if invoice.status == 'DRAFT' %}
+              {% if invoice.status == 'DRAFT' and not has_logistics_charges %}
               <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-phoenix-warning">
                 <span class="fa-solid fa-edit me-2"></span>Edit Invoice
               </a>

@@ -4,6 +4,7 @@ import argparse
 from datetime import time, timedelta
 from decimal import Decimal
 
+from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
@@ -64,7 +65,7 @@ def non_negative_count(value: str) -> int:
 
 
 class Command(BaseCommand):
-    help = "Plan or initialize demo-data seeding for one existing Business."
+    help = "Preview or seed/reset demo data for one existing SERVICE or LOGISTICS Business."
 
     def add_arguments(self, parser):
         selector = parser.add_mutually_exclusive_group(required=True)
@@ -76,7 +77,7 @@ class Command(BaseCommand):
                 f"--{name}",
                 type=non_negative_count,
                 default=None,
-                help=f"Number to create (default: {default}).",
+                help=f"SERVICE records to create (default: {default}).",
             )
 
         parser.add_argument(
@@ -136,6 +137,26 @@ class Command(BaseCommand):
                 f"ID {business_id}" if business_id is not None else f"slug '{business_slug}'"
             )
             raise CommandError(f"Business with {selector_description} was not found.") from exc
+
+        if business.vertical == Business.Vertical.LOGISTICS:
+            if (
+                any(value is not None for value in explicit_count_options.values())
+                or booking_setup
+                or enable_public_booking
+            ):
+                raise CommandError(
+                    "Logistics uses a fixed demo dataset; SERVICE generation counts and "
+                    "booking options are not supported."
+                )
+            call_command(
+                "seed_logistics_demo_data",
+                business_id=business.pk,
+                execute=bool(options["execute"]),
+                reset_demo=reset_demo,
+                stdout=self.stdout,
+                stderr=self.stderr,
+            )
+            return
 
         if reset_demo:
             self._handle_reset(business=business, execute=bool(options["execute"]))

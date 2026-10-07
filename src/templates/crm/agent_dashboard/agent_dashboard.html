@@ -38,6 +38,9 @@
       {% endif %}
     </div>
 
+    {% if logistics_dashboard %}
+      {% include "logistics/includes/dashboard_snapshot.html" %}
+    {% else %}
     <div class="row g-3 mb-4">
       <div class="col-sm-6 col-xl-3">
         <div class="card h-100" data-onboarding-target="clients">
@@ -409,6 +412,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
   </div>
 
   {% if onboarding_status.visible %}

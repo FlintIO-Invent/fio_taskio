@@ -174,6 +174,10 @@ class Command(BaseCommand):
         self.stdout.write(f"Business name: {inventory.business_name}")
         self.stdout.write(f"Business slug: {inventory.business_slug}")
         self.stdout.write(f"Business active: {inventory.business_is_active}")
+        self.stdout.write(f"Business vertical: {inventory.business_vertical}")
+        if inventory.logistics is not None:
+            self.stdout.write("\nLogistics operational summary (review signals only)")
+            self.stdout.write(json.dumps(inventory.logistics, sort_keys=True, indent=2))
 
         self.stdout.write("\nRecord inventory")
         for record in inventory.records:

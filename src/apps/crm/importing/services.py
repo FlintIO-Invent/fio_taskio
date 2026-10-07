@@ -406,9 +406,7 @@ def validate_service_row(row: CSVRow, *, business) -> ServiceRowValidation:
         )
         parsed_duration = None
     try:
-        parsed_buffer = _parse_optional_integer(
-            values.get("booking_buffer_minutes", ""), minimum=0
-        )
+        parsed_buffer = _parse_optional_integer(values.get("booking_buffer_minutes", ""), minimum=0)
     except ValueError as exc:
         issues.append(
             _issue(
@@ -420,9 +418,7 @@ def validate_service_row(row: CSVRow, *, business) -> ServiceRowValidation:
         )
         parsed_buffer = None
     try:
-        parsed_manual = _parse_boolean(
-            values.get("requires_manual_confirmation", ""), default=True
-        )
+        parsed_manual = _parse_boolean(values.get("requires_manual_confirmation", ""), default=True)
     except ValueError as exc:
         issues.append(
             _issue(
@@ -435,16 +431,10 @@ def validate_service_row(row: CSVRow, *, business) -> ServiceRowValidation:
         parsed_manual = True
 
     is_bookable_online = projected("is_bookable_online", parsed_bookable, False)
-    default_duration_minutes = projected(
-        "default_duration_minutes", parsed_duration, None
-    )
+    default_duration_minutes = projected("default_duration_minutes", parsed_duration, None)
     booking_buffer_minutes = projected("booking_buffer_minutes", parsed_buffer, None)
-    public_description = projected(
-        "public_description", values.get("public_description", ""), ""
-    )
-    requires_manual_confirmation = projected(
-        "requires_manual_confirmation", parsed_manual, True
-    )
+    public_description = projected("public_description", values.get("public_description", ""), "")
+    requires_manual_confirmation = projected("requires_manual_confirmation", parsed_manual, True)
 
     form_data = {
         "category": category.pk if category is not None else "",
@@ -484,11 +474,17 @@ def validate_service_row(row: CSVRow, *, business) -> ServiceRowValidation:
         tax_rate=cleaned["tax_rate"],
         is_active=cleaned["is_active"],
         external_code=cleaned["external_code"],
-        is_bookable_online=cleaned["is_bookable_online"],
-        default_duration_minutes=cleaned["default_duration_minutes"],
-        booking_buffer_minutes=cleaned["booking_buffer_minutes"],
-        public_description=cleaned["public_description"],
-        requires_manual_confirmation=cleaned["requires_manual_confirmation"],
+        is_bookable_online=cleaned.get("is_bookable_online", form.instance.is_bookable_online),
+        default_duration_minutes=cleaned.get(
+            "default_duration_minutes", form.instance.default_duration_minutes
+        ),
+        booking_buffer_minutes=cleaned.get(
+            "booking_buffer_minutes", form.instance.booking_buffer_minutes
+        ),
+        public_description=cleaned.get("public_description", form.instance.public_description),
+        requires_manual_confirmation=cleaned.get(
+            "requires_manual_confirmation", form.instance.requires_manual_confirmation
+        ),
         present_fields=present_fields,
         blank_fields=blank_fields,
         existing_service_id=existing_service.pk if existing_service is not None else None,

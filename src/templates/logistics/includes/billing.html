@@ -1,0 +1,25 @@
+{% load money %}
+{% if billing %}
+<section class="card mb-4"><div class="card-body">
+  <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+    <h3 class="mb-0">Billing</h3>
+    {% if role_access.can_manage_services and module_access.services %}<a href="{% url 'business_service_list' %}" class="btn btn-sm btn-phoenix-secondary">Services &amp; Pricing</a>{% endif %}
+  </div>
+  {% if billing.client %}<p>Client: {{ billing.client }}</p>{% endif %}
+  {% if billing.kind == 'shipment' %}<p class="text-body-secondary">These charges cover the shipment only. Parcel charges are billed separately.</p>{% endif %}
+  {% if billing.error %}<p class="text-body-secondary">{{ billing.error }}</p>{% endif %}
+  {% if billing.charges %}<div class="table-responsive"><table class="table align-middle">
+    <thead><tr><th>Charge</th><th>Service</th><th>Quantity</th><th>Unit price</th><th>Total</th><th>Invoice</th></tr></thead>
+    <tbody>{% for charge in billing.charges %}<tr>
+      <td>{{ charge.description }}</td><td>{{ charge.service.name|default:'Custom charge' }}{% if charge.service and not charge.service.is_active %} <span class="badge badge-phoenix badge-phoenix-secondary">Archived</span>{% endif %}</td>
+      <td>{{ charge.quantity }}</td><td>{{ charge.unit_price|money:current_business }}</td><td>{{ charge.total|money:current_business }}</td>
+      <td>{% if charge.invoice_line %}<a href="{% url 'invoice_detail' charge.invoice_line.invoice_id %}">{{ charge.invoice_line.invoice.invoice_number }}</a> · {{ charge.invoice_line.invoice.get_status_display }}{% else %}<span class="badge badge-phoenix badge-phoenix-warning">Not invoiced</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="6">No charges yet.</td></tr>{% endfor %}</tbody>
+  </table></div>{% else %}<p class="text-body-secondary">No charges yet.</p>{% endif %}
+  <p class="fw-semibold">Total {{ billing.kind }} charges (before tax): {{ billing.total|money:current_business }}</p>
+  {% if billing.can_manage %}<div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary" href="{{ billing.add_url }}">Add charge</a>
+    {% if billing.pending %}<a class="btn btn-phoenix-primary" href="{{ billing.invoice_url }}">Create invoice / Add to existing invoice</a>{% endif %}
+  </div>{% endif %}
+</div></section>
+{% endif %}

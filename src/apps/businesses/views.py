@@ -23,6 +23,7 @@ from .forms import (
     WeeklyAvailabilityForm,
 )
 from .models import (
+    Business,
     BusinessBookingSettings,
     BusinessInvitation,
     BusinessSubscription,
@@ -59,6 +60,7 @@ from .utils import (
     SAME_WORKSPACE_EMAIL_MESSAGE,
     assign_business_subscription_plan,
     business_limit_reached,
+    business_module_required,
     business_role_required,
     business_workspace_access_required,
     can_assign_business_role,
@@ -112,6 +114,7 @@ def _checkout_status_context(
         "success_state": success_state,
         "can_enter_dashboard": bool(subscription is not None and subscription.has_access),
         "can_resume_checkout": bool(access_state is not None and access_state.can_resume_checkout),
+        "is_logistics": business.vertical == Business.Vertical.LOGISTICS,
     }
 
 
@@ -140,6 +143,18 @@ def billing_checkout_cancelled(request: HttpRequest) -> HttpResponse:
 def billing_checkout_resume(request: HttpRequest) -> HttpResponse:
     business = request.current_business
     subscription = get_business_subscription(business)
+
+    if business.vertical == Business.Vertical.LOGISTICS or (
+        subscription is not None and subscription.plan.family == ClarivoPlan.Family.LOGISTICS
+    ):
+        from apps.logistics.models import LogisticsApplication
+        from apps.logistics.views import application_checkout
+
+        application = LogisticsApplication.objects.filter(business=business).first()
+        if application is None:
+            messages.error(request, "Checkout requires an existing approved Logistics enrollment.")
+            return redirect("logistics_enrollment_complete")
+        return application_checkout(request, application.pk)
 
     if subscription is None or subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT:
         messages.info(request, "This workspace does not have payment setup waiting to resume.")
@@ -349,17 +364,21 @@ def business_settings(request: HttpRequest) -> HttpResponse:
         "business": business,
         "membership": membership,
         "form": form,
-        "service_category_count": business.service_categories.count(),
-        "active_service_category_count": business.service_categories.filter(is_active=True).count(),
-        "business_service_count": business.business_services.count(),
-        "active_business_service_count": business.business_services.filter(is_active=True).count(),
-        **get_public_booking_share_context(request, business),
     }
+    if business.has_capability("services"):
+        context.update({
+            "service_category_count": business.service_categories.count(),
+            "active_service_category_count": business.service_categories.filter(is_active=True).count(),
+            "business_service_count": business.business_services.count(),
+            "active_business_service_count": business.business_services.filter(is_active=True).count(),
+            **(get_public_booking_share_context(request, business) if business.has_capability("public_booking") else {}),
+        })
     return render(request, "businesses/settings.html", context)
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
-@business_workspace_access_required()
+# Availability is part of the service vertical, including plans without public booking.
+@business_module_required("booking_availability")
 @require_http_methods(["GET", "POST"])
 def business_booking_settings(request: HttpRequest) -> HttpResponse:
     business = request.current_business
@@ -518,7 +537,7 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
-@business_workspace_access_required()
+@business_module_required("booking_availability")
 @require_http_methods(["POST"])
 def business_weekly_availability_deactivate(
     request: HttpRequest,
@@ -548,6 +567,8 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
     membership = request.current_business_membership
     subscription = get_business_subscription(business)
     available_plan_queryset = ClarivoPlan.motionmate_plans()
+    if business.vertical != Business.Vertical.SERVICE:
+        available_plan_queryset = available_plan_queryset.none()
     available_plans = list(available_plan_queryset)
     ClarivoPlan.attach_display_pricing(available_plans, business=business)
     pending_plan_change = None

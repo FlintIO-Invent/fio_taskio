@@ -1,0 +1,52 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Shipments</li>
+    </ol>
+  </nav>
+  <div class="row g-3 justify-content-between align-items-center mb-4">
+    <div class="col-auto"><h2 class="mb-0 text-body-emphasis">Shipments</h2></div>
+    {% if role_access.can_manage_shipments and module_write_access.shipments %}
+    <div class="col-auto"><a class="btn btn-primary" href="{% url 'logistics_shipment_create' %}{% if assignment_parcel %}?parcel={{ assignment_parcel.pk }}{% endif %}"><span class="fas fa-plus me-2"></span>Create Shipment</a></div>
+    {% endif %}
+  </div>
+  {% if assignment_parcel %}<div class="alert alert-subtle-info mb-4 text-break">Choose a draft or ready shipment for <a href="{% url 'logistics_parcel_detail' assignment_parcel.pk %}">{{ assignment_parcel.tracking_code }}</a>.</div>{% endif %}
+  <div class="card">
+    {% if page_obj %}
+    <div class="card-body p-3">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="text-body-secondary"><tr><th scope="col">Reference</th><th scope="col">Route</th><th scope="col">Status</th><th scope="col">Departure</th><th scope="col">Estimated arrival</th>{% if assignment_parcel and role_access.can_manage_shipments and module_write_access.shipments and module_write_access.parcels %}<th scope="col">Actions</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for shipment in page_obj %}
+              <tr>
+                <td><a class="fw-bold text-decoration-none" href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a></td>
+                <td>{{ shipment.origin }} → {{ shipment.destination }}</td>
+                <td>{% include 'logistics/includes/status_badge.html' with status=shipment.status label=shipment.get_status_display %}</td>
+                <td>{{ shipment.departure_at|default_if_none:'—' }}</td>
+                <td>{{ shipment.estimated_arrival_at|default_if_none:'—' }}</td>
+                {% if assignment_parcel and role_access.can_manage_shipments and module_write_access.shipments and module_write_access.parcels %}
+                <td><a class="btn btn-sm btn-phoenix-primary" href="{% url 'logistics_shipment_detail' shipment.pk %}?parcel={{ assignment_parcel.pk }}#assign-parcel">Assign Parcel</a></td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="card-body text-center py-5">
+      <h4 class="mb-3">{% if assignment_parcel %}No eligible shipments yet.{% else %}No shipments created yet.{% endif %}</h4>
+      <p class="mb-4 text-body-secondary">Create a shipment to group parcels for movement.</p>
+      {% if role_access.can_manage_shipments and module_write_access.shipments %}
+      <a class="btn btn-primary" href="{% url 'logistics_shipment_create' %}{% if assignment_parcel %}?parcel={{ assignment_parcel.pk }}{% endif %}">Create Shipment</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% include 'logistics/includes/pagination.html' %}
+</div>
+{% endblock %}

@@ -20,7 +20,7 @@ from apps.businesses.localization import (
     uses_netherlands_address_format,
     uses_sint_maarten_districts,
 )
-from apps.businesses.models import BusinessUser, WeeklyAvailability
+from apps.businesses.models import Business, BusinessUser, WeeklyAvailability
 
 from .models import BusinessService, Client, Lead, ServiceCategory
 from .services import CLIENT_REQUIRED_FIELDS_FOR_REQUEST_CONVERSION
@@ -1280,6 +1280,16 @@ class BusinessServiceForm(forms.ModelForm):
         self.fields["default_duration_minutes"].required = False
         self.fields["booking_buffer_minutes"].required = False
         self.fields["requires_manual_confirmation"].initial = True
+        if business is not None and business.vertical == Business.Vertical.LOGISTICS:
+            for field in (
+                "is_bookable_online",
+                "default_duration_minutes",
+                "booking_buffer_minutes",
+                "public_description",
+                "requires_manual_confirmation",
+            ):
+                self.fields.pop(field)
+            self.fields["name"].widget.attrs["placeholder"] = "Medium Parcel Delivery"
         self.fields["category"].queryset = _service_category_queryset(
             business=business,
             instance=self.instance,

@@ -279,7 +279,7 @@ class BusinessSubscriptionPlanForm(forms.Form):
 
     def __init__(self, *args, plans=None, **kwargs):
         super().__init__(*args, **kwargs)
-        queryset = plans if plans is not None else ClarivoPlan.objects.filter(is_active=True)
+        queryset = plans if plans is not None else ClarivoPlan.motionmate_plans()
         self.fields["plan"].queryset = queryset
 
 

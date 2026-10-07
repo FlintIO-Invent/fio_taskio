@@ -44,7 +44,11 @@
                   <span class="fas fa-clock text-info fs-6"></span>
                 </span>
                 <h3 class="text-body-highlight mb-2">Confirming your subscription</h3>
-                <p class="text-body-secondary mb-0">Your payment method was received. Motionmate is confirming your subscription. Your 14-day trial will become available once confirmation is complete.</p>
+                {% if is_logistics %}
+                  <p class="text-body-secondary mb-0">Motionmate is confirming your annual Logistics payment. Workspace access will be available after payment confirmation.</p>
+                {% else %}
+                  <p class="text-body-secondary mb-0">Your payment method was received. Motionmate is confirming your subscription. Your 14-day trial will become available once confirmation is complete.</p>
+                {% endif %}
               {% endif %}
             </div>
           {% else %}
@@ -53,7 +57,11 @@
                 <span class="fas fa-credit-card text-warning fs-6"></span>
               </span>
               <h3 class="text-body-highlight mb-2">Payment setup paused</h3>
-              <p class="text-body-secondary mb-0">No payment was taken. Your account and workspace were saved, and you can resume payment setup for this workspace without creating another business.</p>
+              {% if is_logistics %}
+                <p class="text-body-secondary mb-0">Your enrollment and workspace were saved. You can resume annual checkout. Workspace access remains unavailable until payment is confirmed.</p>
+              {% else %}
+                <p class="text-body-secondary mb-0">No payment was taken. Your account and workspace were saved, and you can resume payment setup for this workspace without creating another business.</p>
+              {% endif %}
             </div>
           {% endif %}
 

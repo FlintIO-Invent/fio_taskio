@@ -16,6 +16,11 @@ IMPORT_ROLES: dict[ImportType, tuple[str, ...]] = {
     ImportType.LEADS: LEAD_MANAGE_ROLES,
     ImportType.SERVICES: SERVICE_MANAGEMENT_ROLES,
 }
+IMPORT_CAPABILITIES = {
+    ImportType.CLIENTS: "clients",
+    ImportType.LEADS: "service_requests",
+    ImportType.SERVICES: "services",
+}
 
 
 def user_can_import(business: Business | None, user, import_type: ImportType | str) -> bool:
@@ -24,6 +29,9 @@ def user_can_import(business: Business | None, user, import_type: ImportType | s
     try:
         normalized_import_type = ImportType(import_type)
     except ValueError:
+        return False
+
+    if not business.has_capability(IMPORT_CAPABILITIES[normalized_import_type]):
         return False
 
     membership = BusinessUser.objects.filter(

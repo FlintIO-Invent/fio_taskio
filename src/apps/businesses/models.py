@@ -12,9 +12,15 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
+from .billing_policy import (
+    is_stripe_billable_plan,
+    logistics_local_billing_bypass_enabled,
+    offering_allows_interval,
+    plan_matches_business,
+)
+from .capabilities import business_has_capability, plan_module_name, vertical_has_capability
 from .localization import format_business_address_lines, uses_europe_pricing_region
 from .plan_catalog import (
-    PUBLIC_BILLING_INTERVALS,
     PUBLIC_PAID_PLAN_ORDERING,
     PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
@@ -52,6 +58,10 @@ class SubscriptionAccessState:
     payment_recovery_available: bool = False
 
     @property
+    def local_billing_bypass_active(self) -> bool:
+        return self.code == BusinessSubscription.AccessCode.LOCAL_LOGISTICS_BILLING_BYPASS
+
+    @property
     def can_view_workspace(self) -> bool:
         return self.mode in {
             SubscriptionAccessMode.FULL,
@@ -64,6 +74,10 @@ class SubscriptionAccessState:
 
 
 class Business(TimeStampedModel):
+    class Vertical(models.TextChoices):
+        SERVICE = "SERVICE", "Service"
+        LOGISTICS = "LOGISTICS", "Logistics"
+
     class Currency(models.TextChoices):
         USD = "USD", "US Dollar (USD)"
         XCD = "XCD", "East Caribbean Dollar (XCD)"
@@ -73,6 +87,11 @@ class Business(TimeStampedModel):
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=150, unique=True)
     business_type = models.CharField(max_length=120, blank=True, default="")
+    vertical = models.CharField(
+        max_length=20,
+        choices=Vertical.choices,
+        default=Vertical.SERVICE,
+    )
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
     address_line_1 = models.CharField(max_length=255, blank=True, default="")
@@ -136,6 +155,9 @@ class Business(TimeStampedModel):
         except BusinessSubscription.DoesNotExist:
             return False
         return subscription.is_trialing
+
+    def has_capability(self, module_name: str) -> bool:
+        return business_has_capability(self, module_name)
 
     def can_use_module(self, module_name: str) -> bool:
         try:
@@ -393,6 +415,10 @@ class WeeklyAvailability(TimeStampedModel):
 
 
 class ClarivoPlan(TimeStampedModel):
+    class Family(models.TextChoices):
+        SERVICE = "SERVICE", "Service"
+        LOGISTICS = "LOGISTICS", "Logistics"
+
     MOTIONMATE_PLAN_SLUGS = PUBLIC_PAID_PLAN_SLUGS
     USD_PRICING_REGION = "usd"
     EUR_PRICING_REGION = "eur"
@@ -422,6 +448,7 @@ class ClarivoPlan(TimeStampedModel):
     }
 
     name = models.CharField(max_length=120)
+    family = models.CharField(max_length=20, choices=Family.choices, default=Family.SERVICE)
     slug = models.SlugField(max_length=150, unique=True)
     description = models.TextField(blank=True)
     price_monthly = models.DecimalField(
@@ -472,6 +499,7 @@ class ClarivoPlan(TimeStampedModel):
         return cls.objects.filter(
             is_active=True,
             slug__in=PUBLIC_PAID_PLAN_SLUGS,
+            family=cls.Family.SERVICE,
         ).order_by(cls.motionmate_plan_ordering(), "pk")
 
     @classmethod
@@ -595,6 +623,10 @@ class ClarivoPlan(TimeStampedModel):
 
     def allows_module(self, module_name: str) -> bool:
         normalized_name = module_name.strip().lower().replace("-", "_")
+        if self.family == self.Family.LOGISTICS:
+            if not vertical_has_capability(self.family, normalized_name):
+                return False
+            return self.allow_invoicing if normalized_name == "invoicing" else True
         if normalized_name in self.CORE_MODULES:
             return True
 
@@ -638,9 +670,12 @@ class BusinessSubscription(TimeStampedModel):
     }
 
     class AccessCode:
+        INCOMPATIBLE_OFFERING = "incompatible_offering"
         BUSINESS_INACTIVE = "business_inactive"
         PLAN_INACTIVE = "plan_inactive"
         PENDING_CHECKOUT = "pending_checkout"
+        LOCAL_LOGISTICS_BILLING_BYPASS = "local_logistics_billing_bypass"
+        LOGISTICS_APPROVAL_REVIEW_REQUIRED = "logistics_approval_review_required"
         TRIAL_ACTIVE = "trial_active"
         TRIAL_EXPIRED = "trial_expired"
         TRIAL_MISSING_END = "trial_missing_end"
@@ -712,6 +747,11 @@ class BusinessSubscription(TimeStampedModel):
     last_payment_failure_at = models.DateTimeField(null=True, blank=True)
     last_payment_failure_reason = models.CharField(max_length=255, blank=True, default="")
     checkout_session_expires_at = models.DateTimeField(null=True, blank=True)
+    logistics_approval_review_required = models.BooleanField(
+        default=False,
+        help_text="Logistics access is blocked until approval/payment reconciliation is reviewed. "
+        "After reviewing the application and Stripe payment, an admin must clear this hold.",
+    )
 
     class Meta:
         ordering = ["business__name"]
@@ -790,12 +830,47 @@ class BusinessSubscription(TimeStampedModel):
     def effective_access_state_at(self, at_time) -> SubscriptionAccessState:
         at_time = self._normalize_evaluation_time(at_time)
 
+        if (
+            self.business.vertical == Business.Vertical.LOGISTICS
+            and self.logistics_approval_review_required
+        ):
+            return self._access_state(
+                self.AccessCode.LOGISTICS_APPROVAL_REVIEW_REQUIRED,
+                has_access=False,
+                billing_attention_required=True,
+                should_contact_support=True,
+            )
+
+        if not self._offering_is_compatible():
+            return self._access_state(
+                self.AccessCode.INCOMPATIBLE_OFFERING,
+                has_access=False,
+                billing_attention_required=True,
+                should_contact_support=True,
+            )
+
         if not self.business.is_active:
             return self._access_state(
                 self.AccessCode.BUSINESS_INACTIVE,
                 has_access=False,
                 billing_attention_required=True,
                 should_contact_support=True,
+            )
+
+        # This changes effective access only. A compatible staged Logistics
+        # offering can be tested locally without activating it or inventing payment.
+        if (
+            logistics_local_billing_bypass_enabled()
+            and self.business.vertical == Business.Vertical.LOGISTICS
+            and self.status == self.Status.PENDING_CHECKOUT
+            and self.payment_provider == self.PaymentProvider.STRIPE
+            and self.billing_currency in PUBLIC_PRICING_CURRENCIES
+        ):
+            return self._access_state(
+                self.AccessCode.LOCAL_LOGISTICS_BILLING_BYPASS,
+                has_access=True,
+                billing_attention_required=False,
+                can_resume_checkout=True,
             )
 
         if not self.plan.is_active:
@@ -862,16 +937,21 @@ class BusinessSubscription(TimeStampedModel):
         return self.can_modify_module_at(module_name, at_time)
 
     def can_view_module(self, module_name: str) -> bool:
-        return self.can_view_workspace and self.plan.allows_module(module_name)
+        return self._allows_module(module_name) and self.can_view_workspace
 
     def can_view_module_at(self, module_name: str, at_time) -> bool:
-        return self.can_view_workspace_at(at_time) and self.plan.allows_module(module_name)
+        return self._allows_module(module_name) and self.can_view_workspace_at(at_time)
 
     def can_modify_module(self, module_name: str) -> bool:
-        return self.can_modify_workspace and self.plan.allows_module(module_name)
+        return self._allows_module(module_name) and self.can_modify_workspace
 
     def can_modify_module_at(self, module_name: str, at_time) -> bool:
-        return self.can_modify_workspace_at(at_time) and self.plan.allows_module(module_name)
+        return self._allows_module(module_name) and self.can_modify_workspace_at(at_time)
+
+    def _allows_module(self, module_name: str) -> bool:
+        return self.business.has_capability(module_name) and self.plan.allows_module(
+            plan_module_name(module_name)
+        )
 
     @property
     def is_provider_backed(self) -> bool:
@@ -883,14 +963,46 @@ class BusinessSubscription(TimeStampedModel):
 
     @property
     def is_public_paid_plan(self) -> bool:
-        return self.plan.slug in PUBLIC_PAID_PLAN_SLUGS
+        return (
+            self.plan.family == ClarivoPlan.Family.SERVICE
+            and self.plan.slug in PUBLIC_PAID_PLAN_SLUGS
+        )
+
+    @property
+    def is_stripe_billable(self) -> bool:
+        return is_stripe_billable_plan(self.plan) and self._offering_is_compatible()
+
+    def _offering_is_compatible(self) -> bool:
+        if not plan_matches_business(self.business, self.plan):
+            return False
+        if self.plan.family == ClarivoPlan.Family.LOGISTICS:
+            return (
+                is_stripe_billable_plan(self.plan)
+                and offering_allows_interval(self.plan.slug, self.billing_interval)
+                and self.status != self.Status.TRIALING
+                and self.trial_start is None
+                and self.trial_end is None
+            )
+        return True
+
+    def clean(self):
+        super().clean()
+        if self.business_id and self.plan_id and not self._offering_is_compatible():
+            raise ValidationError(
+                "Subscription offering is incompatible with this workspace or billing interval."
+            )
+
+    def save(self, *args, **kwargs):
+        # Validate only the new offering boundary; do not change SERVICE field validation.
+        self.clean()
+        return super().save(*args, **kwargs)
 
     def _has_recoverable_stripe_identity(self) -> bool:
         return (
             self.is_provider_backed
-            and self.is_public_paid_plan
+            and self.is_stripe_billable
             and not self.is_beta_plan
-            and self.billing_interval in PUBLIC_BILLING_INTERVALS
+            and offering_allows_interval(self.plan.slug, self.billing_interval)
             and self.billing_currency in PUBLIC_PRICING_CURRENCIES
             and self.provider_customer_id.startswith("cus_")
             and self.provider_subscription_id.startswith("sub_")
@@ -1007,7 +1119,7 @@ class BusinessSubscription(TimeStampedModel):
                 has_access=False,
                 billing_attention_required=True,
                 should_contact_support=True,
-                payment_recovery_available=True,
+                payment_recovery_available=self.is_public_paid_plan,
             )
 
         if at_time < self.grace_period_ends_at:
@@ -1016,7 +1128,7 @@ class BusinessSubscription(TimeStampedModel):
                 has_access=True,
                 billing_attention_required=True,
                 access_ends_at=self.grace_period_ends_at,
-                payment_recovery_available=True,
+                payment_recovery_available=self.is_public_paid_plan,
             )
 
         return self._access_state(
@@ -1025,7 +1137,7 @@ class BusinessSubscription(TimeStampedModel):
             access_mode=SubscriptionAccessMode.RESTRICTED,
             billing_attention_required=True,
             access_ends_at=self.grace_period_ends_at,
-            payment_recovery_available=True,
+            payment_recovery_available=self.is_public_paid_plan,
         )
 
     def _scheduled_access_end_at(self):

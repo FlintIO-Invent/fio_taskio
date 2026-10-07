@@ -1,0 +1,12 @@
+{% extends "public_site/base.html" %}
+{% block content %}
+<section class="container py-5">
+  <h1>Complete your Logistics enrollment</h1>
+  <p>Your approved application details will be used to create your workspace. Annual payment will be required before operational access.</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Complete enrollment</button>
+  </form>
+</section>
+{% endblock %}

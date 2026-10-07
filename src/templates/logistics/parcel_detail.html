@@ -1,0 +1,100 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'logistics_parcel_list' %}">Parcels</a></li>
+      <li class="breadcrumb-item active text-break" aria-current="page">{{ parcel.tracking_code }}</li>
+    </ol>
+  </nav>
+  <div class="row g-3 justify-content-between align-items-center mb-4">
+    <div class="col-12 col-md-auto">
+      <h2 class="mb-2 text-body-emphasis text-break">{{ parcel.tracking_code }}</h2>
+      <p class="mb-0 text-body-secondary text-break">{% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %} · {% if can_view_client %}<a href="{% url 'staff_client_detail' parcel.client_id %}">{{ parcel.client }}</a>{% else %}{{ parcel.client }}{% endif %}</p>
+    </div>
+    {% if role_access.can_manage_parcels and module_write_access.parcels %}
+    <div class="col-auto d-flex flex-wrap gap-2">
+      <a class="btn btn-phoenix-primary" href="{% url 'logistics_parcel_edit' parcel.pk %}">Edit Parcel</a>
+      <a class="btn btn-primary" href="{% url 'logistics_parcel_update' parcel.pk %}">Record Update</a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+    {% include 'logistics/includes/copy_tracking.html' with tracking_code=parcel.tracking_code %}
+    {% if module_access.tracking and module_write_access.parcels %}
+    <form method="post" action="{% url 'logistics_public_tracking' %}" target="_blank" rel="noopener">
+      {% csrf_token %}<input type="hidden" name="tracking_code" value="{{ parcel.tracking_code }}">
+      <button class="btn btn-phoenix-secondary" type="submit">Open Public Tracking</button>
+    </form>
+    {% endif %}
+    {% if role_access.can_manage_shipments and module_write_access.shipments and module_write_access.parcels %}
+      {% if shipment %}<a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_detail' shipment.pk %}">Manage Shipment</a>
+      {% elif parcel_can_be_assigned %}
+      <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_list' %}?parcel={{ parcel.pk }}">Assign to Shipment</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipment_create' %}?parcel={{ parcel.pk }}">Create Shipment</a>
+      {% endif %}
+    {% endif %}
+  </div>
+  <div class="card mb-4">
+    <div class="card-body">
+      <h4 class="mb-3">Parcel details</h4>
+      <dl class="row mb-0">
+        <dt class="col-sm-4 mb-2">Tracking number</dt><dd class="col-sm-8 mb-3 text-break font-monospace">{{ parcel.tracking_code }}</dd>
+        <dt class="col-sm-4 mb-2">Route</dt><dd class="col-sm-8 mb-3 text-break">{{ parcel.origin }} → {{ parcel.destination }}</dd>
+        <dt class="col-sm-4 mb-2">Description</dt><dd class="col-sm-8 mb-3 text-break">{{ parcel.package_description }}</dd>
+        <dt class="col-sm-4 mb-2">Quantity</dt><dd class="col-sm-8 mb-3">{{ parcel.quantity }}</dd>
+        <dt class="col-sm-4 mb-2">Internal reference</dt><dd class="col-sm-8 mb-3 text-break">{{ parcel.internal_reference|default:'—' }}</dd>
+        <dt class="col-sm-4 mb-2">Client contact</dt><dd class="col-sm-8 mb-3 text-break">{{ parcel.client.email }}{% if parcel.client.phone %} · {{ parcel.client.phone }}{% endif %}{% if parcel.client.street_address %}<br>{{ parcel.client.street_address }}{% endif %}</dd>
+        <dt class="col-sm-4 mb-2">Latest recorded location</dt><dd class="col-sm-8 mb-3 text-break">{% if latest_location %}{{ latest_location.location }} · {{ latest_location.timestamp }}{% else %}—{% endif %}</dd>
+        <dt class="col-sm-4 mb-2">Status updated</dt><dd class="col-sm-8 mb-3">{% if latest_status_event %}{{ latest_status_event.timestamp }} · {{ latest_status_event.actor|default:'—' }}{% else %}—{% endif %}</dd>
+        <dt class="col-sm-4 mb-2">Registered</dt><dd class="col-sm-8 mb-3">{{ parcel.created_at }} · {{ parcel.created_by|default:'—' }}</dd>
+        <dt class="col-sm-4 mb-2">Details last updated</dt><dd class="col-sm-8 mb-0">{{ parcel.updated_at }}</dd>
+      </dl>
+    </div>
+  </div>
+  {% if shipment %}
+  <div class="card mb-4"><div class="card-body">
+    <h4 class="mb-3">Shipment</h4>
+    <dl class="row mb-0">
+      <dt class="col-sm-4 mb-2">Reference</dt><dd class="col-sm-8 mb-3 text-break"><a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a> · {{ shipment.get_status_display }}</dd>
+      <dt class="col-sm-4 mb-2">Shipment route</dt><dd class="col-sm-8 mb-3 text-break">{{ shipment.origin }} → {{ shipment.destination }}</dd>
+      <dt class="col-sm-4 mb-2">Departure</dt><dd class="col-sm-8 mb-3">{{ shipment.departure_at|default_if_none:'—' }}</dd>
+      <dt class="col-sm-4 mb-2">Estimated arrival</dt><dd class="col-sm-8 mb-0">{{ shipment.estimated_arrival_at|default_if_none:'—' }}</dd>
+    </dl>
+  </div></div>
+  {% endif %}
+  <div class="row g-4 mb-4">
+    {% for section in detail_sections %}
+    <div class="col-12 col-xl-6">
+      <div class="card h-100"><div class="card-body">
+        <h4 class="mb-3">{{ section.title }}</h4>
+        {% if section.title == 'Recipient' %}<p class="text-body-secondary small">Separate delivery contact, when different from the linked client.</p>{% endif %}
+        <dl class="row mb-0">
+          {% for field in section.fields %}
+          <dt class="col-sm-5 mb-2">{{ field.label }}</dt>
+          <dd class="col-sm-7 mb-3 text-break">{% if field.value == None or field.value == '' %}—{% else %}{{ field.value|linebreaksbr }}{% endif %}</dd>
+          {% endfor %}
+        </dl>
+      </div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% include "logistics/includes/billing.html" %}
+  <h3 class="mb-3">Tracking history</h3>
+  {% for event in events %}
+  <article class="card mb-3">
+    <div class="card-body text-break">
+      <p class="fw-semibold mb-2">{{ event.get_status_display|default:event.get_event_type_display }}</p>
+      <p class="text-body-secondary mb-2">{{ event.timestamp }} · {{ event.actor|default:'—' }}</p>
+      {% if event.location %}<p class="mb-2">{{ event.location }}</p>{% endif %}
+      {% if event.public_message %}<div class="border rounded p-3 mb-2"><p class="fw-semibold mb-1">Public message</p><p class="mb-0">{{ event.public_message }}</p></div>{% endif %}
+      {% if event.internal_note %}<div class="bg-body-tertiary rounded p-3"><p class="fw-semibold mb-1">Internal note · Workspace only</p><p class="mb-0">{{ event.internal_note }}</p></div>{% endif %}
+    </div>
+  </article>
+  {% empty %}
+  <div class="card"><div class="card-body text-center py-5"><p class="mb-0 text-body-secondary">No tracking updates yet.</p></div></div>
+  {% endfor %}
+</div>
+{% include 'logistics/includes/scripts.html' %}
+{% endblock %}
