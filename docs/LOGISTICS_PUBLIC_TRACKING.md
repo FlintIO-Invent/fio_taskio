@@ -12,7 +12,7 @@ access-log URLs. Never configure request-body logging on this endpoint.
 JSON-compatible allowlisted dictionary or `None`. Future API/PWA clients can
 reuse this boundary; none are implemented here. The HTML template receives only
 the projection, generic error text and CSRF token, without workspace context
-processors. It escapes all public text and sets no-store, no-referrer and
+processors. It escapes all public text and sets no-store, same-origin referrer policy and
 noindex/noarchive headers. No lookup history or application lookup logging exists.
 Tracking inputs are redacted from Django production exception reports.
 
@@ -68,16 +68,45 @@ never the raw IP or tracking code. All attempts count, including invalid codes.
 Cache failures return generic 429 without querying parcels; 429 includes
 `Retry-After: 60`. GET only serves the blank form and performs no parcel lookup.
 
-Forwarded headers are ignored because there is no application-level proxy trust
-policy. Behind a proxy, the direct peer limit may be shared by customers. Verify
-that a trusted server/proxy chain supplies the correct `REMOTE_ADDR`; never trust
-arbitrary client-supplied forwarding headers. The default local memory cache
-protects each process separately, and fixed windows allow bursts across boundaries.
-Block 11 configures a dedicated shared cache through `LOGISTICS_TRACKING_CACHE_*`
-and checks for Redis/Memcached atomic add/incr in opt-in pilot deployment checks.
-All workers must share the cache, key prefix and Django SECRET_KEY. An independent
-edge limit is useful additional protection; it does not change the application
-counter. This bounded protection is not a general distributed abuse solution.
+`LOGISTICS_TRACKING_CLIENT_IP_MODE=direct` uses a normalized socket peer and
+ignores all forwarding headers. This is for direct ingress (including Local),
+not a claim that a reverse proxy's socket address identifies the customer.
+On Heroku Common Runtime, explicitly set the mode to `heroku`: the dyno must
+only be reachable through the Heroku router. That router appends its observed
+client IP to the right of `X-Forwarded-For`; tracking uses only that last value,
+never a client-supplied left-hand value, `Forwarded`, or `X-Real-IP`. It does not
+walk upstream CDN/proxy chains. Customers behind an upstream proxy share its
+limit conservatively. Heroku mode requires the platform `DYNO` environment
+variable. Missing/malformed identity denies POST with 429 before parcel lookup;
+IPv4-mapped IPv6 addresses share their IPv4 counter. No general request IP
+middleware or SERVICE security behavior is changed.
+
+When `DEBUG=False`, tracking denies POST unless its selected cache backend is
+shared Redis/Memcached with a location; LocMem remains available for Local.
+Redis is included in normal deployment dependencies. Configure the dedicated
+alias through `LOGISTICS_TRACKING_CACHE_*`; use one Redis primary, not a read
+replica list. Redis connection/read timeouts are two seconds. Each environment
+needs its own cache and prefix; all workers within that environment must share
+the cache, prefix and Django SECRET_KEY. Never clear the entire cache for QA.
+The opt-in pilot checks diagnose configuration; runtime protection does not
+require those checks to be enabled. Fixed windows allow bursts across boundaries.
+This bounded protection is not a general distributed abuse solution.
+
+The native form posts back to `/logistics/track/` with a CSRF token and cookie.
+The tracking response uses `Referrer-Policy: same-origin`: same-origin Origin
+and HTTPS Referer checks work, while external sites receive no referrer.
+`no-referrer` would make browser form POSTs send `Origin: null`; never add `null`
+to trusted origins or exempt this view from CSRF. Keep `CSRF_TRUSTED_ORIGINS` as
+exact supported origins and the existing `USE_X_FORWARDED_PROTO` HTTPS proxy
+configuration. No tracking code is put in a URL or an external request.
+
+For a real four-process atomic-counter test, set the private environment variable
+`TRACKING_REDIS_TEST_URL` and run `python src/manage.py test
+apps.logistics.test_tracking_shared_cache`. It uses a unique prefix and synthetic
+identity, checks exactly 30 accepted attempts out of 40, verifies expiry, and
+deletes only its own counter. Browser/deployed proxy tests are also required.
+See [Heroku routing](https://devcenter.heroku.com/articles/http-routing) and
+[Django referrer policy](https://docs.djangoproject.com/en/5.2/ref/middleware/#referrer-policy).
 
 ## Block 8
 

@@ -1,5 +1,6 @@
 """Opt-in pilot deployment checks; existing SERVICE checks remain untouched."""
 
+import os
 from importlib.util import find_spec
 
 from django.conf import settings
@@ -12,12 +13,7 @@ from apps.businesses.stripe_config import StripeConfigurationError, validate_str
 
 from .enrollment import TOKEN_LIFETIME
 from .policy import LogisticsEligibilityPolicy, LogisticsUsageReviewPolicy
-
-ATOMIC_SHARED_CACHES = {
-    "django.core.cache.backends.redis.RedisCache": "redis",
-    "django.core.cache.backends.memcached.PyMemcacheCache": "pymemcache",
-    "django.core.cache.backends.memcached.PyLibMCCache": "pylibmc",
-}
+from .public_tracking import ATOMIC_SHARED_CACHES
 
 
 @register("logistics", Tags.security)
@@ -113,12 +109,18 @@ def check_logistics_deployment(app_configs, **kwargs):
         and not settings.EMAIL_HOST
     ):
         issues.append(Error("Configure EMAIL_HOST for SMTP delivery.", id="logistics.E008"))
-    issues.append(
-        Warning(
-            "Verify the deployment proxy supplies a trustworthy REMOTE_ADDR; forwarded headers are intentionally ignored.",
-            id="logistics.W002",
+    mode = getattr(settings, "LOGISTICS_TRACKING_CLIENT_IP_MODE", "direct")
+    if mode == "heroku" and not os.environ.get("DYNO"):
+        issues.append(Error("Heroku tracking IP mode requires a Heroku dyno.", id="logistics.E015"))
+    elif mode == "direct":
+        issues.append(
+            Warning(
+                "Tracking limits socket peers; verify direct client connections or configure Heroku router mode on Heroku.",
+                id="logistics.W002",
+            )
         )
-    )
+    elif mode != "heroku":
+        issues.append(Error("Unsupported tracking client IP mode.", id="logistics.E015"))
     if not kwargs.get("databases"):
         issues.append(
             Warning(

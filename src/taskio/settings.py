@@ -230,6 +230,8 @@ LOGISTICS_USAGE_REVIEW_POLICY = LogisticsUsageReviewPolicy(
 
 LOGISTICS_DEPLOYMENT_CHECKS_ENABLED = settings.logistics_deployment_checks_enabled
 LOGISTICS_TRACKING_CACHE_ALIAS = settings.logistics_tracking_cache_alias
+LOGISTICS_TRACKING_CLIENT_IP_MODE = settings.logistics_tracking_client_ip_mode
+LOGISTICS_TRACKING_REQUIRE_SHARED_CACHE = not DEBUG
 # A dedicated tracking cache leaves SERVICE cache behavior unchanged.
 CACHES = {
     "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
@@ -237,6 +239,12 @@ CACHES = {
         "BACKEND": settings.logistics_tracking_cache_backend,
         "LOCATION": settings.logistics_tracking_cache_location,
         "KEY_PREFIX": settings.logistics_tracking_cache_key_prefix,
+        **(
+            {"OPTIONS": {"socket_connect_timeout": 2, "socket_timeout": 2}}
+            if settings.logistics_tracking_cache_backend
+            == "django.core.cache.backends.redis.RedisCache"
+            else {}
+        ),
     },
 }
 

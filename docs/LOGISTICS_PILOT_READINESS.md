@@ -46,27 +46,29 @@ tests; timeline/manifest response size still grows with their event/parcel count
 - Keep `LOGISTICS_LOCAL_BILLING_BYPASS=False` on Development/Staging and Production.
   The optional bypass requires `ENV=local` and `DEBUG=True`; invalid configurations
   fail the ordinary Django system check. See [LOGISTICS_LOCAL_DEVELOPMENT.md](LOGISTICS_LOCAL_DEVELOPMENT.md).
-- For shared throttling, install `uv sync --no-install-project --extra logistics-cache` (include
-  other deployment extras as needed), then configure:
+- Redis is included in normal deployment dependencies. For shared throttling, configure:
 
   ```dotenv
   LOGISTICS_DEPLOYMENT_CHECKS_ENABLED=True
   LOGISTICS_TRACKING_CACHE_ALIAS=logistics_tracking
   LOGISTICS_TRACKING_CACHE_BACKEND=django.core.cache.backends.redis.RedisCache
   LOGISTICS_TRACKING_CACHE_LOCATION=redis://<private-cache-host>:6379/1
-  LOGISTICS_TRACKING_CACHE_KEY_PREFIX=clarivo-logistics-tracking
+  LOGISTICS_TRACKING_CACHE_KEY_PREFIX=clarivo-logistics-tracking-development
+  LOGISTICS_TRACKING_CLIENT_IP_MODE=heroku
   ```
 
   Use authenticated/TLS cache configuration appropriate to the deployment;
   keep cache URLs/credentials private. The dedicated alias leaves the SERVICE
   default cache unchanged. Memcached backends are also recognized by checks,
   but require their own client dependency. LocMem, file and database caches
-  do not establish a shared atomic counter. All workers/dynos must use the same
+  do not establish a shared atomic counter and fail closed when DEBUG=False.
+  Use a separate cache/prefix per environment and a single Redis primary. All workers/dynos must use the same
   cache, prefix and Django SECRET_KEY. Cache failures deny lookups with 429.
-- Verify the proxy/server supplies a trustworthy client `REMOTE_ADDR`.
-  Forwarded headers are intentionally ignored. An unadjusted proxy peer groups
-  customers under one limit. Test different clients and multiple workers; do
-  not enable arbitrary forwarded-IP parsing. The limit remains 30 attempts per
+- Use `direct` mode only for direct client ingress. On Heroku, explicitly use
+  `heroku` mode with router-only dyno ingress: the rightmost router-appended
+  X-Forwarded-For value is used, and all client-supplied left-hand values are ignored.
+  Missing/malformed identity fails closed. Test spoofed headers and multiple workers;
+  see [public tracking](LOGISTICS_PUBLIC_TRACKING.md). The limit remains 30 attempts per
   peer/minute and allows bursts across window boundaries.
 - Configure normal subscription email delivery, sender address and SMTP/provider
   credentials. Application decision notifications and private enrollment-link

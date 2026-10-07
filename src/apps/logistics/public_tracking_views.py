@@ -7,7 +7,12 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods
 
-from .public_tracking import LOOKUP_WINDOW_SECONDS, allow_tracking_lookup, lookup_public_tracking
+from .public_tracking import (
+    LOOKUP_WINDOW_SECONDS,
+    allow_tracking_lookup,
+    lookup_public_tracking,
+    tracking_client_identity,
+)
 
 NOT_FOUND_MESSAGE = (
     "Tracking information is unavailable. Check your tracking code or try again later."
@@ -22,7 +27,7 @@ def public_tracking(request):
     error = ""
     status = 200
     if request.method == "POST":
-        if not allow_tracking_lookup(request.META.get("REMOTE_ADDR", "")):
+        if not allow_tracking_lookup(tracking_client_identity(request)):
             status = 429
             error = "Too many tracking attempts. Please try again later."
         else:
@@ -38,7 +43,9 @@ def public_tracking(request):
         ),
         status=status,
     )
-    response["Referrer-Policy"] = "no-referrer"
+    # no-referrer makes native form POSTs send Origin:null. Keep same-origin
+    # CSRF checks working while suppressing referrers to other origins.
+    response["Referrer-Policy"] = "same-origin"
     response["X-Robots-Tag"] = "noindex, nofollow, noarchive"
     if status == 429:
         response["Retry-After"] = str(LOOKUP_WINDOW_SECONDS)

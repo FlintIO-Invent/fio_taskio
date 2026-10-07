@@ -403,6 +403,14 @@ class LogisticsDeploymentChecksTests(TestCase):
         with patch("apps.logistics.checks.TOKEN_LIFETIME", timedelta(0)):
             self.assertIn("logistics.E005", {issue.id for issue in self.checks()})
 
+    @override_settings(LOGISTICS_TRACKING_CLIENT_IP_MODE="heroku")
+    def test_heroku_proxy_contract_requires_platform_environment(self):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertIn("logistics.E015", {issue.id for issue in self.checks()})
+        with patch.dict("os.environ", {"DYNO": "web.1"}):
+            self.assertNotIn("logistics.E015", {issue.id for issue in self.checks()})
+            self.assertNotIn("logistics.W002", {issue.id for issue in self.checks()})
+
     def test_tracking_uses_configured_shared_cache_alias_and_failure_denies(self):
         shared = caches["logistics_tracking"]
         with patch.object(shared, "add", return_value=True) as add:

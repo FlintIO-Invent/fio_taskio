@@ -6,7 +6,7 @@ from unittest.mock import patch
 from django.core.cache import cache
 from django.db.models import QuerySet
 from django.test import Client as WebClient
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -17,7 +17,12 @@ from apps.crm.models import Client
 
 from .models import Parcel, ParcelEvent
 from .parcel_services import change_parcel_status, record_parcel_event, register_parcel
-from .public_tracking import LOOKUP_LIMIT, allow_tracking_lookup, lookup_public_tracking
+from .public_tracking import (
+    LOOKUP_LIMIT,
+    allow_tracking_lookup,
+    lookup_public_tracking,
+    tracking_client_identity,
+)
 from .public_tracking_views import NOT_FOUND_MESSAGE
 
 TRACKING_CACHE = {
@@ -28,7 +33,11 @@ TRACKING_CACHE = {
 }
 
 
-@override_settings(CACHES=TRACKING_CACHE)
+@override_settings(
+    CACHES=TRACKING_CACHE,
+    LOGISTICS_TRACKING_REQUIRE_SHARED_CACHE=False,
+    LOGISTICS_TRACKING_CLIENT_IP_MODE="direct",
+)
 class PublicTrackingTests(TestCase):
     def setUp(self):
         cache.clear()
@@ -111,7 +120,7 @@ class PublicTrackingTests(TestCase):
         self.assertContains(response, "Parcel registered.")
         self.assertContains(response, "parcel receipt")
         self.assertIn("no-store", response["Cache-Control"])
-        self.assertEqual(response["Referrer-Policy"], "no-referrer")
+        self.assertEqual(response["Referrer-Policy"], "same-origin")
         self.assertIn("noindex", response["X-Robots-Tag"])
 
     def test_projection_is_explicit_json_compatible_allowlist(self):
@@ -357,6 +366,112 @@ class PublicTrackingTests(TestCase):
         )
         self.assertContains(response, "Customer-facing update")
 
+    @override_settings(
+        ALLOWED_HOSTS=["localhost", "127.0.0.1", "development.example", "production.example"],
+        CSRF_TRUSTED_ORIGINS=["https://development.example", "https://production.example"],
+        SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
+    )
+    def test_csrf_native_form_post_supported_origins_and_proxy_https(self):
+        for origin in (
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "https://development.example",
+            "https://production.example",
+        ):
+            with self.subTest(origin=origin):
+                client = WebClient(enforce_csrf_checks=True)
+                host = origin.split("://", 1)[1]
+                headers = {"HTTP_HOST": host}
+                if origin.startswith("https:"):
+                    headers["HTTP_X_FORWARDED_PROTO"] = "https"
+                response = client.get(self.url, **headers)
+                self.assertEqual(response["Referrer-Policy"], "same-origin")
+                response = client.post(
+                    self.url,
+                    {
+                        "tracking_code": self.parcel.tracking_code,
+                        "csrfmiddlewaretoken": client.cookies["csrftoken"].value,
+                    },
+                    HTTP_ORIGIN=origin,
+                    **headers,
+                )
+                self.assertContains(response, "Customer-facing update")
+
+    def test_csrf_null_malformed_cross_origin_and_bad_token_fail_before_lookup(self):
+        client = WebClient(enforce_csrf_checks=True)
+        client.get(self.url)
+        form = {
+            "tracking_code": self.parcel.tracking_code,
+            "csrfmiddlewaretoken": client.cookies["csrftoken"].value,
+        }
+        with patch("apps.logistics.public_tracking_views.lookup_public_tracking") as lookup:
+            for origin in (
+                "null",
+                "https://evil.example",
+                "not-an-origin",
+                "https://testserver.evil.example",
+            ):
+                with self.subTest(origin=origin):
+                    self.assertEqual(
+                        client.post(self.url, form, HTTP_ORIGIN=origin).status_code, 403
+                    )
+            self.assertEqual(
+                client.post(
+                    self.url,
+                    {**form, "csrfmiddlewaretoken": "malformed"},
+                    HTTP_ORIGIN="http://testserver",
+                ).status_code,
+                403,
+            )
+            lookup.assert_not_called()
+
+    def test_https_csrf_same_origin_referer_fallback_and_missing_referer_rejected(self):
+        client = WebClient(enforce_csrf_checks=True)
+        client.get(self.url, secure=True)
+        form = {
+            "tracking_code": self.parcel.tracking_code,
+            "csrfmiddlewaretoken": client.cookies["csrftoken"].value,
+        }
+        self.assertEqual(client.post(self.url, form, secure=True).status_code, 403)
+        self.assertContains(
+            client.post(self.url, form, secure=True, HTTP_REFERER=f"https://testserver{self.url}"),
+            "Customer-facing update",
+        )
+
+    @override_settings(LOGISTICS_TRACKING_CLIENT_IP_MODE="heroku")
+    @patch.dict("os.environ", {"DYNO": "web.1"})
+    @patch("apps.logistics.public_tracking.time.time", return_value=120)
+    def test_heroku_spoofed_left_forwarded_values_cannot_bypass_limit(self, clock):
+        for index in range(LOOKUP_LIMIT):
+            self.assertEqual(
+                self.lookup(
+                    "bad",
+                    REMOTE_ADDR="10.0.0.2",
+                    HTTP_X_FORWARDED_FOR=f"192.0.2.{index}, 198.51.100.1",
+                    HTTP_X_REAL_IP=f"192.0.2.{index}",
+                ).status_code,
+                404,
+            )
+        self.assertEqual(
+            self.lookup(
+                REMOTE_ADDR="10.0.0.3", HTTP_X_FORWARDED_FOR="garbage, 198.51.100.1"
+            ).status_code,
+            429,
+        )
+        self.assertEqual(self.lookup(HTTP_X_FORWARDED_FOR="198.51.100.2").status_code, 200)
+
+    @override_settings(LOGISTICS_TRACKING_CLIENT_IP_MODE="heroku")
+    @patch.dict("os.environ", {"DYNO": "web.1"})
+    def test_untrusted_identity_fails_before_parcel_lookup(self):
+        with patch("apps.logistics.public_tracking_views.lookup_public_tracking") as lookup:
+            for headers in (
+                {},
+                {"HTTP_X_FORWARDED_FOR": "null"},
+                {"HTTP_X_FORWARDED_FOR": "198.51.100.1:8080"},
+            ):
+                self.assertEqual(self.lookup(**headers).status_code, 429)
+            lookup.assert_not_called()
+
     def test_not_found_request_log_contains_no_tracking_input(self):
         invalid_code = "E" * 48
         with self.assertLogs("django.request", level="WARNING") as logs:
@@ -388,7 +503,7 @@ class PublicTrackingTests(TestCase):
         self.assertEqual(self.lookup(REMOTE_ADDR="198.51.100.2").status_code, 200)
 
 
-@override_settings(CACHES=TRACKING_CACHE)
+@override_settings(CACHES=TRACKING_CACHE, LOGISTICS_TRACKING_REQUIRE_SHARED_CACHE=False)
 class TrackingThrottleTests(SimpleTestCase):
     def setUp(self):
         cache.clear()
@@ -409,9 +524,67 @@ class TrackingThrottleTests(SimpleTestCase):
             with patch("apps.logistics.public_tracking.cache.incr", side_effect=ValueError):
                 self.assertFalse(allow_tracking_lookup("192.0.2.1"))
 
+    @override_settings(LOGISTICS_TRACKING_REQUIRE_SHARED_CACHE=True)
+    def test_deployment_local_cache_fails_closed_without_cache_access(self):
+        with patch("apps.logistics.public_tracking.cache.add") as add:
+            self.assertFalse(allow_tracking_lookup("192.0.2.1"))
+        add.assert_not_called()
+
+    def test_unknown_identity_fails_closed(self):
+        self.assertFalse(allow_tracking_lookup(None))
+        self.assertFalse(allow_tracking_lookup(""))
+
     def test_keys_contain_no_raw_peer_or_tracking_code(self):
         with patch("apps.logistics.public_tracking.cache.add", return_value=True) as add:
             self.assertTrue(allow_tracking_lookup("192.0.2.123"))
         key = add.call_args.args[0]
         self.assertNotIn("192.0.2.123", key)
         self.assertEqual(add.call_args.kwargs["timeout"], 120)
+
+
+class TrackingClientIdentityTests(SimpleTestCase):
+    def request(self, **headers):
+        return RequestFactory().get("/logistics/track/", **headers)
+
+    @override_settings(LOGISTICS_TRACKING_CLIENT_IP_MODE="direct")
+    def test_direct_peer_ignores_every_forwarded_header_and_normalizes_ip(self):
+        self.assertEqual(
+            tracking_client_identity(
+                self.request(
+                    REMOTE_ADDR="::ffff:192.0.2.1",
+                    HTTP_X_FORWARDED_FOR="203.0.113.1",
+                    HTTP_FORWARDED="for=203.0.113.2",
+                    HTTP_X_REAL_IP="203.0.113.3",
+                )
+            ),
+            "192.0.2.1",
+        )
+        self.assertIsNone(tracking_client_identity(self.request(REMOTE_ADDR="")))
+        self.assertEqual(
+            tracking_client_identity(self.request(REMOTE_ADDR="2001:0db8::1")), "2001:db8::1"
+        )
+
+    @override_settings(LOGISTICS_TRACKING_CLIENT_IP_MODE="heroku")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_heroku_mode_requires_platform_environment_not_request_header(self):
+        self.assertIsNone(
+            tracking_client_identity(
+                self.request(HTTP_DYNO="web.1", HTTP_X_FORWARDED_FOR="192.0.2.1")
+            )
+        )
+
+    @override_settings(LOGISTICS_TRACKING_CLIENT_IP_MODE="heroku")
+    @patch.dict("os.environ", {"DYNO": "web.1"})
+    def test_heroku_only_rightmost_router_address_and_no_port_or_chain_guessing(self):
+        for value, expected in (
+            ("spoof, 192.0.2.1", "192.0.2.1"),
+            ("spoof, 2001:0db8::1", "2001:db8::1"),
+            ("192.0.2.1,", None),
+            ("192.0.2.1:80", None),
+            ("a" * 4097, None),
+            ("unknown", None),
+        ):
+            with self.subTest(value=value[:40]):
+                self.assertEqual(
+                    tracking_client_identity(self.request(HTTP_X_FORWARDED_FOR=value)), expected
+                )

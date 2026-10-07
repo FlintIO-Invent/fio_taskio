@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -240,6 +240,7 @@ class Settings(BaseSettings):
     )
     logistics_tracking_cache_location: str = Field(default="")
     logistics_tracking_cache_key_prefix: str = Field(default="clarivo-logistics-tracking")
+    logistics_tracking_client_ip_mode: Literal["direct", "heroku"] = "direct"
     logistics_auto_approve_monthly_parcels: int = Field(default=1000, ge=0)
     logistics_review_above_monthly_parcels: int = Field(default=5000, ge=0)
     logistics_high_resource_monthly_parcels: int = Field(default=10000, ge=1)
