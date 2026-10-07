@@ -62,8 +62,15 @@
                         <div class="row g-3">
                           {% for item in step.fields %}
                             {% with field=item.field %}
-                              <div class="col-12 {{ item.columns }} text-start" data-logistics-field{% if field.name == 'password1' or field.name == 'password2' %} data-logistics-new-password{% endif %}>
-                                {% if field.field.widget.input_type == "checkbox" %}
+                              <div class="col-12 {{ item.columns }} text-start" data-logistics-field{% if field.name == 'transportation_modes' %} data-logistics-transportation-modes{% endif %}{% if field.name == 'password1' or field.name == 'password2' %} data-logistics-new-password{% endif %}>
+                                {% if field.field.is_classification %}
+                                  <fieldset aria-describedby="{{ field.auto_id }}_helptext{% if field.errors %} {{ field.auto_id }}_errors{% endif %}"{% if field.errors %} aria-invalid="true"{% endif %}>
+                                    <legend class="form-label fs-9">{{ field.label }}{% if field.field.required %} <span class="text-danger" aria-label="required">*</span>{% endif %}</legend>
+                                    {% for choice in field %}
+                                      <div class="form-check">{{ choice.tag }}<label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label></div>
+                                    {% endfor %}
+                                  </fieldset>
+                                {% elif field.field.widget.input_type == "checkbox" %}
                                   <div class="form-check mb-0">
                                     {{ field }}
                                     <label class="form-check-label text-transform-none" for="{{ field.id_for_label }}">{{ field.label }}</label>

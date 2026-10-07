@@ -8,10 +8,50 @@ from django.core.validators import MaxLengthValidator, MinValueValidator, RegexV
 from django.db import models, transaction
 from django.utils import timezone
 
+from .classification import (
+    ClassificationHelpers,
+    default_operating_areas,
+    normalize_classification,
+    validate_classification,
+    validate_operating_areas,
+    validate_transportation_modes,
+)
 from .policy import normalized_identity
 
 
-class LogisticsApplication(models.Model):
+class LogisticsProfile(ClassificationHelpers, models.Model):
+    business = models.OneToOneField(
+        "businesses.Business", on_delete=models.CASCADE, related_name="logistics_profile"
+    )
+    operating_areas = models.JSONField(
+        default=default_operating_areas, validators=[validate_operating_areas], blank=True
+    )
+    transportation_modes = models.JSONField(
+        default=list, validators=[validate_transportation_modes], blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Logistics profile for {self.business}"
+
+    def clean(self):
+        super().clean()
+        from apps.businesses.models import Business
+
+        if self.business_id and self.business.vertical != Business.Vertical.LOGISTICS:
+            raise ValidationError(
+                {"business": "Only LOGISTICS businesses have a Logistics profile."}
+            )
+        validate_classification(self.operating_areas, self.transportation_modes)
+        normalize_classification(self)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class LogisticsApplication(ClassificationHelpers, models.Model):
     class Status(models.TextChoices):
         SUBMITTED = "SUBMITTED", "Submitted"
         APPROVED = "APPROVED", "Approved"
@@ -50,6 +90,8 @@ class LogisticsApplication(models.Model):
         "website",
         "preferred_currency",
         "timezone",
+        "operating_areas",
+        "transportation_modes",
         "operation_type",
         "routes",
         "monthly_parcel_estimate",
@@ -107,6 +149,12 @@ class LogisticsApplication(models.Model):
     website = models.URLField(blank=True)
     preferred_currency = models.CharField(max_length=3, choices=Currency.choices)
     timezone = models.CharField(max_length=100, default="UTC")
+    operating_areas = models.JSONField(
+        default=list, validators=[validate_operating_areas], blank=True
+    )
+    transportation_modes = models.JSONField(
+        default=list, validators=[validate_transportation_modes], blank=True
+    )
     operation_type = models.CharField(max_length=30, choices=OperationType.choices)
     routes = models.TextField(
         "Origins, destinations and routes", max_length=3000, validators=[MaxLengthValidator(3000)]
@@ -214,6 +262,23 @@ class LogisticsApplication(models.Model):
             if isinstance(value, str):
                 setattr(self, name, value.strip())
         self.email = self.email.casefold()
+        # Historical applications did not collect classification. Preserve their
+        # unrecorded values on unrelated edits; all new/classification edits validate.
+        legacy = (
+            not self._state.adding
+            and not self.operating_areas
+            and not self.transportation_modes
+            and type(self)
+            .objects.filter(pk=self.pk, operating_areas=[], transportation_modes=[])
+            .exists()
+        )
+        validate_classification(
+            self.operating_areas,
+            self.transportation_modes,
+            require_areas=not legacy,
+            require_modes=not legacy,
+        )
+        normalize_classification(self)
         errors = {}
         try:
             ZoneInfo(self.timezone)

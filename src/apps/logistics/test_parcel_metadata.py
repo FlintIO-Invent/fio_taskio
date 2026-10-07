@@ -5,9 +5,10 @@ from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import Client as BrowserClient
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -21,6 +22,7 @@ from .models import Parcel, ParcelEvent
 from .parcel_services import PARCEL_INPUT_FIELDS, edit_parcel, record_parcel_event, register_parcel
 from .public_tracking import lookup_public_tracking
 from .shipment_services import assign_parcel, create_shipment
+from .test_public_tracking import TRACKING_CACHE
 
 
 class ParcelMetadataTests(TestCase):
@@ -423,7 +425,14 @@ class ParcelMetadataTests(TestCase):
         with self.assertRaises(PermissionDenied):
             self.edit(parcel, sender_name="Denied")
 
+    @override_settings(
+        CACHES=TRACKING_CACHE,
+        LOGISTICS_TRACKING_CACHE_ALIAS="default",
+        LOGISTICS_TRACKING_REQUIRE_SHARED_CACHE=False,
+        LOGISTICS_TRACKING_CLIENT_IP_MODE="direct",
+    )
     def test_public_tracking_excludes_all_new_metadata_and_edit_history(self):
+        cache.clear()
         parcel = self.register(**self.metadata())
         original = lookup_public_tracking(parcel.tracking_code)
         self.edit(parcel, sender_name="PRIVATE-UPDATED-SENDER")

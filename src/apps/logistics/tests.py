@@ -39,6 +39,8 @@ def application_data(**changes):
         "website": "",
         "preferred_currency": "EUR",
         "timezone": "Europe/Amsterdam",
+        "operating_areas": ["TRANSPORTATION"],
+        "transportation_modes": ["ROAD"],
         "operation_type": "COURIER",
         "routes": "Amsterdam to Rotterdam",
         "monthly_parcel_estimate": 800,

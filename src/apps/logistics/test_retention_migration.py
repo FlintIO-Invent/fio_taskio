@@ -6,7 +6,7 @@ from django.utils import timezone
 from apps.accounts.models import TaskIOUser
 from apps.businesses.models import Business
 
-from .models import LogisticsApplication, Parcel, ParcelEvent
+from .models import Parcel, ParcelEvent
 from .tests import application_data
 
 
@@ -24,21 +24,30 @@ class ApplicationRetentionMigrationTests(TransactionTestCase):
                 name="Historical courier", slug="retention-migration", vertical="LOGISTICS"
             )
             application = historical.get_model("logistics", "LogisticsApplication").objects.create(
-                **application_data(),
+                **{
+                    key: value
+                    for key, value in application_data().items()
+                    if key not in {"operating_areas", "transportation_modes"}
+                },
                 business_id=business.pk,
                 enrolled_user_id=user.pk,
                 converted_at=timezone.now(),
                 converted_revision=1,
             )
             MigrationExecutor(connection).migrate(new_target)
-            converted = LogisticsApplication.objects.get(pk=application.pk)
+            app_model = (
+                MigrationExecutor(connection)
+                .loader.project_state(new_target)
+                .apps.get_model("logistics", "LogisticsApplication")
+            )
+            converted = app_model.objects.get(pk=application.pk)
             self.assertEqual(converted.business_id_snapshot, business.pk)
             self.assertEqual(converted.business_id, business.pk)
-            LogisticsApplication.objects.filter(pk=application.pk).update(business=None)
+            app_model.objects.filter(pk=application.pk).update(business=None)
             with self.assertRaisesMessage(RuntimeError, "retained history must survive"):
                 MigrationExecutor(connection).migrate(old_target)
             self.assertEqual(
-                LogisticsApplication.objects.get(pk=application.pk).business_id_snapshot,
+                app_model.objects.get(pk=application.pk).business_id_snapshot,
                 business.pk,
             )
         finally:

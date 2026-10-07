@@ -16,7 +16,8 @@ from apps.businesses.models import Business, BusinessUser, DemoSeedRecord, DemoS
 from apps.crm.models import ActivityLog, BusinessService, Client
 
 from .billing_services import add_charge, invoice_charges
-from .models import LogisticsCharge, Parcel, ParcelEvent, Shipment
+from .classification import OperatingArea, TransportationMode
+from .models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
 from .parcel_policy import PARCEL_MANAGE_ROLES
 from .parcel_services import (
     change_parcel_status,
@@ -172,6 +173,18 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             "Demo ownership metadata already exists; preview/reset it before seeding again."
         )
     actor = demo_actor(business=business, actor_id=actor_id)
+    profile, created = LogisticsProfile.objects.get_or_create(business=business)
+    # Fill only the legacy/default unknown-mode profile, preserving explicit settings.
+    if created or (
+        profile.operating_areas == [OperatingArea.TRANSPORTATION]
+        and not profile.transportation_modes
+    ):
+        profile.transportation_modes = [
+            TransportationMode.SEA,
+            TransportationMode.AIR,
+            TransportationMode.ROAD,
+        ]
+        profile.save(update_fields=["transportation_modes", "updated_at"])
     seed = DemoSeedRun.objects.create(business=business, planned_counts=LOGISTICS_DEMO_COUNTS)
     now = timezone.now()
     today = timezone.localdate(now)

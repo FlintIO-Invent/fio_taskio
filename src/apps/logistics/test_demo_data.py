@@ -15,7 +15,7 @@ from apps.crm.models import Client
 
 from . import test_operations as fixtures
 from .demo import LOGISTICS_DEMO_COUNTS
-from .models import Parcel, ParcelEvent, Shipment
+from .models import LogisticsProfile, Parcel, ParcelEvent, Shipment
 from .parcel_policy import ALLOWED_TRANSITIONS
 from .parcel_services import PARCEL_INPUT_FIELDS
 
@@ -43,7 +43,26 @@ class LogisticsDemoDataTests(TestCase):
         self.assertIn("DRY RUN ONLY", output)
         self.assertFalse(DemoSeedRun.objects.exists())
         self.assertFalse(Parcel.objects.exists())
+        self.assertFalse(LogisticsProfile.objects.exists())
         self.assertEqual(Client.objects.count(), 1)
+
+    def test_seed_defaults_to_realistic_modes_and_reset_keeps_profile(self):
+        self.command(execute=True)
+        profile = LogisticsProfile.objects.get(business=self.business)
+        self.assertEqual(profile.operating_areas, ["TRANSPORTATION"])
+        self.assertEqual(profile.transportation_modes, ["SEA", "AIR", "ROAD"])
+        self.command(reset_demo=True, execute=True)
+        profile.refresh_from_db()
+        self.assertEqual(profile.transportation_modes, ["SEA", "AIR", "ROAD"])
+
+    def test_seed_preserves_explicit_operating_profile(self):
+        profile = LogisticsProfile.objects.create(
+            business=self.business, operating_areas=["WAREHOUSING"]
+        )
+        self.command(execute=True)
+        profile.refresh_from_db()
+        self.assertEqual(profile.operating_areas, ["WAREHOUSING"])
+        self.assertEqual(profile.transportation_modes, [])
 
     def test_dataset_covers_metadata_statuses_relations_and_valid_history(self):
         output = self.command(execute=True)

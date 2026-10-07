@@ -24,6 +24,20 @@
   if (existingAccount) existingAccount.addEventListener('change', syncPasswordFields);
   syncPasswordFields();
 
+  const areas = Array.from(form.querySelectorAll('[name="operating_areas"]'));
+  const modes = Array.from(form.querySelectorAll('[name="transportation_modes"]'));
+  const modeGroup = form.querySelector('[data-logistics-transportation-modes]');
+  function syncTransportationModes() {
+    const selected = areas.some((field) => field.value === 'TRANSPORTATION' && field.checked);
+    if (modeGroup) modeGroup.hidden = !selected;
+    modes.forEach((field) => {
+      field.disabled = !selected;
+      if (!selected) field.checked = false;
+    });
+  }
+  areas.forEach((field) => field.addEventListener('change', syncTransportationModes));
+  syncTransportationModes();
+
   function activateStep(index, focusTab = false) {
     currentStep = Math.max(0, Math.min(index, panes.length - 1));
     tabs.forEach((tab, tabIndex) => {
@@ -58,6 +72,13 @@
       field.setAttribute('aria-invalid', String(invalid));
       if (invalid && !firstInvalid) firstInvalid = field;
     });
+    for (const group of [areas, modes]) {
+      const field = group[0];
+      if (!field || !pane.contains(field) || field.disabled) continue;
+      const invalid = !group.some((choice) => choice.checked);
+      group.forEach((choice) => choice.setAttribute('aria-invalid', String(invalid)));
+      if (invalid && !firstInvalid) firstInvalid = field;
+    }
     error.textContent = firstInvalid ? 'Complete the highlighted fields before continuing.' : '';
     error.classList.toggle('d-none', !firstInvalid);
     if (firstInvalid) {

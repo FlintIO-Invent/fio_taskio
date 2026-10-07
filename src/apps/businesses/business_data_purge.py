@@ -10,7 +10,7 @@ from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
-from apps.logistics.models import LogisticsCharge, Parcel, ParcelEvent, Shipment
+from apps.logistics.models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
 
 from .business_data_inventory import (
     DIRECT_BUSINESS_RELATION_REGISTRY,
@@ -62,6 +62,7 @@ PURGE_DELETION_ORDER = (
     "subscription_notifications",
     "business_subscription",
     "business_booking_settings",
+    "logistics_profile",
     "business_users",
     "eligible_users",
     "business",
@@ -452,6 +453,9 @@ def _delete_business_records(
         ),
         "business_booking_settings": _delete_queryset(
             BusinessBookingSettings.objects.filter(business_id=business_id)
+        ),
+        "logistics_profile": _delete_queryset(
+            LogisticsProfile.objects.filter(business_id=business_id)
         ),
         "business_users": _delete_queryset(BusinessUser.objects.filter(business_id=business_id)),
     }

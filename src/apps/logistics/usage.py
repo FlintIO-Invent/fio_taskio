@@ -26,7 +26,13 @@ def logistics_usage(*, business, now=None):
     use registration time; events and deliveries use event time. Seats require
     both an active membership and active user. Callers authorize internal access.
     """
-    current = Business.objects.get(pk=getattr(business, "pk", business))
+    return _usage_snapshot(business=business, now=now)[0]
+
+
+def _usage_snapshot(*, business, now=None):
+    current = Business.objects.select_related("logistics_profile").get(
+        pk=getattr(business, "pk", business)
+    )
     if current.vertical != Business.Vertical.LOGISTICS:
         raise ValidationError("Logistics usage requires a Logistics business.")
     instant = now or timezone.now()
@@ -95,7 +101,7 @@ def logistics_usage(*, business, now=None):
         ),
         "reported_locations": application.location_count if application else None,
         "location_source": "application_estimate" if application else "unavailable",
-    }
+    }, getattr(current, "logistics_profile", None)
 
 
 def logistics_threshold_summary(*, usage):
@@ -154,7 +160,7 @@ def logistics_threshold_summary(*, usage):
 
 
 def logistics_operational_summary(*, business, now=None):
-    usage = logistics_usage(business=business, now=now)
+    usage, profile = _usage_snapshot(business=business, now=now)
     subscription = (
         BusinessSubscription.objects.select_related("plan")
         .filter(business_id=usage["business_id"])
@@ -171,6 +177,14 @@ def logistics_operational_summary(*, business, now=None):
         "plan": subscription.plan.slug if subscription else None,
         "billing_interval": subscription.billing_interval if subscription else None,
         "subscription_status": subscription.status if subscription else None,
+        "operating_profile": (
+            {
+                "operating_areas": profile.operating_areas,
+                "transportation_modes": profile.transportation_modes,
+            }
+            if profile
+            else None
+        ),
         "application": application,
         "application_retained_on_purge": application is not None,
         "usage": usage,

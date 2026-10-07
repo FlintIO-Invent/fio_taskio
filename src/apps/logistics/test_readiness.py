@@ -4,7 +4,7 @@ from datetime import timedelta
 from io import StringIO
 from unittest.mock import patch
 
-from django.core.cache import caches
+from django.core.cache import cache, caches
 from django.core.checks import run_checks
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.management import call_command
@@ -41,6 +41,7 @@ from .shipment_services import (
     generate_manifest,
 )
 from .test_checkout import TEST_PRICE, LogisticsCheckoutFixture
+from .test_public_tracking import TRACKING_CACHE
 from .tests import PILOT_POLICY, application_data
 from .usage import logistics_operational_summary
 
@@ -65,7 +66,14 @@ class LogisticsReadinessFlowTests(LogisticsCheckoutFixture, TestCase):
         call_command(name, business_id=self.business.pk, stdout=output, **options)
         return output.getvalue()
 
+    @override_settings(
+        CACHES=TRACKING_CACHE,
+        LOGISTICS_TRACKING_CACHE_ALIAS="default",
+        LOGISTICS_TRACKING_REQUIRE_SHARED_CACHE=False,
+        LOGISTICS_TRACKING_CLIENT_IP_MODE="direct",
+    )
     def test_application_to_paid_workspace_parcels_shipments_and_closure(self):
+        cache.clear()
         self.assertEqual(self.business.vertical, "LOGISTICS")
         self.assertEqual(self.subscription.status, "pending_checkout")
         self.assertEqual(self.subscription.billing_interval, "yearly")
