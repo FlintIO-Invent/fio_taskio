@@ -149,7 +149,6 @@ class LogisticsWorkspaceTests(TestCase):
         ):
             self.assertContains(response, f'nav-link-text">{label}</span>')
         for route in (
-            "business_service_list",
             "staff_lead_list",
             "appointment_list",
             "business_booking_settings",
@@ -284,28 +283,17 @@ class LogisticsWorkspaceTests(TestCase):
         response = self.client.get(reverse("business_booking_settings"))
         self.assertEqual(response.status_code, 200)
 
-    def test_logistics_settings_hide_service_shortcuts_and_queries(self):
+    def test_logistics_settings_offer_services_without_booking_queries(self):
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(reverse("business_settings"))
         self.assertEqual(response.status_code, 200)
-        for route in (
-            "business_service_list",
-            "business_service_import",
-            "business_booking_settings",
-        ):
-            self.assertNotContains(response, f'href="{reverse(route)}"')
-        self.assertNotContains(response, "Services &amp; Categories")
-        for table in (
-            "crm_businessservice",
-            "crm_servicecategory",
-            "businesses_businessbookingsettings",
-        ):
-            self.assertFalse(any(f'"{table}"' in q["sql"] for q in queries), table)
+        for route in ("business_service_list", "business_service_import"):
+            self.assertContains(response, f'href="{reverse(route)}"')
+        self.assertNotContains(response, f'href="{reverse("business_booking_settings")}"')
+        self.assertFalse(any('"businesses_businessbookingsettings"' in q["sql"] for q in queries))
 
     def test_service_only_routes_are_blocked_for_get_and_post(self):
         for route, kwargs in (
-            ("business_service_list", {}),
-            ("business_service_create", {}),
             ("staff_lead_list", {}),
             ("staff_lead_create", {}),
             ("appointment_list", {}),
@@ -570,18 +558,12 @@ class LogisticsWorkspaceTests(TestCase):
         self.assertTrue(task["has_missing_prerequisites"])
         self.assertEqual(task["effective_cta_url"], reverse("staff_client_create"))
 
-    def test_logistics_invoices_create_and_edit_manual_lines_without_service_prompts(self):
+    def test_logistics_invoices_preserve_manual_lines_and_offer_saved_services(self):
         for route, kwargs in (("invoice_create", {}),):
             response = self.client.get(reverse(route, kwargs=kwargs))
-            self.assertContains(response, "Add Invoice Line")
-            for prompt in (
-                "No services found",
-                "Save to services",
-                "Saved service",
-                "New service",
-                "Service name",
-            ):
-                self.assertNotContains(response, prompt)
+            self.assertContains(response, "Add Service Line")
+            self.assertContains(response, "Save to services")
+            self.assertContains(response, "Saved service")
         response = self.client.post(
             reverse("invoice_create"),
             {
@@ -597,9 +579,8 @@ class LogisticsWorkspaceTests(TestCase):
         self.assertIsNone(line.service_id)
         response = self.client.get(reverse("invoice_edit", kwargs={"invoice_id": invoice.pk}))
         self.assertContains(response, "Transport charge")
-        self.assertContains(response, "Add Invoice Line")
-        self.assertNotContains(response, "Save to services")
-        self.assertNotContains(response, "No services found")
+        self.assertContains(response, "Add Service Line")
+        self.assertContains(response, "Save to services")
         response = self.client.post(
             reverse("invoice_edit", kwargs={"invoice_id": invoice.pk}),
             {

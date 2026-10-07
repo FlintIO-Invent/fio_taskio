@@ -250,9 +250,9 @@ class ServiceImportExecutionSuccessTests(ServiceExecutionTestMixin, TestCase):
 
 
 class ServiceImportExecutionSafetyTests(ServiceExecutionTestMixin, TestCase):
-    def test_execution_reloads_vertical_and_blocks_logistics_before_writing(self):
+    def test_execution_reloads_vertical_and_blocks_unknown_vertical_before_writing(self):
         job = self.ready_job([self.base_row])
-        Business.objects.filter(pk=self.business.pk).update(vertical=Business.Vertical.LOGISTICS)
+        Business.objects.filter(pk=self.business.pk).update(vertical="UNKNOWN")
 
         with self.assertRaises(PermissionDenied):
             self.execute(job)

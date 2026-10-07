@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import shipment_views
+from . import billing_views, shipment_views
 from .public_tracking_views import public_tracking
 from .views import (
     application_checkout,
@@ -16,6 +16,26 @@ from .views import (
 )
 
 urlpatterns = [
+    path(
+        "parcels/<int:parcel_id>/billing/charge/",
+        billing_views.charge_create,
+        name="logistics_parcel_charge",
+    ),
+    path(
+        "parcels/<int:parcel_id>/billing/invoice/",
+        billing_views.charge_invoice,
+        name="logistics_parcel_invoice",
+    ),
+    path(
+        "shipments/<int:shipment_id>/billing/charge/",
+        billing_views.charge_create,
+        name="logistics_shipment_charge",
+    ),
+    path(
+        "shipments/<int:shipment_id>/billing/invoice/",
+        billing_views.charge_invoice,
+        name="logistics_shipment_invoice",
+    ),
     path("shipments/", shipment_views.shipment_list, name="logistics_shipment_list"),
     path("shipments/create/", shipment_views.shipment_create, name="logistics_shipment_create"),
     path(

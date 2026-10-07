@@ -1,0 +1,36 @@
+{% extends "inheritance/dashboard_parent.html" %}
+{% block content %}
+<div class="content">
+  <h2 class="mb-3">{{ title }}</h2>
+  <p class="text-body-secondary">{{ kind|title }} {{ target.internal_reference|default:target }} · {{ current_business.currency }}</p>
+  <div class="card"><div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+      {% for field in form %}{% if field.is_hidden %}{{ field }}{{ field.errors }}{% else %}
+      <div class="mb-3"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+        {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
+      </div>{% endif %}{% endfor %}
+      <div class="d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit">{{ title }}</button><a class="btn btn-phoenix-secondary" href="{{ back_url }}">Cancel</a></div>
+    </form>
+  </div></div>
+</div>
+{% if prices %}
+{{ prices|json_script:"logistics-service-prices" }}
+<script>
+(() => {
+  const prices = JSON.parse(document.getElementById('logistics-service-prices').textContent);
+  const service = document.getElementById('id_service');
+  const amount = document.getElementById('id_unit_price');
+  const type = () => document.querySelector('input[name="charge_type"]:checked')?.value;
+  const refresh = () => {
+    service.disabled = type() === 'custom';
+    if (type() === 'service') amount.value = prices[service.value] || '';
+  };
+  service.addEventListener('change', refresh);
+  document.querySelectorAll('input[name="charge_type"]').forEach(input => input.addEventListener('change', refresh));
+})();
+</script>
+{% endif %}
+{% endblock %}

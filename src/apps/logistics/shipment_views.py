@@ -11,6 +11,7 @@ from django.views.decorators.http import require_http_methods, require_POST, req
 
 from apps.businesses.utils import business_module_required, business_role_required, can_use_module
 
+from .billing_views import billing_context
 from .models import Parcel, Shipment
 from .shipment_forms import ShipmentAssignmentForm, ShipmentForm, ShipmentStatusForm
 from .shipment_policy import (
@@ -76,6 +77,7 @@ def _detail(request, shipment, *, error=None, assignment_form=None, status_form=
         request,
         "logistics/shipment_detail.html",
         {
+            **billing_context(request, shipment),
             "shipment": shipment,
             "parcels": parcels,
             "error": error,

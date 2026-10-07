@@ -371,14 +371,14 @@ def business_settings(request: HttpRequest) -> HttpResponse:
             "active_service_category_count": business.service_categories.filter(is_active=True).count(),
             "business_service_count": business.business_services.count(),
             "active_business_service_count": business.business_services.filter(is_active=True).count(),
-            **get_public_booking_share_context(request, business),
+            **(get_public_booking_share_context(request, business) if business.has_capability("public_booking") else {}),
         })
     return render(request, "businesses/settings.html", context)
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
 # Availability is part of the service vertical, including plans without public booking.
-@business_module_required("services")
+@business_module_required("booking_availability")
 @require_http_methods(["GET", "POST"])
 def business_booking_settings(request: HttpRequest) -> HttpResponse:
     business = request.current_business
@@ -537,7 +537,7 @@ def business_booking_settings(request: HttpRequest) -> HttpResponse:
 
 
 @business_role_required(*BOOKING_AVAILABILITY_MANAGE_ROLES)
-@business_module_required("services")
+@business_module_required("booking_availability")
 @require_http_methods(["POST"])
 def business_weekly_availability_deactivate(
     request: HttpRequest,

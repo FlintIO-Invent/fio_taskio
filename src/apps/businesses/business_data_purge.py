@@ -10,7 +10,7 @@ from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
-from apps.logistics.models import Parcel, ParcelEvent, Shipment
+from apps.logistics.models import LogisticsCharge, Parcel, ParcelEvent, Shipment
 
 from .business_data_inventory import (
     DIRECT_BUSINESS_RELATION_REGISTRY,
@@ -43,6 +43,7 @@ PURGE_DELETION_ORDER = (
     "logistics_application_links_released",
     "demo_seed_records",
     "demo_seed_runs",
+    "logistics_charges",
     "invoice_lines",
     "invoices",
     "appointments",
@@ -385,6 +386,7 @@ def _has_cross_business_operational_references(*, user_id: int, business_id: int
         (ImportJob, "created_by_id"),
         (Parcel, "created_by_id"),
         (Shipment, "created_by_id"),
+        (LogisticsCharge, "created_by_id"),
         (ParcelEvent, "actor_id"),
         (UserOnboardingState, "user_id"),
         (SubscriptionNotification, "recipient_user_id"),
@@ -410,6 +412,9 @@ def _delete_business_records(
             DemoSeedRecord.objects.filter(seed_run__business_id=business_id)
         ),
         "demo_seed_runs": _delete_queryset(DemoSeedRun.objects.filter(business_id=business_id)),
+        "logistics_charges": _delete_parcel_history(
+            LogisticsCharge.objects.filter(business_id=business_id)
+        ),
         "invoice_lines": _delete_queryset(
             InvoiceLine.objects.filter(invoice__business_id=business_id)
         ),

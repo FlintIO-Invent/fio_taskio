@@ -33,7 +33,11 @@ from apps.notifications.emails import send_invoice_email
 
 from .models import Invoice, InvoiceLine
 from .pdf import invoice_pdf_filename, render_invoice_pdf
-from .services import calculate_tax_amount, create_invoice_for_client, generate_invoice_number
+from .services import (
+    create_invoice_for_client,
+    generate_invoice_number,
+    recalculate_invoice_totals,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,17 +69,7 @@ def _parse_optional_decimal(value: str | None) -> Decimal | None:
 
 
 def _recalculate_invoice_totals(invoice: Invoice) -> None:
-    subtotal = sum(
-        (line.line_total for line in InvoiceLine.objects.filter(invoice=invoice).only("line_total")),
-        start=Decimal("0.00"),
-    )
-    business = invoice.business
-    tax_rate = business.tax_rate if business is not None else Decimal("0.00")
-
-    invoice.subtotal = subtotal
-    invoice.tax = calculate_tax_amount(subtotal=subtotal, tax_rate=tax_rate)
-    invoice.total = invoice.subtotal + invoice.tax
-    invoice.save(update_fields=["subtotal", "tax", "total"])
+    recalculate_invoice_totals(invoice)
 
 
 def _client_queryset_for_business(business: Business):
@@ -114,9 +108,7 @@ def _whatsapp_digits(value: str | None) -> str:
 def _invoice_whatsapp_share_url(invoice: Invoice) -> str:
     client = invoice.client
     business = invoice.business
-    client_name = " ".join(
-        part for part in [client.first_name, client.last_name] if part
-    ).strip()
+    client_name = " ".join(part for part in [client.first_name, client.last_name] if part).strip()
     greeting = f"Hello {client_name}," if client_name else "Hello,"
     total = format_money_for_business(invoice.total, business)
     message = (
@@ -352,7 +344,9 @@ def _clean_line_rows(
         new_service_category_name = str(row.get("new_service_category_name", "")).strip()
 
         if (service_id or save_as_service) and not business.has_capability("services"):
-            errors.append(f"{line_label} {index}: services are not available for this business vertical.")
+            errors.append(
+                f"{line_label} {index}: services are not available for this business vertical."
+            )
             continue
 
         if (
@@ -418,7 +412,10 @@ def _clean_line_rows(
                 )
                 continue
 
-            if save_as_service and len(new_service_category_name) > SERVICE_CATEGORY_NAME_MAX_LENGTH:
+            if (
+                save_as_service
+                and len(new_service_category_name) > SERVICE_CATEGORY_NAME_MAX_LENGTH
+            ):
                 errors.append(
                     f"{line_label} {index}: new category name must be "
                     f"{SERVICE_CATEGORY_NAME_MAX_LENGTH} characters or fewer."
@@ -456,7 +453,9 @@ def _clean_line_rows(
             "unit_price": unit_price_value,
             "save_as_service": bool(save_as_service and service is None),
             "manual_service_category": manual_service_category,
-            "service_category_id": str(manual_service_category.pk) if manual_service_category else "",
+            "service_category_id": (
+                str(manual_service_category.pk) if manual_service_category else ""
+            ),
             "new_service_category_name": new_service_category_name,
         }
         if "line_id" in row:
@@ -543,11 +542,13 @@ def _invoice_create_response(
     )
     available_services = (
         list(_service_queryset_for_business(current_business))
-        if current_business.has_capability("services") else []
+        if current_business.has_capability("services")
+        else []
     )
     service_categories = (
         list(_service_category_queryset_for_business(current_business))
-        if current_business.has_capability("services") else []
+        if current_business.has_capability("services")
+        else []
     )
     active_services_by_id = {str(service.pk): service for service in available_services}
     selected_client = client
@@ -572,9 +573,9 @@ def _invoice_create_response(
             client_id = request.POST.get("client_id", "").strip()
             if client_id:
                 try:
-                    selected_client = _client_queryset_for_business(current_business).filter(
-                        pk=client_id
-                    ).first()
+                    selected_client = (
+                        _client_queryset_for_business(current_business).filter(pk=client_id).first()
+                    )
                 except (TypeError, ValueError):
                     selected_client = None
             if selected_client is None:
@@ -659,9 +660,7 @@ def invoice_quick_create_client(request: HttpRequest) -> JsonResponse:
         return JsonResponse(
             {
                 "errors": {
-                    "__all__": [
-                        get_business_limit_reached_message(current_business, "clients")
-                    ]
+                    "__all__": [get_business_limit_reached_message(current_business, "clients")]
                 }
             },
             status=400,
@@ -768,6 +767,7 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     context: dict[str, Any] = {
         "invoice": invoice,
         "whatsapp_share_url": _invoice_whatsapp_share_url(invoice),
+        "has_logistics_charges": invoice.lines.filter(logistics_charge__isnull=False).exists(),
     }
     return render(request, "billings/invoice_detail.html", context)
 
@@ -908,19 +908,24 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
 )
 @business_module_required("invoicing")
 @require_http_methods(["GET", "POST"])
+@transaction.atomic
 def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
+    if request.method == "POST":
+        current_business = Business.objects.select_for_update().get(pk=current_business.pk)
     invoice = get_object_or_404(
         _invoice_queryset_for_business(current_business).prefetch_related("lines"),
         pk=invoice_id,
     )
     available_services = (
         list(_service_queryset_for_business(current_business))
-        if current_business.has_capability("services") else []
+        if current_business.has_capability("services")
+        else []
     )
     service_categories = (
         list(_service_category_queryset_for_business(current_business))
-        if current_business.has_capability("services") else []
+        if current_business.has_capability("services")
+        else []
     )
     active_services_by_id = {str(service.pk): service for service in available_services}
     existing_line_rows = _invoice_line_rows(invoice)
@@ -928,6 +933,13 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
     draft_notes = invoice.notes
 
     if invoice.status != Invoice.Status.DRAFT:
+        return redirect("invoice_detail", invoice_id=invoice.id)
+
+    if invoice.lines.filter(logistics_charge__isnull=False).exists():
+        messages.info(
+            request,
+            "Saved Logistics charges are protected. Add further charges from the parcel or shipment Billing section.",
+        )
         return redirect("invoice_detail", invoice_id=invoice.id)
 
     if request.method == "POST":
@@ -1016,10 +1028,18 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
 )
 @business_module_required("invoicing")
 @require_http_methods(["POST"])
+@transaction.atomic
 def invoice_delete(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
+    if request.method == "POST":
+        current_business = Business.objects.select_for_update().get(pk=current_business.pk)
     invoice = get_object_or_404(_invoice_queryset_for_business(current_business), pk=invoice_id)
     invoice_number = invoice.invoice_number
+    if invoice.lines.filter(logistics_charge__isnull=False).exists():
+        messages.error(
+            request, "Invoices with saved Logistics charges must be retained for billing history."
+        )
+        return redirect("invoice_detail", invoice_id=invoice.id)
 
     invoice.delete()
     messages.success(request, f"Invoice {invoice_number} was deleted.")
@@ -1034,8 +1054,11 @@ def invoice_delete(request: HttpRequest, invoice_id: int) -> HttpResponse:
 )
 @business_module_required("invoicing")
 @require_http_methods(["POST"])
+@transaction.atomic
 def invoice_change_status(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
+    if request.method == "POST":
+        current_business = Business.objects.select_for_update().get(pk=current_business.pk)
     invoice = get_object_or_404(_invoice_queryset_for_business(current_business), pk=invoice_id)
     next_status = request.POST.get("status", "")
     allowed_statuses = STATUS_TRANSITIONS.get(invoice.status, set())

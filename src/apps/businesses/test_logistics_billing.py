@@ -264,8 +264,10 @@ class LogisticsOfferingTests(TestCase):
         self.assertFalse(subscription.can_use_module("clients"))
         self.assertFalse(subscription.is_stripe_billable)
 
-    def test_logistics_has_shared_and_domain_entitlements_without_service_workflows(self):
+    def test_logistics_has_shared_services_and_domain_entitlements_without_appointments(self):
         subscription = self.active()
+        self.assertTrue(self.business.has_capability("services"))
+        self.assertTrue(self.business.can_use_module("services"))
         for capability in (
             "workspace",
             "team",
@@ -278,7 +280,12 @@ class LogisticsOfferingTests(TestCase):
         ):
             with self.subTest(capability=capability):
                 self.assertTrue(subscription.can_use_module(capability))
-        for capability in ("services", "service_requests", "appointments", "public_booking"):
+        for capability in (
+            "service_requests",
+            "appointments",
+            "public_booking",
+            "booking_availability",
+        ):
             with self.subTest(capability=capability):
                 self.assertFalse(subscription.can_use_module(capability))
 

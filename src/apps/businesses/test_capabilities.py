@@ -13,7 +13,7 @@ from apps.accounts.models import TaskIOUser
 from apps.billings.models import Invoice
 from apps.crm.importing.permissions import user_can_import
 from apps.crm.importing.types import ImportType
-from apps.crm.models import BusinessService, Client, ServiceCategory
+from apps.crm.models import Client
 
 from .capabilities import business_has_capability
 from .models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
@@ -34,8 +34,14 @@ class VerticalPolicyTests(SimpleTestCase):
 
     def test_explicit_vertical_capability_matrix(self):
         shared = {"workspace", "team", "clients", "invoicing"}
-        service = {"services", "service_requests", "appointments", "public_booking"}
-        logistics = {"parcels", "tracking", "shipments", "manifests"}
+        service = {
+            "services",
+            "service_requests",
+            "appointments",
+            "public_booking",
+            "booking_availability",
+        }
+        logistics = {"services", "parcels", "tracking", "shipments", "manifests"}
         for vertical, expected in (
             (Business.Vertical.SERVICE, shared | service),
             (Business.Vertical.LOGISTICS, shared | logistics),
@@ -129,13 +135,21 @@ class VerticalAccessTests(TestCase):
                 self.assertTrue(can_view_module(self.business, module))
                 self.assertTrue(self.subscription.can_modify_module_at(module, timezone.now()))
 
-    def test_logistics_shared_access_does_not_grant_service_modules(self):
+    def test_logistics_services_access_keeps_appointment_modules_isolated(self):
         self.logistics()
-        for module in ("workspace", "team", "clients", "crm", "client_management", "invoicing"):
+        for module in (
+            "workspace",
+            "team",
+            "clients",
+            "crm",
+            "client_management",
+            "invoicing",
+            "services",
+        ):
             with self.subTest(module=module):
                 self.assertTrue(can_use_module(self.business, module))
         for module in (
-            "services",
+            "booking_availability",
             "service_requests",
             "appointments",
             "public_booking",
@@ -213,8 +227,12 @@ class VerticalAccessTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["error"], "subscription_restricted")
         response = self.client.get(reverse("business_service_list"), HTTP_ACCEPT="application/json")
+        self.assertEqual(response.status_code, 200)
+        response = self.client.get(
+            reverse("business_service_create"), HTTP_ACCEPT="application/json"
+        )
         self.assertEqual(response.status_code, 403)
-        self.assertEqual(response.json()["error"], "subscription_unavailable")
+        self.assertEqual(response.json()["error"], "subscription_restricted")
 
     def test_role_guard_remains_independent_of_vertical_and_module_access(self):
         self.logistics()
@@ -243,19 +261,18 @@ class VerticalAccessTests(TestCase):
                     response.context["current_business"].vertical, Business.Vertical.LOGISTICS
                 )
 
-    def test_logistics_service_routes_cannot_be_reached_via_crm(self):
+    def test_logistics_service_routes_reuse_crm_and_lead_routes_remain_blocked(self):
         self.logistics()
-        routes = (
-            ("business_service_list", {}),
-            ("business_service_create", {}),
-            ("business_service_update", {"service_id": 1}),
-            ("business_service_archive", {"service_id": 1}),
-            ("business_service_category_list", {}),
-            ("business_service_category_create", {}),
-            ("business_service_category_update", {"category_id": 1}),
-            ("business_service_category_archive", {"category_id": 1}),
-            ("business_service_import", {}),
-            ("business_service_sample_csv", {}),
+        for route in (
+            "business_service_list",
+            "business_service_create",
+            "business_service_category_create",
+            "business_service_import",
+            "business_service_sample_csv",
+        ):
+            with self.subTest(route=route):
+                self.assertEqual(self.client.get(reverse(route)).status_code, 200)
+        for route, kwargs in (
             ("staff_lead_list", {}),
             ("staff_lead_create", {}),
             ("staff_lead_detail", {"lead_id": 1}),
@@ -265,12 +282,10 @@ class VerticalAccessTests(TestCase):
             ("lead_import_upload", {}),
             ("lead_import_template", {}),
             *(
-                (f"{prefix}_{action}", {"job_id": uuid4()})
-                for prefix in ("business_service_import", "lead_import")
+                (f"lead_import_{action}", {"job_id": uuid4()})
                 for action in ("preview", "execute", "result")
             ),
-        )
-        for route, kwargs in routes:
+        ):
             with self.subTest(route=route):
                 response = self.client.get(
                     reverse(route, kwargs=kwargs), HTTP_ACCEPT="application/json"
@@ -278,11 +293,11 @@ class VerticalAccessTests(TestCase):
                 self.assertEqual(response.status_code, 403)
                 self.assertIn("business vertical", response.json()["message"])
 
-    def test_logistics_import_permissions_keep_clients_and_block_service_data(self):
+    def test_logistics_import_permissions_allow_services_and_clients_but_block_leads(self):
         self.logistics()
         self.assertTrue(user_can_import(self.business, self.user, ImportType.CLIENTS))
         self.assertFalse(user_can_import(self.business, self.user, ImportType.LEADS))
-        self.assertFalse(user_can_import(self.business, self.user, ImportType.SERVICES))
+        self.assertTrue(user_can_import(self.business, self.user, ImportType.SERVICES))
 
     def test_logistics_invoices_allow_manual_lines_without_creating_services(self):
         self.logistics()
@@ -301,21 +316,33 @@ class VerticalAccessTests(TestCase):
             "quantity": ["1"],
             "unit_price": ["25"],
         }
-        response = self.client.post(
-            reverse("invoice_create"),
-            {**line_data, "save_as_service": ["1"], "new_service_category_name": ["Transport"]},
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "services are not available for this business vertical")
-        self.assertFalse(BusinessService.objects.exists())
-        self.assertFalse(ServiceCategory.objects.filter(business=self.business).exists())
-        self.assertFalse(Invoice.objects.exists())
-
         response = self.client.post(reverse("invoice_create"), line_data)
         self.assertEqual(response.status_code, 302)
         invoice = Invoice.objects.get(business=self.business)
         self.assertEqual(invoice.lines.get().description, "Transport charge")
         self.assertIsNone(invoice.lines.get().service_id)
+
+    def test_logistics_invoice_can_save_one_off_service_to_existing_catalogue(self):
+        self.logistics()
+        customer = Client.objects.create(
+            business=self.business, first_name="Parcel", last_name="Client"
+        )
+        response = self.client.post(
+            reverse("invoice_create"),
+            {
+                "client_id": str(customer.pk),
+                "description": ["Transport charge"],
+                "quantity": ["1"],
+                "unit_price": ["25"],
+                "save_as_service": ["1"],
+                "new_service_category_name": ["Transport"],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        line = Invoice.objects.get(business=self.business).lines.get()
+        self.assertEqual(line.service.business_id, self.business.pk)
+        self.assertEqual(line.service.unit_price, 25)
+        self.assertEqual(line.service.category.name, "Transport")
 
 
 class BusinessVerticalMigrationTests(TransactionTestCase):

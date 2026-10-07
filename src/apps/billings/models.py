@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -81,6 +81,27 @@ class Invoice(TimeStampedModel):
                     "Linked appointment must belong to the selected client in this workspace."
                 )
 
+        if self.pk and self.lines.filter(logistics_charge__isnull=False).exists():
+            if (
+                self.lines.filter(logistics_charge__isnull=False)
+                .exclude(
+                    logistics_charge__business_id=self.business_id,
+                    logistics_charge__client_id=self.client_id,
+                )
+                .exists()
+            ):
+                errors["client"] = "Invoice ownership must match its saved Logistics charges."
+        if (
+            self.pk
+            and self.lines.filter(parcel__isnull=False)
+            .exclude(
+                parcel__business_id=self.business_id,
+                parcel__client_id=self.client_id,
+            )
+            .exists()
+        ):
+            errors["client"] = "Invoice ownership must match its parcel lines."
+
         if errors:
             raise ValidationError(errors)
 
@@ -98,6 +119,20 @@ class InvoiceLine(TimeStampedModel):
         blank=True,
         related_name="invoice_lines",
     )
+    parcel = models.ForeignKey(
+        "logistics.Parcel",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="invoice_lines",
+    )
+    shipment = models.ForeignKey(
+        "logistics.Shipment",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="invoice_lines",
+    )
     description = models.CharField(max_length=255)
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("1.00"))
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
@@ -106,6 +141,53 @@ class InvoiceLine(TimeStampedModel):
     class Meta:
         ordering = ["created_at"]
 
+    def clean(self):
+        super().clean()
+        if self.parcel_id and self.shipment_id:
+            raise ValidationError("A line can reference a parcel or a shipment, not both.")
+        if self.invoice_id:
+            business_id = self.invoice.business_id
+            for name in ("service", "parcel", "shipment"):
+                obj = getattr(self, name)
+                if obj is not None and obj.business_id != business_id:
+                    raise ValidationError({name: "Reference must belong to the invoice workspace."})
+            if self.parcel_id and self.parcel.client_id != self.invoice.client_id:
+                raise ValidationError({"parcel": "Parcel must belong to the invoice client."})
+            if self.shipment_id:
+                from apps.logistics.billing_services import shipment_billing_client
+
+                if shipment_billing_client(self.shipment).pk != self.invoice.client_id:
+                    raise ValidationError(
+                        {"shipment": "Shipment must belong to the invoice client."}
+                    )
+        if self.pk:
+            from apps.logistics.models import LogisticsCharge
+
+            charge = LogisticsCharge.objects.filter(invoice_line_id=self.pk).first()
+            if charge and (
+                self.invoice_id != charge.invoice_line.invoice_id
+                or (
+                    self.service_id,
+                    self.parcel_id,
+                    self.shipment_id,
+                    self.description,
+                    self.quantity,
+                    self.unit_price,
+                )
+                != (
+                    charge.service_id,
+                    charge.parcel_id,
+                    charge.shipment_id,
+                    charge.invoice_description,
+                    charge.quantity,
+                    charge.unit_price,
+                )
+            ):
+                raise ValidationError("Invoiced Logistics charges cannot be changed here.")
+
     def save(self, *args, **kwargs):
+        self.clean()
         self.line_total = (self.quantity or Decimal("0.00")) * (self.unit_price or Decimal("0.00"))
+        if self.parcel_id or self.shipment_id:
+            self.line_total = self.line_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         super().save(*args, **kwargs)

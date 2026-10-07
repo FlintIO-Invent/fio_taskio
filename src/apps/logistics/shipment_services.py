@@ -128,6 +128,8 @@ def assign_parcel(*, business, shipment, parcel, actor):
         return item  # A repeated assignment is a harmless no-op, never another membership.
     if item.shipment_id is not None:
         raise ValidationError("Remove the parcel from its current shipment before reassigning it.")
+    if locked.charges.exclude(client_id=item.client_id).exists():
+        raise ValidationError("A shipment with saved charges must retain a single billing client.")
     item.shipment = locked
     item._domain_save(update_fields=["shipment", "updated_at"])
     return item

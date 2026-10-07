@@ -1,5 +1,5 @@
 import uuid
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
@@ -750,3 +750,141 @@ class Shipment(ParcelDomainModel):
 
     def save(self, *args, **kwargs):
         raise ValidationError("Use the shipment services to change shipments.")
+
+
+class LogisticsCharge(ParcelDomainModel):
+    """A saved charge snapshot awaiting attachment to the existing invoice system."""
+
+    business = models.ForeignKey(
+        "businesses.Business", on_delete=models.PROTECT, related_name="logistics_charges"
+    )
+    client = models.ForeignKey(
+        "crm.Client", on_delete=models.PROTECT, related_name="logistics_charges"
+    )
+    parcel = models.ForeignKey(
+        Parcel, on_delete=models.PROTECT, null=True, blank=True, related_name="charges"
+    )
+    shipment = models.ForeignKey(
+        Shipment, on_delete=models.PROTECT, null=True, blank=True, related_name="charges"
+    )
+    service = models.ForeignKey(
+        "crm.BusinessService",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="logistics_charges",
+    )
+    target_reference = models.CharField(max_length=100)
+    description = models.CharField(max_length=160)
+    quantity = models.DecimalField(
+        max_digits=10, decimal_places=2, default=1, validators=[MinValueValidator(Decimal("0.01"))]
+    )
+    unit_price = models.DecimalField(
+        max_digits=12, decimal_places=2, validators=[MinValueValidator(0)]
+    )
+    invoice_line = models.OneToOneField(
+        "billings.InvoiceLine",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="logistics_charge",
+    )
+    idempotency_key = models.UUIDField(default=uuid.uuid4, editable=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="logistics_charges",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(parcel__isnull=False, shipment__isnull=True)
+                    | models.Q(parcel__isnull=True, shipment__isnull=False)
+                ),
+                name="logistics_charge_one_target",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(quantity__gt=0, unit_price__gte=0),
+                name="logistics_charge_positive_amounts",
+            ),
+            models.UniqueConstraint(
+                fields=["business", "idempotency_key"], name="logistics_charge_retry_unique"
+            ),
+        ]
+
+    @property
+    def total(self):
+        return (self.quantity * self.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def invoice_description(self):
+        target = f"{'Parcel' if self.parcel_id else 'Shipment'} {self.target_reference}"
+        return f"{self.description[:255 - len(target) - 3]} — {target}"
+
+    def clean(self):
+        super().clean()
+        if bool(self.parcel_id) == bool(self.shipment_id):
+            raise ValidationError("Select exactly one parcel or shipment.")
+        for name in ("client", "parcel", "shipment", "service"):
+            obj = getattr(self, name)
+            if obj is not None and obj.business_id != self.business_id:
+                raise ValidationError({name: "Reference must belong to the charge workspace."})
+        if self.parcel_id and self.parcel.client_id != self.client_id:
+            raise ValidationError({"client": "Parcel must belong to the charge client."})
+        if self.shipment_id:
+            from .billing_services import shipment_billing_client
+
+            if shipment_billing_client(self.shipment).pk != self.client_id:
+                raise ValidationError({"client": "Shipment must belong to the charge client."})
+        if self.invoice_line_id:
+            line = self.invoice_line
+            if (
+                line.invoice.business_id,
+                line.invoice.client_id,
+                line.parcel_id,
+                line.shipment_id,
+                line.service_id,
+                line.description,
+                line.quantity,
+                line.unit_price,
+            ) != (
+                self.business_id,
+                self.client_id,
+                self.parcel_id,
+                self.shipment_id,
+                self.service_id,
+                self.invoice_description,
+                self.quantity,
+                self.unit_price,
+            ):
+                raise ValidationError("Invoice line must match the saved charge.")
+        if self.quantity is not None and self.unit_price is not None:
+            from apps.billings.models import InvoiceLine
+
+            InvoiceLine._meta.get_field("line_total").clean(self.total, None)
+        if self._state.adding:
+            self._validate_actor("created_by")
+        else:
+            previous = type(self).objects.get(pk=self.pk)
+            fields = (
+                "business_id",
+                "client_id",
+                "parcel_id",
+                "shipment_id",
+                "service_id",
+                "description",
+                "target_reference",
+                "quantity",
+                "unit_price",
+                "idempotency_key",
+                "created_by_id",
+            )
+            if any(getattr(self, field) != getattr(previous, field) for field in fields) or (
+                previous.invoice_line_id and previous.invoice_line_id != self.invoice_line_id
+            ):
+                raise ValidationError("Saved charge snapshots and invoice links are immutable.")

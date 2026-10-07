@@ -12,7 +12,7 @@ from django.db.models import QuerySet
 from django.test import RequestFactory, TestCase, override_settings
 
 from apps.accounts.models import TaskIOUser
-from apps.billings.models import Invoice
+from apps.billings.models import Invoice, InvoiceLine
 from apps.businesses.admin import BusinessAdmin, LogisticsApplicationLinkFilter
 from apps.businesses.business_data_inventory import (
     FuturePurgeReadiness,
@@ -33,11 +33,11 @@ from apps.businesses.models import (
     DemoSeedRun,
 )
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
-from apps.crm.models import Client
+from apps.crm.models import ActivityLog, BusinessService, Client
 
 from .demo import LOGISTICS_DEMO_COUNTS
 from .inventory import application_inventory
-from .models import LogisticsApplication, Parcel, ParcelEvent, Shipment
+from .models import LogisticsApplication, LogisticsCharge, Parcel, ParcelEvent, Shipment
 from .parcel_services import parcels_for_business, record_parcel_event, register_parcel
 from .policy import LogisticsEligibilityPolicy, LogisticsUsageReviewPolicy
 from .public_tracking import lookup_public_tracking
@@ -131,6 +131,11 @@ class LogisticsOperationsTests(TestCase):
             "parcels": Parcel.objects.filter(business=self.business).count(),
             "parcel_events": ParcelEvent.objects.filter(business=self.business).count(),
             "shipments": Shipment.objects.filter(business=self.business).count(),
+            "services": BusinessService.objects.filter(business=self.business).count(),
+            "logistics_charges": LogisticsCharge.objects.filter(business=self.business).count(),
+            "invoices": Invoice.objects.filter(business=self.business).count(),
+            "invoice_lines": InvoiceLine.objects.filter(invoice__business=self.business).count(),
+            "activity_logs": ActivityLog.objects.filter(business=self.business).count(),
         }
         self.assertEqual(counts, LOGISTICS_DEMO_COUNTS)
         self.assertEqual(seed.owned_records.count(), sum(counts.values()))
@@ -220,7 +225,7 @@ class LogisticsOperationsTests(TestCase):
         # Move only the client relation in a corruption fixture, then create an
         # inbound dependency on the demo draft shipment instead.
         QuerySet(model=Parcel, using="default").filter(pk=real.pk).update(client=self.genuine)
-        draft = Shipment.objects.get(status="DRAFT")
+        draft = Shipment.objects.filter(status__in=("DRAFT", "READY"), charges__isnull=True).first()
         assign_parcel(business=self.business, shipment=draft, parcel=real, actor=self.user)
         with self.assertRaisesMessage(CommandError, "genuine or untracked"):
             self.command(reset_demo=True, execute=True)
@@ -371,9 +376,13 @@ class LogisticsOperationsTests(TestCase):
         self.assertIn("logistics_enrollment_tokens", counts)
         self.assertEqual(
             inventory.summary.future_purge_readiness,
-            FuturePurgeReadiness.READY_FOR_PLANNING,
+            FuturePurgeReadiness.BLOCKED_BY_FINANCIAL_RETENTION,
         )
-        result = purge_business(business_id=self.business.pk, reason_reference="OPS-10")
+        result = purge_business(
+            business_id=self.business.pk,
+            reason_reference="OPS-10",
+            confirm_test_financial_data=True,
+        )
         self.assertEqual(result.deletion_counts["logistics_application_links_released"], 1)
         application.refresh_from_db()
         self.assertIsNone(application.business_id)
@@ -389,7 +398,10 @@ class LogisticsOperationsTests(TestCase):
         self.assertIn("DRY RUN ONLY", self.command("purge_business"))
         self.assertEqual(Parcel.objects.count(), LOGISTICS_DEMO_COUNTS["parcels"])
         result = purge_business(
-            business_id=self.business.pk, reason_reference="OPS-10", delete_eligible_users=True
+            business_id=self.business.pk,
+            confirm_test_financial_data=True,
+            reason_reference="OPS-10",
+            delete_eligible_users=True,
         )
         self.assertEqual(
             result.deletion_counts["demo_seed_records"], sum(LOGISTICS_DEMO_COUNTS.values())

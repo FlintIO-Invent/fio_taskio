@@ -250,6 +250,7 @@ def parcel_detail(request, parcel_id):
         .select_related("actor")
         .order_by("timestamp", "pk")
     )
+    from .billing_views import billing_context
     from .shipment_services import shipments_for_business
 
     metadata_form = ParcelMetadataForm(instance=parcel, business=request.current_business)
@@ -279,6 +280,7 @@ def parcel_detail(request, parcel_id):
         request,
         "logistics/parcel_detail.html",
         {
+            **billing_context(request, parcel),
             "parcel": parcel,
             "events": events,
             "shipment": shipment,

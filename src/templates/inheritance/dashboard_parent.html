@@ -214,6 +214,9 @@
                                             <a class="nav-link" href="{% url 'logistics_parcel_register' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Register Parcel</span></div>
                                             </a>
+                                            {% if role_access.can_manage_services and module_access.services %}
+                                            <a class="nav-link" href="{% url 'business_service_list' %}">Services &amp; Pricing</a>
+                                            {% endif %}
                                             {% endif %}
                                         </li>
                                     </ul>

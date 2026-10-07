@@ -11,8 +11,11 @@ if TYPE_CHECKING:
 SHARED_CAPABILITIES = frozenset({"workspace", "team", "clients", "invoicing"})
 VERTICAL_CAPABILITIES = {
     "SERVICE": SHARED_CAPABILITIES
-    | frozenset({"services", "service_requests", "appointments", "public_booking"}),
-    "LOGISTICS": SHARED_CAPABILITIES | frozenset({"parcels", "tracking", "shipments", "manifests"}),
+    | frozenset(
+        {"services", "service_requests", "appointments", "public_booking", "booking_availability"}
+    ),
+    "LOGISTICS": SHARED_CAPABILITIES
+    | frozenset({"services", "parcels", "tracking", "shipments", "manifests"}),
 }
 MODULE_CAPABILITY_ALIASES = {
     "crm": "clients",
@@ -43,4 +46,6 @@ def vertical_has_capability(vertical: str, module_name: str) -> bool:
 def plan_module_name(module_name: str) -> str:
     """Keep the existing plan entitlement for newly separated core workflows."""
     normalized_name = normalize_module_name(module_name)
-    return {"team": "workspace", "services": "crm"}.get(normalized_name, normalized_name)
+    return {"team": "workspace", "services": "crm", "booking_availability": "crm"}.get(
+        normalized_name, normalized_name
+    )

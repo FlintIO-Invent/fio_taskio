@@ -17,6 +17,7 @@ from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lea
 from apps.logistics.models import (
     LogisticsApplication,
     LogisticsApplicationDecision,
+    LogisticsCharge,
     LogisticsEnrollmentToken,
     Parcel,
     ParcelEvent,
@@ -250,6 +251,15 @@ class BusinessDataInventory:
 
 
 DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
+    InventoryRegistration(
+        "logistics_charges",
+        "logistics.LogisticsCharge",
+        "business",
+        "Business.logistics_charges",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        True,
+    ),
     InventoryRegistration(
         "shipments",
         "logistics.Shipment",
@@ -966,6 +976,7 @@ def _cross_business_user_references(
         (ImportJob, "created_by_id", "business_id", "import_jobs"),
         (Parcel, "created_by_id", "business_id", "parcels"),
         (Shipment, "created_by_id", "business_id", "shipments"),
+        (LogisticsCharge, "created_by_id", "business_id", "logistics_charges"),
         (ParcelEvent, "actor_id", "business_id", "parcel_events"),
         (UserOnboardingState, "user_id", "business_id", "onboarding_states"),
         (
@@ -1289,7 +1300,65 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
             "Another business has invoice lines referencing selected-business services.",
         ),
     )
-    return checks
+    extra_checks = []
+    for model, owner, field, related_owner in (
+        (LogisticsCharge, "business_id", "client", "business_id"),
+        (LogisticsCharge, "business_id", "parcel", "business_id"),
+        (LogisticsCharge, "business_id", "shipment", "business_id"),
+        (LogisticsCharge, "business_id", "service", "business_id"),
+        (LogisticsCharge, "business_id", "invoice_line", "invoice__business_id"),
+        (InvoiceLine, "invoice__business_id", "parcel", "business_id"),
+        (InvoiceLine, "invoice__business_id", "shipment", "business_id"),
+    ):
+        path = f"{field}__{related_owner}"
+        for direction, qs in (
+            (
+                "outbound",
+                model.objects.filter(**{owner: business_id, f"{field}__isnull": False}).exclude(
+                    **{path: business_id}
+                ),
+            ),
+            (
+                "inbound",
+                model.objects.filter(**{path: business_id}).exclude(**{owner: business_id}),
+            ),
+        ):
+            extra_checks.append(
+                _blocker_check(
+                    f"cross_tenant_{model._meta.model_name}_{field}_{direction}",
+                    f"{model._meta.label}.{field}",
+                    qs.count(),
+                    "Billing references must remain inside one business.",
+                )
+            )
+    from django.db.models import F
+
+    for code, qs in (
+        (
+            "charge_parcel_client",
+            LogisticsCharge.objects.filter(business_id=business_id, parcel__isnull=False).exclude(
+                client_id=F("parcel__client_id")
+            ),
+        ),
+        (
+            "charge_invoice_client",
+            LogisticsCharge.objects.filter(
+                business_id=business_id, invoice_line__isnull=False
+            ).exclude(client_id=F("invoice_line__invoice__client_id")),
+        ),
+        (
+            "line_parcel_client",
+            InvoiceLine.objects.filter(
+                invoice__business_id=business_id, parcel__isnull=False
+            ).exclude(invoice__client_id=F("parcel__client_id")),
+        ),
+    ):
+        extra_checks.append(
+            _blocker_check(
+                f"cross_client_{code}", code, qs.count(), "Billing client references must agree."
+            )
+        )
+    return (*checks, *extra_checks)
 
 
 def _null_business_legacy_checks() -> tuple[IntegrityCheck, ...]:

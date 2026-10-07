@@ -300,7 +300,12 @@ class LocalLogisticsAccessTests(TestCase):
         self.plan.allow_invoicing = False
         self.plan.save(update_fields=["allow_invoicing"])
         self.assertFalse(business_can_access_module(self.business, "invoicing"))
-        for module in ("services", "service_requests", "appointments", "public_booking"):
+        for module in (
+            "service_requests",
+            "appointments",
+            "public_booking",
+            "booking_availability",
+        ):
             self.assertFalse(business_can_access_module(self.business, module))
         self.membership.role = BusinessUser.Role.VIEWER
         self.membership.save(update_fields=["role"])
@@ -334,7 +339,7 @@ class LocalLogisticsAccessTests(TestCase):
             "business_settings",
         ):
             self.assertContains(local, f'href="{reverse(name)}"')
-        for name in ("appointment_list", "staff_lead_list", "business_service_list"):
+        for name in ("appointment_list", "staff_lead_list"):
             self.assertNotContains(local, f'href="{reverse(name)}"')
         self.paid()
         for environment in ("development", "staging", "production"):

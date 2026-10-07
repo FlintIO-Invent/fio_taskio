@@ -7,14 +7,16 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.billings.models import Invoice, InvoiceLine
 from apps.businesses.demo_seed_reset import (
     build_demo_seed_reset_plan,
     execute_demo_seed_reset,
 )
 from apps.businesses.models import Business, BusinessUser, DemoSeedRecord, DemoSeedRun
-from apps.crm.models import Client
+from apps.crm.models import ActivityLog, BusinessService, Client
 
-from .models import Parcel, ParcelEvent, Shipment
+from .billing_services import add_charge, invoice_charges
+from .models import LogisticsCharge, Parcel, ParcelEvent, Shipment
 from .parcel_policy import PARCEL_MANAGE_ROLES
 from .parcel_services import (
     change_parcel_status,
@@ -30,8 +32,28 @@ from .shipment_services import (
     require_shipment_access,
 )
 
-LOGISTICS_RESET_ORDER = (ParcelEvent, Parcel, Shipment, Client)
-LOGISTICS_DEMO_COUNTS = {"clients": 10, "parcels": 20, "parcel_events": 83, "shipments": 6}
+LOGISTICS_RESET_ORDER = (
+    LogisticsCharge,
+    InvoiceLine,
+    Invoice,
+    ActivityLog,
+    ParcelEvent,
+    Parcel,
+    Shipment,
+    Client,
+    BusinessService,
+)
+LOGISTICS_DEMO_COUNTS = {
+    "clients": 10,
+    "parcels": 20,
+    "parcel_events": 83,
+    "shipments": 6,
+    "services": 8,
+    "logistics_charges": 9,
+    "invoices": 3,
+    "invoice_lines": 5,
+    "activity_logs": 3,
+}
 
 CLIENT_TEMPLATES = (
     ("Avery", "Morgan", "Coral Bay Books"),
@@ -183,11 +205,11 @@ def seed_logistics_demo(*, business_id, actor_id=None):
         own(
             register_parcel(
                 business=business,
-                client=clients[index % len(clients)],
+                client=clients[0 if index == 11 else index % len(clients)],
                 actor=actor,
                 **parcel_demo_fields(
                     index=index,
-                    client=clients[index % len(clients)],
+                    client=clients[0 if index == 11 else index % len(clients)],
                     route=ROUTES[
                         (
                             ASSIGNED_PARCEL_ROUTE_INDEXES[index]
@@ -303,6 +325,77 @@ def seed_logistics_demo(*, business_id, actor_id=None):
     events = ParcelEvent.objects.filter(business=business, parcel__in=parcels).order_by("pk")
     for event in events:
         own(event)
+    # Shared Services and Invoice models; no booking setup or payment side effects.
+    import uuid
+
+    services = [
+        own(
+            BusinessService.objects.create(
+                business=business,
+                name=f"[DEMO] {name}",
+                unit_price=Decimal(price),
+                description=f"[DEMO] {name}",
+                tax_rate=business.tax_rate,
+            )
+        )
+        for name, price in (
+            ("Small Parcel Delivery", "15"),
+            ("Medium Parcel Delivery", "25"),
+            ("Large Parcel Delivery", "40"),
+            ("Standard Handling", "5"),
+            ("Fragile Handling", "12"),
+            ("Storage", "8"),
+            ("Freight", "150"),
+            ("Customs Processing", "35"),
+        )
+    ]
+    charges = []
+    for parcel, service, price, description in (
+        (parcels[0], services[1], None, ""),
+        (parcels[0], services[4], None, ""),
+        (parcels[10], services[0], None, ""),  # Same client, another parcel.
+        (parcels[1], services[2], Decimal("35"), "Negotiated delivery"),
+        (parcels[2], None, Decimal("37.50"), "Special oversized handling"),
+        (parcels[3], services[1], None, ""),
+        (parcels[3], services[4], None, ""),
+        (parcels[3], services[5], None, ""),
+    ):
+        charges.append(
+            own(
+                add_charge(
+                    business=business,
+                    actor=actor,
+                    parcel=parcel,
+                    service=service,
+                    unit_price=price,
+                    description=description,
+                    idempotency_key=uuid.uuid4(),
+                )
+            )
+        )
+    # A dedicated, single-client shipment shows shipment-level billing safely.
+    billing_shipment = shipments[4]
+    shipment_charge = own(
+        add_charge(
+            business=business,
+            actor=actor,
+            shipment=billing_shipment,
+            service=services[6],
+            idempotency_key=uuid.uuid4(),
+        )
+    )
+    for group in (charges[:3], [charges[3]], [shipment_charge]):
+        invoice = own(
+            invoice_charges(
+                business=business, actor=actor, charge_ids=[charge.pk for charge in group]
+            )
+        )
+        for line in invoice.lines.all():
+            own(line)
+        for activity in ActivityLog.objects.filter(
+            business=business, payload__invoice_number=invoice.invoice_number
+        ):
+            own(activity)
     return seed
 
 
