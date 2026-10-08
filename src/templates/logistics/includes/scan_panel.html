@@ -1,0 +1,38 @@
+<div data-scan-panel{% if scan_confirmation %} data-scan-action-success{% endif %}>
+  <div id="scan-feedback" aria-live="polite" aria-atomic="true">
+    {% if scan_error %}<div class="alert alert-danger" role="alert" data-scan-error>{{ scan_error }}</div>{% endif %}
+    {% if scan_confirmation %}<div class="alert alert-success" role="status">{{ scan_confirmation }}</div>{% endif %}
+  </div>
+  {% if parcel %}
+  <article class="card" data-scan-parcel="{{ parcel.pk }}">
+    <div class="card-body text-break">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        {% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}
+        {% if shipment %}{% include 'logistics/includes/transport_mode_badge.html' with mode=shipment.transport_mode label=shipment.get_transport_mode_display %}{% endif %}
+      </div>
+      <h3 class="font-monospace scan-tracking-code">{{ parcel.tracking_code }}</h3>
+      <p class="fw-semibold mb-2">{{ parcel.client }}</p>
+      <p class="mb-2">{{ parcel.origin }} → {{ parcel.destination }}</p>
+      <p class="mb-3">Shipment: {% if shipment %}<a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a> · {{ shipment.get_status_display }}{% else %}No accessible shipment{% endif %}</p>
+      {% if scan_actions %}
+      <form method="post" action="{% url 'logistics_parcel_scan_action' parcel.pk %}" data-scan-action data-cancel-confirmation="Cancel this parcel?">
+        {% csrf_token %}
+        {% for hidden in action_form.hidden_fields %}<input type="hidden" name="{{ hidden.name }}" value="{{ hidden.value }}">{% endfor %}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% for value, label in scan_actions %}
+          <button type="submit" name="status" value="{{ value }}" class="btn {% if value == 'CANCELLED' %}btn-outline-danger{% elif value == 'HOLD' %}btn-phoenix-warning{% else %}btn-primary{% endif %}">{% if value == 'CANCELLED' %}Cancel Parcel{% elif value == 'HOLD' %}Place on Hold{% else %}Mark {{ label }}{% endif %}</button>
+          {% endfor %}
+        </div>
+      </form>
+      {% else %}<p class="text-body-secondary">No status actions are available for this parcel with your current access.</p>{% endif %}
+      {% if recent_event %}<div class="border-top pt-3 mb-3">
+        <h4 class="fs-8">Latest event</h4>
+        <p class="mb-1">{{ recent_event.get_status_display|default:recent_event.get_event_type_display }} · {{ recent_event.timestamp }}</p>
+        {% if recent_event.location %}<p class="mb-1">{{ recent_event.location }}</p>{% endif %}
+        {% if recent_event.public_message %}<p class="mb-0">{{ recent_event.public_message }}</p>{% endif %}
+      </div>{% endif %}
+      <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_detail' parcel.pk %}">Open Full Parcel</a>
+    </div>
+  </article>
+  {% endif %}
+</div>

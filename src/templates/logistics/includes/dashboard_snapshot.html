@@ -49,6 +49,9 @@
       <h4 class="mb-0"><span class="fa-solid fa-bolt text-body-tertiary me-2" aria-hidden="true"></span>Quick Actions</h4>
     </div>
     <div class="card-body d-flex flex-wrap gap-2">
+      {% if dashboard_parcels_enabled %}
+        <a class="btn btn-primary" href="{% url 'logistics_parcel_scan' %}"><span class="fa-solid fa-keyboard me-2" aria-hidden="true"></span>Scan Parcel</a>
+      {% endif %}
       {% if role_access.can_manage_parcels and module_write_access.parcels %}
         <a class="btn btn-primary" href="{% url 'logistics_parcel_register' %}"><span class="fa-solid fa-plus me-2" aria-hidden="true"></span>Register Parcel</a>
       {% endif %}

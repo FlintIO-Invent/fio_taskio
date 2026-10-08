@@ -214,6 +214,11 @@
                                             <a class="nav-link" href="{% url 'logistics_parcel_list' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">All Parcels</span></div>
                                             </a>
+                                            {% if current_business.vertical == 'LOGISTICS' %}
+                                            <a class="nav-link" href="{% url 'logistics_parcel_scan' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Scan Parcel</span></div>
+                                            </a>
+                                            {% endif %}
                                             {% if role_access.can_manage_parcels and module_write_access.parcels %}
                                             <a class="nav-link" href="{% url 'logistics_parcel_register' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Register Parcel</span></div>

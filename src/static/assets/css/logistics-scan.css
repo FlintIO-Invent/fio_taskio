@@ -1,0 +1,21 @@
+.logistics-workspace .logistics-scan .scan-tracking-code { overflow-wrap: anywhere; font-size: 1rem; }
+.logistics-workspace .logistics-scan [data-scan-input] { min-height: 56px; font-size: 1rem; }
+.logistics-workspace .logistics-scan [data-scan-input]:focus { outline: 3px solid var(--phoenix-primary); outline-offset: 2px; }
+.logistics-workspace .logistics-scan .btn { min-height: 48px; white-space: normal; }
+.logistics-workspace .logistics-scan .btn-primary {
+  --phoenix-btn-bg: var(--phoenix-primary-text-emphasis);
+  --phoenix-btn-border-color: var(--phoenix-primary-text-emphasis);
+  --phoenix-btn-color: var(--phoenix-emphasis-bg);
+}
+.logistics-workspace .logistics-scan .btn-outline-danger {
+  --phoenix-btn-color: var(--phoenix-danger-text-emphasis);
+  --phoenix-btn-hover-bg: var(--phoenix-danger-text-emphasis);
+  --phoenix-btn-hover-border-color: var(--phoenix-danger-text-emphasis);
+  --phoenix-btn-hover-color: var(--phoenix-emphasis-bg);
+}
+.logistics-workspace .logistics-scan .btn-phoenix-warning {
+  --phoenix-btn-color: var(--phoenix-warning-text-emphasis);
+  --phoenix-btn-hover-color: var(--phoenix-warning-text-emphasis);
+}
+.logistics-workspace .logistics-scan [aria-busy="true"] { opacity: .75; }
+.logistics-workspace .logistics-scan [data-scan-action] .btn { flex: 1 1 140px; }
