@@ -283,8 +283,9 @@ def build_subscription_notification_email_context(
     notification: SubscriptionNotification,
 ) -> dict[str, Any]:
     notification = (
-        SubscriptionNotification.objects.select_related("business", "subscription", "subscription__plan")
-        .get(pk=notification.pk)
+        SubscriptionNotification.objects.select_related(
+            "business", "subscription", "subscription__plan"
+        ).get(pk=notification.pk)
         if not hasattr(notification, "business")
         else notification
     )
@@ -324,6 +325,30 @@ def build_subscription_notification_email_context(
         billing_interval_label=billing_interval_label,
         display_timezone=display_timezone,
     )
+    if plan.family == "LOGISTICS":
+        if (
+            notification.notification_type
+            == SubscriptionNotification.NotificationType.SUBSCRIPTION_ACTIVATED
+        ):
+            type_context["email_title"] = type_context["email_subject"] = (
+                "Your Motionmate Logistics subscription is active"
+            )
+            type_context["body_intro"] = (
+                "Your annual Motionmate Logistics payment is confirmed and workspace access is available."
+            )
+        recovery_instructions = {
+            "Open the Motionmate subscription page to update your payment method.",
+            "Open the Motionmate subscription page to update payment.",
+            "An account owner can still open the Motionmate subscription page to update payment.",
+        }
+        type_context["body_lines"] = [
+            (
+                "Contact support for help with your Logistics subscription payment."
+                if line in recovery_instructions
+                else line
+            )
+            for line in type_context["body_lines"]
+        ]
     return {**base_context, **type_context}
 
 
@@ -736,7 +761,7 @@ def _subscription_for_enqueue(subscription: BusinessSubscription) -> BusinessSub
 def _subscription_is_billable_for_notifications(subscription: BusinessSubscription) -> bool:
     return (
         subscription.payment_provider == BusinessSubscription.PaymentProvider.STRIPE
-        and subscription.is_public_paid_plan
+        and subscription.is_stripe_billable
         and not subscription.is_beta_plan
         and subscription.business.is_active
         and subscription.plan.is_active

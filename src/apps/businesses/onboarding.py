@@ -5,12 +5,19 @@ from typing import Any
 
 from django.db.models import Q
 from django.urls import NoReverseMatch, reverse
+from django.utils import timezone
 
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice
 from apps.crm.models import BusinessService, Client, Lead
 
-from .models import Business, BusinessBookingSettings, BusinessUser, UserOnboardingState
+from .models import (
+    Business,
+    BusinessBookingSettings,
+    BusinessInvitation,
+    BusinessUser,
+    UserOnboardingState,
+)
 from .utils import OWNER_ADMIN_ROLES, can_use_module, membership_has_any_role
 
 TASK_DEFINITIONS: dict[str, dict[str, Any]] = {
@@ -126,8 +133,7 @@ JOURNEY_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "key": "manage_clients",
         "title": "Start Managing Clients",
         "purpose": (
-            "Learn how Motionmate helps you manage customers, service requests, "
-            "and appointments."
+            "Learn how Motionmate helps you manage customers, service requests, and appointments."
         ),
         "tasks": (
             "add_first_client",
@@ -150,12 +156,88 @@ JOURNEY_DEFINITIONS: tuple[dict[str, Any], ...] = (
 )
 
 
-def get_journey_definitions() -> list[dict[str, Any]]:
-    return deepcopy(list(JOURNEY_DEFINITIONS))
+LOGISTICS_TASK_DEFINITIONS = {
+    "complete_business_profile": {
+        **TASK_DEFINITIONS["complete_business_profile"],
+        "module_key": "workspace",
+    },
+    "add_first_client": {
+        **TASK_DEFINITIONS["add_first_client"],
+        "description": "Add a customer so you can register their parcels and invoice charges.",
+        "module_key": "clients",
+    },
+    "register_first_parcel": {
+        "key": "register_first_parcel",
+        "title": "Register your first parcel",
+        "description": "Record a customer's parcel and start its tracking history.",
+        "cta_label": "Register Parcel",
+        "url_name": "logistics_parcel_register",
+        "prerequisites": ["add_first_client"],
+        "module_key": "parcels",
+        "required_modules": ["parcels", "tracking"],
+        "target_selector": "[data-onboarding-target='parcels']",
+    },
+    "create_first_shipment": {
+        "key": "create_first_shipment",
+        "title": "Create your first shipment (optional)",
+        "description": "Group parcels for movement when your operation needs shipments.",
+        "cta_label": "Create Shipment",
+        "url_name": "logistics_shipment_create",
+        "prerequisites": [],
+        "module_key": "shipments",
+        "target_selector": "[data-onboarding-target='shipments']",
+    },
+    "invite_team_member": {
+        "key": "invite_team_member",
+        "title": "Invite a team member (optional)",
+        "description": "Invite a colleague if you share parcel operations. Solo operators can skip this step.",
+        "cta_label": "Open Team",
+        "url_name": "business_team_members",
+        "prerequisites": [],
+        "module_key": "team",
+        "target_selector": "[data-onboarding-target='team']",
+    },
+    "create_first_invoice": TASK_DEFINITIONS["create_first_invoice"],
+    "send_or_download_invoice": TASK_DEFINITIONS["send_or_download_invoice"],
+}
+
+LOGISTICS_JOURNEY_DEFINITIONS = (
+    {
+        "key": "logistics_setup",
+        "title": "Set Up My Logistics Business",
+        "purpose": "Complete your business details, add a customer, and register your first parcel.",
+        "tasks": ("complete_business_profile", "add_first_client", "register_first_parcel"),
+    },
+    {
+        "key": "logistics_operations",
+        "title": "Organize Operations",
+        "purpose": "Optionally group parcels into shipments and invite colleagues to your workspace.",
+        "tasks": ("create_first_shipment", "invite_team_member"),
+    },
+    {
+        "key": "logistics_billing",
+        "title": "Invoice My Clients",
+        "purpose": "Invoice transport and handling charges using manual invoice lines.",
+        "tasks": ("create_first_invoice", "send_or_download_invoice"),
+    },
+)
 
 
-def get_task_definitions() -> dict[str, dict[str, Any]]:
-    return deepcopy(TASK_DEFINITIONS)
+def get_journey_definitions(business: Business | None = None) -> list[dict[str, Any]]:
+    definitions = (
+        LOGISTICS_JOURNEY_DEFINITIONS
+        if business and business.has_capability("parcels")
+        else JOURNEY_DEFINITIONS
+    )
+    return deepcopy(list(definitions))
+
+
+def get_task_definitions(business: Business | None = None) -> dict[str, dict[str, Any]]:
+    return deepcopy(
+        LOGISTICS_TASK_DEFINITIONS
+        if business and business.has_capability("parcels")
+        else TASK_DEFINITIONS
+    )
 
 
 def user_can_view_onboarding(user, business: Business | None) -> bool:
@@ -210,7 +292,11 @@ def _has_business_profile(business: Business) -> bool:
         business.currency,
         business.invoice_prefix,
     )
-    return all(bool((value or "").strip()) for value in required_fields) and has_contact and has_location
+    return (
+        all(bool((value or "").strip()) for value in required_fields)
+        and has_contact
+        and has_location
+    )
 
 
 def _has_active_service(business: Business) -> bool:
@@ -272,14 +358,47 @@ def _has_invoice(business: Business) -> bool:
 
 
 def _has_sent_or_downloaded_invoice(business: Business) -> bool:
-    return Invoice.objects.filter(business=business).filter(
-        Q(status__in=(Invoice.Status.SENT, Invoice.Status.PAID))
-        | Q(email_send_count__gt=0)
-        | Q(emailed_at__isnull=False)
-    ).exists()
+    return (
+        Invoice.objects.filter(business=business)
+        .filter(
+            Q(status__in=(Invoice.Status.SENT, Invoice.Status.PAID))
+            | Q(email_send_count__gt=0)
+            | Q(emailed_at__isnull=False)
+        )
+        .exists()
+    )
+
+
+def _has_parcel(business: Business) -> bool:
+    from apps.logistics.models import Parcel
+
+    return Parcel.objects.filter(business=business, client__business=business).exists()
+
+
+def _has_shipment(business: Business) -> bool:
+    from apps.logistics.models import Shipment
+
+    return Shipment.objects.filter(business=business).exists()
+
+
+def _has_team_member_or_invitation(business: Business) -> bool:
+    return (
+        BusinessUser.objects.filter(business=business, is_active=True)
+        .exclude(role=BusinessUser.Role.OWNER)
+        .exists()
+        or BusinessInvitation.objects.filter(business=business)
+        .filter(
+            Q(status=BusinessInvitation.Status.ACCEPTED)
+            | Q(status=BusinessInvitation.Status.PENDING, expires_at__gt=timezone.now())
+        )
+        .exists()
+    )
 
 
 COMPLETION_CHECKS = {
+    "register_first_parcel": _has_parcel,
+    "create_first_shipment": _has_shipment,
+    "invite_team_member": _has_team_member_or_invitation,
     "complete_business_profile": _has_business_profile,
     "add_first_service": _has_active_service,
     "set_availability": _has_active_availability,
@@ -293,6 +412,9 @@ COMPLETION_CHECKS = {
 
 
 COMPLETION_SOURCES = {
+    "register_first_parcel": "workspace_parcel_exists",
+    "create_first_shipment": "workspace_shipment_exists",
+    "invite_team_member": "active_team_member_or_invitation_exists",
     "complete_business_profile": "business_profile_fields",
     "add_first_service": "active_business_service_exists",
     "set_availability": "active_weekly_availability_exists",
@@ -319,10 +441,11 @@ def _task_status(
     business: Business,
     skipped_steps,
 ) -> dict[str, Any]:
-    definition = deepcopy(TASK_DEFINITIONS[task_key])
+    definition = get_task_definitions(business)[task_key]
     completion_check = COMPLETION_CHECKS[task_key]
     module_key = definition.get("module_key")
-    module_allowed = can_use_module(business, module_key) if module_key else True
+    required_modules = definition.get("required_modules", [module_key] if module_key else [])
+    module_allowed = all(can_use_module(business, key) for key in required_modules)
     locked = bool(module_key and not module_allowed)
     cta_url = ""
     url_name = definition.get("url_name")
@@ -352,6 +475,7 @@ def _task_status(
 
 
 DEPENDENCY_MESSAGES = {
+    "register_first_parcel": "Add a client first so the parcel belongs to a customer.",
     "set_availability": "Add a service first so your availability can be connected to what you offer.",
     "schedule_first_appointment": (
         "Appointments work best after you have at least one client and service."
@@ -370,7 +494,11 @@ def _prerequisite_fallback_task_key(
     flat_task_statuses: dict[str, dict[str, Any]],
 ) -> str | None:
     if task_key == "set_availability":
-        return "add_first_service" if not flat_task_statuses["add_first_service"]["completed"] else None
+        return (
+            "add_first_service"
+            if not flat_task_statuses["add_first_service"]["completed"]
+            else None
+        )
 
     if task_key == "schedule_first_appointment":
         if not flat_task_statuses["add_first_client"]["completed"]:
@@ -386,8 +514,10 @@ def _prerequisite_fallback_task_key(
             return "set_availability"
         return None
 
-    if task_key == "create_first_invoice":
-        return "add_first_client" if not flat_task_statuses["add_first_client"]["completed"] else None
+    if task_key in ("create_first_invoice", "register_first_parcel"):
+        return (
+            "add_first_client" if not flat_task_statuses["add_first_client"]["completed"] else None
+        )
 
     if task_key == "send_or_download_invoice":
         return (
@@ -486,7 +616,9 @@ def _selected_journey_step_context(
         "current_step_number": current_step_number,
         "current_step_percent": round((current_step_number / total) * 100) if total else 0,
         "selected_journey_task_count": total,
-        "previous_step_key": tasks[current_step_index - 1]["key"] if current_step_index > 0 else None,
+        "previous_step_key": tasks[current_step_index - 1]["key"]
+        if current_step_index > 0
+        else None,
         "next_step_key": (
             tasks[current_step_index + 1]["key"] if current_step_index + 1 < total else None
         ),
@@ -511,13 +643,13 @@ def get_onboarding_status(
             business=business,
             skipped_steps=skipped_steps,
         )
-        for task_key in TASK_DEFINITIONS
+        for task_key in get_task_definitions(business)
     }
     _apply_dependency_context(flat_task_statuses)
 
     available_journeys: list[dict[str, Any]] = []
     selected_journey = None
-    for journey_definition in JOURNEY_DEFINITIONS:
+    for journey_definition in get_journey_definitions(business):
         tasks = [deepcopy(flat_task_statuses[task_key]) for task_key in journey_definition["tasks"]]
         journey_status = {
             **deepcopy(journey_definition),
@@ -537,10 +669,7 @@ def get_onboarding_status(
     completed_welcome = bool(state and state.completed_welcome)
     dismissed_at = state.dismissed_at if state else None
     should_auto_show_welcome = (
-        visible
-        and not selected_journey_key
-        and not completed_welcome
-        and dismissed_at is None
+        visible and not selected_journey_key and not completed_welcome and dismissed_at is None
     )
     return {
         "state": state,

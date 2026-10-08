@@ -10,6 +10,7 @@ from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
+from apps.logistics.models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
 
 from .business_data_inventory import (
     DIRECT_BUSINESS_RELATION_REGISTRY,
@@ -31,6 +32,7 @@ from .models import (
     BusinessInvitation,
     BusinessSubscription,
     BusinessUser,
+    DemoSeedRecord,
     DemoSeedRun,
     SubscriptionNotification,
     UserOnboardingState,
@@ -38,13 +40,19 @@ from .models import (
 )
 
 PURGE_DELETION_ORDER = (
+    "logistics_application_links_released",
+    "demo_seed_records",
     "demo_seed_runs",
+    "logistics_charges",
     "invoice_lines",
     "invoices",
     "appointments",
     "import_jobs",
     "activity_logs",
     "leads",
+    "parcel_events",
+    "parcels",
+    "shipments",
     "clients",
     "business_services",
     "service_categories",
@@ -54,6 +62,7 @@ PURGE_DELETION_ORDER = (
     "subscription_notifications",
     "business_subscription",
     "business_booking_settings",
+    "logistics_profile",
     "business_users",
     "eligible_users",
     "business",
@@ -117,6 +126,11 @@ class BusinessPurgePlan:
             blockers.append("cross_tenant_integrity_blockers")
         if self.has_inventory_registry_blocker:
             blockers.append("inventory_registry_incomplete")
+        if self.inventory.business_vertical != Business.Vertical.LOGISTICS and any(
+            record.key == "logistics_application" and record.total_count
+            for record in self.inventory.records
+        ):
+            blockers.append("logistics_conversion_protected")
         if self.has_stripe_references:
             blockers.append("stripe_references_present")
         if self.invoice_confirmation_required:
@@ -176,6 +190,9 @@ def purge_business(
 
     pending_error: BusinessPurgeError | None = None
     with transaction.atomic():
+        from apps.logistics.retention import _lock_application_for_business_purge
+
+        _lock_application_for_business_purge(business_id)
         business = Business.objects.select_for_update().filter(pk=business_id).first()
         if business is None:
             return _absent_result(business_id)
@@ -200,12 +217,18 @@ def purge_business(
                     operator_id=operator_id,
                 )
                 _enforce_purge_safety(plan)
+                from apps.logistics.retention import _release_application_for_business_purge
+
+                released_application_count = _release_application_for_business_purge(
+                    business=business
+                )
 
                 session_summary = invalidate_business_sessions(business_id)
                 deletion_counts = _delete_business_records(
                     business=business,
                     user_decisions=plan.user_decisions,
                 )
+                deletion_counts["logistics_application_links_released"] = released_application_count
                 _verify_purge_complete(business_id)
 
                 record_counts = _audit_record_counts(
@@ -287,6 +310,9 @@ def _enforce_purge_safety(plan: BusinessPurgePlan) -> None:
         "inventory_registry_incomplete": (
             "The tenant-data inventory registry is incomplete; purge is not safe."
         ),
+        "logistics_conversion_protected": (
+            "A retained Logistics application conversion protects this business from purge."
+        ),
         "stripe_references_present": (
             "Stripe customer, subscription, checkout, or webhook references block purge."
         ),
@@ -312,6 +338,11 @@ def _build_user_purge_decisions(
         .order_by("user_id")
     )
     decisions = []
+    from apps.logistics.inventory import retained_application_user_ids
+
+    retained_users = retained_application_user_ids(
+        {membership.user_id for membership in memberships}
+    )
     for membership in memberships:
         user = membership.user
         reasons: list[str] = []
@@ -330,6 +361,8 @@ def _build_user_purge_decisions(
                 reasons.append("superuser")
             if operator_id is not None and user.pk == operator_id:
                 reasons.append("command_operator")
+            if user.pk in retained_users:
+                reasons.append("retained_logistics_application_references")
             if _has_cross_business_operational_references(
                 user_id=user.pk,
                 business_id=business_id,
@@ -352,6 +385,10 @@ def _has_cross_business_operational_references(*, user_id: int, business_id: int
         (Client, "assigned_to_id"),
         (ActivityLog, "actor_id"),
         (ImportJob, "created_by_id"),
+        (Parcel, "created_by_id"),
+        (Shipment, "created_by_id"),
+        (LogisticsCharge, "created_by_id"),
+        (ParcelEvent, "actor_id"),
         (UserOnboardingState, "user_id"),
         (SubscriptionNotification, "recipient_user_id"),
         (BusinessInvitation, "invited_by_id"),
@@ -372,7 +409,13 @@ def _delete_business_records(
 ) -> dict[str, int]:
     business_id = business.pk
     deletion_counts = {
+        "demo_seed_records": _delete_queryset(
+            DemoSeedRecord.objects.filter(seed_run__business_id=business_id)
+        ),
         "demo_seed_runs": _delete_queryset(DemoSeedRun.objects.filter(business_id=business_id)),
+        "logistics_charges": _delete_parcel_history(
+            LogisticsCharge.objects.filter(business_id=business_id)
+        ),
         "invoice_lines": _delete_queryset(
             InvoiceLine.objects.filter(invoice__business_id=business_id)
         ),
@@ -381,6 +424,11 @@ def _delete_business_records(
         "import_jobs": _delete_queryset(ImportJob.objects.filter(business_id=business_id)),
         "activity_logs": _delete_queryset(ActivityLog.objects.filter(business_id=business_id)),
         "leads": _delete_queryset(Lead.objects.filter(business_id=business_id)),
+        "parcel_events": _delete_parcel_history(
+            ParcelEvent.objects.filter(business_id=business_id)
+        ),
+        "parcels": _delete_parcel_history(Parcel.objects.filter(business_id=business_id)),
+        "shipments": _delete_parcel_history(Shipment.objects.filter(business_id=business_id)),
         "clients": _delete_queryset(Client.objects.filter(business_id=business_id)),
         "business_services": _delete_queryset(
             BusinessService.objects.filter(business_id=business_id)
@@ -406,6 +454,9 @@ def _delete_business_records(
         "business_booking_settings": _delete_queryset(
             BusinessBookingSettings.objects.filter(business_id=business_id)
         ),
+        "logistics_profile": _delete_queryset(
+            LogisticsProfile.objects.filter(business_id=business_id)
+        ),
         "business_users": _delete_queryset(BusinessUser.objects.filter(business_id=business_id)),
     }
     eligible_user_ids = tuple(decision.user_id for decision in user_decisions if decision.delete)
@@ -414,6 +465,12 @@ def _delete_business_records(
     )
     deletion_counts["business"] = _delete_queryset(Business.objects.filter(pk=business_id))
     return deletion_counts
+
+
+def _delete_parcel_history(queryset) -> int:
+    count = queryset.count()
+    queryset._purge_delete()
+    return count
 
 
 def _delete_queryset(queryset) -> int:
@@ -434,6 +491,8 @@ def _verify_purge_complete(business_id: int) -> None:
             remaining.append(registration.key)
     if InvoiceLine.objects.filter(invoice__business_id=business_id).exists():
         remaining.append("invoice_lines")
+    if DemoSeedRecord.objects.filter(seed_run__business_id=business_id).exists():
+        remaining.append("demo_seed_records")
     session_summary = plan_business_session_invalidation(business_id)
     if session_summary.target_business_sessions:
         remaining.append("sessions")
@@ -452,7 +511,17 @@ def _audit_record_counts(
     user_decisions: tuple[UserPurgeDecision, ...],
 ) -> dict[str, int]:
     counts = {f"inventory_{record.key}": record.total_count for record in inventory.records}
-    counts.update({f"deleted_{key}": value for key, value in deletion_counts.items()})
+    counts.update(
+        {
+            f"deleted_{key}": value
+            for key, value in deletion_counts.items()
+            if key != "logistics_application_links_released"
+        }
+    )
+    if deletion_counts.get("logistics_application_links_released"):
+        counts["logistics_application_links_released"] = deletion_counts[
+            "logistics_application_links_released"
+        ]
     counts.update(session_summary.to_record_counts())
     counts["users_preserved"] = sum(not decision.delete for decision in user_decisions)
     counts["users_deleted"] = sum(decision.delete for decision in user_decisions)

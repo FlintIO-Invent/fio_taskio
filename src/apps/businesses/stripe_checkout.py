@@ -1,20 +1,28 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from functools import wraps
 from typing import Any
 
+from django.db import transaction
 from django.http import HttpRequest
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import TaskIOUser
 
+from .billing_policy import (
+    billing_offering,
+    is_stripe_billable_plan,
+    offering_allows_interval,
+    plan_matches_business,
+)
 from .models import Business, BusinessSubscription, ClarivoPlan
 from .plan_catalog import (
     PUBLIC_PRICING_CURRENCIES,
     STANDARD_TRIAL_DAYS,
+    normalize_plan_slug,
     normalize_public_billing_interval,
-    normalize_public_paid_plan_slug,
 )
 from .stripe_config import (
     StripeConfigurationError,
@@ -26,6 +34,10 @@ from .stripe_config import (
 
 class StripeCheckoutError(Exception):
     """Raised when a Stripe-hosted Checkout Session cannot be prepared safely."""
+
+    def __init__(self, message: str = "", *, code: str = "checkout_not_eligible"):
+        super().__init__(message)
+        self.code = code
 
 
 class StripeCheckoutAlreadyCompleted(StripeCheckoutError):
@@ -42,6 +54,7 @@ def ensure_pending_checkout_subscription(
     _require_active_business_for_checkout(business)
     _require_stripe_checkout_ready()
     plan_slug, normalized_interval, normalized_currency = _validated_checkout_dimensions(
+        business=business,
         plan=plan,
         billing_interval=billing_interval,
         currency=currency,
@@ -94,6 +107,29 @@ def ensure_pending_checkout_subscription(
     return subscription
 
 
+def _serialize_logistics_checkout(function):
+    @wraps(function)
+    def checkout(*, request, subscription, user):
+        if not _is_logistics_subscription(subscription):
+            return function(request=request, subscription=subscription, user=user)
+        from apps.logistics.models import LogisticsApplication
+
+        with transaction.atomic():
+            # Use the same lock order for all entry points, review and webhooks.
+            LogisticsApplication.objects.select_for_update().filter(
+                business_id=subscription.business_id
+            ).first()
+            subscription = (
+                BusinessSubscription.objects.select_for_update(of=("self",))
+                .select_related("business", "plan")
+                .get(pk=subscription.pk)
+            )
+            return function(request=request, subscription=subscription, user=user)
+
+    return checkout
+
+
+@_serialize_logistics_checkout
 def create_trial_checkout_session(
     *,
     request: HttpRequest,
@@ -106,6 +142,9 @@ def create_trial_checkout_session(
     This performs the network call outside the registration transaction. Return
     URLs are informational only; Block 5 webhooks will activate access.
     """
+    if _is_logistics_subscription(subscription):
+        # Direct callers must honor an existing provider session just like resume.
+        return resume_trial_checkout_session(request=request, subscription=subscription, user=user)
     return _create_checkout_session(
         request=request,
         subscription=subscription,
@@ -114,6 +153,7 @@ def create_trial_checkout_session(
     )
 
 
+@_serialize_logistics_checkout
 def resume_trial_checkout_session(
     *,
     request: HttpRequest,
@@ -124,19 +164,74 @@ def resume_trial_checkout_session(
     if subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT:
         raise StripeCheckoutError("This workspace subscription is not pending checkout.")
 
+    _validated_checkout_dimensions(
+        business=subscription.business,
+        plan=subscription.plan,
+        billing_interval=subscription.billing_interval,
+        currency=subscription.billing_currency,
+    )
+    logistics = _is_logistics_subscription(subscription)
+    if logistics:
+        from apps.logistics.billing import configured_annual_price, require_checkout_enrollment
+
+        require_checkout_enrollment(subscription, user)
+        configured_annual_price(subscription.plan, subscription.billing_currency)
+
     _require_stripe_checkout_ready()
+    if logistics and not subscription.provider_checkout_session_id:
+        return _create_checkout_session(
+            request=request,
+            subscription=subscription,
+            user=user,
+            replacing_session_id="new",
+        )
     stripe_client = configure_stripe_sdk()
+    if logistics:
+        from apps.logistics.billing import validate_annual_stripe_price
+
+        price_id = validate_annual_stripe_price(
+            plan=subscription.plan,
+            currency=subscription.billing_currency,
+            stripe_client=stripe_client,
+        )
     existing_session_id = subscription.provider_checkout_session_id
 
     if existing_session_id:
-        session = _retrieve_checkout_session(stripe_client, existing_session_id)
+        session = _retrieve_checkout_session(
+            stripe_client, existing_session_id, expand_price=logistics
+        )
         _validate_session_belongs_to_subscription(session=session, subscription=subscription)
+        if logistics:
+            from apps.logistics.checkout_approval import matches_current_approval
+
+            metadata = _stripe_value(session, "metadata") or {}
+            approval_matches = matches_current_approval(subscription, metadata)
         session_status = str(_stripe_value(session, "status") or "").strip().lower()
         session_url = _stripe_value(session, "url")
         expires_at = _stripe_timestamp_to_datetime(_stripe_value(session, "expires_at"))
 
         if session_status == "complete":
             raise StripeCheckoutAlreadyCompleted("Checkout has already been completed.")
+
+        if logistics and not approval_matches:
+            # Legacy/unbound sessions and sessions from previous approval decisions
+            # must be expired before replacement. Provider errors fail closed.
+            if session_status not in {"open", "expired"}:
+                raise StripeCheckoutError("Stored Logistics Checkout Session requires review.")
+            _expire_checkout_session_if_open(
+                stripe_client=stripe_client,
+                session_id=existing_session_id,
+                session_status=session_status,
+            )
+            return _create_checkout_session(
+                request=request,
+                subscription=subscription,
+                user=user,
+                replacing_session_id=existing_session_id,
+            )
+
+        if logistics:
+            _validate_logistics_session_price(session, subscription, price_id)
 
         if session_status == "open" and session_url and _session_still_usable(expires_at):
             if subscription.checkout_session_expires_at != expires_at:
@@ -170,10 +265,16 @@ def _create_checkout_session(
 
     plan = subscription.plan
     plan_slug, billing_interval, currency = _validated_checkout_dimensions(
+        business=subscription.business,
         plan=plan,
         billing_interval=subscription.billing_interval,
         currency=subscription.billing_currency,
     )
+    if _is_logistics_subscription(subscription):
+        from apps.logistics.billing import configured_annual_price, require_checkout_enrollment
+
+        require_checkout_enrollment(subscription, user)
+        configured_annual_price(plan, currency)
     price_id = get_stripe_price_id(
         plan_slug=plan_slug,
         billing_interval=billing_interval,
@@ -186,11 +287,21 @@ def _create_checkout_session(
         billing_interval=billing_interval,
         currency=currency,
     )
+    if _is_logistics_subscription(subscription):
+        from apps.logistics.checkout_approval import approval_metadata
+
+        application = require_checkout_enrollment(subscription, user)
+        metadata.update(approval_metadata(application))
     stripe_client = configure_stripe_sdk()
+    if _is_logistics_subscription(subscription):
+        from apps.logistics.billing import validate_annual_stripe_price
+
+        validate_annual_stripe_price(plan=plan, currency=currency, stripe_client=stripe_client)
     checkout_session = _stripe_create_checkout_session(
         stripe_client=stripe_client,
         customer_email=user.email,
         price_id=price_id,
+        trial_days=billing_offering(plan_slug).trial_days,
         success_url=(
             f"{request.build_absolute_uri(reverse('billing_checkout_success'))}"
             "?session_id={CHECKOUT_SESSION_ID}"
@@ -201,6 +312,7 @@ def _create_checkout_session(
         idempotency_key=_checkout_idempotency_key(
             subscription=subscription,
             replacing_session_id=replacing_session_id,
+            approval_decision_id=metadata.get("logistics_approval_decision_id", ""),
         ),
     )
     checkout_url = _stripe_value(checkout_session, "url")
@@ -235,20 +347,25 @@ def _require_active_business_for_checkout(business: Business) -> None:
 
 def _validated_checkout_dimensions(
     *,
+    business: Business,
     plan: ClarivoPlan | None,
     billing_interval: object,
     currency: object,
 ) -> tuple[str, str, str]:
     if plan is None or not plan.is_active:
-        raise StripeCheckoutError("Select an active public Motionmate plan before checkout.")
+        raise StripeCheckoutError("Select an active Motionmate billing plan before checkout.")
 
-    plan_slug = normalize_public_paid_plan_slug(plan.slug)
-    if plan_slug is None:
-        raise StripeCheckoutError("Only public Motionmate plans can use Stripe Checkout.")
+    if not is_stripe_billable_plan(plan):
+        raise StripeCheckoutError("This plan cannot use Stripe Checkout.")
+    if not plan_matches_business(business, plan):
+        raise StripeCheckoutError("Plan family does not match this workspace.")
+    plan_slug = normalize_plan_slug(plan.slug)
 
     normalized_interval = normalize_public_billing_interval(billing_interval)
     if normalized_interval is None:
         raise StripeCheckoutError("Select monthly or yearly billing before checkout.")
+    if not offering_allows_interval(plan_slug, normalized_interval):
+        raise StripeCheckoutError("This offering only supports yearly billing.")
 
     normalized_currency = str(currency or "").strip().lower()
     if normalized_currency not in PUBLIC_PRICING_CURRENCIES:
@@ -267,15 +384,16 @@ def _stripe_create_checkout_session(
     client_reference_id: str,
     metadata: dict[str, str],
     idempotency_key: str,
+    trial_days: int = STANDARD_TRIAL_DAYS,
 ) -> Any:
+    subscription_data = {"metadata": metadata}
+    if trial_days:
+        subscription_data["trial_period_days"] = trial_days
     try:
         return stripe_client.checkout.Session.create(
             mode="subscription",
             line_items=[{"price": price_id, "quantity": 1}],
-            subscription_data={
-                "trial_period_days": STANDARD_TRIAL_DAYS,
-                "metadata": metadata,
-            },
+            subscription_data=subscription_data,
             payment_method_collection="always",
             payment_method_types=["card"],
             customer_email=customer_email,
@@ -286,14 +404,22 @@ def _stripe_create_checkout_session(
             idempotency_key=idempotency_key,
         )
     except Exception as exc:
-        raise StripeCheckoutError("Stripe Checkout Session could not be created.") from exc
+        raise StripeCheckoutError(
+            "Stripe Checkout Session could not be created.", code="stripe_provider_error"
+        ) from exc
 
 
-def _retrieve_checkout_session(stripe_client: Any, session_id: str) -> Any:
+def _retrieve_checkout_session(stripe_client: Any, session_id: str, *, expand_price=False) -> Any:
     try:
+        if expand_price:
+            return stripe_client.checkout.Session.retrieve(
+                session_id, expand=["line_items.data.price"]
+            )
         return stripe_client.checkout.Session.retrieve(session_id)
     except Exception as exc:
-        raise StripeCheckoutError("Stripe Checkout Session could not be retrieved.") from exc
+        raise StripeCheckoutError(
+            "Stripe Checkout Session could not be retrieved.", code="stripe_provider_error"
+        ) from exc
 
 
 def _expire_checkout_session_if_open(
@@ -308,7 +434,9 @@ def _expire_checkout_session_if_open(
     try:
         stripe_client.checkout.Session.expire(session_id)
     except Exception as exc:
-        raise StripeCheckoutError("Stripe Checkout Session could not be refreshed.") from exc
+        raise StripeCheckoutError(
+            "Stripe Checkout Session could not be refreshed.", code="stripe_provider_error"
+        ) from exc
 
 
 def _validate_session_belongs_to_subscription(
@@ -327,11 +455,30 @@ def _validate_session_belongs_to_subscription(
     }
 
     for key, expected_value in expected_metadata.items():
-        if str(metadata.get(key, "")) != expected_value:
+        if str(_stripe_value(metadata, key) or "") != expected_value:
             raise StripeCheckoutError("Stored Checkout Session does not match this workspace.")
 
     if client_reference_id and client_reference_id != _client_reference_id(subscription):
         raise StripeCheckoutError("Stored Checkout Session does not match this workspace.")
+
+
+def _is_logistics_subscription(subscription):
+    return (
+        subscription.business.vertical == Business.Vertical.LOGISTICS
+        or subscription.plan.family == ClarivoPlan.Family.LOGISTICS
+    )
+
+
+def _validate_logistics_session_price(session, subscription, price_id):
+    line_items = _stripe_value(session, "line_items") or {}
+    items = _stripe_value(line_items, "data") or []
+    if (
+        subscription.provider_price_id != price_id
+        or len(items) != 1
+        or _stripe_value(items[0], "quantity") != 1
+        or _stripe_value(_stripe_value(items[0], "price"), "id") != price_id
+    ):
+        raise StripeCheckoutError("Stored Logistics Checkout Session has an unexpected Price.")
 
 
 def _checkout_metadata(
@@ -360,10 +507,12 @@ def _checkout_idempotency_key(
     *,
     subscription: BusinessSubscription,
     replacing_session_id: str,
+    approval_decision_id: str = "",
 ) -> str:
+    approval_binding = f"-approval-{approval_decision_id}" if approval_decision_id else ""
     return (
         f"motionmate-checkout-{subscription.pk}-"
-        f"{subscription.billing_interval}-{subscription.billing_currency}-{replacing_session_id}"
+        f"{subscription.billing_interval}-{subscription.billing_currency}{approval_binding}-{replacing_session_id}"
     )[:255]
 
 

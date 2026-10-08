@@ -1,0 +1,121 @@
+{% extends "inheritance/split_forms_parent.html" %}
+{% load static %}
+
+{% block content %}
+<div class="row flex-center position-relative min-vh-100 g-0 py-5 logistics-application">
+  <div class="col-12 col-lg-10 col-xl-8">
+    <div class="card border border-translucent auth-card">
+      <div class="card-body p-4 p-md-5 pe-md-0">
+        <div class="row align-items-center gx-0 gy-5">
+          <div class="col-auto bg-body-highlight dark__bg-gray-1100 rounded-3 position-relative overflow-hidden auth-title-box">
+            <div class="bg-holder" style="background-image:url('{% static 'assets/img/bg/38.png' %}');"></div>
+            <div class="position-relative px-4 px-md-5 py-5 py-md-9 text-center text-md-start logistics-intro">
+              <h3 class="mb-3 text-body-emphasis fs-7">Motionmate</h3>
+              <h1 class="h4 mb-3 text-body-emphasis">Apply for Motionmate Logistics</h1>
+              <p class="text-body-tertiary">Tell us about your business and parcel operations. We will assess your application and contact you about the next steps.</p>
+              <p class="text-body-tertiary mb-0">{% if form.password1 %}Once approved, your new account will be ready for annual subscription checkout. Operational access starts after payment.{% else %}Submitting an application does not create an account or require payment.{% endif %}</p>
+            </div>
+            <div class="position-relative z-n1 mb-6 d-none d-md-block text-center mt-md-15">
+              <img class="auth-title-box-img d-dark-none" src="{% static 'assets/img/spot-illustrations/auth.png' %}" alt="" />
+              <img class="auth-title-box-img d-light-none" src="{% static 'assets/img/spot-illustrations/auth-dark.png' %}" alt="" />
+            </div>
+          </div>
+
+          <div class="col-12 logistics-form-column">
+            <div class="auth-form-box mx-auto logistics-form-box">
+              <div class="text-center mb-7">
+                <a class="d-flex flex-center text-decoration-none mb-4" href="{% url 'home' %}">
+                  {% include "includes/motionmate_logo.html" %}
+                </a>
+              </div>
+              <div class="position-relative mt-4">
+                <hr class="bg-body-secondary" />
+                <div class="divider-content-center bg-body-emphasis">Logistics Application Form</div>
+              </div>
+
+              <form method="post" action="{% url 'logistics_application_create' %}" data-logistics-application-form>
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                  <div class="alert alert-danger mt-4" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+                <div class="theme-wizard mt-4" data-logistics-wizard>
+                  <div class="pt-3 pb-2 border-bottom d-none" data-logistics-wizard-navigation>
+                    <ul class="nav justify-content-between nav-wizard nav-wizard-success" role="tablist" aria-label="Application steps">
+                      {% for step in form.application_steps %}
+                        <li class="nav-item" role="presentation">
+                          <a class="nav-link fw-semibold{% if forloop.first %} active{% endif %}" id="logistics-tab-{{ step.slug }}" href="#logistics-step-{{ step.slug }}" role="tab" aria-controls="logistics-step-{{ step.slug }}" aria-selected="{{ forloop.first|yesno:'true,false' }}" data-logistics-tab>
+                            <div class="text-center d-inline-block">
+                              <span class="nav-item-circle-parent"><span class="nav-item-circle position-relative"><span class="fas {{ step.icon }} nav-item-icon" aria-hidden="true"></span><span class="fas fa-check check-icon" aria-hidden="true"></span></span></span>
+                              <span class="nav-item-title mt-1 fs-9">{{ step.label }}</span>
+                            </div>
+                          </a>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                  <p class="text-body-tertiary fs-9 mt-3 mb-0 d-none" role="status" data-logistics-step-status></p>
+                  <div class="tab-content py-4">
+                    {% for step in form.application_steps %}
+                      <div class="tab-pane active show" id="logistics-step-{{ step.slug }}" role="tabpanel" aria-labelledby="logistics-tab-{{ step.slug }}" data-logistics-pane>
+                        <h2 class="h5 mb-2">{{ step.label }}</h2>
+                        <p class="text-body-tertiary fs-9 mb-4">{{ step.description }} Required fields are marked with <span aria-label="an asterisk">*</span>.</p>
+                        <div class="row g-3">
+                          {% for item in step.fields %}
+                            {% with field=item.field %}
+                              <div class="col-12 {{ item.columns }} text-start" data-logistics-field{% if field.name == 'transportation_modes' %} data-logistics-transportation-modes{% endif %}{% if field.name == 'password1' or field.name == 'password2' %} data-logistics-new-password{% endif %}>
+                                {% if field.field.is_classification %}
+                                  <fieldset aria-describedby="{{ field.auto_id }}_helptext{% if field.errors %} {{ field.auto_id }}_errors{% endif %}"{% if field.errors %} aria-invalid="true"{% endif %}>
+                                    <legend class="form-label fs-9">{{ field.label }}{% if field.field.required %} <span class="text-danger" aria-label="required">*</span>{% endif %}</legend>
+                                    {% for choice in field %}
+                                      <div class="form-check">{{ choice.tag }}<label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label></div>
+                                    {% endfor %}
+                                  </fieldset>
+                                {% elif field.field.widget.input_type == "checkbox" %}
+                                  <div class="form-check mb-0">
+                                    {{ field }}
+                                    <label class="form-check-label text-transform-none" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                  </div>
+                                {% else %}
+                                  <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="text-danger" aria-label="required">*</span>{% endif %}</label>
+                                  {{ field }}
+                                {% endif %}
+                                {% if field.help_text %}<p class="form-text mb-0" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</p>{% endif %}
+                                {% if field.errors %}<div class="text-danger small mt-1" id="{{ field.auto_id }}_errors" data-logistics-server-error>{{ field.errors }}</div>{% endif %}
+                              </div>
+                            {% endwith %}
+                          {% endfor %}
+                        </div>
+                        <div class="text-danger small mt-3 d-none" role="alert" data-logistics-step-error></div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center gap-2 pt-3 border-top">
+                    <button class="btn btn-phoenix-secondary d-none" type="button" data-logistics-prev><span class="fas fa-arrow-left me-2" aria-hidden="true"></span>Previous</button>
+                    <button class="btn btn-primary ms-auto d-none" type="button" data-logistics-next>Next<span class="fas fa-arrow-right ms-2" aria-hidden="true"></span></button>
+                    <button class="btn btn-primary ms-auto" type="submit" data-logistics-submit><span class="fas fa-paper-plane me-2" aria-hidden="true"></span>Submit application</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .logistics-application .logistics-form-box { max-width: 640px; }
+  .logistics-application .divider-content-center { white-space: nowrap; }
+  @media (min-width: 768px) {
+    .logistics-application .logistics-form-column { width: calc(100% - 16.875rem); padding-inline: 2rem; }
+    .logistics-application .logistics-intro { min-height: 640px; }
+  }
+  @media (min-width: 992px) {
+    .logistics-application .logistics-form-column { width: calc(100% - 23.4375rem); }
+  }
+  @media (max-width: 575.98px) {
+    .logistics-application .nav-item-title { font-size: 0.65rem !important; }
+  }
+</style>
+<script src="{% static 'assets/js/logistics-application.js' %}" defer></script>
+{% endblock %}

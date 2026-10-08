@@ -1,0 +1,24 @@
+<div class="modal fade" id="parcelClientModal" tabindex="-1" aria-labelledby="parcelClientModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="{% url 'staff_client_create' %}" data-parcel-client-form>
+        {% csrf_token %}<input type="hidden" name="workflow" value="parcel">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title" id="parcelClientModalLabel">Add a client</h5>
+            <p class="mb-0 text-body-secondary small">Complete the required details. Your parcel details will stay in place.</p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-danger d-none" role="alert" data-client-request-error></div>
+          {% include 'logistics/includes/client_fields.html' with form=quick_client_form %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-phoenix-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add and Select Client</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

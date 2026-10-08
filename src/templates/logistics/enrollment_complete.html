@@ -1,0 +1,14 @@
+{% extends "public_site/base.html" %}
+{% block content %}
+<section class="container py-5">
+  <h1>Enrollment complete</h1>
+  <p>Your Logistics workspace has been created. Annual checkout is the next step. Operational access will be available after payment.</p>
+  {% if checkout_error %}<p role="alert">{{ checkout_error }}</p>{% endif %}
+  {% if application %}
+    <form method="post" action="{% url 'logistics_application_checkout' application.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">Continue to annual checkout</button>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}

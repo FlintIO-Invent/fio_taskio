@@ -156,6 +156,7 @@ urlpatterns = [
     path("appointments/", include("apps.appointments.urls")),
     path("accounts/", include("apps.accounts.urls")),
     path("billings/", include("apps.billings.urls")),
+    path("logistics/", include("apps.logistics.urls")),
 ]
 
 # if settings.DEBUG:

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>Track your parcel</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f4f6fa; color: #19243b; font: 1rem/1.6 system-ui, sans-serif; }
+    main { max-width: 44rem; margin: 2rem auto; padding: 1.25rem; }
+    section, aside { background: white; border: 1px solid #dce2ed; border-radius: .75rem; padding: 1.25rem; margin: 1rem 0; }
+    h1, h2, h3 { line-height: 1.3; }
+    label { display: block; font-weight: 600; }
+    input, button { width: 100%; padding: .8rem; font: inherit; border: 1px solid #7c899e; border-radius: .35rem; }
+    button { margin-top: .75rem; background: #203f84; color: white; cursor: pointer; }
+    input:focus-visible, button:focus-visible { outline: 3px solid #587ac5; outline-offset: 2px; }
+    .code, .message { overflow-wrap: anywhere; }
+    .message { white-space: pre-wrap; }
+    .error { color: #9d2020; }
+    ol { padding-left: 1.5rem; }
+    li { padding: .5rem 0; }
+    time { color: #47556b; }
+    @media (max-width: 480px) { main { margin: 0 auto; padding: .75rem; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Track your parcel</h1>
+  <section aria-label="Tracking lookup">
+    <form method="post" action="{% url 'logistics_public_tracking' %}">
+      {% csrf_token %}
+      <label for="tracking-code">Tracking code</label>
+      <p id="tracking-help">Enter the exact tracking code from your parcel receipt.</p>
+      <input id="tracking-code" name="tracking_code" type="text" maxlength="48" required
+             autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="tracking-help">
+      <button type="submit">Track parcel</button>
+    </form>
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  </section>
+  {% if tracking %}
+  <section aria-labelledby="parcel-status">
+    <h2 id="parcel-status">{{ tracking.status_label }}</h2>
+    <p class="code">Tracking code: {{ tracking.tracking_code }}</p>
+    <h3>Tracking timeline</h3>
+    <p>Times include their UTC offset. Updates appear from earliest to latest.</p>
+    <ol>
+    {% for event in tracking.events %}
+      <li>
+        <time datetime="{{ event.timestamp }}">{{ event.timestamp }}</time>
+        {% if event.status_label %}<p><strong>{{ event.status_label }}</strong></p>{% endif %}
+        <p class="message">{{ event.message }}</p>
+      </li>
+    {% empty %}
+      <li>No public tracking updates yet.</li>
+    {% endfor %}
+    </ol>
+  </section>
+  <aside aria-labelledby="parcel-support">
+    <h2 id="parcel-support">{{ tracking.business.name }}</h2>
+    <p>For help with this parcel, contact this business using the details on your parcel receipt.</p>
+  </aside>
+  {% endif %}
+</main>
+</body>
+</html>

@@ -18,11 +18,11 @@ try:
 except ImportError:
     from config import settings
 
+from apps.businesses.billing_policy import BILLING_OFFERINGS
 from apps.businesses.plan_catalog import (
-    PUBLIC_BILLING_INTERVALS,
-    PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
 )
+from apps.logistics.policy import LogisticsEligibilityPolicy, LogisticsUsageReviewPolicy
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNNING_TESTS = (
@@ -34,6 +34,7 @@ RUNNING_TESTS = (
 AUTH_USER_MODEL = "accounts.TaskIOUser"
 
 DEBUG = settings.debug
+MOTIONMATE_ENVIRONMENT = settings.env.strip().lower()
 
 if settings.secret_key:
     SECRET_KEY = settings.secret_key
@@ -57,6 +58,7 @@ INSTALLED_APPS = [
     "apps.crm",
     "apps.appointments",
     "apps.billings",
+    "apps.logistics",
 ]
 
 MIDDLEWARE = [
@@ -203,9 +205,47 @@ STRIPE_PRICE_ID_MAP = {
         settings,
         f"stripe_price_{plan_slug}_{billing_interval}_{currency}",
     )
-    for plan_slug in PUBLIC_PAID_PLAN_SLUGS
-    for billing_interval in PUBLIC_BILLING_INTERVALS
+    for plan_slug, offering in BILLING_OFFERINGS.items()
+    for billing_interval in offering.intervals
     for currency in PUBLIC_PRICING_CURRENCIES
+}
+
+LOGISTICS_AUTO_APPROVE_ALL = settings.logistics_auto_approve_all
+LOGISTICS_LOCAL_BILLING_BYPASS = settings.logistics_local_billing_bypass
+LOGISTICS_ELIGIBILITY_POLICY = LogisticsEligibilityPolicy(
+    rule_version=settings.logistics_rule_version,
+    auto_approve_monthly_parcels=settings.logistics_auto_approve_monthly_parcels,
+    review_above_monthly_parcels=settings.logistics_review_above_monthly_parcels,
+    high_resource_monthly_parcels=settings.logistics_high_resource_monthly_parcels,
+    auto_approve_staff_count=settings.logistics_auto_approve_staff_count,
+    auto_approve_location_count=settings.logistics_auto_approve_location_count,
+    supported_territories=tuple(settings.logistics_supported_territories),
+    registration_required_for_auto_approval=settings.logistics_registration_required_for_auto_approval,
+)
+
+LOGISTICS_USAGE_REVIEW_POLICY = LogisticsUsageReviewPolicy(
+    approaching_ratio=settings.logistics_usage_approaching_ratio,
+    monthly_event_review_threshold=settings.logistics_monthly_event_review_threshold,
+)
+
+LOGISTICS_DEPLOYMENT_CHECKS_ENABLED = settings.logistics_deployment_checks_enabled
+LOGISTICS_TRACKING_CACHE_ALIAS = settings.logistics_tracking_cache_alias
+LOGISTICS_TRACKING_CLIENT_IP_MODE = settings.logistics_tracking_client_ip_mode
+LOGISTICS_TRACKING_REQUIRE_SHARED_CACHE = not DEBUG
+# A dedicated tracking cache leaves SERVICE cache behavior unchanged.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    "logistics_tracking": {
+        "BACKEND": settings.logistics_tracking_cache_backend,
+        "LOCATION": settings.logistics_tracking_cache_location,
+        "KEY_PREFIX": settings.logistics_tracking_cache_key_prefix,
+        **(
+            {"OPTIONS": {"socket_connect_timeout": 2, "socket_timeout": 2}}
+            if settings.logistics_tracking_cache_backend
+            == "django.core.cache.backends.redis.RedisCache"
+            else {}
+        ),
+    },
 }
 
 LOGGING = {
@@ -227,6 +267,13 @@ LOGGING = {
         "level": settings.log_level,
     },
     "loggers": {
+        # The SDK's INFO errors and DEBUG payloads include provider details.
+        # Application billing wrappers emit safe diagnostics instead.
+        "stripe": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
         "django": {
             "handlers": ["console"],
             "level": settings.log_level,

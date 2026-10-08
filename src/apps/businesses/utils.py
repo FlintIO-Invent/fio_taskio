@@ -19,6 +19,8 @@ from django.utils.text import slugify
 
 from helpers import build_public_url
 
+from .billing_policy import plan_matches_business
+from .capabilities import plan_module_name
 from .models import (
     Business,
     BusinessBookingSettings,
@@ -571,6 +573,9 @@ def get_business_module_unavailable_message(
     if business is None or not business.is_active:
         return f"{module_label} is not available for this workspace."
 
+    if not business.has_capability(module_name):
+        return f"{module_label} is not available for this business vertical."
+
     subscription = get_business_subscription(business)
     if subscription is None:
         return (
@@ -578,7 +583,9 @@ def get_business_module_unavailable_message(
             "an active Motionmate subscription yet."
         )
 
-    if subscription.can_view_workspace and not subscription.plan.allows_module(module_name):
+    if subscription.can_view_workspace and not subscription.plan.allows_module(
+        plan_module_name(module_name)
+    ):
         return f"{module_label} is not included in the current workspace plan."
 
     if access == WORKSPACE_ACCESS_WRITE and subscription.has_restricted_access:
@@ -667,15 +674,18 @@ def redirect_for_unavailable_business_module(
         access == WORKSPACE_ACCESS_WRITE
         and subscription is not None
         and subscription.has_restricted_access
-        and subscription.plan.allows_module(module_name)
+        and subscription.business.has_capability(module_name)
+        and subscription.plan.allows_module(plan_module_name(module_name))
     )
 
     if _request_expects_json(request):
         return JsonResponse(
             {
-                "error": WORKSPACE_RESTRICTED_ERROR_CODE
-                if is_restricted_write_denial
-                else "subscription_unavailable",
+                "error": (
+                    WORKSPACE_RESTRICTED_ERROR_CODE
+                    if is_restricted_write_denial
+                    else "subscription_unavailable"
+                ),
                 "message": message,
             },
             status=403,
@@ -814,7 +824,7 @@ def business_module_required(
         @wraps(func)
         def wrapped(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
             # UI hiding helps discovery, but it is not a security boundary.
-            # Route handlers must enforce plan access on the backend as well.
+            # Route handlers enforce vertical, plan and subscription access too.
             if not business_can_access_module(
                 request.current_business,
                 module_name,
@@ -845,6 +855,11 @@ def create_default_trial_subscription(
     existing_subscription = get_business_subscription(business)
     if existing_subscription is not None:
         return existing_subscription
+
+    if business.vertical != Business.Vertical.SERVICE:
+        return None
+    if plan is not None and not plan_matches_business(business, plan):
+        raise ValueError("Plan family does not match this workspace.")
 
     if plan is not None and (not plan.is_active or not is_public_paid_plan_slug(plan.slug)):
         plan = None
@@ -919,6 +934,10 @@ def assign_business_subscription_plan(
     *,
     trial_days: int = STANDARD_TRIAL_DAYS,
 ) -> BusinessSubscription:
+    if not plan_matches_business(business, plan):
+        raise ValueError("Plan family does not match this workspace.")
+    if plan.family == ClarivoPlan.Family.LOGISTICS:
+        raise ValueError("Logistics subscriptions require paid Checkout provisioning.")
     subscription = get_business_subscription(business)
     now = timezone.now()
 

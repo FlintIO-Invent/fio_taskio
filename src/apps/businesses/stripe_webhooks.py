@@ -9,8 +9,8 @@ from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.utils import timezone
 
+from .billing_policy import billing_offering, is_stripe_billable_plan, plan_matches_business
 from .models import BillingProviderWebhookEvent, BusinessSubscription, SubscriptionNotification
-from .plan_catalog import normalize_public_paid_plan_slug
 from .stripe_config import (
     StripeConfigurationError,
     StripePriceMetadata,
@@ -316,6 +316,7 @@ def _process_checkout_session_completed(
         customer_id=provider_customer_id,
         client_reference_id=str(_stripe_value(session, "client_reference_id") or ""),
         source_provider_event_id=source_provider_event_id,
+        checkout_metadata=metadata,
     )
 
 
@@ -359,6 +360,7 @@ def _sync_subscription_object(
     client_reference_id: str = "",
     failure_context: dict[str, Any] | None = None,
     source_provider_event_id: str = "",
+    checkout_metadata: dict[str, str] | None = None,
 ) -> StripeWebhookProcessResult:
     provider_subscription_id = _required_string(
         _stripe_value(provider_subscription, "id"),
@@ -403,6 +405,13 @@ def _sync_subscription_object(
         price_metadata = _validated_subscription_price_metadata(provider_subscription)
         local_status = _local_status_for_provider_subscription(provider_subscription)
         date_values = _subscription_date_values(provider_subscription)
+        offering = billing_offering(local_subscription.plan.slug)
+        if offering.trial_days == 0 and (
+            local_status == BusinessSubscription.Status.TRIALING
+            or date_values.get("trial_start") is not None
+            or date_values.get("trial_end") is not None
+        ):
+            raise StripeWebhookProcessingError("This offering does not support trials.")
         _validate_price_matches_local_subscription(
             local_subscription=local_subscription,
             price_metadata=price_metadata,
@@ -412,7 +421,22 @@ def _sync_subscription_object(
             provider_subscription_id=provider_subscription_id,
             provider_customer_id=provider_customer_id,
         )
-        if source == "checkout.session.completed":
+        from .stripe_checkout import _is_logistics_subscription
+
+        logistics_review = False
+        if _is_logistics_subscription(local_subscription):
+            from apps.logistics.checkout_approval import matches_current_approval
+
+            logistics_review = (
+                local_subscription.logistics_approval_review_required
+                or not matches_current_approval(local_subscription, subscription_metadata)
+                or (
+                    checkout_metadata is not None
+                    and not matches_current_approval(local_subscription, checkout_metadata)
+                )
+                or (session_id and session_id != local_subscription.provider_checkout_session_id)
+            )
+        if source == "checkout.session.completed" and not logistics_review:
             _validate_checkout_compatible_state(local_subscription)
 
         update_fields = _update_provider_identity_fields(
@@ -422,6 +446,41 @@ def _sync_subscription_object(
             provider_price_id=price_metadata.price_id,
             session_id=session_id,
         )
+
+        if logistics_review:
+            # Acknowledge/deduplicate the payment while preserving its provider
+            # identity. Neither late nor subsequent success events release access;
+            # an admin must reconcile the approval and payment and clear the hold.
+            local_subscription.status = BusinessSubscription.Status.SUSPENDED
+            local_subscription.logistics_approval_review_required = True
+            if not _incoming_event_is_stale(
+                local_subscription=local_subscription, provider_event_at=provider_event_at
+            ):
+                update_fields.extend(
+                    _update_subscription_state_fields(
+                        local_subscription=local_subscription,
+                        local_status=BusinessSubscription.Status.SUSPENDED,
+                        provider_event_at=provider_event_at,
+                        date_values=date_values,
+                        failure_context=failure_context,
+                    )
+                )
+            local_subscription.save(
+                update_fields=[
+                    *sorted(set(update_fields)),
+                    "status",
+                    "logistics_approval_review_required",
+                    "updated_at",
+                ]
+            )
+            logger.warning(
+                "Logistics payment requires approval reconciliation: subscription=%s event=%s",
+                local_subscription.pk,
+                source_provider_event_id,
+            )
+            return StripeWebhookProcessResult(
+                f"{source}: Logistics approval/payment reconciliation requires admin review; access suspended."
+            )
 
         if _incoming_event_is_stale(
             local_subscription=local_subscription,
@@ -478,7 +537,28 @@ def _locked_local_subscription(
     provider_subscription_id: str,
     local_metadata: _LocalMetadata | None,
 ) -> BusinessSubscription | None:
+    from .stripe_checkout import _is_logistics_subscription
+
+    # Inspect without a row lock, then serialize with approval changes before
+    # locking the subscription. The locked lookup below still validates identity.
+    candidates = BusinessSubscription.objects.select_related("business", "plan")
+    candidate = candidates.filter(
+        payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
+        provider_subscription_id=provider_subscription_id,
+    ).first()
+    if candidate is None and local_metadata is not None:
+        candidate = candidates.filter(
+            pk=local_metadata.subscription_id, business_id=local_metadata.business_id
+        ).first()
+    if candidate is not None and _is_logistics_subscription(candidate):
+        from apps.logistics.models import LogisticsApplication
+
+        LogisticsApplication.objects.select_for_update().filter(
+            business_id=candidate.business_id
+        ).first()
     queryset = BusinessSubscription.objects.select_for_update().select_related("business", "plan")
+    if candidate is not None and _is_logistics_subscription(candidate):
+        queryset = queryset.select_for_update(of=("self",))
     local_subscription = queryset.filter(
         payment_provider=BusinessSubscription.PaymentProvider.STRIPE,
         provider_subscription_id=provider_subscription_id,
@@ -505,8 +585,12 @@ def _locked_local_subscription(
 def _validate_public_local_subscription(local_subscription: BusinessSubscription) -> None:
     if local_subscription.plan is None or not local_subscription.plan.is_active:
         raise StripeWebhookProcessingError("Local subscription plan is not active.")
-    if normalize_public_paid_plan_slug(local_subscription.plan.slug) is None:
+    if not is_stripe_billable_plan(local_subscription.plan):
         raise StripeWebhookIgnored("Local subscription is not a public paid Stripe plan.")
+    if not plan_matches_business(local_subscription.business, local_subscription.plan):
+        raise StripeWebhookProcessingError(
+            "Local subscription plan family does not match the workspace."
+        )
     if local_subscription.payment_provider not in (
         "",
         BusinessSubscription.PaymentProvider.STRIPE,
@@ -711,13 +795,9 @@ def _enqueue_subscription_transition_notifications(
             },
         )
 
-    if (
-        local_subscription.status == BusinessSubscription.Status.ACTIVE
-        and previous_status
-        in (
-            BusinessSubscription.Status.PENDING_CHECKOUT,
-            BusinessSubscription.Status.TRIALING,
-        )
+    if local_subscription.status == BusinessSubscription.Status.ACTIVE and previous_status in (
+        BusinessSubscription.Status.PENDING_CHECKOUT,
+        BusinessSubscription.Status.TRIALING,
     ):
         enqueue_subscription_notification(
             subscription=local_subscription,
@@ -894,6 +974,10 @@ def _local_status_for_provider_subscription(provider_subscription: Any) -> str:
 
 def _subscription_date_values(provider_subscription: Any) -> dict[str, datetime | bool | None]:
     stripe_cancelled_at = _stripe_value(provider_subscription, "canceled_at")
+    # Basil and newer APIs put billing periods on the subscription item. The
+    # price validator already requires exactly one item; keep older events valid.
+    items = _stripe_value(_stripe_value(provider_subscription, "items") or {}, "data") or []
+    period_source = items[0] if len(items) == 1 else {}
     return {
         "trial_start": _stripe_timestamp_to_datetime(
             _stripe_value(provider_subscription, "trial_start")
@@ -903,9 +987,11 @@ def _subscription_date_values(provider_subscription: Any) -> dict[str, datetime 
         ),
         "current_period_start": _stripe_timestamp_to_datetime(
             _stripe_value(provider_subscription, "current_period_start")
+            or _stripe_value(period_source, "current_period_start")
         ),
         "current_period_end": _stripe_timestamp_to_datetime(
             _stripe_value(provider_subscription, "current_period_end")
+            or _stripe_value(period_source, "current_period_end")
         ),
         "cancel_at_period_end": bool(_stripe_value(provider_subscription, "cancel_at_period_end")),
         "cancelled_at": _stripe_timestamp_to_datetime(stripe_cancelled_at),

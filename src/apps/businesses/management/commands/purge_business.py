@@ -106,7 +106,13 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Business ID {business_id} was permanently purged."))
         for key in PURGE_DELETION_ORDER:
-            self.stdout.write(f"- Deleted {key}: {result.deletion_counts.get(key, 0)}")
+            if key == "logistics_application_links_released":
+                if result.deletion_counts.get(key):
+                    self.stdout.write(
+                        f"- Retained application Business links released: {result.deletion_counts[key]}"
+                    )
+            else:
+                self.stdout.write(f"- Deleted {key}: {result.deletion_counts.get(key, 0)}")
         self.stdout.write(
             f"- Sessions invalidated: {result.session_summary.sessions_to_invalidate}"
         )
@@ -160,6 +166,13 @@ class Command(BaseCommand):
             self.stdout.write(f"- {record.key}: {record.total_count}")
 
         self.stdout.write("Explicit deletion order")
+        if any(
+            record.key == "logistics_application" and record.total_count
+            for record in inventory.records
+        ):
+            self.stdout.write(
+                "Logistics application inputs, decisions, grants and enrolled user are retained; the Business link becomes an ID snapshot only after all purge gates pass."
+            )
         for index, key in enumerate(PURGE_DELETION_ORDER, start=1):
             self.stdout.write(f"{index}. {key}")
 

@@ -14,6 +14,15 @@ from django.utils import timezone
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
+from apps.logistics.models import (
+    LogisticsApplication,
+    LogisticsApplicationDecision,
+    LogisticsCharge,
+    LogisticsEnrollmentToken,
+    Parcel,
+    ParcelEvent,
+    Shipment,
+)
 
 from .business_sessions import decode_session_data_safely
 from .models import (
@@ -24,6 +33,7 @@ from .models import (
     BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
+    DemoSeedRecord,
     SubscriptionNotification,
     UserOnboardingState,
     WeeklyAvailability,
@@ -217,6 +227,8 @@ class BusinessDataInventory:
     integrity_checks: tuple[IntegrityCheck, ...]
     billing_assessment: BillingAssessment
     summary: InventorySummary
+    business_vertical: str = Business.Vertical.SERVICE
+    logistics: dict[str, object] | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -226,6 +238,7 @@ class BusinessDataInventory:
                 "business_name": self.business_name,
                 "slug": self.business_slug,
                 "is_active": self.business_is_active,
+                "vertical": self.business_vertical,
             },
             "records": [record.to_dict() for record in self.records],
             "user_impact": [impact.to_dict() for impact in self.user_impact],
@@ -233,10 +246,67 @@ class BusinessDataInventory:
             "billing_assessment": self.billing_assessment.to_dict(),
             "summary": self.summary.to_dict(),
             "informational_only": True,
+            **({"logistics": self.logistics} if self.logistics is not None else {}),
         }
 
 
 DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
+    InventoryRegistration(
+        "logistics_charges",
+        "logistics.LogisticsCharge",
+        "business",
+        "Business.logistics_charges",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        True,
+    ),
+    InventoryRegistration(
+        "shipments",
+        "logistics.Shipment",
+        "business",
+        "Business.shipments",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+        "status",
+        ("DRAFT", "READY", "IN_TRANSIT", "ARRIVED"),
+    ),
+    InventoryRegistration(
+        "parcels",
+        "logistics.Parcel",
+        "business",
+        "Business.parcels",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
+    InventoryRegistration(
+        "parcel_events",
+        "logistics.ParcelEvent",
+        "business",
+        "Business.parcel_events",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
+    InventoryRegistration(
+        "logistics_profile",
+        "logistics.LogisticsProfile",
+        "business",
+        "Business.logistics_profile",
+        InventoryClassification.CASCADE,
+        False,
+        False,
+    ),
+    InventoryRegistration(
+        "logistics_application",
+        "logistics.LogisticsApplication",
+        "business",
+        "Business.logistics_application",
+        InventoryClassification.PROTECT_BLOCKER,
+        False,
+        False,
+    ),
     InventoryRegistration(
         "demo_seed_runs",
         "businesses.DemoSeedRun",
@@ -443,6 +513,38 @@ def build_business_data_inventory(business: Business | int) -> BusinessDataInven
     for registration in DIRECT_BUSINESS_RELATION_REGISTRY:
         records.append(_registered_record(registration, business_id))
 
+    # Retained enrollment/decision history is visible, never owned by tenant purge.
+    for key, queryset, path, classification in (
+        (
+            "logistics_application_decisions",
+            LogisticsApplicationDecision.objects.filter(application__business_id=business_id),
+            "Business.logistics_application -> decisions (retained)",
+            InventoryClassification.EXTERNAL_REFERENCE,
+        ),
+        (
+            "logistics_enrollment_tokens",
+            LogisticsEnrollmentToken.objects.filter(application__business_id=business_id),
+            "Business.logistics_application -> enrollment_tokens (retained)",
+            InventoryClassification.EXTERNAL_REFERENCE,
+        ),
+        (
+            "demo_seed_records",
+            DemoSeedRecord.objects.filter(seed_run__business_id=business_id),
+            "Business.demo_seed_run -> owned_records",
+            InventoryClassification.INDIRECT,
+        ),
+    ):
+        records.append(
+            _queryset_record(
+                key=key,
+                queryset=queryset,
+                relationship_path=path,
+                classification=classification,
+                explicit_deletion_required=False,
+                financially_or_legally_sensitive=key != "demo_seed_records",
+            )
+        )
+
     invoice_lines = InvoiceLine.objects.filter(invoice__business_id=business_id)
     records.append(
         _queryset_record(
@@ -574,7 +676,13 @@ def build_business_data_inventory(business: Business | int) -> BusinessDataInven
         total_directly_and_indirectly_owned_records=total_owned,
         shared_user_count=sum(impact.appears_shared for impact in user_impact),
         protected_or_system_user_count=protected_user_count,
-        protect_blocker_count=invoice_count,
+        protect_blocker_count=(
+            invoice_count
+            + record_by_key["parcels"].total_count
+            + record_by_key["parcel_events"].total_count
+            + record_by_key["shipments"].total_count
+            + record_by_key["logistics_application"].total_count
+        ),
         set_null_orphan_risk_count=set_null_count,
         cross_tenant_integrity_blocker_count=cross_tenant_blocker_count,
         correlated_webhook_event_count=webhook_count,
@@ -583,6 +691,11 @@ def build_business_data_inventory(business: Business | int) -> BusinessDataInven
         future_purge_readiness=readiness,
     )
 
+    logistics = None
+    if selected_business.vertical == Business.Vertical.LOGISTICS:
+        from apps.logistics.usage import logistics_operational_summary
+
+        logistics = logistics_operational_summary(business=selected_business)
     return BusinessDataInventory(
         business_id=business_id,
         business_name=selected_business.name,
@@ -593,6 +706,8 @@ def build_business_data_inventory(business: Business | int) -> BusinessDataInven
         integrity_checks=tuple(integrity_checks),
         billing_assessment=billing_assessment,
         summary=summary,
+        business_vertical=selected_business.vertical,
+        logistics=logistics,
     )
 
 
@@ -823,6 +938,9 @@ def _user_impact(
 
     impacts: list[UserImpact] = []
     protected_user_count = 0
+    from apps.logistics.inventory import retained_application_user_ids
+
+    retained_users = retained_application_user_ids(user_ids)
     for membership in memberships:
         user = membership.user
         other_count = other_membership_counts.get(user.pk, 0)
@@ -831,6 +949,7 @@ def _user_impact(
             or user.is_staff
             or user.is_superuser
             or user.pk in cross_business_operational_user_ids
+            or user.pk in retained_users
         )
         protected_user_count += int(mandatory_protection)
         impacts.append(
@@ -864,6 +983,10 @@ def _cross_business_user_references(
         (Client, "assigned_to_id", "business_id", "assigned_clients"),
         (ActivityLog, "actor_id", "business_id", "activity_logs"),
         (ImportJob, "created_by_id", "business_id", "import_jobs"),
+        (Parcel, "created_by_id", "business_id", "parcels"),
+        (Shipment, "created_by_id", "business_id", "shipments"),
+        (LogisticsCharge, "created_by_id", "business_id", "logistics_charges"),
+        (ParcelEvent, "actor_id", "business_id", "parcel_events"),
         (UserOnboardingState, "user_id", "business_id", "onboarding_states"),
         (
             SubscriptionNotification,
@@ -898,6 +1021,88 @@ def _cross_business_user_references(
 def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ...]:
     selected_members = BusinessUser.objects.filter(business_id=business_id).values("user_id")
     checks = (
+        _blocker_check(
+            "cross_tenant_logistics_conversion_snapshot",
+            "logistics.LogisticsApplication.business_id_snapshot -> Business.pk",
+            LogisticsApplication.objects.filter(
+                business_id=business_id, business_id_snapshot__isnull=False
+            )
+            .exclude(business_id_snapshot=business_id)
+            .count(),
+            "The retained conversion identity disagrees with its linked business.",
+        ),
+        _blocker_check(
+            "cross_tenant_parcel_shipment",
+            "logistics.Parcel.shipment -> logistics.Shipment.business",
+            Parcel.objects.filter(business_id=business_id, shipment__isnull=False)
+            .exclude(shipment__business_id=business_id)
+            .count(),
+            "Selected-business parcels reference shipments from another business.",
+        ),
+        _blocker_check(
+            "cross_tenant_external_parcel_shipment",
+            "other logistics.Parcel.shipment -> selected logistics.Shipment",
+            Parcel.objects.filter(shipment__business_id=business_id)
+            .exclude(business_id=business_id)
+            .count(),
+            "Another business has parcels referencing selected-business shipments.",
+        ),
+        _blocker_check(
+            "cross_tenant_shipment_creator",
+            "logistics.Shipment.created_by -> BusinessUser",
+            Shipment.objects.filter(business_id=business_id, created_by__isnull=False)
+            .exclude(created_by_id__in=selected_members)
+            .count(),
+            "Selected-business shipments reference creators without a membership.",
+        ),
+        _blocker_check(
+            "cross_tenant_parcel_client",
+            "logistics.Parcel.client -> crm.Client.business",
+            Parcel.objects.filter(business_id=business_id)
+            .exclude(client__business_id=business_id)
+            .count(),
+            "Selected-business parcels reference clients without the same business.",
+        ),
+        _blocker_check(
+            "cross_tenant_parcel_event",
+            "logistics.ParcelEvent.parcel -> logistics.Parcel.business",
+            ParcelEvent.objects.filter(business_id=business_id)
+            .exclude(parcel__business_id=business_id)
+            .count(),
+            "Selected-business events reference parcels without the same business.",
+        ),
+        _blocker_check(
+            "cross_tenant_external_parcel_client",
+            "other logistics.Parcel.client -> selected crm.Client",
+            Parcel.objects.filter(client__business_id=business_id)
+            .exclude(business_id=business_id)
+            .count(),
+            "Another business has parcels referencing selected-business clients.",
+        ),
+        _blocker_check(
+            "cross_tenant_external_parcel_event",
+            "other logistics.ParcelEvent.parcel -> selected logistics.Parcel",
+            ParcelEvent.objects.filter(parcel__business_id=business_id)
+            .exclude(business_id=business_id)
+            .count(),
+            "Another business has events referencing selected-business parcels.",
+        ),
+        _blocker_check(
+            "cross_tenant_parcel_creator",
+            "logistics.Parcel.created_by -> BusinessUser",
+            Parcel.objects.filter(business_id=business_id, created_by__isnull=False)
+            .exclude(created_by_id__in=selected_members)
+            .count(),
+            "Selected-business parcels reference creators without a membership.",
+        ),
+        _blocker_check(
+            "cross_tenant_parcel_actor",
+            "logistics.ParcelEvent.actor -> BusinessUser",
+            ParcelEvent.objects.filter(business_id=business_id, actor__isnull=False)
+            .exclude(actor_id__in=selected_members)
+            .count(),
+            "Selected-business parcel events reference actors without a membership.",
+        ),
         _blocker_check(
             "cross_tenant_invoice_client",
             "billings.Invoice.client -> crm.Client.business",
@@ -1104,7 +1309,65 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
             "Another business has invoice lines referencing selected-business services.",
         ),
     )
-    return checks
+    extra_checks = []
+    for model, owner, field, related_owner in (
+        (LogisticsCharge, "business_id", "client", "business_id"),
+        (LogisticsCharge, "business_id", "parcel", "business_id"),
+        (LogisticsCharge, "business_id", "shipment", "business_id"),
+        (LogisticsCharge, "business_id", "service", "business_id"),
+        (LogisticsCharge, "business_id", "invoice_line", "invoice__business_id"),
+        (InvoiceLine, "invoice__business_id", "parcel", "business_id"),
+        (InvoiceLine, "invoice__business_id", "shipment", "business_id"),
+    ):
+        path = f"{field}__{related_owner}"
+        for direction, qs in (
+            (
+                "outbound",
+                model.objects.filter(**{owner: business_id, f"{field}__isnull": False}).exclude(
+                    **{path: business_id}
+                ),
+            ),
+            (
+                "inbound",
+                model.objects.filter(**{path: business_id}).exclude(**{owner: business_id}),
+            ),
+        ):
+            extra_checks.append(
+                _blocker_check(
+                    f"cross_tenant_{model._meta.model_name}_{field}_{direction}",
+                    f"{model._meta.label}.{field}",
+                    qs.count(),
+                    "Billing references must remain inside one business.",
+                )
+            )
+    from django.db.models import F
+
+    for code, qs in (
+        (
+            "charge_parcel_client",
+            LogisticsCharge.objects.filter(business_id=business_id, parcel__isnull=False).exclude(
+                client_id=F("parcel__client_id")
+            ),
+        ),
+        (
+            "charge_invoice_client",
+            LogisticsCharge.objects.filter(
+                business_id=business_id, invoice_line__isnull=False
+            ).exclude(client_id=F("invoice_line__invoice__client_id")),
+        ),
+        (
+            "line_parcel_client",
+            InvoiceLine.objects.filter(
+                invoice__business_id=business_id, parcel__isnull=False
+            ).exclude(invoice__client_id=F("parcel__client_id")),
+        ),
+    ):
+        extra_checks.append(
+            _blocker_check(
+                f"cross_client_{code}", code, qs.count(), "Billing client references must agree."
+            )
+        )
+    return (*checks, *extra_checks)
 
 
 def _null_business_legacy_checks() -> tuple[IntegrityCheck, ...]:

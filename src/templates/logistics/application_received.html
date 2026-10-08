@@ -1,0 +1,11 @@
+{% extends "public_site/base.html" %}
+
+{% block content %}
+<section class="container py-5">
+  <h1>Application received</h1>
+  <p>Thank you for applying for Motionmate Logistics. We will contact you about the next steps.</p>
+  <p>If you already use Motionmate, sign in with your existing account. Contact Motionmate if you need help completing signup or resolving your workspace.</p>
+  <a href="{% url 'business_login' %}" class="btn btn-primary">Sign in to Motionmate</a>
+  <a href="{% url 'home' %}" class="btn btn-outline-primary">Return to Motionmate</a>
+</section>
+{% endblock %}

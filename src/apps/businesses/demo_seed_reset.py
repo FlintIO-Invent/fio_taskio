@@ -7,6 +7,7 @@ from django.db import models
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, Lead, ServiceCategory
+from apps.logistics.models import LogisticsCharge, Parcel, ParcelEvent, Shipment
 
 from .models import (
     Business,
@@ -65,8 +66,10 @@ def build_demo_seed_reset_plan(
     business: Business,
     seed_run: DemoSeedRun | None,
     lock: bool = False,
+    model_order: tuple[type[models.Model], ...] = RESET_MODEL_ORDER,
 ) -> DemoSeedResetPlan:
-    empty_pks = {model._meta.label: () for model in RESET_MODEL_ORDER}
+    models_by_label = {model._meta.label: model for model in model_order}
+    empty_pks = {label: () for label in models_by_label}
     if seed_run is None:
         return DemoSeedResetPlan(
             business_id=business.pk,
@@ -86,7 +89,7 @@ def build_demo_seed_reset_plan(
         )
     )
     unknown_labels = sorted(
-        {record["model_label"] for record in tracking_records} - set(RESET_MODELS_BY_LABEL)
+        {record["model_label"] for record in tracking_records} - set(models_by_label)
     )
     if unknown_labels:
         raise DemoSeedResetError(
@@ -94,7 +97,7 @@ def build_demo_seed_reset_plan(
             + ", ".join(unknown_labels)
         )
 
-    tracked_pks: dict[str, list[int]] = {label: [] for label in RESET_MODELS_BY_LABEL}
+    tracked_pks: dict[str, list[int]] = {label: [] for label in models_by_label}
     for record in tracking_records:
         try:
             object_pk = int(record["object_pk"])
@@ -111,7 +114,7 @@ def build_demo_seed_reset_plan(
     object_pks: dict[str, tuple[int, ...]] = {}
     stale_count = 0
     objects_by_label: dict[str, tuple[models.Model, ...]] = {}
-    for model in RESET_MODEL_ORDER:
+    for model in model_order:
         label = model._meta.label
         requested_pks = tuple(sorted(set(tracked_pks[label])))
         queryset = model._default_manager.filter(pk__in=requested_pks).order_by("pk")
@@ -141,16 +144,21 @@ def execute_demo_seed_reset(
     *,
     seed_run: DemoSeedRun,
     plan: DemoSeedResetPlan,
+    model_order: tuple[type[models.Model], ...] = RESET_MODEL_ORDER,
 ) -> DemoSeedResetResult:
     if str(seed_run.run_id) != plan.seed_run_id or seed_run.business_id != plan.business_id:
         raise DemoSeedResetError("Demo seed metadata changed before reset execution.")
 
     deleted_counts: dict[str, int] = {}
-    for model in RESET_MODEL_ORDER:
+    for model in model_order:
         label = model._meta.label
         pks = plan.object_pks[label]
         deleted_counts[label] = model._default_manager.filter(pk__in=pks).count()
-        model._default_manager.filter(pk__in=pks).delete()
+        queryset = model._default_manager.filter(pk__in=pks)
+        if model in (LogisticsCharge, ParcelEvent, Parcel, Shipment):
+            queryset._purge_delete()
+        else:
+            queryset.delete()
 
     deleted_tracking_records = DemoSeedRecord.objects.filter(seed_run=seed_run).count()
     DemoSeedRecord.objects.filter(seed_run=seed_run).delete()
@@ -186,7 +194,24 @@ def _object_business_id(obj: models.Model) -> int | None:
 
 def _validate_related_tenant_ids(*, obj: models.Model, business_id: int) -> None:
     related_business_ids: list[int | None] = []
-    if isinstance(obj, InvoiceLine):
+    if isinstance(obj, Parcel):
+        related_business_ids.append(obj.client.business_id)
+        if obj.shipment_id is not None:
+            related_business_ids.append(obj.shipment.business_id)
+    elif isinstance(obj, ParcelEvent):
+        related_business_ids.append(obj.parcel.business_id)
+    elif isinstance(obj, LogisticsCharge):
+        for name in ("client", "parcel", "shipment", "service"):
+            relation = getattr(obj, name)
+            if relation is not None:
+                related_business_ids.append(relation.business_id)
+        if obj.invoice_line_id:
+            related_business_ids.append(obj.invoice_line.invoice.business_id)
+    elif isinstance(obj, InvoiceLine):
+        for name in ("parcel", "shipment"):
+            relation = getattr(obj, name)
+            if relation is not None:
+                related_business_ids.append(relation.business_id)
         if obj.service_id is not None:
             related_business_ids.append(obj.service.business_id)
     elif isinstance(obj, Invoice):
@@ -215,8 +240,78 @@ def _validate_related_tenant_ids(*, obj: models.Model, business_id: int) -> None
 
 
 def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -> None:
-    owned = {label: set(pks) for label, pks in object_pks.items()}
+    owned = {
+        model._meta.label: set()
+        for model in (
+            *RESET_MODEL_ORDER,
+            LogisticsCharge,
+            ParcelEvent,
+            Parcel,
+            Shipment,
+            ActivityLog,
+        )
+    }
+    owned.update({label: set(pks) for label, pks in object_pks.items()})
     blockers: list[str] = []
+
+    for description, queryset, label in (
+        (
+            "logistics.Parcel.client -> seeded client",
+            Parcel.objects.filter(client_id__in=owned[Client._meta.label]),
+            Parcel._meta.label,
+        ),
+        (
+            "logistics.Parcel.shipment -> seeded shipment",
+            Parcel.objects.filter(shipment_id__in=owned[Shipment._meta.label]),
+            Parcel._meta.label,
+        ),
+        (
+            "logistics.ParcelEvent.parcel -> seeded parcel",
+            ParcelEvent.objects.filter(parcel_id__in=owned[Parcel._meta.label]),
+            ParcelEvent._meta.label,
+        ),
+    ):
+        _append_unowned_blocker(
+            blockers, description=description, queryset=queryset, owned_pks=owned[label]
+        )
+    for model, field, target in (
+        (LogisticsCharge, "parcel", Parcel),
+        (LogisticsCharge, "shipment", Shipment),
+        (LogisticsCharge, "client", Client),
+        (LogisticsCharge, "service", BusinessService),
+        (LogisticsCharge, "invoice_line", InvoiceLine),
+        (InvoiceLine, "parcel", Parcel),
+        (InvoiceLine, "shipment", Shipment),
+    ):
+        _append_unowned_blocker(
+            blockers,
+            description=f"{model._meta.label}.{field} -> seeded {target._meta.label}",
+            queryset=model.objects.filter(**{f"{field}_id__in": owned[target._meta.label]}),
+            owned_pks=owned[model._meta.label],
+        )
+    for charge in LogisticsCharge.objects.filter(pk__in=owned[LogisticsCharge._meta.label]):
+        for name, model in (
+            ("parcel", Parcel),
+            ("shipment", Shipment),
+            ("client", Client),
+            ("service", BusinessService),
+            ("invoice_line", InvoiceLine),
+        ):
+            value = getattr(charge, f"{name}_id")
+            if value is not None and value not in owned[model._meta.label]:
+                blockers.append(f"seeded charge -> genuine {name}")
+    if (
+        ParcelEvent.objects.filter(pk__in=owned[ParcelEvent._meta.label])
+        .exclude(parcel_id__in=owned[Parcel._meta.label])
+        .exists()
+    ):
+        blockers.append("seeded event -> genuine parcel")
+    if (
+        Parcel.objects.filter(pk__in=owned[Parcel._meta.label], shipment__isnull=False)
+        .exclude(shipment_id__in=owned[Shipment._meta.label])
+        .exists()
+    ):
+        blockers.append("seeded parcel -> genuine shipment")
 
     _append_unowned_blocker(
         blockers,
@@ -258,7 +353,7 @@ def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -
         blockers,
         description="crm.ActivityLog.client -> seeded client",
         queryset=ActivityLog.objects.filter(client_id__in=owned[Client._meta.label]),
-        owned_pks=set(),
+        owned_pks=owned[ActivityLog._meta.label],
     )
     _append_unowned_blocker(
         blockers,

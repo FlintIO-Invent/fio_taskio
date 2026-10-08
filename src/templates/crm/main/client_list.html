@@ -283,7 +283,12 @@
             {% empty %}
             <tr>
               <td colspan="8" class="text-center py-6 text-body-tertiary">
-                No clients found for the selected filters.
+                {% if module_capabilities.parcels %}
+                  No clients match this view. Add your first client to register parcels and invoice charges, or adjust the filters.
+                  {% if role_access.can_manage_clients and workspace_can_modify %}<a href="{% url 'staff_client_create' %}">Add Client</a>{% endif %}
+                {% else %}
+                  No clients found for the selected filters.
+                {% endif %}
               </td>
             </tr>
             {% endfor %}

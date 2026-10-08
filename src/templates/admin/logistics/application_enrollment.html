@@ -1,0 +1,16 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p>{{ application }} — revision {{ application.revision }}</p>
+{% if error %}<p class="errornote">{{ error }}</p>{% endif %}
+{% if enrollment_link %}
+  <p>Deliver this link privately to the approved applicant's email address. It verifies control of that address for a new account. It expires in seven days and is shown only here.</p>
+  <p><code>{{ enrollment_link }}</code></p>
+{% endif %}
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="revision" value="{{ application.revision }}">
+  <button type="submit" name="action" value="issue">Issue / replace enrollment link</button>
+  <button type="submit" name="action" value="revoke">Revoke enrollment links</button>
+</form>
+{% endblock %}

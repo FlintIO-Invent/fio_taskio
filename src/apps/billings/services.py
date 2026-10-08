@@ -3,10 +3,13 @@ from __future__ import annotations
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING
 
+from django.db import transaction
+
+from apps.businesses.models import Business
 from apps.crm.models import ActivityLog, Client, Lead
 from apps.crm.services import log_activity
 
-from .models import Invoice
+from .models import Invoice, InvoiceLine
 
 if TYPE_CHECKING:
     from apps.appointments.models import Appointment
@@ -72,6 +75,7 @@ def _client_from_lead(lead: Lead) -> Client:
     return client
 
 
+@transaction.atomic
 def create_invoice_for_client(
     *,
     actor,
@@ -83,6 +87,8 @@ def create_invoice_for_client(
     business = client.business or (lead.business if lead is not None else None)
     if business is None:
         raise ValueError("Invoices require a business-scoped client or lead.")
+
+    business = Business.objects.select_for_update().get(pk=business.pk)
 
     if appointment is not None:
         if appointment.business_id != business.id:
@@ -123,3 +129,14 @@ def create_invoice_for_client(
 def create_invoice_from_lead(*, actor, lead: Lead) -> Invoice:
     client = _client_from_lead(lead)
     return create_invoice_for_client(actor=actor, client=client, lead=lead)
+
+
+def recalculate_invoice_totals(invoice: Invoice) -> None:
+    subtotal = sum(
+        (line.line_total for line in InvoiceLine.objects.filter(invoice=invoice)),
+        start=Decimal("0.00"),
+    )
+    invoice.subtotal = subtotal
+    invoice.tax = calculate_tax_amount(subtotal=subtotal, tax_rate=invoice.business.tax_rate)
+    invoice.total = subtotal + invoice.tax
+    invoice.save(update_fields=["subtotal", "tax", "total"])

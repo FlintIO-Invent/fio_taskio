@@ -1,0 +1,103 @@
+# Logistics applications (Block 3)
+
+The public page is `/logistics/apply/`. A valid submission creates a
+`LogisticsApplication` and an immutable decision record. With pilot auto-approval
+enabled, new applicants set and confirm a Django-validated password and approved
+applications convert through the shared Block 4 provisioning routine. The new owner
+is logged in, their Business is selected, and they reach payment onboarding at the
+Logistics dashboard. Signup never calls Stripe or grants unpaid operational access.
+Passwords are transient signup fields, absent from application and decision data.
+
+Applicants choosing **I already have a Motionmate account**, existing-user emails,
+strict-mode submissions and conversion failures receive the generic
+`/logistics/apply/received/` sign-in/contact response. Existing-account passwords are
+neither changed nor used as ownership authority. Reviewer-issued secure enrollment
+remains available; identity matches and decision reasons stay internal.
+
+Application statuses are SUBMITTED, APPROVED, UNDER_REVIEW, DECLINED and WITHDRAWN.
+Decisions do not encode payment/enrollment state. `LogisticsApplicationDecision` records
+each evaluation/manual decision, its application revision, result and deterministic
+recommendation, ordered reason codes, time, rule/config snapshot, relevant operational
+inputs, relationship flags, and reviewer/reason for overrides. Reviewer IDs are also
+snapshotted so deletion of a reviewer does not erase audit attribution.
+
+Material changes through `save()` (including Django Admin) increment the revision
+and evaluate again in the same transaction. A manual approval does not survive
+changes without reevaluation. `approved_revision` is set only by the new decision;
+reviewing a stale revision fails. Decision/status fields are read-only in forms and
+cannot be assigned through ordinary model saves. Do not use bulk updates/raw SQL to
+edit application inputs or audit history; future enrollment must revalidate the
+stored approved revision. Block 4 enrollment is documented in [LOGISTICS_ENROLLMENT.md](LOGISTICS_ENROLLMENT.md).
+
+## Pilot eligibility configuration
+
+Typed configuration follows the existing environment settings pattern:
+
+`LOGISTICS_AUTO_APPROVE_ALL=True` is the pilot default. Every valid application is
+approved automatically, including high-volume, complex, unsupported-territory and
+relationship/duplicate review signals. The existing evaluator still calculates
+ordered advisory reason codes and resource classification. Decision history keeps
+its strict recommendation in `evaluated_result`, the actual approval in `result`,
+and `auto_approve_all` in the configuration snapshot. Manual decisions remain
+authoritative; reevaluation applies the current pilot setting.
+
+Approved new-user pilot signups provision without an enrollment token. Existing
+identities and reviewed applications continue through reviewer-issued Block 4
+enrollment. Both paths share atomic conversion and the existing identity/workspace,
+revision, offering-family and annual checkout safeguards. Strict mode omits signup
+password fields and never provisions during public application submission.
+
+Set `LOGISTICS_AUTO_APPROVE_ALL=False` to restore the strict rules below. Changing
+the setting affects new evaluations; use reevaluation for existing applications.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| LOGISTICS_AUTO_APPROVE_ALL | True | Approve valid applications with advisory reasons; False enables strict review |
+| LOGISTICS_RULE_VERSION | pilot-v1 | Evaluator rule version |
+| LOGISTICS_AUTO_APPROVE_MONTHLY_PARCELS | 1000 | Ordinary-volume band |
+| LOGISTICS_REVIEW_ABOVE_MONTHLY_PARCELS | 5000 | Mandatory volume review above this value |
+| LOGISTICS_HIGH_RESOURCE_MONTHLY_PARCELS | 10000 | Mandatory high-resource review at/above this value |
+| LOGISTICS_AUTO_APPROVE_STAFF_COUNT | 10 | Staff threshold |
+| LOGISTICS_AUTO_APPROVE_LOCATION_COUNT | 1 | Location/branch threshold |
+| LOGISTICS_SUPPORTED_TERRITORIES | empty | Comma-separated or JSON country/territory names eligible for automatic approval |
+| LOGISTICS_REGISTRATION_REQUIRED_FOR_AUTO_APPROVAL | True | Missing company registration sends the application to review |
+
+In strict mode, empty or unknown territories review;
+country matching ignores case, spacing and punctuation. A registration number remains
+optional on the form: its absence can request further review rather than reject intake.
+Thresholds are eligibility decisions, not commercial limits, pricing or cost estimates.
+Configuration validates `auto <= review < high-resource` before use; every decision
+stores its complete snapshot, so threshold changes do not rewrite historical audits.
+
+Up to 1000 parcels and the 1001–5000 band both approve when every other dimension is
+simple and supported. Above 5000 reviews. At 10000+ high-resource review is also
+recorded. High staff/location counts, custom workflow/details, multi-jurisdiction,
+API/integration, custom pricing, relationship/duplicate matches, missing required
+registration or unsupported territory all review. Standard tracking and manifests
+are ordinary features. High volume with those requirements, middle-band custom/API
+requirements, and unknown operation/process types record HIGH_RESOURCE_INTENSITY.
+There are no financial cost coefficients or automatic declines in this pilot.
+
+## Internal review and inventory
+
+Django Admin provides application details, current reasons and decision history.
+The **Review decision** page requires the existing Django change permission. Manual
+approve/decline requires a reason and the displayed application revision. Reevaluate
+applies current rules and records a new decision with the requesting reviewer.
+Reviewers can also record an applicant's withdrawal with a reason; withdrawn
+applications are excluded from active duplicate checks and cannot be edited/reopened.
+None of these actions provisions
+an account, starts billing or sends applicant notifications.
+
+`inspect_logistics_application --application-id <uuid>` provides a read-only inventory
+without contact details. Converted applications now have explicit protected Business/User
+links; unconverted applications have none. Matching an email/name is only an eligibility signal and never a purge selector.
+Application deletion is blocked by decision PROTECT; Admin deletion is disabled.
+The nullable conversion link is registered in tenant inventory and protects
+ordinary Business deletion. Controlled purge retains application history and
+releases only the Business FK into a conversion identity snapshot (Block 11).
+Existing SERVICE tenant and demo behavior is unchanged.
+
+Checkout and operational workflows are implemented. Commercial activation and
+delivery of private enrollment grants must be configured before accepting payments.
+Application decision/approval notification delivery remains manual.

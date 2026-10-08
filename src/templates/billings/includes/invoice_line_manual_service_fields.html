@@ -1,3 +1,4 @@
+{% if module_capabilities.services %}
 <div class="col-12">
   <div class="row g-3 align-items-end manual-service-options{% if line.service_id %} d-none{% endif %}">
     <div class="col-md-3">
@@ -22,3 +23,4 @@
     </div>
   </div>
 </div>
+{% endif %}

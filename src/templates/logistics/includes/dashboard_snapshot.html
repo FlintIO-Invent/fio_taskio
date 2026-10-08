@@ -1,0 +1,201 @@
+{% load money %}
+<div class="logistics-dashboard">
+  {% if subscription_access_state.local_billing_bypass_active %}
+    <div class="alert alert-subtle-warning py-2 fs-9 mb-4" role="status">LOCAL DEVELOPMENT — billing bypass active</div>
+  {% endif %}
+  <div class="mb-3">
+    <h3 class="mb-1">Logistics operations</h3>
+    <p class="text-body-tertiary fs-9 mb-0">Parcel movement and shipment activity at a glance.</p>
+  </div>
+  <div class="row g-3 mb-4">
+    {% if dashboard_parcels_enabled %}
+      {% with total=parcel_count|stringformat:'s' %}
+        {% include 'logistics/includes/kpi_card.html' with label='Active Parcels' value=active_parcel_count icon='fa-box' tone='primary' description=total|add:' registered in total.' only %}
+      {% endwith %}
+      {% include 'logistics/includes/kpi_card.html' with label='Received / Waiting' value=received_waiting_parcel_count icon='fa-inbox' tone='warning' description='Registered or received.' only %}
+      {% include 'logistics/includes/kpi_card.html' with label='In Transit' value=in_transit_parcel_count icon='fa-truck' tone='info' description='Parcels on the move.' only %}
+      {% include 'logistics/includes/kpi_card.html' with label='Ready' value=ready_parcel_count icon='fa-box-open' tone='success' description='For collection / delivery.' only %}
+    {% endif %}
+    {% if dashboard_shipments_enabled %}
+      {% include 'logistics/includes/kpi_card.html' with label='Active Shipments' value=active_shipment_count icon='fa-ship' tone='primary' description='Draft, ready, in transit or arrived.' onboarding_target='shipments' only %}
+    {% endif %}
+    {% if dashboard_parcels_enabled %}
+      {% with zone=current_business.timezone %}
+        {% include 'logistics/includes/kpi_card.html' with label='Delivered This Month' value=delivered_this_month_count icon='fa-circle-check' tone='success' description='Calendar month in '|add:zone|add:'.' only %}
+      {% endwith %}
+    {% endif %}
+  </div>
+
+  {% if dashboard_invoices_enabled %}
+    <section class="mb-4 p-0" aria-labelledby="logistics-finance-heading" data-onboarding-target="invoices">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+          <h4 class="mb-1" id="logistics-finance-heading">Finance overview</h4>
+          <p class="text-body-tertiary fs-9 mb-0">Invoice values in {{ current_business.currency }}. Monthly totals use {{ current_business.timezone }}.</p>
+        </div>
+        <a class="btn btn-sm btn-phoenix-primary" href="{% url 'invoice_list' %}"><span class="fa-solid fa-file-invoice-dollar me-2" aria-hidden="true"></span>View Invoices</a>
+      </div>
+      <div class="row g-3">
+        {% include 'logistics/includes/kpi_card.html' with label='Invoiced This Month' value=invoiced_this_month_total|money:current_business icon='fa-chart-line' tone='primary' description='Sent and paid invoices created this calendar month.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Invoices' value=outstanding_invoice_total|money:current_business icon='fa-hourglass-half' tone='warning' description='Unpaid sent invoices, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Paid Invoice Value' value=paid_invoice_total|money:current_business icon='fa-circle-check' tone='success' description='Invoices marked paid, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Draft Invoice Value' value=draft_invoice_total|money:current_business icon='fa-file-circle-plus' tone='info' description='Draft invoices awaiting issue, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+      </div>
+    </section>
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">
+      <h4 class="mb-0"><span class="fa-solid fa-bolt text-body-tertiary me-2" aria-hidden="true"></span>Quick Actions</h4>
+    </div>
+    <div class="card-body d-flex flex-wrap gap-2">
+      {% if role_access.can_manage_parcels and module_write_access.parcels %}
+        <a class="btn btn-primary" href="{% url 'logistics_parcel_register' %}"><span class="fa-solid fa-plus me-2" aria-hidden="true"></span>Register Parcel</a>
+      {% endif %}
+      {% if role_access.can_manage_shipments and module_write_access.shipments %}
+        <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_create' %}"><span class="fa-solid fa-ship me-2" aria-hidden="true"></span>Create Shipment</a>
+      {% endif %}
+      {% if role_access.can_manage_clients and workspace_can_modify %}
+        <a class="btn btn-phoenix-primary" href="{% url 'staff_client_create' %}"><span class="fa-solid fa-user-plus me-2" aria-hidden="true"></span>Add Client</a>
+      {% endif %}
+      {% if dashboard_parcels_enabled %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_list' %}"><span class="fa-solid fa-box me-2" aria-hidden="true"></span>View Parcels</a>
+      {% endif %}
+      {% if module_access.tracking %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'logistics_public_tracking' %}"><span class="fa-solid fa-magnifying-glass me-2" aria-hidden="true"></span>Public Tracking</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if dashboard_parcels_enabled %}
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-xl-4">
+        <div class="card h-100" data-onboarding-target="parcels">
+          <div class="card-header">
+            <h4 class="mb-1"><span class="fa-solid fa-boxes-stacked text-body-tertiary me-2" aria-hidden="true"></span>Parcels by current status</h4>
+            <p class="text-body-tertiary fs-9 mb-0">Current parcel distribution.</p>
+          </div>
+          <div class="card-body">
+            {% if not parcel_count %}
+              <div class="text-center py-3">
+                <span class="fa-solid fa-box-open text-body-tertiary mb-3" aria-hidden="true"></span>
+                <p class="fw-semibold mb-1">No parcels yet.</p>
+                <p class="text-body-tertiary fs-9 mb-0">Add a client, then register their first parcel to start tracking.</p>
+              </div>
+            {% endif %}
+            <dl class="mb-0">{% for item in parcel_status_counts %}
+              <div class="d-flex justify-content-between align-items-center gap-2 py-2 border-bottom border-translucent">
+                <dt class="fw-normal">{% include 'logistics/includes/status_badge.html' with status=item.status label=item.label %}</dt>
+                <dd class="fw-semibold text-body-emphasis mb-0">{{ item.count }}</dd>
+              </div>
+            {% endfor %}</dl>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-xl-8">
+        <div class="card h-100">
+          <div class="card-header">
+            <h4 class="mb-1"><span class="fa-solid fa-clock-rotate-left text-body-tertiary me-2" aria-hidden="true"></span>Recent Parcel Activity</h4>
+            <p class="text-body-tertiary fs-9 mb-0">Latest updates across your parcels.</p>
+          </div>
+          <div class="card-body p-0">
+            <ul class="list-group list-group-flush">{% for event in recent_tracking_events %}
+              <li class="list-group-item px-3 py-3">
+                <div class="d-flex align-items-start gap-3">
+                  <span class="fa-solid {% if event.status %}fa-circle-dot text-primary{% else %}fa-message text-body-tertiary{% endif %} mt-1 flex-shrink-0" aria-hidden="true"></span>
+                  <div class="logistics-min-w-0 flex-grow-1">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
+                      <a class="logistics-tracking-code fw-semibold" href="{% url 'logistics_parcel_detail' event.parcel_id %}">{{ event.parcel.tracking_code }}</a>
+                      <time class="text-body-tertiary fs-10" datetime="{{ event.timestamp|date:'c' }}">{{ event.timestamp|date:"M j, Y H:i" }}</time>
+                    </div>
+                    {% if event.status %}{% include 'logistics/includes/status_badge.html' with status=event.status label=event.get_status_display %}{% else %}<span class="fs-9 text-body-secondary">{{ event.get_event_type_display }}</span>{% endif %}
+                    {% if event.public_message %}<p class="text-body-secondary fs-9 mb-0 mt-2">{{ event.public_message }}</p>{% endif %}
+                  </div>
+                </div>
+              </li>
+            {% empty %}
+              <li class="list-group-item text-center py-5">
+                <span class="fa-solid fa-clock-rotate-left text-body-tertiary mb-3" aria-hidden="true"></span>
+                <p class="fw-semibold mb-1">No recent parcel activity.</p>
+                <p class="text-body-tertiary fs-9 mb-3">Register a parcel to begin its history.</p>
+                {% if role_access.can_manage_parcels and module_write_access.parcels %}
+                  <a class="btn btn-phoenix-primary btn-sm" href="{% url 'logistics_parcel_register' %}"><span class="fa-solid fa-plus me-2" aria-hidden="true"></span>Register Parcel</a>
+                {% endif %}
+              </li>
+            {% endfor %}</ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    {% if dashboard_shipments_enabled %}
+      <div class="col-12 col-xl-6">
+        <div class="card h-100">
+          <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="logistics-min-w-0">
+              <h4 class="mb-1"><span class="fa-solid fa-ship text-body-tertiary me-2" aria-hidden="true"></span>Active Shipments</h4>
+              <p class="text-body-tertiary fs-9 mb-0">Current movements and preparations.</p>
+            </div>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'logistics_shipment_list' %}">View Shipments</a>
+          </div>
+          <div class="card-body p-0">
+            <ul class="list-group list-group-flush">{% for shipment in active_shipments %}
+              <li class="list-group-item px-3 py-3">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
+                  <a class="logistics-tracking-code fw-semibold" href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a>
+                  {% include 'logistics/includes/status_badge.html' with status=shipment.status label=shipment.get_status_display %}
+                  {% include 'logistics/includes/transport_mode_badge.html' with mode=shipment.transport_mode label=shipment.get_transport_mode_display %}
+                </div>
+                <p class="text-body-tertiary fs-9 mb-0">{{ shipment.origin }} → {{ shipment.destination }}</p>
+              </li>
+            {% empty %}
+              <li class="list-group-item text-center py-5">
+                <span class="fa-solid fa-ship text-body-tertiary mb-3" aria-hidden="true"></span>
+                <p class="fw-semibold mb-1">No active shipments.</p>
+                <p class="text-body-tertiary fs-9 mb-3">Group parcels for movement when needed.</p>
+                {% if role_access.can_manage_shipments and module_write_access.shipments %}
+                  <a class="btn btn-phoenix-primary btn-sm" href="{% url 'logistics_shipment_create' %}"><span class="fa-solid fa-plus me-2" aria-hidden="true"></span>Create Shipment</a>
+                {% endif %}
+              </li>
+            {% endfor %}</ul>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+    {% if dashboard_parcels_enabled %}
+      <div class="col-12 col-xl-6">
+        <div class="card h-100">
+          <div class="card-header">
+            <h4 class="mb-1"><span class="fa-solid fa-triangle-exclamation text-warning me-2" aria-hidden="true"></span>Parcels Requiring Attention</h4>
+            <p class="text-body-tertiary fs-9 mb-0">On hold or awaiting shipment, oldest first.</p>
+          </div>
+          <div class="card-body p-0">
+            <ul class="list-group list-group-flush">{% for parcel in parcels_requiring_attention %}
+              <li class="list-group-item px-3 py-3">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
+                  <a class="logistics-tracking-code fw-semibold" href="{% url 'logistics_parcel_detail' parcel.pk %}">{{ parcel.tracking_code }}</a>
+                  {% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}
+                </div>
+                <p class="text-body-tertiary fs-9 mb-0">{{ parcel.client }}</p>
+              </li>
+            {% empty %}
+              <li class="list-group-item text-center py-5">
+                <span class="fa-solid fa-circle-check text-success mb-3" aria-hidden="true"></span>
+                <p class="fw-semibold mb-1">No parcels require attention.</p>
+                <p class="text-body-tertiary fs-9 mb-0">No parcels are on hold or awaiting shipment.</p>
+              </li>
+            {% endfor %}</ul>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+<style>
+  .logistics-dashboard { min-width: 0; overflow-wrap: anywhere; }
+  .logistics-dashboard .logistics-min-w-0 { min-width: 0; }
+  .logistics-dashboard .logistics-tracking-code { overflow-wrap: anywhere; }
+  .logistics-dashboard .badge { white-space: normal; text-align: start; }
+</style>

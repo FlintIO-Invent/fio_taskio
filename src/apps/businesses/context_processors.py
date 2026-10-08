@@ -1,3 +1,7 @@
+from apps.logistics.parcel_policy import PARCEL_MANAGE_ROLES
+from apps.logistics.shipment_policy import SHIPMENT_MANAGE_ROLES
+
+from .capabilities import business_has_capability
 from .utils import (
     APPOINTMENT_MANAGE_ROLES,
     APPOINTMENT_VIEW_ROLES,
@@ -34,12 +38,19 @@ def current_business(request):
     workspace_is_restricted = business_has_restricted_subscription(business)
 
     module_access = {
+        "tracking": can_view_module(business, "tracking"),
+        "parcels": can_view_module(business, "parcels") and can_view_module(business, "tracking"),
+        "shipments": can_view_module(business, "shipments"),
+        "manifests": can_view_module(business, "shipments")
+        and can_view_module(business, "manifests"),
         "invoicing": can_view_module(business, "invoicing"),
         "appointments": can_view_module(business, "appointments"),
         "public_booking": can_view_module(business, "public_booking"),
         "public_request_form": can_view_module(business, "public_booking"),
     }
     module_write_access = {
+        "parcels": can_use_module(business, "parcels") and can_use_module(business, "tracking"),
+        "shipments": can_use_module(business, "shipments"),
         "invoicing": can_use_module(business, "invoicing"),
         "appointments": can_use_module(business, "appointments"),
         "public_booking": can_use_module(business, "public_booking"),
@@ -52,6 +63,8 @@ def current_business(request):
         "can_manage_subscription": membership_has_any_role(membership, ("owner",)),
         "can_manage_clients": membership_has_any_role(membership, CLIENT_MANAGE_ROLES),
         "can_delete_clients": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
+        "can_manage_shipments": membership_has_any_role(membership, SHIPMENT_MANAGE_ROLES),
+        "can_manage_parcels": membership_has_any_role(membership, PARCEL_MANAGE_ROLES),
         "can_manage_leads": membership_has_any_role(membership, LEAD_MANAGE_ROLES),
         "can_view_appointments": membership_has_any_role(membership, APPOINTMENT_VIEW_ROLES),
         "can_manage_appointments": membership_has_any_role(membership, APPOINTMENT_MANAGE_ROLES),
@@ -78,6 +91,10 @@ def current_business(request):
         "workspace_is_restricted": workspace_is_restricted,
         "subscription_is_trialing": business_is_trialing(business),
         "module_access": module_access,
+        "module_capabilities": {
+            key: business_has_capability(business, key)
+            for key in ("services", "service_requests", "appointments", "public_booking", "parcels")
+        },
         "module_write_access": module_write_access,
         "role_access": role_access,
     }

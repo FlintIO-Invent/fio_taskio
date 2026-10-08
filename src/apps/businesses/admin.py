@@ -1,4 +1,10 @@
+import json
+
+from django import forms
 from django.contrib import admin
+from django.core.exceptions import ValidationError
+from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
 
 from .models import (
     BillingProviderWebhookEvent,
@@ -18,6 +24,19 @@ admin.site.site_title = "Motionmate Admin"
 admin.site.index_title = "Motionmate Administration"
 
 
+class LogisticsApplicationLinkFilter(admin.SimpleListFilter):
+    title = "Logistics application"
+    parameter_name = "logistics_application_link"
+
+    def lookups(self, request, model_admin):
+        return (("linked", "Linked"), ("unlinked", "Unlinked"))
+
+    def queryset(self, request, queryset):
+        if self.value() in {"linked", "unlinked"}:
+            return queryset.filter(logistics_application__isnull=self.value() == "unlinked")
+        return queryset
+
+
 @admin.register(Business)
 class BusinessAdmin(admin.ModelAdmin):
     deletion_workflow_notice = (
@@ -27,6 +46,10 @@ class BusinessAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "slug",
+        "vertical",
+        "logistics_parcel_count",
+        "logistics_shipment_count",
+        "logistics_application_link",
         "subscription_plan",
         "subscription_status",
         "email",
@@ -36,7 +59,7 @@ class BusinessAdmin(admin.ModelAdmin):
         "is_active",
         "updated_at",
     )
-    list_filter = ("is_active", "currency", "country")
+    list_filter = ("vertical", LogisticsApplicationLinkFilter, "is_active", "currency", "country")
     search_fields = (
         "name",
         "slug",
@@ -48,7 +71,48 @@ class BusinessAdmin(admin.ModelAdmin):
         "postal_code",
     )
     prepopulated_fields = {"slug": ("name",)}
-    readonly_fields = ("deletion_workflow_guidance",)
+    readonly_fields = ("deletion_workflow_guidance", "logistics_resource_summary")
+
+    def get_queryset(self, request):
+        from apps.logistics.models import Parcel, Shipment
+
+        def tenant_count(model):
+            counts = (
+                model.objects.filter(business_id=OuterRef("pk"))
+                .order_by()
+                .values("business_id")
+                .annotate(total=Count("pk"))
+                .values("total")
+            )
+            return Coalesce(Subquery(counts, output_field=IntegerField()), Value(0))
+
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("subscription__plan", "logistics_application")
+            .annotate(_parcel_count=tenant_count(Parcel), _shipment_count=tenant_count(Shipment))
+        )
+
+    @admin.display(description="Parcels", ordering="_parcel_count")
+    def logistics_parcel_count(self, obj):
+        return obj._parcel_count if obj.vertical == Business.Vertical.LOGISTICS else "—"
+
+    @admin.display(description="Shipments", ordering="_shipment_count")
+    def logistics_shipment_count(self, obj):
+        return obj._shipment_count if obj.vertical == Business.Vertical.LOGISTICS else "—"
+
+    @admin.display(description="Logistics application")
+    def logistics_application_link(self, obj):
+        application = getattr(obj, "logistics_application", None)
+        return str(application.pk) if application else "—"
+
+    @admin.display(description="Logistics resources (internal review only)")
+    def logistics_resource_summary(self, obj=None):
+        if obj is None or obj.pk is None or obj.vertical != Business.Vertical.LOGISTICS:
+            return "—"
+        from apps.logistics.usage import logistics_operational_summary
+
+        return json.dumps(logistics_operational_summary(business=obj), sort_keys=True, indent=2)
 
     def has_delete_permission(self, request, obj=None) -> bool:
         return False
@@ -72,8 +136,34 @@ class BusinessAdmin(admin.ModelAdmin):
         return subscription.get_status_display()
 
 
+class CommercialPlanAdminForm(forms.ModelForm):
+    class Meta:
+        model = ClarivoPlan
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("family") == ClarivoPlan.Family.LOGISTICS and cleaned.get("is_active"):
+            from apps.logistics.billing import validate_offering_activation
+
+            from .stripe_config import StripeConfigurationError
+
+            candidate = ClarivoPlan(
+                family=cleaned["family"],
+                slug=cleaned.get("slug"),
+                price_yearly=cleaned.get("price_yearly"),
+                regional_prices=cleaned.get("regional_prices"),
+            )
+            try:
+                validate_offering_activation(candidate)
+            except StripeConfigurationError as exc:
+                raise ValidationError(str(exc)) from exc
+        return cleaned
+
+
 @admin.register(ClarivoPlan)
 class ClarivoPlanAdmin(admin.ModelAdmin):
+    form = CommercialPlanAdminForm
     list_display = (
         "name",
         "slug",
@@ -102,6 +192,7 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
         "business",
         "plan",
         "status",
+        "logistics_approval_review_required",
         "provisioning_source",
         "payment_provider",
         "billing_interval",
@@ -115,6 +206,7 @@ class BusinessSubscriptionAdmin(admin.ModelAdmin):
     )
     list_filter = (
         "status",
+        "logistics_approval_review_required",
         "provisioning_source",
         "payment_provider",
         "billing_interval",
