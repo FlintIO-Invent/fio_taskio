@@ -76,6 +76,8 @@ def _record_decision(application, *, result=None, actor=None, override_reason=""
         if key
         in {
             "country",
+            "operating_areas",
+            "transportation_modes",
             "operation_type",
             "monthly_parcel_estimate",
             "expected_staff_count",

@@ -1,3 +1,4 @@
+{% load money %}
 <div class="logistics-dashboard">
   {% if subscription_access_state.local_billing_bypass_active %}
     <div class="alert alert-subtle-warning py-2 fs-9 mb-4" role="status">LOCAL DEVELOPMENT — billing bypass active</div>
@@ -24,6 +25,24 @@
       {% endwith %}
     {% endif %}
   </div>
+
+  {% if dashboard_invoices_enabled %}
+    <section class="mb-4 p-0" aria-labelledby="logistics-finance-heading" data-onboarding-target="invoices">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+          <h4 class="mb-1" id="logistics-finance-heading">Finance overview</h4>
+          <p class="text-body-tertiary fs-9 mb-0">Invoice values in {{ current_business.currency }}. Monthly totals use {{ current_business.timezone }}.</p>
+        </div>
+        <a class="btn btn-sm btn-phoenix-primary" href="{% url 'invoice_list' %}"><span class="fa-solid fa-file-invoice-dollar me-2" aria-hidden="true"></span>View Invoices</a>
+      </div>
+      <div class="row g-3">
+        {% include 'logistics/includes/kpi_card.html' with label='Invoiced This Month' value=invoiced_this_month_total|money:current_business icon='fa-chart-line' tone='primary' description='Sent and paid invoices created this calendar month.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Invoices' value=outstanding_invoice_total|money:current_business icon='fa-hourglass-half' tone='warning' description='Unpaid sent invoices, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Paid Invoice Value' value=paid_invoice_total|money:current_business icon='fa-circle-check' tone='success' description='Invoices marked paid, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Draft Invoice Value' value=draft_invoice_total|money:current_business icon='fa-file-circle-plus' tone='info' description='Draft invoices awaiting issue, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+      </div>
+    </section>
+  {% endif %}
 
   <div class="card mb-4">
     <div class="card-header">
@@ -127,6 +146,7 @@
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
                   <a class="logistics-tracking-code fw-semibold" href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a>
                   {% include 'logistics/includes/status_badge.html' with status=shipment.status label=shipment.get_status_display %}
+                  {% include 'logistics/includes/transport_mode_badge.html' with mode=shipment.transport_mode label=shipment.get_transport_mode_display %}
                 </div>
                 <p class="text-body-tertiary fs-9 mb-0">{{ shipment.origin }} → {{ shipment.destination }}</p>
               </li>

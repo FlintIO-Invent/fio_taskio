@@ -8,10 +8,51 @@ from django.core.validators import MaxLengthValidator, MinValueValidator, RegexV
 from django.db import models, transaction
 from django.utils import timezone
 
+from .classification import (
+    ClassificationHelpers,
+    TransportationMode,
+    default_operating_areas,
+    normalize_classification,
+    validate_classification,
+    validate_operating_areas,
+    validate_transportation_modes,
+)
 from .policy import normalized_identity
 
 
-class LogisticsApplication(models.Model):
+class LogisticsProfile(ClassificationHelpers, models.Model):
+    business = models.OneToOneField(
+        "businesses.Business", on_delete=models.CASCADE, related_name="logistics_profile"
+    )
+    operating_areas = models.JSONField(
+        default=default_operating_areas, validators=[validate_operating_areas], blank=True
+    )
+    transportation_modes = models.JSONField(
+        default=list, validators=[validate_transportation_modes], blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Logistics profile for {self.business}"
+
+    def clean(self):
+        super().clean()
+        from apps.businesses.models import Business
+
+        if self.business_id and self.business.vertical != Business.Vertical.LOGISTICS:
+            raise ValidationError(
+                {"business": "Only LOGISTICS businesses have a Logistics profile."}
+            )
+        validate_classification(self.operating_areas, self.transportation_modes)
+        normalize_classification(self)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class LogisticsApplication(ClassificationHelpers, models.Model):
     class Status(models.TextChoices):
         SUBMITTED = "SUBMITTED", "Submitted"
         APPROVED = "APPROVED", "Approved"
@@ -50,6 +91,8 @@ class LogisticsApplication(models.Model):
         "website",
         "preferred_currency",
         "timezone",
+        "operating_areas",
+        "transportation_modes",
         "operation_type",
         "routes",
         "monthly_parcel_estimate",
@@ -107,6 +150,12 @@ class LogisticsApplication(models.Model):
     website = models.URLField(blank=True)
     preferred_currency = models.CharField(max_length=3, choices=Currency.choices)
     timezone = models.CharField(max_length=100, default="UTC")
+    operating_areas = models.JSONField(
+        default=list, validators=[validate_operating_areas], blank=True
+    )
+    transportation_modes = models.JSONField(
+        default=list, validators=[validate_transportation_modes], blank=True
+    )
     operation_type = models.CharField(max_length=30, choices=OperationType.choices)
     routes = models.TextField(
         "Origins, destinations and routes", max_length=3000, validators=[MaxLengthValidator(3000)]
@@ -214,6 +263,23 @@ class LogisticsApplication(models.Model):
             if isinstance(value, str):
                 setattr(self, name, value.strip())
         self.email = self.email.casefold()
+        # Historical applications did not collect classification. Preserve their
+        # unrecorded values on unrelated edits; all new/classification edits validate.
+        legacy = (
+            not self._state.adding
+            and not self.operating_areas
+            and not self.transportation_modes
+            and type(self)
+            .objects.filter(pk=self.pk, operating_areas=[], transportation_modes=[])
+            .exists()
+        )
+        validate_classification(
+            self.operating_areas,
+            self.transportation_modes,
+            require_areas=not legacy,
+            require_modes=not legacy,
+        )
+        normalize_classification(self)
         errors = {}
         try:
             ZoneInfo(self.timezone)
@@ -694,6 +760,25 @@ class Shipment(ParcelDomainModel):
     )
     origin = models.CharField(max_length=255)
     destination = models.CharField(max_length=255)
+    transport_mode = models.CharField(
+        "Transportation mode",
+        max_length=4,
+        choices=TransportationMode.choices,
+        null=True,
+        blank=True,
+    )
+    carrier_name = models.CharField("Carrier", max_length=160, null=True, blank=True)
+    vessel_name = models.CharField("Vessel", max_length=160, null=True, blank=True)
+    voyage_reference = models.CharField("Voyage", max_length=100, null=True, blank=True)
+    container_reference = models.CharField("Container", max_length=100, null=True, blank=True)
+    bill_of_lading_reference = models.CharField(
+        "Bill of Lading", max_length=100, null=True, blank=True
+    )
+    vehicle_reference = models.CharField("Vehicle", max_length=100, null=True, blank=True)
+    driver_name = models.CharField("Driver", max_length=160, null=True, blank=True)
+    dispatch_reference = models.CharField(
+        "Dispatch Reference", max_length=100, null=True, blank=True
+    )
     departure_at = models.DateTimeField(null=True, blank=True)
     estimated_arrival_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
@@ -727,10 +812,21 @@ class Shipment(ParcelDomainModel):
             models.UniqueConstraint(
                 fields=["business", "idempotency_key"], name="shipment_creation_retry_unique"
             ),
+            models.CheckConstraint(
+                condition=models.Q(transport_mode__isnull=True)
+                | models.Q(transport_mode__in=TransportationMode.values),
+                name="shipment_transport_mode_known",
+            ),
         ]
 
     def __str__(self):
         return self.reference
+
+    @property
+    def transportation_details(self):
+        from .shipment_references import populated_transport_references
+
+        return populated_transport_references(self, include_historical=True)
 
     def clean(self):
         from apps.businesses.models import Business

@@ -33,6 +33,18 @@
     {% endfor %}
   {% endif %}
 
+  {% if business.vertical == "LOGISTICS" %}
+  <section class="card mb-4" aria-labelledby="logistics-profile-title">
+    <div class="card-body">
+      <h2 class="h5" id="logistics-profile-title">Logistics operating profile</h2>
+      <dl class="mb-0">
+        <dt>Operating areas</dt><dd>{{ logistics_profile.operating_area_labels|join:", "|default:"Not recorded" }}</dd>
+        <dt>Transportation modes</dt><dd>{{ logistics_profile.transportation_mode_labels|join:", "|default:"Not recorded" }}</dd>
+      </dl>
+    </div>
+  </section>
+  {% endif %}
+
   <div class="row g-3 mb-4">
     <div class="col-12 col-xxl-8">
       <div class="card border-0 overflow-hidden">

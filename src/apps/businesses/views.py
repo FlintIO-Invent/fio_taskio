@@ -365,6 +365,10 @@ def business_settings(request: HttpRequest) -> HttpResponse:
         "membership": membership,
         "form": form,
     }
+    if business.vertical == Business.Vertical.LOGISTICS:
+        from apps.logistics.models import LogisticsProfile
+
+        context["logistics_profile"] = LogisticsProfile.objects.filter(business=business).first()
     if business.has_capability("services"):
         context.update({
             "service_category_count": business.service_categories.count(),

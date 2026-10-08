@@ -290,6 +290,15 @@ DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
         False,
     ),
     InventoryRegistration(
+        "logistics_profile",
+        "logistics.LogisticsProfile",
+        "business",
+        "Business.logistics_profile",
+        InventoryClassification.CASCADE,
+        False,
+        False,
+    ),
+    InventoryRegistration(
         "logistics_application",
         "logistics.LogisticsApplication",
         "business",

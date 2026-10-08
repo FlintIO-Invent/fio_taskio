@@ -43,6 +43,8 @@ def application_inventory(application_id):
         "revision": application.revision,
         "approved_revision": application.approved_revision,
         "evaluated_revision": application.evaluated_revision,
+        "operating_areas": application.operating_areas,
+        "transportation_modes": application.transportation_modes,
         "reason_codes": application.reason_codes,
         "rule_version": application.rule_version,
         "evaluated_at": application.evaluated_at.isoformat() if application.evaluated_at else None,

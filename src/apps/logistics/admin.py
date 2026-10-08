@@ -9,11 +9,12 @@ from django.views.decorators.cache import never_cache
 from apps.businesses.utils import get_current_business
 
 from .enrollment import issue_enrollment_link, revoke_enrollment_links
-from .forms import ApplicationReviewForm
+from .forms import ApplicationReviewForm, LogisticsApplicationAdminForm, LogisticsProfileForm
 from .models import (
     LogisticsApplication,
     LogisticsApplicationDecision,
     LogisticsEnrollmentToken,
+    LogisticsProfile,
     Parcel,
     ParcelEvent,
     Shipment,
@@ -62,12 +63,39 @@ class EnrollmentHistoryInline(DecisionHistoryInline):
     readonly_fields = fields
 
 
+class ClassificationDisplayMixin:
+    @admin.display(description="Operating areas")
+    def operating_areas_display(self, obj):
+        return ", ".join(obj.operating_area_labels) or "Not recorded"
+
+    @admin.display(description="Transportation modes")
+    def transportation_modes_display(self, obj):
+        return ", ".join(obj.transportation_mode_labels) or "Not recorded"
+
+
+@admin.register(LogisticsProfile)
+class LogisticsProfileAdmin(ClassificationDisplayMixin, admin.ModelAdmin):
+    form = LogisticsProfileForm
+    list_display = (
+        "business",
+        "operating_areas_display",
+        "transportation_modes_display",
+        "updated_at",
+    )
+    list_select_related = ("business",)
+    search_fields = ("business__name",)
+    readonly_fields = ("created_at", "updated_at")
+
+
 @admin.register(LogisticsApplication)
-class LogisticsApplicationAdmin(admin.ModelAdmin):
+class LogisticsApplicationAdmin(ClassificationDisplayMixin, admin.ModelAdmin):
+    form = LogisticsApplicationAdminForm
     list_display = (
         "business_name",
         "business",
         "country",
+        "operating_areas_display",
+        "transportation_modes_display",
         "status",
         "revision",
         "monthly_parcel_estimate",
@@ -290,12 +318,27 @@ class ShipmentAdmin(ParcelInspectionAdmin):
         "reference",
         "origin",
         "destination",
+        "transport_mode",
         "status",
         "departure_at",
         "estimated_arrival_at",
     )
-    list_filter = (("business", admin.RelatedOnlyFieldListFilter), "status", "created_at")
-    search_fields = ("reference",)
+    list_filter = (
+        ("business", admin.RelatedOnlyFieldListFilter),
+        "status",
+        "transport_mode",
+        "created_at",
+    )
+    search_fields = (
+        "reference",
+        "carrier_name",
+        "vessel_name",
+        "voyage_reference",
+        "container_reference",
+        "bill_of_lading_reference",
+        "vehicle_reference",
+        "dispatch_reference",
+    )
 
     def get_queryset(self, request):
         from .shipment_services import shipments_for_business

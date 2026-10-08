@@ -213,6 +213,16 @@ def _provision_approved_application(application, *, verified, password):
         currency=application.preferred_currency,
         timezone=application.timezone,
     )
+    from .classification import default_operating_areas
+    from .models import LogisticsProfile
+
+    LogisticsProfile.objects.update_or_create(
+        business=business,
+        defaults={
+            "operating_areas": list(application.operating_areas) or default_operating_areas(),
+            "transportation_modes": list(application.transportation_modes),
+        },
+    )
     BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.OWNER)
     profile = SaaSUserProfile.get_or_create_for_user(user)
     if new_user:

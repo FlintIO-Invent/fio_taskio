@@ -1,4 +1,4 @@
-<div class="col-12 col-sm-6 col-xl-4 col-xxl-2">
+<div class="{{ columns|default:'col-12 col-sm-6 col-xl-4 col-xxl-2' }}">
   <div class="card h-100"{% if onboarding_target %} data-onboarding-target="{{ onboarding_target }}"{% endif %}>
     <div class="card-body">
       <div class="d-flex align-items-center mb-3">

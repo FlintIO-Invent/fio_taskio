@@ -30,7 +30,7 @@ from .enrollment import (
     revoke_enrollment_links,
 )
 from .inventory import application_inventory
-from .models import LogisticsApplication, LogisticsEnrollmentToken
+from .models import LogisticsApplication, LogisticsEnrollmentToken, LogisticsProfile
 from .services import review_application
 from .tests import PILOT_POLICY, application_data
 
@@ -424,6 +424,9 @@ class EnrollmentConcurrencyTests(TransactionTestCase):
         self.assertEqual(Business.objects.count(), 1)
         self.assertEqual(BusinessUser.objects.count(), 1)
         self.assertEqual(BusinessSubscription.objects.count(), 1)
+        profile = LogisticsProfile.objects.get()
+        self.assertEqual(profile.operating_areas, ["TRANSPORTATION"])
+        self.assertEqual(profile.transportation_modes, ["ROAD"])
 
     def test_different_applications_serialize_existing_identity_workspace_conflict(self):
         actor = reviewer()
@@ -455,3 +458,6 @@ class EnrollmentConcurrencyTests(TransactionTestCase):
         self.assertCountEqual(results, ["converted", "conflict"])
         self.assertEqual(Business.objects.count(), 1)
         self.assertEqual(BusinessSubscription.objects.count(), 1)
+        profile = LogisticsProfile.objects.get()
+        self.assertEqual(profile.operating_areas, ["TRANSPORTATION"])
+        self.assertEqual(profile.transportation_modes, ["ROAD"])

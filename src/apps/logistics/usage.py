@@ -15,6 +15,7 @@ from django.utils import timezone
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 from apps.crm.models import Client
 
+from .classification import TransportationMode
 from .models import LogisticsApplication, Parcel, ParcelEvent, Shipment
 from .policy import LogisticsEligibilityPolicy, LogisticsUsageReviewPolicy
 
@@ -26,7 +27,13 @@ def logistics_usage(*, business, now=None):
     use registration time; events and deliveries use event time. Seats require
     both an active membership and active user. Callers authorize internal access.
     """
-    current = Business.objects.get(pk=getattr(business, "pk", business))
+    return _usage_snapshot(business=business, now=now)[0]
+
+
+def _usage_snapshot(*, business, now=None):
+    current = Business.objects.select_related("logistics_profile").get(
+        pk=getattr(business, "pk", business)
+    )
     if current.vertical != Business.Vertical.LOGISTICS:
         raise ValidationError("Logistics usage requires a Logistics business.")
     instant = now or timezone.now()
@@ -56,13 +63,23 @@ def logistics_usage(*, business, now=None):
             ),
         ),
     )
-    shipment_counts = Shipment.objects.filter(business=current).aggregate(
+    shipments = Shipment.objects.filter(business=current)
+    shipment_counts = shipments.aggregate(
         shipments=Count("pk"),
         active_shipments=Count(
             "pk", filter=~Q(status__in=(Shipment.Status.COMPLETED, Shipment.Status.CANCELLED))
         ),
         completed_shipments=Count("pk", filter=Q(status=Shipment.Status.COMPLETED)),
+        unknown_mode=Count("pk", filter=Q(transport_mode__isnull=True)),
+        **{
+            f"mode_{mode}": Count("pk", filter=Q(transport_mode=mode))
+            for mode in TransportationMode.values
+        },
     )
+    shipment_mode_summary = {
+        mode: shipment_counts.pop(f"mode_{mode}") for mode in TransportationMode.values
+    }
+    shipment_mode_summary["unknown"] = shipment_counts.pop("unknown_mode")
     status_counts = dict(
         parcels.order_by()
         .values("current_status")
@@ -85,6 +102,7 @@ def logistics_usage(*, business, now=None):
         **parcel_counts,
         **event_counts,
         **shipment_counts,
+        "shipment_transport_mode_summary": shipment_mode_summary,
         "parcel_status_summary": {
             status: status_counts.get(status, 0) for status in Parcel.Status.values
         },
@@ -95,7 +113,7 @@ def logistics_usage(*, business, now=None):
         ),
         "reported_locations": application.location_count if application else None,
         "location_source": "application_estimate" if application else "unavailable",
-    }
+    }, getattr(current, "logistics_profile", None)
 
 
 def logistics_threshold_summary(*, usage):
@@ -154,7 +172,7 @@ def logistics_threshold_summary(*, usage):
 
 
 def logistics_operational_summary(*, business, now=None):
-    usage = logistics_usage(business=business, now=now)
+    usage, profile = _usage_snapshot(business=business, now=now)
     subscription = (
         BusinessSubscription.objects.select_related("plan")
         .filter(business_id=usage["business_id"])
@@ -171,6 +189,14 @@ def logistics_operational_summary(*, business, now=None):
         "plan": subscription.plan.slug if subscription else None,
         "billing_interval": subscription.billing_interval if subscription else None,
         "subscription_status": subscription.status if subscription else None,
+        "operating_profile": (
+            {
+                "operating_areas": profile.operating_areas,
+                "transportation_modes": profile.transportation_modes,
+            }
+            if profile
+            else None
+        ),
         "application": application,
         "application_retained_on_purge": application is not None,
         "usage": usage,

@@ -12,7 +12,7 @@
     <h2 class="mb-2 text-body-emphasis">{{ title|title }}</h2>
     <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
   </div>
-  <form method="post" class="mb-5">
+  <form method="post" class="mb-5" data-logistics-shipment-form>
     {% csrf_token %}
     {% include 'logistics/includes/form_errors.html' %}
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
@@ -24,6 +24,25 @@
             <div class="row g-3">
               {% include 'logistics/includes/form_field.html' with field=form.origin column_class='col-12 col-md-6' %}
               {% include 'logistics/includes/form_field.html' with field=form.destination column_class='col-12 col-md-6' %}
+            </div>
+          </div>
+        </div>
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3">Transportation details</h4>
+            <p class="text-body-secondary fs-9">References are optional. Use the fields for the selected transportation mode.</p>
+            <div class="row g-3">
+              {% include 'logistics/includes/form_field.html' with field=form.transport_mode column_class='col-12 col-md-6' %}
+              {% include 'logistics/includes/form_field.html' with field=form.carrier_name column_class='col-12 col-md-6' %}
+            </div>
+            <noscript><p class="mt-3 mb-2 text-body-secondary fs-9">After changing the mode, update the fields before saving. Your entries will be kept.</p><button class="btn btn-phoenix-secondary" type="submit" name="refresh_transport_fields" value="1" formnovalidate>Update transportation fields</button></noscript>
+            <div class="mt-3" data-shipment-reference-mode="SEA"{% if not form.sea_references_visible %} hidden{% endif %}>
+              <h5 class="mb-3">Sea references</h5>
+              <div class="row g-3">{% for field in form.sea_reference_fields %}{% include 'logistics/includes/form_field.html' with field=field column_class='col-12 col-md-6' %}{% endfor %}</div>
+            </div>
+            <div class="mt-3" data-shipment-reference-mode="ROAD"{% if not form.road_references_visible %} hidden{% endif %}>
+              <h5 class="mb-3">Road / Truck references</h5>
+              <div class="row g-3">{% for field in form.road_reference_fields %}{% include 'logistics/includes/form_field.html' with field=field column_class='col-12 col-md-6' %}{% endfor %}</div>
             </div>
           </div>
         </div>

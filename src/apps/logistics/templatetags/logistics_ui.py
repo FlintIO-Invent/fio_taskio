@@ -4,6 +4,18 @@ register = template.Library()
 
 
 @register.filter
+def transportation_mode_icon(mode):
+    from apps.logistics.classification import TransportationMode
+
+    return {
+        TransportationMode.SEA: "fa-ship",
+        TransportationMode.AIR: "fa-plane",
+        TransportationMode.ROAD: "fa-truck",
+        TransportationMode.RAIL: "fa-train",
+    }.get(mode, "fa-question-circle")
+
+
+@register.filter
 def logistics_status_badge(status):
     return {
         "REGISTERED": "badge-phoenix-info",

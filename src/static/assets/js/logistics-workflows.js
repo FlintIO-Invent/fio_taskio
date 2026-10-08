@@ -1,4 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const shipmentForm = document.querySelector('[data-logistics-shipment-form]');
+  if (shipmentForm) {
+    const mode = shipmentForm.querySelector('[name="transport_mode"]');
+    const updateReferences = () => {
+      shipmentForm.querySelectorAll('[data-shipment-reference-mode]').forEach(group => {
+        // Keep error fields reachable and retain entered values when switching modes.
+        group.hidden = group.dataset.shipmentReferenceMode !== mode.value &&
+          !group.querySelector('.invalid-feedback.d-block');
+      });
+    };
+    updateReferences();
+    mode.addEventListener('change', updateReferences);
+  }
   const parcelForm = document.querySelector('[data-logistics-parcel-form]');
   if (parcelForm) {
     const showFieldTab = field => {

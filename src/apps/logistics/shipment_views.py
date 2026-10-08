@@ -14,6 +14,7 @@ from .billing_views import billing_context
 from .models import Parcel, Shipment
 from .shipment_forms import (
     ShipmentAssignmentForm,
+    ShipmentFilterForm,
     ShipmentForm,
     ShipmentStatusForm,
     ShipmentWriteForm,
@@ -23,6 +24,7 @@ from .shipment_policy import (
     SHIPMENT_MANAGE_ROLES,
     SHIPMENT_VIEW_ROLES,
 )
+from .shipment_references import SHIPMENT_REFERENCE_FIELDS
 from .shipment_services import (
     SHIPMENT_INPUT_FIELDS,
     assign_parcel,
@@ -113,13 +115,23 @@ def shipment_list(request):
     parcel = _initial_parcel(request)
     if parcel:
         shipments = shipments.filter(status__in=ASSIGNABLE_SHIPMENT_STATUSES)
+    filter_form = ShipmentFilterForm(request.GET)
+    if filter_form.is_valid():
+        mode = filter_form.cleaned_data["transport_mode"]
+        if mode:
+            shipments = shipments.filter(transport_mode=None if mode == "UNKNOWN" else mode)
+    else:
+        shipments = shipments.none()
+    pagination_query = request.GET.copy()
+    pagination_query.pop("page", None)
     return render(
         request,
         "logistics/shipment_list.html",
         {
             "page_obj": Paginator(shipments, 50).get_page(request.GET.get("page")),
             "assignment_parcel": parcel,
-            "pagination_query": f"parcel={parcel.pk}" if parcel else "",
+            "pagination_query": pagination_query.urlencode(),
+            "filter_form": filter_form,
         },
     )
 
@@ -143,20 +155,26 @@ def shipment_create(request):
         if parcel
         else None
     )
+    refresh_fields = request.method == "POST" and "refresh_transport_fields" in request.POST
     form = ShipmentForm(
-        request.POST if request.method == "POST" else None,
+        request.POST if request.method == "POST" and not refresh_fields else None,
         business=request.current_business,
         allow_assignment=_can_assign_parcels(request),
-        initial=initial,
+        initial=request.POST.dict() if refresh_fields else initial,
     )
-    if request.method == "POST" and form.is_valid():
+    if request.method == "POST" and not refresh_fields and form.is_valid():
         try:
             shipment = create_shipment(
                 business=request.current_business,
                 actor=request.user,
                 idempotency_key=form.cleaned_data["idempotency_key"],
                 parcel=form.cleaned_data.get("parcel"),
-                **{key: form.cleaned_data[key] for key in SHIPMENT_INPUT_FIELDS},
+                **{
+                    key: form.cleaned_data[key]
+                    for key in SHIPMENT_INPUT_FIELDS
+                    if key not in ("transport_mode", *SHIPMENT_REFERENCE_FIELDS)
+                    or key in request.POST
+                },
             )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
@@ -181,15 +199,17 @@ def shipment_create(request):
 @require_http_methods(["GET", "POST"])
 def shipment_edit(request, shipment_id):
     shipment = _get_shipment(request, shipment_id)
-    if shipment.status != Shipment.Status.DRAFT and request.method == "GET":
+    refresh_fields = request.method == "POST" and "refresh_transport_fields" in request.POST
+    if shipment.status != Shipment.Status.DRAFT and (request.method == "GET" or refresh_fields):
         return _detail(request, shipment, error="Only draft shipment details can be edited.")
     form = ShipmentForm(
-        request.POST if request.method == "POST" else None,
+        request.POST if request.method == "POST" and not refresh_fields else None,
         instance=shipment,
         business=request.current_business,
         allow_assignment=_can_assign_parcels(request),
+        initial=request.POST.dict() if refresh_fields else None,
     )
-    if request.method == "POST" and form.is_valid():
+    if request.method == "POST" and not refresh_fields and form.is_valid():
         try:
             update_shipment(
                 business=request.current_business,
@@ -198,7 +218,12 @@ def shipment_edit(request, shipment_id):
                 expected_revision=form.cleaned_data["expected_revision"],
                 idempotency_key=form.cleaned_data["idempotency_key"],
                 parcel=form.cleaned_data.get("parcel"),
-                **{key: form.cleaned_data[key] for key in SHIPMENT_INPUT_FIELDS},
+                **{
+                    key: form.cleaned_data[key]
+                    for key in SHIPMENT_INPUT_FIELDS
+                    if key not in ("transport_mode", *SHIPMENT_REFERENCE_FIELDS)
+                    or key in request.POST
+                },
             )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
@@ -333,6 +358,7 @@ def shipment_manifest(request, shipment_id):
         writer = csv.writer(output)
         for key, label in (
             ("reference", "Shipment reference"),
+            ("transport_mode_label", "Transportation mode"),
             ("origin", "Origin"),
             ("destination", "Destination"),
             ("departure_at", "Departure"),
@@ -346,6 +372,8 @@ def shipment_manifest(request, shipment_id):
             writer.writerow(
                 [label, _csv_value(value.isoformat() if hasattr(value, "isoformat") else value)]
             )
+        for detail in manifest["transportation_details"]:
+            writer.writerow([detail["label"], _csv_value(detail["value"])])
         writer.writerow([])
         writer.writerow(
             ["Tracking code", "Client name", "Package description", "Quantity", "Weight (kg)"]

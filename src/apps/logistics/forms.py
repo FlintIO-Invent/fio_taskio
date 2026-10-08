@@ -3,11 +3,64 @@ from django.conf import settings
 from django.contrib.auth import get_user_model, password_validation
 from django.core.exceptions import ValidationError
 
+from .classification import OperatingArea, TransportationMode
 from .dashboard_forms import style_dashboard_fields
 from .models import LogisticsApplication
 
 
-class LogisticsApplicationForm(forms.ModelForm):
+class ClassificationFormMixin:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, label, choices, required, help_text in (
+            (
+                "operating_areas",
+                "What does your logistics business do?",
+                OperatingArea.choices,
+                True,
+                "Select all that apply.",
+            ),
+            (
+                "transportation_modes",
+                "Which transportation modes do you operate?",
+                TransportationMode.choices,
+                False,
+                "Select all that apply when Transportation is selected.",
+            ),
+        ):
+            if name in self.fields:
+                self.fields[name] = forms.MultipleChoiceField(
+                    label=label,
+                    choices=choices,
+                    required=required,
+                    help_text=help_text,
+                    widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+                )
+                self.fields[name].is_classification = True
+
+
+class LogisticsApplicationAdminForm(ClassificationFormMixin, forms.ModelForm):
+    class Meta:
+        model = LogisticsApplication
+        fields = LogisticsApplication.MATERIAL_FIELDS
+
+
+class LogisticsProfileForm(ClassificationFormMixin, forms.ModelForm):
+    class Meta:
+        from .models import LogisticsProfile
+
+        model = LogisticsProfile
+        fields = ("business", "operating_areas", "transportation_modes")
+
+    def __init__(self, *args, **kwargs):
+        from apps.businesses.models import Business
+
+        super().__init__(*args, **kwargs)
+        self.fields["business"].queryset = Business.objects.filter(
+            vertical=Business.Vertical.LOGISTICS
+        )
+
+
+class LogisticsApplicationForm(ClassificationFormMixin, forms.ModelForm):
     APPLICATION_STEPS = (
         (
             "business",
@@ -38,6 +91,8 @@ class LogisticsApplicationForm(forms.ModelForm):
             "fa-truck-fast",
             "Help us understand your parcel routes, volume and team.",
             (
+                "operating_areas",
+                "transportation_modes",
                 "operation_type",
                 "routes",
                 "monthly_parcel_estimate",
@@ -86,21 +141,21 @@ class LogisticsApplicationForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxSelectMultiple):
+                continue
             field.widget.attrs["class"] = (
                 "form-check-input"
                 if isinstance(field.widget, forms.CheckboxInput)
-                else "form-select"
-                if isinstance(field.widget, forms.Select)
-                else "form-control"
+                else "form-select" if isinstance(field.widget, forms.Select) else "form-control"
             )
             if isinstance(field.widget, forms.Textarea):
                 field.widget.attrs["rows"] = 3
-        self.fields[
-            "timezone"
-        ].help_text = "IANA timezone, for example America/Curacao or Europe/Amsterdam."
-        self.fields[
-            "registration_number"
-        ].help_text = "Optional at submission; further registration details may be requested."
+        self.fields["timezone"].help_text = (
+            "IANA timezone, for example America/Curacao or Europe/Amsterdam."
+        )
+        self.fields["registration_number"].help_text = (
+            "Optional at submission; further registration details may be requested."
+        )
         for name, autocomplete in {
             "business_name": "organization",
             "contact_first_name": "given-name",

@@ -1,11 +1,13 @@
 """Read-only workspace presentation; lifecycle decisions stay in domain services."""
 
 from datetime import datetime, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 
-from apps.businesses.utils import can_view_module, membership_has_any_role
+from apps.billings.models import Invoice
+from apps.businesses.utils import BILLING_VIEW_ROLES, can_view_module, membership_has_any_role
 
 from .models import Parcel, ParcelEvent, Shipment
 from .parcel_policy import PARCEL_VIEW_ROLES
@@ -23,12 +25,16 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
     shipments_enabled = can_view_module(business, "shipments") and membership_has_any_role(
         membership, SHIPMENT_VIEW_ROLES
     )
+    invoices_enabled = can_view_module(business, "invoicing") and membership_has_any_role(
+        membership, BILLING_VIEW_ROLES
+    )
     context = {
         "logistics_dashboard": True,
         "dashboard_parcels_enabled": parcels_enabled,
         "dashboard_shipments_enabled": shipments_enabled,
+        "dashboard_invoices_enabled": invoices_enabled,
     }
-    if parcels_enabled:
+    if parcels_enabled or invoices_enabled:
         local_now = now.astimezone(ZoneInfo(business.timezone))
         month_start = datetime(local_now.year, local_now.month, 1, tzinfo=local_now.tzinfo)
         month_end = datetime(
@@ -37,6 +43,24 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             1,
             tzinfo=local_now.tzinfo,
         )
+    if invoices_enabled:
+        # Status totals describe invoice value, not payment receipts: invoices have no paid_at.
+        invoices = Invoice.objects.filter(business=business, client__business=business)
+        totals = invoices.aggregate(
+            invoiced_this_month_total=Sum(
+                "total",
+                filter=Q(
+                    status__in=(Invoice.Status.SENT, Invoice.Status.PAID),
+                    created_at__gte=month_start,
+                    created_at__lt=month_end,
+                ),
+            ),
+            outstanding_invoice_total=Sum("total", filter=Q(status=Invoice.Status.SENT)),
+            paid_invoice_total=Sum("total", filter=Q(status=Invoice.Status.PAID)),
+            draft_invoice_total=Sum("total", filter=Q(status=Invoice.Status.DRAFT)),
+        )
+        context.update({key: value or Decimal("0.00") for key, value in totals.items()})
+    if parcels_enabled:
         parcels = parcels_for_business(business=business, actor=actor)
         status_counts = dict(
             parcels.order_by()
