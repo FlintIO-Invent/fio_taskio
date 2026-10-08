@@ -125,6 +125,7 @@
     const chartElContainer = document.querySelector(
       '.echart-contact-by-source-container'
     );
+    if (!chartElContainer) return;
     const chartEl = chartElContainer.querySelector('.echart-contact-by-source');
     const chartLabel = chartElContainer.querySelector('[data-label]');
 
