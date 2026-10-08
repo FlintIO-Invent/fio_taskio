@@ -162,6 +162,7 @@ class ShipmentTests(TestCase):
             list(csv.reader(StringIO(download.content.decode()))),
             [
                 ["Shipment reference", shipment.reference],
+                ["Transportation mode", "Unknown"],
                 ["Origin", "Miami"],
                 ["Destination", "Curacao"],
                 ["Departure", ""],

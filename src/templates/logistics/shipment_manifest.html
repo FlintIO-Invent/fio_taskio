@@ -41,6 +41,7 @@
       <div class="col-12 col-md">
         <h2 class="mb-2 text-body-emphasis">Manifest · {{ manifest.reference }}</h2>
         <p class="text-body-secondary mb-0">{{ manifest.origin }} → {{ manifest.destination }}</p>
+        <p class="mt-2 mb-0">Transportation mode: {% include 'logistics/includes/transport_mode_badge.html' with mode=manifest.transport_mode label=manifest.transport_mode_label %}</p>
       </div>
       <div class="col-12 col-md-auto d-flex flex-wrap gap-2 d-print-none">
         <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipment_detail' shipment_id %}"><span class="fa-solid fa-arrow-left me-2" aria-hidden="true"></span>Back to shipment</a>
@@ -49,6 +50,9 @@
       </div>
     </div>
     <p class="text-body-secondary mb-2">Departure: {{ manifest.departure_at|default_if_none:'—' }} · ETA: {{ manifest.estimated_arrival_at|default_if_none:'—' }}</p>
+    {% if manifest.transportation_details %}<dl class="row g-2 mb-3">
+      {% for detail in manifest.transportation_details %}<div class="col-12 col-md-6 col-lg-4"><dt class="fs-9 text-body-tertiary fw-normal">{{ detail.label }}</dt><dd class="mb-0 text-break">{{ detail.value }}</dd></div>{% endfor %}
+    </dl>{% endif %}
     <p class="text-body-tertiary fs-9 mb-0">Current shipment contents. This output is regenerated when viewed or downloaded.</p>
   </header>
   <div class="card mb-4">

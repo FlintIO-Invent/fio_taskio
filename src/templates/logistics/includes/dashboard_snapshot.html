@@ -146,6 +146,7 @@
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
                   <a class="logistics-tracking-code fw-semibold" href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a>
                   {% include 'logistics/includes/status_badge.html' with status=shipment.status label=shipment.get_status_display %}
+                  {% include 'logistics/includes/transport_mode_badge.html' with mode=shipment.transport_mode label=shipment.get_transport_mode_display %}
                 </div>
                 <p class="text-body-tertiary fs-9 mb-0">{{ shipment.origin }} → {{ shipment.destination }}</p>
               </li>

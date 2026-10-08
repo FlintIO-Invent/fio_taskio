@@ -114,9 +114,26 @@ ROUTES = (
         "CWWIL",
     ),
 )
-SHIPMENT_ROUTE_INDEXES = (0, 1, 3, 4, 2, 1)
+SHIPMENT_ROUTE_INDEXES = (0, 1, 3, 4, 2, 2)
 PARCEL_ROUTE_INDEXES = (0, 0, 0, 1, 1, 1, 3, 3, 4, 4, 2, 2, 1, 2, 2, 0, 0, 4, 4, 2)
 ASSIGNED_PARCEL_SHIPMENT_INDEXES = (0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4)
+
+
+def shipment_demo_references(index, mode):
+    if mode == TransportationMode.SEA:
+        return {
+            "carrier_name": "[DEMO] Coral Channel Cargo",
+            "vessel_name": "[DEMO] MV Harbor Fiction",
+            "voyage_reference": f"DEMO-VOY-{index + 1:03d}",
+            "container_reference": f"DEMO-CONT-{index + 1:03d}",
+            "bill_of_lading_reference": f"DEMO-BOL-{index + 1:03d}",
+        }
+    return {
+        "carrier_name": "[DEMO] Island Dispatch",
+        "vehicle_reference": f"DEMO-TRUCK-{index + 1:03d}",
+        "driver_name": "[DEMO] Alex Example",
+        "dispatch_reference": f"DEMO-DISPATCH-{index + 1:03d}",
+    }
 
 
 def parcel_demo_fields(*, index, client, route, today):
@@ -304,9 +321,13 @@ def seed_logistics_demo(*, business_id, actor_id=None):
                 actor=actor,
                 origin=ROUTES[SHIPMENT_ROUTE_INDEXES[index]][0],
                 destination=ROUTES[SHIPMENT_ROUTE_INDEXES[index]][1],
+                transport_mode=TransportationMode(ROUTES[SHIPMENT_ROUTE_INDEXES[index]][2].upper()),
                 departure_at=now + timedelta(days=(-8, -1, -4, 2, 4, 7)[index]),
                 estimated_arrival_at=now + timedelta(days=(-3, 3, -1, 5, 4, 12)[index]),
                 notes=f"[DEMO] Shipment {index + 1:02d}; fictional cargo for UI testing.",
+                **shipment_demo_references(
+                    index, TransportationMode(ROUTES[SHIPMENT_ROUTE_INDEXES[index]][2].upper())
+                ),
             )
         )
         for index in range(LOGISTICS_DEMO_COUNTS["shipments"])

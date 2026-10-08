@@ -24,8 +24,22 @@ from .shipment_policy import (
     SHIPMENT_MANAGE_ROLES,
     SHIPMENT_VIEW_ROLES,
 )
+from .shipment_references import (
+    SHIPMENT_REFERENCE_FIELDS,
+    normalize_reference,
+    populated_transport_references,
+    validate_shipment_references,
+)
+from .shipment_transport import validate_shipment_mode
 
-SHIPMENT_INPUT_FIELDS = ("origin", "destination", "departure_at", "estimated_arrival_at", "notes")
+SHIPMENT_INPUT_FIELDS = (
+    "origin",
+    "destination",
+    "transport_mode",
+    "departure_at",
+    "estimated_arrival_at",
+    "notes",
+) + SHIPMENT_REFERENCE_FIELDS
 
 
 class _ReceiptEncoder(DjangoJSONEncoder):
@@ -156,12 +170,21 @@ def create_shipment(*, business, actor, idempotency_key=None, parcel=None, **fie
     )
     item = _parcel(current, parcel) if parcel is not None else None
     shipment = Shipment(business=current, created_by=actor, idempotency_key=key, **fields)
+    if shipment.transport_mode == "":
+        shipment.transport_mode = None
+    for name in SHIPMENT_REFERENCE_FIELDS:
+        setattr(shipment, name, normalize_reference(getattr(shipment, name)))
     shipment.full_clean(exclude=["reference", "idempotency_key"])
     fingerprint = _fingerprint(
         "create",
         actor,
         {
-            "fields": {name: getattr(shipment, name) for name in SHIPMENT_INPUT_FIELDS},
+            "fields": {
+                name: getattr(shipment, name)
+                for name in SHIPMENT_INPUT_FIELDS
+                if name not in ("transport_mode", *SHIPMENT_REFERENCE_FIELDS)
+                or getattr(shipment, name) is not None
+            },
             "parcel": item.pk if item else None,
         },
     )
@@ -171,6 +194,11 @@ def create_shipment(*, business, actor, idempotency_key=None, parcel=None, **fie
                 "Shipment retry authorization is unavailable. Reload before retrying."
             )
         return existing
+    shipment.transport_mode = validate_shipment_mode(shipment.transport_mode, business=current)
+    validate_shipment_references(
+        shipment.transport_mode,
+        {name: getattr(shipment, name) for name in SHIPMENT_REFERENCE_FIELDS},
+    )
     if key:
         shipment.write_receipts = {str(key): fingerprint}
     shipment._domain_save(force_insert=True)
@@ -199,6 +227,12 @@ def update_shipment(
     if expected_revision is None:
         raise ValidationError("The loaded shipment revision is required. Reload before saving.")
     key = _key(idempotency_key)
+    if "transport_mode" in fields:
+        if fields["transport_mode"] == "":
+            fields["transport_mode"] = None
+    for name in SHIPMENT_REFERENCE_FIELDS:
+        if name in fields:
+            fields[name] = normalize_reference(fields[name])
     fields = {
         name: Shipment._meta.get_field(name).clean(value, locked) for name, value in fields.items()
     }
@@ -217,6 +251,19 @@ def update_shipment(
     _check_revision(locked, expected_revision)
     if locked.status != Shipment.Status.DRAFT:
         raise ValidationError("Only draft shipment details can be edited.")
+    if "transport_mode" in fields:
+        fields["transport_mode"] = validate_shipment_mode(
+            fields["transport_mode"],
+            business=current,
+            existing=True,
+            previous_mode=locked.transport_mode,
+        )
+    previous = {name: getattr(locked, name) for name in SHIPMENT_REFERENCE_FIELDS}
+    validate_shipment_references(
+        fields.get("transport_mode", locked.transport_mode),
+        {**previous, **fields},
+        previous=previous,
+    )
     for name, value in fields.items():
         setattr(locked, name, value)
     _save_write(locked, fields=fields, key=key, fingerprint=fingerprint)
@@ -385,6 +432,9 @@ def generate_manifest(*, business, shipment, actor):
     ]
     return {
         "reference": locked.reference,
+        "transport_mode": locked.transport_mode,
+        "transport_mode_label": locked.get_transport_mode_display() or "Unknown",
+        "transportation_details": populated_transport_references(locked),
         "origin": locked.origin,
         "destination": locked.destination,
         "departure_at": locked.departure_at,

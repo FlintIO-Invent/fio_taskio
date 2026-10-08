@@ -15,6 +15,7 @@ from django.utils import timezone
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 from apps.crm.models import Client
 
+from .classification import TransportationMode
 from .models import LogisticsApplication, Parcel, ParcelEvent, Shipment
 from .policy import LogisticsEligibilityPolicy, LogisticsUsageReviewPolicy
 
@@ -62,13 +63,23 @@ def _usage_snapshot(*, business, now=None):
             ),
         ),
     )
-    shipment_counts = Shipment.objects.filter(business=current).aggregate(
+    shipments = Shipment.objects.filter(business=current)
+    shipment_counts = shipments.aggregate(
         shipments=Count("pk"),
         active_shipments=Count(
             "pk", filter=~Q(status__in=(Shipment.Status.COMPLETED, Shipment.Status.CANCELLED))
         ),
         completed_shipments=Count("pk", filter=Q(status=Shipment.Status.COMPLETED)),
+        unknown_mode=Count("pk", filter=Q(transport_mode__isnull=True)),
+        **{
+            f"mode_{mode}": Count("pk", filter=Q(transport_mode=mode))
+            for mode in TransportationMode.values
+        },
     )
+    shipment_mode_summary = {
+        mode: shipment_counts.pop(f"mode_{mode}") for mode in TransportationMode.values
+    }
+    shipment_mode_summary["unknown"] = shipment_counts.pop("unknown_mode")
     status_counts = dict(
         parcels.order_by()
         .values("current_status")
@@ -91,6 +102,7 @@ def _usage_snapshot(*, business, now=None):
         **parcel_counts,
         **event_counts,
         **shipment_counts,
+        "shipment_transport_mode_summary": shipment_mode_summary,
         "parcel_status_summary": {
             status: status_counts.get(status, 0) for status in Parcel.Status.values
         },

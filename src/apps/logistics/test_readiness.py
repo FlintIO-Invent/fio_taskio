@@ -144,7 +144,11 @@ class LogisticsReadinessFlowTests(LogisticsCheckoutFixture, TestCase):
         self.assertEqual(public.status_code, 200)
         self.assertNotContains(public, "PRIVATE")
         shipment = create_shipment(
-            business=self.business, actor=self.user, origin="Miami", destination="Sint Maarten"
+            business=self.business,
+            actor=self.user,
+            origin="Miami",
+            destination="Sint Maarten",
+            transport_mode="ROAD",
         )
         assign_parcel(business=self.business, shipment=shipment, parcel=parcel, actor=self.user)
         for state in ("READY", "IN_TRANSIT", "ARRIVED"):
@@ -441,7 +445,11 @@ class LogisticsPerformanceSanityTests(LogisticsCheckoutFixture, TestCase):
             business=self.business, first_name="Pilot", last_name="Customer"
         )
         self.shipment = create_shipment(
-            business=self.business, actor=self.user, origin="Miami", destination="Sint Maarten"
+            business=self.business,
+            actor=self.user,
+            origin="Miami",
+            destination="Sint Maarten",
+            transport_mode="ROAD",
         )
 
     def add_parcel(self):

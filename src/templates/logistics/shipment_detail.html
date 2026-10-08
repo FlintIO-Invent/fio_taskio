@@ -34,6 +34,15 @@
       </dl>
     </div>
   </div>
+  <div class="card mb-4">
+    <div class="card-body">
+      <h4 class="mb-3">Transportation details</h4>
+      <dl class="row mb-0">
+        <dt class="col-sm-4 mb-2">Mode</dt><dd class="col-sm-8 mb-3">{% include 'logistics/includes/transport_mode_badge.html' with mode=shipment.transport_mode label=shipment.get_transport_mode_display %}</dd>
+        {% for detail in shipment.transportation_details %}<dt class="col-sm-4 mb-2">{{ detail.label }}</dt><dd class="col-sm-8 mb-3 text-break">{{ detail.value }}</dd>{% endfor %}
+      </dl>
+    </div>
+  </div>
   {% if role_access.can_manage_shipments and module_write_access.shipments %}
   <div class="row g-4 mb-4">
     {% if status_form.fields.status.choices %}

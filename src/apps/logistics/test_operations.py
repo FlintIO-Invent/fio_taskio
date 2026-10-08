@@ -186,7 +186,11 @@ class LogisticsOperationsTests(TestCase):
         self.seed()
         genuine_parcel = self.parcel()
         genuine_shipment = create_shipment(
-            business=self.business, actor=self.user, origin="Real", destination="Real"
+            business=self.business,
+            actor=self.user,
+            origin="Real",
+            destination="Real",
+            transport_mode="ROAD",
         )
         self.assertIn("RESET PREVIEW ONLY", self.command(reset_demo=True))
         self.assertEqual(Parcel.objects.count(), LOGISTICS_DEMO_COUNTS["parcels"] + 1)
@@ -233,7 +237,11 @@ class LogisticsOperationsTests(TestCase):
     def test_reset_blocks_outbound_attachment_to_genuine_shipment(self):
         self.seed()
         shipment = create_shipment(
-            business=self.business, actor=self.user, origin="Real", destination="Real"
+            business=self.business,
+            actor=self.user,
+            origin="Real",
+            destination="Real",
+            transport_mode="ROAD",
         )
         parcel = Parcel.objects.filter(current_status="REGISTERED", shipment__isnull=True).first()
         assign_parcel(business=self.business, shipment=shipment, parcel=parcel, actor=self.user)

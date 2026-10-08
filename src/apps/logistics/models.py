@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from .classification import (
     ClassificationHelpers,
+    TransportationMode,
     default_operating_areas,
     normalize_classification,
     validate_classification,
@@ -759,6 +760,25 @@ class Shipment(ParcelDomainModel):
     )
     origin = models.CharField(max_length=255)
     destination = models.CharField(max_length=255)
+    transport_mode = models.CharField(
+        "Transportation mode",
+        max_length=4,
+        choices=TransportationMode.choices,
+        null=True,
+        blank=True,
+    )
+    carrier_name = models.CharField("Carrier", max_length=160, null=True, blank=True)
+    vessel_name = models.CharField("Vessel", max_length=160, null=True, blank=True)
+    voyage_reference = models.CharField("Voyage", max_length=100, null=True, blank=True)
+    container_reference = models.CharField("Container", max_length=100, null=True, blank=True)
+    bill_of_lading_reference = models.CharField(
+        "Bill of Lading", max_length=100, null=True, blank=True
+    )
+    vehicle_reference = models.CharField("Vehicle", max_length=100, null=True, blank=True)
+    driver_name = models.CharField("Driver", max_length=160, null=True, blank=True)
+    dispatch_reference = models.CharField(
+        "Dispatch Reference", max_length=100, null=True, blank=True
+    )
     departure_at = models.DateTimeField(null=True, blank=True)
     estimated_arrival_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
@@ -792,10 +812,21 @@ class Shipment(ParcelDomainModel):
             models.UniqueConstraint(
                 fields=["business", "idempotency_key"], name="shipment_creation_retry_unique"
             ),
+            models.CheckConstraint(
+                condition=models.Q(transport_mode__isnull=True)
+                | models.Q(transport_mode__in=TransportationMode.values),
+                name="shipment_transport_mode_known",
+            ),
         ]
 
     def __str__(self):
         return self.reference
+
+    @property
+    def transportation_details(self):
+        from .shipment_references import populated_transport_references
+
+        return populated_transport_references(self, include_historical=True)
 
     def clean(self):
         from apps.businesses.models import Business

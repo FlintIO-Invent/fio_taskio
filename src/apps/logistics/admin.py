@@ -318,12 +318,27 @@ class ShipmentAdmin(ParcelInspectionAdmin):
         "reference",
         "origin",
         "destination",
+        "transport_mode",
         "status",
         "departure_at",
         "estimated_arrival_at",
     )
-    list_filter = (("business", admin.RelatedOnlyFieldListFilter), "status", "created_at")
-    search_fields = ("reference",)
+    list_filter = (
+        ("business", admin.RelatedOnlyFieldListFilter),
+        "status",
+        "transport_mode",
+        "created_at",
+    )
+    search_fields = (
+        "reference",
+        "carrier_name",
+        "vessel_name",
+        "voyage_reference",
+        "container_reference",
+        "bill_of_lading_reference",
+        "vehicle_reference",
+        "dispatch_reference",
+    )
 
     def get_queryset(self, request):
         from .shipment_services import shipments_for_business
