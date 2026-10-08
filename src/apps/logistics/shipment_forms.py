@@ -286,3 +286,8 @@ class ShipmentStatusForm(ShipmentWriteForm):
             self.fields["status"].choices.append((submitted, Shipment.Status(submitted).label))
         self.fields["expected_status"].initial = shipment.status
         style_dashboard_fields(self.fields)
+        self.fields["status"].widget.choices = [
+            (value, label)
+            for value, label in Shipment.Status.choices
+            if value in ALLOWED_TRANSITIONS[shipment.status]
+        ]

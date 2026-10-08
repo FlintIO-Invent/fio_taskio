@@ -508,6 +508,12 @@ class ParcelEventForm(forms.Form):
         ]
         style_dashboard_fields(self.fields)
 
+        # Bound fields still accept receipts for service-level replay validation.
+        # Present only currently permitted next states to the operator.
+        self.fields["status"].widget.choices = [("", "Tracking note (keep status)")] + [
+            (value, label) for value, label in Parcel.Status.choices if value in allowed
+        ]
+
 
 class ParcelFilterForm(forms.Form):
     q = forms.CharField(required=False, max_length=200, label="Search parcels")
@@ -531,6 +537,9 @@ class ParcelFilterForm(forms.Form):
                 "class": "form-control",
                 "type": "search",
                 "placeholder": "Tracking code, client or route",
+                "autocapitalize": "none",
+                "spellcheck": "false",
+                "enterkeyhint": "search",
             }
         )
         self.fields["client"].widget.attrs["data-logistics-search-select"] = ""

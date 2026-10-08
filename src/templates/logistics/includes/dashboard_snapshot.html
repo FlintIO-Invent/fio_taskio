@@ -7,7 +7,7 @@
     <h3 class="mb-1">Logistics operations</h3>
     <p class="text-body-tertiary fs-9 mb-0">Parcel movement and shipment activity at a glance.</p>
   </div>
-  <div class="row g-3 mb-4">
+  <div class="row g-3 mb-4 mobile-dashboard-kpis">
     {% if dashboard_parcels_enabled %}
       {% with total=parcel_count|stringformat:'s' %}
         {% include 'logistics/includes/kpi_card.html' with label='Active Parcels' value=active_parcel_count icon='fa-box' tone='primary' description=total|add:' registered in total.' only %}
@@ -27,7 +27,7 @@
   </div>
 
   {% if dashboard_invoices_enabled %}
-    <section class="mb-4 p-0" aria-labelledby="logistics-finance-heading" data-onboarding-target="invoices">
+    <section class="mb-4 p-0 mobile-dashboard-finance" aria-labelledby="logistics-finance-heading" data-onboarding-target="invoices">
       <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <div>
           <h4 class="mb-1" id="logistics-finance-heading">Finance overview</h4>
@@ -44,7 +44,7 @@
     </section>
   {% endif %}
 
-  <div class="card mb-4">
+  <div class="card mb-4 mobile-dashboard-quick">
     <div class="card-header">
       <h4 class="mb-0"><span class="fa-solid fa-bolt text-body-tertiary me-2" aria-hidden="true"></span>Quick Actions</h4>
     </div>
@@ -61,15 +61,12 @@
       {% if dashboard_parcels_enabled %}
         <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_list' %}"><span class="fa-solid fa-box me-2" aria-hidden="true"></span>View Parcels</a>
       {% endif %}
-      {% if module_access.tracking %}
-        <a class="btn btn-phoenix-secondary" href="{% url 'logistics_public_tracking' %}"><span class="fa-solid fa-magnifying-glass me-2" aria-hidden="true"></span>Public Tracking</a>
-      {% endif %}
     </div>
   </div>
 
   {% if dashboard_parcels_enabled %}
-    <div class="row g-3 mb-4">
-      <div class="col-12 col-xl-4">
+    <div class="row g-3 mb-4 mobile-dashboard-group">
+      <div class="col-12 col-xl-4 mobile-dashboard-status">
         <div class="card h-100" data-onboarding-target="parcels">
           <div class="card-header">
             <h4 class="mb-1"><span class="fa-solid fa-boxes-stacked text-body-tertiary me-2" aria-hidden="true"></span>Parcels by current status</h4>
@@ -92,7 +89,7 @@
           </div>
         </div>
       </div>
-      <div class="col-12 col-xl-8">
+      <div class="col-12 col-xl-8 mobile-dashboard-activity">
         <div class="card h-100">
           <div class="card-header">
             <h4 class="mb-1"><span class="fa-solid fa-clock-rotate-left text-body-tertiary me-2" aria-hidden="true"></span>Recent Parcel Activity</h4>
@@ -129,9 +126,9 @@
     </div>
   {% endif %}
 
-  <div class="row g-3 mb-4">
+  <div class="row g-3 mb-4 mobile-dashboard-group">
     {% if dashboard_shipments_enabled %}
-      <div class="col-12 col-xl-6">
+      <div class="col-12 col-xl-6 mobile-dashboard-shipments">
         <div class="card h-100">
           <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div class="logistics-min-w-0">
@@ -165,7 +162,7 @@
       </div>
     {% endif %}
     {% if dashboard_parcels_enabled %}
-      <div class="col-12 col-xl-6">
+      <div class="col-12 col-xl-6 mobile-dashboard-attention">
         <div class="card h-100">
           <div class="card-header">
             <h4 class="mb-1"><span class="fa-solid fa-triangle-exclamation text-warning me-2" aria-hidden="true"></span>Parcels Requiring Attention</h4>

@@ -66,7 +66,7 @@
       <h2 class="mb-0 text-body-emphasis">Invoice {{ invoice.invoice_number }}</h2>
     </div>
     <div class="col-auto">
-      <div class="d-flex gap-3">
+      <div class="d-flex gap-3 mobile-header-actions">
         <a class="btn btn-phoenix-secondary" href="{% url 'invoice_list' %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to List</a>
         {% if invoice.appointment and module_access.appointments and role_access.can_view_appointments %}
           <a class="btn btn-phoenix-secondary" href="{% url 'appointment_detail' invoice.appointment.pk %}">
@@ -98,7 +98,7 @@
   <div class="row gx-4">
     <div class="col-12 col-lg-8">
       <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header mobile-card-header d-flex justify-content-between align-items-center">
           <h5 class="mb-0">Invoice Details</h5>
           <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
         </div>
@@ -195,8 +195,8 @@
           </div>
 
           {% if invoice.lines.all %}
-          <div class="table-responsive">
-            <table class="table table-hover">
+          <div class="logistics-mobile-table-wrap table-responsive">
+            <table class="table logistics-mobile-table table-hover">
               <thead class="text-body-secondary">
                 <tr>
                   <th>Description</th>

@@ -17,8 +17,8 @@
     {% include 'logistics/includes/form_errors.html' %}
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
     <div class="row g-4">
-      <div class="col-12 col-xl-8">
-        <div class="card mb-4">
+      <div class="col-12 col-xl-8 mobile-shipment-fields">
+        <div class="card mb-4 mobile-shipment-route">
           <div class="card-body">
             <h4 class="mb-3">Route</h4>
             <div class="row g-3">
@@ -27,7 +27,7 @@
             </div>
           </div>
         </div>
-        <div class="card mb-4">
+        <div class="card mb-4 mobile-shipment-transport">
           <div class="card-body">
             <h4 class="mb-3">Transportation details</h4>
             <p class="text-body-secondary fs-9">References are optional. Use the fields for the selected transportation mode.</p>
@@ -46,7 +46,7 @@
             </div>
           </div>
         </div>
-        <div class="card mb-4">
+        <div class="card mb-4 mobile-shipment-schedule">
           <div class="card-body">
             <h4 class="mb-3">Schedule</h4>
             <div class="row g-3">
@@ -55,7 +55,7 @@
             </div>
           </div>
         </div>
-        <div class="card mb-4">
+        <div class="card mb-4 mobile-shipment-notes">
           <div class="card-body">
             <h4 class="mb-3">Notes</h4>
             <div class="row g-3">
@@ -64,7 +64,7 @@
           </div>
         </div>
         {% if form.parcel %}
-        <div class="card mb-4">
+        <div class="card mb-4 mobile-shipment-assignment">
           <div class="card-body">
             <h4 class="mb-3">Parcel assignment</h4>
             {% if has_eligible_parcels or form.parcel.errors %}
@@ -78,7 +78,7 @@
           </div>
         </div>
         {% endif %}
-        <div class="d-flex flex-wrap gap-2">
+        <div class="d-flex flex-wrap gap-2 mobile-form-actions">
           <button class="btn btn-primary" type="submit">Save Shipment</button>
           <a class="btn btn-phoenix-secondary" href="{% if form.instance.pk %}{% url 'logistics_shipment_detail' form.instance.pk %}{% else %}{% url 'logistics_shipment_list' %}{% endif %}">Cancel</a>
         </div>

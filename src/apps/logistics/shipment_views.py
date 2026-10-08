@@ -3,6 +3,7 @@ from io import StringIO
 
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from django.db.models import Count, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
@@ -90,6 +91,7 @@ def _detail(request, shipment, *, error=None, assignment_form=None, status_form=
             **billing_context(request, shipment),
             "shipment": shipment,
             "parcels": parcels,
+            "status_actions": ShipmentStatusForm(shipment=shipment).fields["status"].choices,
             "error": error,
             "can_assign": shipment.status in ASSIGNABLE_SHIPMENT_STATUSES,
             "assignment_form": assignment_form,
@@ -111,7 +113,19 @@ def _detail(request, shipment, *, error=None, assignment_form=None, status_form=
 @business_role_required(*SHIPMENT_VIEW_ROLES)
 @require_safe
 def shipment_list(request):
-    shipments = shipments_for_business(business=request.current_business, actor=request.user)
+    shipments = (
+        shipments_for_business(business=request.current_business, actor=request.user)
+        .annotate(
+            parcel_count=Count(
+                "parcels",
+                filter=Q(
+                    parcels__business=request.current_business,
+                    parcels__client__business=request.current_business,
+                ),
+            )
+        )
+        .order_by("-created_at", "-pk")
+    )
     parcel = _initial_parcel(request)
     if parcel:
         shipments = shipments.filter(status__in=ASSIGNABLE_SHIPMENT_STATUSES)

@@ -12,6 +12,8 @@
     <div class="col-12 col-md-auto">
       <h2 class="mb-2 text-body-emphasis text-break">{{ parcel.tracking_code }}</h2>
       <p class="mb-0 text-body-secondary text-break">{% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %} · {% if can_view_client %}<a href="{% url 'staff_client_detail' parcel.client_id %}">{{ parcel.client }}</a>{% else %}{{ parcel.client }}{% endif %}</p>
+      <p class="d-lg-none mt-2 mb-0 text-break">{{ parcel.origin }} → {{ parcel.destination }}</p>
+      {% if shipment %}<p class="d-lg-none mt-2 mb-0 text-break">Shipment <a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a> · {{ shipment.get_transport_mode_display|default:'Unknown mode' }}</p>{% endif %}
     </div>
     {% if role_access.can_manage_parcels and module_write_access.parcels %}
     <div class="col-auto d-flex flex-wrap gap-2">
@@ -36,7 +38,8 @@
       {% endif %}
     {% endif %}
   </div>
-  <div class="card mb-4">
+  <div class="mobile-detail-sections">
+  <div class="card mb-4 mobile-detail-overview">
     <div class="card-body">
       <h4 class="mb-3">Parcel details</h4>
       <dl class="row mb-0">
@@ -54,16 +57,30 @@
     </div>
   </div>
   {% if shipment %}
-  <div class="card mb-4"><div class="card-body">
+  <div class="card mb-4 mobile-detail-shipment"><div class="card-body">
     <h4 class="mb-3">Shipment</h4>
     <dl class="row mb-0">
       <dt class="col-sm-4 mb-2">Reference</dt><dd class="col-sm-8 mb-3 text-break"><a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a> · {{ shipment.get_status_display }}</dd>
       <dt class="col-sm-4 mb-2">Shipment route</dt><dd class="col-sm-8 mb-3 text-break">{{ shipment.origin }} → {{ shipment.destination }}</dd>
+      <dt class="col-sm-4 mb-2">Transportation mode</dt><dd class="col-sm-8 mb-3">{{ shipment.get_transport_mode_display|default:'Unknown' }}</dd>
       <dt class="col-sm-4 mb-2">Departure</dt><dd class="col-sm-8 mb-3">{{ shipment.departure_at|default_if_none:'—' }}</dd>
       <dt class="col-sm-4 mb-2">Estimated arrival</dt><dd class="col-sm-8 mb-0">{{ shipment.estimated_arrival_at|default_if_none:'—' }}</dd>
     </dl>
   </div></div>
   {% endif %}
+  <section class="card mb-4 d-lg-none mobile-detail-recent" aria-labelledby="recent-parcel-events">
+    <div class="card-body">
+      <h4 id="recent-parcel-events">Recent events</h4>
+      {% for event in recent_events %}
+      <div class="border-bottom py-2 text-break">
+        <p class="fw-semibold mb-1">{{ event.get_status_display|default:event.get_event_type_display }}</p>
+        <p class="fs-9 text-body-secondary mb-0">{{ event.timestamp }}{% if event.location %} · {{ event.location }}{% endif %}</p>
+        {% if event.public_message %}<p class="mb-0 mt-1">{{ event.public_message }}</p>{% endif %}
+      </div>
+      {% empty %}<p class="mb-0">No tracking updates yet.</p>{% endfor %}
+      <a class="btn btn-phoenix-secondary mt-3" href="#parcel-history">Full tracking history</a>
+    </div>
+  </section>
   <div class="row g-4 mb-4">
     {% for section in detail_sections %}
     <div class="col-12 col-xl-6">
@@ -81,6 +98,7 @@
     {% endfor %}
   </div>
   {% include "logistics/includes/billing.html" %}
+  <div id="parcel-history">
   <h3 class="mb-3">Tracking history</h3>
   {% for event in events %}
   <article class="card mb-3">
@@ -95,6 +113,8 @@
   {% empty %}
   <div class="card"><div class="card-body text-center py-5"><p class="mb-0 text-body-secondary">No tracking updates yet.</p></div></div>
   {% endfor %}
+  </div>
+  </div>
 </div>
 {% include 'logistics/includes/scripts.html' %}
 {% endblock %}

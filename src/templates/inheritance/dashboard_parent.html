@@ -62,9 +62,13 @@
         userLinkRTL.setAttribute('disabled', true);
       }
     </script>
+    {% if current_business.vertical == 'LOGISTICS' %}
+    <link href="{% static 'assets/css/logistics-mobile.css' %}" rel="stylesheet">
+    <script src="{% static 'assets/js/logistics-mobile.js' %}" defer></script>
+    {% endif %}
   </head>
 
-  <body>
+  <body{% if current_business.vertical == 'LOGISTICS' %} class="logistics-workspace"{% endif %}>
     <!-- ===============================================-->
     <!--    Main Content-->
     <!-- ===============================================-->
@@ -373,13 +377,23 @@
                             </label>
                         </div>
                     </li>
+                    {% if current_business.vertical == 'LOGISTICS' %}
+                    {% if module_access.parcels %}
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link" href="{% url 'logistics_parcel_list' %}" aria-label="Search parcels">
+                            <span data-feather="search" aria-hidden="true"></span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% else %}
                     <li class="nav-item d-lg-none">
                         <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#searchBoxModal">
                             <span class="d-block" style="height: 20px; width: 20px;"><span data-feather="search" style="height: 19px; width: 19px; margin-bottom: 2px;"></span></span>
                         </a>
                     </li>
+                    {% endif %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link lh-1 pe-0" id="navbarDropdownUser" href="#!" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
+                        <a class="nav-link lh-1 pe-0" aria-label="Account menu" id="navbarDropdownUser" href="#!" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
                             <div class="avatar avatar-xl">
                                 <div class="avatar-name rounded-circle"><span>{{ request.user.initials|default:request.user.email|slice:":1"|upper }}</span></div>
                             </div>

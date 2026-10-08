@@ -1,6 +1,12 @@
 <div class="{{ column_class|default:'col-12' }}">
+  {% if field.field.widget.input_type == 'checkbox' %}
+  <div class="form-check">
+    <label class="form-check-label" for="{{ field.id_for_label }}">{{ field }} <span>{{ field.label }}</span></label>
+  </div>
+  {% else %}
   <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}</label>
   {{ field }}
+  {% endif %}
   {% if field.help_text %}<div class="form-text" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</div>{% endif %}
   {% if field.errors %}
   <div class="invalid-feedback d-block" id="{{ field.auto_id }}_error">

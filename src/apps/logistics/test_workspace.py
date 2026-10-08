@@ -441,7 +441,7 @@ class LogisticsWorkspaceTests(TestCase):
                     else:
                         self.assertNotContains(response, f'href="{reverse(route)}"')
             self.assertContains(response, f'href="{reverse("logistics_parcel_list")}"')
-            self.assertContains(response, f'href="{reverse("logistics_public_tracking")}"')
+            self.assertNotContains(response, f'href="{reverse("logistics_public_tracking")}"')
 
     def test_read_only_dashboard_keeps_reads_and_hides_write_actions(self):
         subscription = self.business.subscription
@@ -706,8 +706,8 @@ class LogisticsWorkspaceTests(TestCase):
                 self.assertContains(response, 'aria-label="breadcrumb"')
                 self.assertContains(response, 'class="card')
                 if route.endswith("list") or route == "logistics_shipment_detail":
-                    self.assertContains(response, 'class="table-responsive"')
-                    self.assertContains(response, 'class="table table-hover align-middle mb-0"')
+                    self.assertContains(response, "table-responsive")
+                    self.assertContains(response, "table-hover align-middle mb-0")
 
     def test_shipment_form_keeps_fields_and_shows_validation(self):
         url = reverse("logistics_shipment_create")
