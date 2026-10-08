@@ -12,3 +12,7 @@ def style_dashboard_fields(fields):
         )
         if isinstance(field.widget, forms.Textarea):
             field.widget.attrs["rows"] = 3
+        if isinstance(field, forms.DecimalField):
+            field.widget.attrs["inputmode"] = "decimal"
+        elif isinstance(field, forms.IntegerField):
+            field.widget.attrs["inputmode"] = "numeric"

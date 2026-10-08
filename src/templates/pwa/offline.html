@@ -1,0 +1,21 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Motionmate · Connection unavailable</title>
+  <link rel="stylesheet" href="{% static 'assets/css/pwa.css' %}">
+</head>
+<body class="pwa-offline-page">
+  <main class="pwa-offline-card">
+    <img src="{% static 'assets/img/favicons/motionmate-logo.svg' %}" width="64" height="64" alt="Motionmate">
+    <h1>Connection unavailable</h1>
+    <p>Connect to the internet to open your Motionmate workspace.</p>
+    <p>Live business data is unavailable. Changes cannot be saved offline and nothing is queued.</p>
+    <button type="button" onclick="window.location.reload()">Try again</button>
+    <a href="{% url 'agent_dashboard' %}">Open dashboard</a>
+  </main>
+</body>
+</html>

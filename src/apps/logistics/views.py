@@ -199,7 +199,7 @@ def application_checkout(request, application_id):
 def parcel_list(request):
     parcels = parcels_for_business(
         business=request.current_business, actor=request.user
-    ).select_related("client")
+    ).select_related("client", "shipment")
     filters = ParcelFilterForm(request.GET, business=request.current_business)
     if filters.is_valid():
         query = filters.cleaned_data["q"]
@@ -283,6 +283,7 @@ def parcel_detail(request, parcel_id):
             **billing_context(request, parcel),
             "parcel": parcel,
             "events": events,
+            "recent_events": list(reversed(events))[:3],
             "shipment": shipment,
             "detail_sections": detail_sections,
             "latest_location": next((event for event in reversed(events) if event.location), None),

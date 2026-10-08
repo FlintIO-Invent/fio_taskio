@@ -15,7 +15,7 @@
       <h2 class="mb-0 text-body-emphasis">{% if single_client %}Client Details{% else %}Client Management{% endif %}</h2>
     </div>
     <div class="col-auto">
-      <div class="d-flex gap-3">
+      <div class="d-flex gap-3 mobile-header-actions">
         <a class="btn btn-phoenix-primary" href="{% url 'staff_client_list' %}"><span class="fa-solid fa-arrow-left me-2"></span>Back to List</a>
         {% if single_client and role_access.can_manage_invoices and module_access.invoicing and workspace_can_modify %}
         <a class="btn btn-phoenix-secondary" href="{% url 'invoice_create_from_client' single_client.id %}"><span class="fa-solid fa-file-invoice me-2"></span>Create Invoice</a>
@@ -86,7 +86,7 @@
           <h4 class="mb-4">{% if single_client %}Client Summary{% else %}Client Details{% endif %}</h4>
           {% for client in clients %}
             <div class="card mb-4">
-              <div class="card-header d-flex justify-content-between align-items-center gap-3">
+              <div class="card-header mobile-card-header d-flex justify-content-between align-items-center gap-3">
                 <div>
                   <h5 class="mb-0">{{ client.first_name }} {{ client.last_name }}</h5>
                   <p class="text-body-secondary mb-0">{{ client.company_name|default:"No company" }} • {{ client.get_client_type_display }}</p>
@@ -609,7 +609,7 @@
   {% if logistics_client_parcels %}{% include 'logistics/includes/client_parcels.html' %}{% endif %}
   {% if single_client and module_access.appointments and role_access.can_view_appointments %}
   <div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center gap-3">
+    <div class="card-header mobile-card-header d-flex justify-content-between align-items-center gap-3">
       <div>
         <h4 class="mb-1">Appointments</h4>
         <p class="text-body-tertiary mb-0">Upcoming and recent scheduling activity for {{ single_client.first_name }} {{ single_client.last_name }}.</p>

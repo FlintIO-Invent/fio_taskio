@@ -1,0 +1,33 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+{% block content %}
+<div class="content logistics-scan" data-scan-workflow>
+  <nav class="mb-3" aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'logistics_parcel_list' %}">Parcels</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Scan Parcel</li>
+  </ol></nav>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h2 class="mb-0">Scan Parcel</h2>
+    <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_list' %}">All Parcels</a>
+  </div>
+  {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="status">{{ message }}</div>{% endfor %}
+  <div class="row"><div class="col-12 col-xl-8">
+    <section class="card mb-3 p-0"><div class="card-body">
+      <form method="post" action="{% url 'logistics_parcel_scan' %}" data-scan-lookup>
+        {% csrf_token %}
+        <label class="form-label" for="{{ lookup_form.tracking_code.id_for_label }}">{{ lookup_form.tracking_code.label }}</label>
+        {{ lookup_form.tracking_code }}
+        <p class="form-text" id="scan-input-help">Type, paste or scan a tracking code, then press Enter.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-primary">Find Parcel</button>
+          <button type="button" class="btn btn-phoenix-secondary" data-next-scan>Next Scan</button>
+        </div>
+      </form>
+    </div></section>
+    <div data-scan-result>{% include 'logistics/includes/scan_panel.html' %}</div>
+  </div></div>
+</div>
+<link rel="stylesheet" href="{% static 'assets/css/logistics-scan.css' %}">
+<script src="{% static 'assets/js/logistics-scan.js' %}" defer></script>
+{% endblock %}

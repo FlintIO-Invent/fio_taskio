@@ -15,7 +15,7 @@
       <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
     </div>
   </div>
-  <form method="post" class="mb-9" novalidate data-logistics-parcel-form>
+  <form method="post" class="mb-9" novalidate data-logistics-parcel-form data-cancel-confirmation="Cancel this parcel?">
     {% csrf_token %}
     {% include 'logistics/includes/form_errors.html' %}
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
@@ -95,7 +95,7 @@
         {% endif %}
       </div>
     </div>
-    <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4">
+    <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4 mobile-form-actions">
       <a class="btn btn-outline-secondary" href="{% if parcel %}{% url 'logistics_parcel_detail' parcel.pk %}{% else %}{% url 'logistics_parcel_list' %}{% endif %}">Cancel</a>
       <button class="btn btn-primary" type="submit">{% if editing_metadata %}Save Parcel{% elif parcel %}Save Update{% else %}Register Parcel{% endif %}</button>
     </div>

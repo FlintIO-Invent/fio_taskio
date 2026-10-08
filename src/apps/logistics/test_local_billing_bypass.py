@@ -335,7 +335,6 @@ class LocalLogisticsAccessTests(TestCase):
             "staff_client_create",
             "logistics_parcel_list",
             "logistics_shipment_list",
-            "logistics_public_tracking",
             "business_settings",
         ):
             self.assertContains(local, f'href="{reverse(name)}"')

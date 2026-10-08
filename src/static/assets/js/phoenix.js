@@ -3953,6 +3953,7 @@
       passwords.forEach(password => {
         const passwordInput = password.querySelector('[data-password-input]');
         const passwordToggler = password.querySelector('[data-password-toggle]');
+        if (!passwordInput || !passwordToggler) return;
         passwordToggler.addEventListener('click', () => {
           if (passwordInput.type === 'password') {
             passwordInput.setAttribute('type', 'text');

@@ -56,6 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
         searchResultLimit: 8,
         searchPlaceholderValue: select.dataset.searchPlaceholder || 'Search',
       }));
+      const search = select.closest('.choices')?.querySelector('input');
+      if (search) {
+        search.setAttribute('aria-label', `Search ${select.labels?.[0]?.textContent.trim() || 'options'}`);
+        search.setAttribute('autocapitalize', 'none');
+        search.setAttribute('spellcheck', 'false');
+        search.setAttribute('enterkeyhint', 'search');
+      }
     }
   });
 
