@@ -67,8 +67,10 @@ reports profile inventory and the current operating profile in its Logistics
 summary. Both commands remain read-only.
 
 Logistics demo seeding creates a missing profile or fills an existing Transportation
-profile with unknown modes using Sea + Air + Road, matching its existing demo routes.
-It preserves explicitly configured profiles and writes nothing in dry-run mode.
+profile with unknown modes using Sea + Road, matching its demo routes.
+An incompatible explicit profile is preserved and seeding is refused; select or
+configure a compatible demo workspace first. Compatible profiles are kept, and
+dry-run mode writes nothing.
 The profile is operational state, so demo reset keeps it. SERVICE seeding is unchanged.
 Deactivation retains the profile. Controlled business purge includes its explicit
 inventory/deletion count and deletes it while retaining historical application

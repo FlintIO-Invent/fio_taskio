@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 from decimal import Decimal
+from uuid import uuid4
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -45,16 +46,27 @@ LOGISTICS_RESET_ORDER = (
     BusinessService,
 )
 LOGISTICS_DEMO_COUNTS = {
-    "clients": 10,
+    "clients": 6,
     "parcels": 20,
     "parcel_events": 83,
     "shipments": 6,
-    "services": 8,
-    "logistics_charges": 9,
-    "invoices": 3,
-    "invoice_lines": 5,
-    "activity_logs": 3,
+    "services": 0,
+    "logistics_charges": 16,
+    "invoices": 4,
+    "invoice_lines": 13,
+    "activity_logs": 4,
 }
+PARCEL_STATUS_COUNTS = {
+    "REGISTERED": 3,
+    "RECEIVED": 4,
+    "HOLD": 2,
+    "IN_TRANSIT": 3,
+    "ARRIVED": 2,
+    "READY": 1,
+    "DELIVERED": 3,
+    "CANCELLED": 2,
+}
+SHIPMENT_STATUS_COUNTS = {status: 1 for status in Shipment.Status.values}
 
 CLIENT_TEMPLATES = (
     ("Avery", "Morgan", "Coral Bay Books"),
@@ -63,35 +75,63 @@ CLIENT_TEMPLATES = (
     ("Riley", "Foster", "Sunrise Guest House"),
     ("Morgan", "Reed", "Blue Horizon Design"),
     ("Taylor", "Hayes", "Seabreeze Market"),
-    ("Alex", "Rivera", "Palm Garden Nursery"),
-    ("Sam", "Brooks", "Marina Outfitters"),
-    ("Jamie", "Clarke", "Beachside Ceramics"),
-    ("Drew", "Parker", "Island Cycle Shop"),
+)
+# Completed supplies (C), active books (A), arrived displays (E), upcoming cafe
+# supplies (F), packaging holds (B), and local guest-house delivery (D).
+PARCEL_CLIENT_INDEXES = (2, 2, 2, 0, 0, 0, 4, 4, 5, 5, 4, 4, 0, 5, 3, 1, 1, 5, 5, 3)
+CLIENT_CONTENTS = (
+    ("Books and stationery", "490199"),
+    ("Cafe supplies and reusable cups", "392410"),
+    ("Cotton clothing and shop supplies", "610910"),
+    ("Ceramic tableware", "691200"),
+    ("Printed display materials", "491110"),
+    ("Compostable food containers", "482369"),
 )
 
 # A shipment's route also supplies the route and transport metadata of its members.
 ROUTES = (
     ("Miami consolidation depot", "Philipsburg collection depot", "Sea", "USMIA", "SXPHI"),
-    ("San Juan air cargo terminal", "Simpson Bay airport depot", "Air", "PRSJU", "SXSXM"),
+    (
+        "Philipsburg consolidation depot",
+        "Blowing Point, Anguilla collection depot",
+        "Sea",
+        "SXPHI",
+        "AIBLP",
+    ),
     ("Philipsburg warehouse", "Cole Bay delivery hub", "Road", "", ""),
+    (
+        "Roseau, Dominica consolidation depot",
+        "Pointe-a-Pitre, Guadeloupe collection depot",
+        "Sea",
+        "DMRSU",
+        "GPPTP",
+    ),
+    (
+        "Philipsburg consolidation depot",
+        "Willemstad, Curacao collection depot",
+        "Sea",
+        "SXPHI",
+        "CWWIL",
+    ),
 )
-SHIPMENT_ROUTE_INDEXES = (0, 1, 0, 1, 2, 0)
-ASSIGNED_PARCEL_ROUTE_INDEXES = (0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 2, 2)
+SHIPMENT_ROUTE_INDEXES = (0, 1, 3, 4, 2, 1)
+PARCEL_ROUTE_INDEXES = (0, 0, 0, 1, 1, 1, 3, 3, 4, 4, 2, 2, 1, 2, 2, 0, 0, 4, 4, 2)
+ASSIGNED_PARCEL_SHIPMENT_INDEXES = (0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4)
 
 
 def parcel_demo_fields(*, index, client, route, today):
     """Predictable metadata, including one minimal parcel and optional-field gaps."""
     origin, destination, mode, loading_port, discharge_port = route
+    description, hs_code = CLIENT_CONTENTS[PARCEL_CLIENT_INDEXES[index]]
+    voyage = (
+        ASSIGNED_PARCEL_SHIPMENT_INDEXES[index] + 1
+        if index < len(ASSIGNED_PARCEL_SHIPMENT_INDEXES)
+        else index + 1
+    )
     fields = {
         "origin": origin,
         "destination": destination,
-        "package_description": (
-            "Books and stationery",
-            "Cafe supplies and reusable cups",
-            "Cotton clothing",
-            "Ceramic tableware",
-            "Compostable food containers",
-        )[index % 5],
+        "package_description": description,
         "internal_reference": f"DEMO-{index + 1:03d}",
     }
     if index == 19:
@@ -112,29 +152,33 @@ def parcel_demo_fields(*, index, client, route, today):
         ),
         dimensions=f"{length} x {width} x {height} cm" if index % 4 == 2 else "",
         declared_value=Decimal("35.00") + Decimal(index * 18) if index % 4 != 3 else None,
-        hs_code=("490199", "392410", "610910", "691200", "482369")[index % 5],
+        hs_code=hs_code,
         marks_numbers=f"DEMO-BOX-{index + 1:03d}" if index % 3 != 2 else "",
-        sender_name=f"Demo {'Mainland Supply' if mode != 'Road' else 'Island Distribution'}",
+        sender_name=f"Demo {'Mainland Supply' if origin.startswith('Miami') else 'Island Distribution'}",
         sender_contact="dispatch@example.test" if index % 4 != 1 else "",
         sender_address=f"{100 + index} Demo Cargo Road, {origin.split()[0]}",
-        sender_country_code="SX" if mode == "Road" else "US",
+        sender_country_code=(
+            "US" if origin.startswith("Miami") else "DM" if origin.startswith("Roseau") else "SX"
+        ),
         sender_tax_id=f"DEMO-TAX-{index + 1:03d}" if mode == "Sea" else "",
         recipient_name=f"{client.first_name} {client.last_name}",
         recipient_contact=client.email if index % 2 == 0 else client.phone,
-        recipient_address=f"{client.street_address}, Sint Maarten" if index % 4 != 1 else "",
+        recipient_address=f"{client.company_name}, {destination}" if index % 4 != 1 else "",
         mode_of_transport=mode,
-        vessel_name="Demo Coral Voyager" if mode == "Sea" else "Demo Island Cargo",
-        voyage_no=f"DEMO-VOY-{index // 3 + 1:02d}" if mode == "Sea" else "",
+        vessel_name="Demo Coral Voyager" if mode == "Sea" else "",
+        voyage_no=f"DEMO-VOY-{voyage:02d}" if mode == "Sea" else "",
         imo_no="9074729" if mode == "Sea" else "",
         port_load_unlocode=loading_port,
         port_discharge_unlocode=discharge_port,
-        master_bl_no=f"DEMO-MBL-{index // 3 + 1:03d}" if mode == "Sea" else "",
+        master_bl_no=f"DEMO-MBL-{voyage:03d}" if mode == "Sea" else "",
         house_bl_no=f"DEMO-HBL-{index + 1:03d}" if mode == "Sea" else "",
         issue_date=today - timedelta(days=2 + index % 8) if mode == "Sea" else None,
         incoterms=("DAP", "CIF", "EXW")[index % 3],
-        fragile_goods=index % 5 == 3,
-        biodegradable_goods=index % 5 == 4,
-        expiry_date=today + timedelta(days=30 + index) if index % 5 == 4 else None,
+        fragile_goods=PARCEL_CLIENT_INDEXES[index] == 3,
+        biodegradable_goods=PARCEL_CLIENT_INDEXES[index] == 5,
+        expiry_date=(
+            today + timedelta(days=30 + index) if PARCEL_CLIENT_INDEXES[index] == 5 else None
+        ),
         internal_notes="[DEMO] Keep dry; check packaging before release." if index % 3 == 0 else "",
     )
     return fields
@@ -143,6 +187,30 @@ def parcel_demo_fields(*, index, client, route, today):
 def require_logistics_business(business):
     if business.vertical != Business.Vertical.LOGISTICS:
         raise ValidationError("Logistics demo tooling requires an existing LOGISTICS Business.")
+
+
+def logistics_demo_profile_plan(business):
+    """Preview classification without overwriting an explicit operational profile."""
+    profile = LogisticsProfile.objects.filter(business=business).first()
+    modes = [TransportationMode.SEA, TransportationMode.ROAD]
+    if profile and (
+        profile.operating_areas != [OperatingArea.TRANSPORTATION]
+        or (profile.transportation_modes and set(profile.transportation_modes) != set(modes))
+    ):
+        raise ValidationError(
+            "The demo requires Transportation with Sea + Road. The existing explicit "
+            "LogisticsProfile was preserved; configure a compatible demo workspace first."
+        )
+    return {
+        "create_count": int(profile is None),
+        "action": (
+            "create"
+            if profile is None
+            else "fill_modes" if not profile.transportation_modes else "keep"
+        ),
+        "operating_areas": [OperatingArea.TRANSPORTATION],
+        "transportation_modes": modes,
+    }
 
 
 def demo_actor(*, business, actor_id=None):
@@ -173,6 +241,7 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             "Demo ownership metadata already exists; preview/reset it before seeding again."
         )
     actor = demo_actor(business=business, actor_id=actor_id)
+    logistics_demo_profile_plan(business)
     profile, created = LogisticsProfile.objects.get_or_create(business=business)
     # Fill only the legacy/default unknown-mode profile, preserving explicit settings.
     if created or (
@@ -181,7 +250,6 @@ def seed_logistics_demo(*, business_id, actor_id=None):
     ):
         profile.transportation_modes = [
             TransportationMode.SEA,
-            TransportationMode.AIR,
             TransportationMode.ROAD,
         ]
         profile.save(update_fields=["transportation_modes", "updated_at"])
@@ -201,9 +269,8 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             business=business,
             first_name=first,
             last_name=last,
-            # The existing Client model requires a company_name, including individuals.
-            company_name=f"[DEMO] {company}" if index <= 8 else f"[DEMO] {first} {last}",
-            client_type=Client.ClientType.BUSINESS if index <= 8 else Client.ClientType.INDIVIDUAL,
+            company_name=f"[DEMO] {company}",
+            client_type=Client.ClientType.BUSINESS,
             email=f"logistics.demo.{business.pk}.{index}@example.test",
             phone=f"+1 721 555 {100 + index:04d}",
             street_address=f"{10 + index} Demo Front Street",
@@ -218,18 +285,12 @@ def seed_logistics_demo(*, business_id, actor_id=None):
         own(
             register_parcel(
                 business=business,
-                client=clients[0 if index == 11 else index % len(clients)],
+                client=clients[PARCEL_CLIENT_INDEXES[index]],
                 actor=actor,
                 **parcel_demo_fields(
                     index=index,
-                    client=clients[0 if index == 11 else index % len(clients)],
-                    route=ROUTES[
-                        (
-                            ASSIGNED_PARCEL_ROUTE_INDEXES[index]
-                            if index < len(ASSIGNED_PARCEL_ROUTE_INDEXES)
-                            else index % len(ROUTES)
-                        )
-                    ],
+                    client=clients[PARCEL_CLIENT_INDEXES[index]],
+                    route=ROUTES[PARCEL_ROUTE_INDEXES[index]],
                     today=today,
                 ),
             )
@@ -252,13 +313,30 @@ def seed_logistics_demo(*, business_id, actor_id=None):
     ]
 
     def status(parcel, value):
+        messages = {
+            Parcel.Status.RECEIVED: "Received and weighed at the origin depot.",
+            Parcel.Status.IN_TRANSIT: "Dispatched from the origin depot to the destination hub.",
+            Parcel.Status.ARRIVED: "Unloaded and checked at the destination hub.",
+            Parcel.Status.READY: "Ready for collection or onward local delivery.",
+            Parcel.Status.DELIVERED: "Delivered to the recipient; collection confirmed.",
+            Parcel.Status.HOLD: "Processing paused; please contact the depot for an update.",
+            Parcel.Status.CANCELLED: "Cancelled before dispatch at the client's request.",
+        }
         change_parcel_status(
             business=business,
             parcel=parcel,
             actor=actor,
             status=value,
-            public_message=f"Parcel {Parcel.Status(value).label.lower()}.",
-            location=parcel.origin if value == Parcel.Status.RECEIVED else parcel.destination,
+            public_message=messages[value],
+            location=(
+                parcel.origin
+                if value in {Parcel.Status.RECEIVED, Parcel.Status.HOLD, Parcel.Status.CANCELLED}
+                else (
+                    "En route to " + parcel.destination
+                    if value == Parcel.Status.IN_TRANSIT
+                    else parcel.destination
+                )
+            ),
         )
 
     # Services generate bulk parcel history as shipments depart and arrive.
@@ -322,7 +400,11 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             public_message=(
                 ""
                 if parcel.current_status in {Parcel.Status.HOLD, Parcel.Status.CANCELLED}
-                else "Demo location checkpoint recorded."
+                else (
+                    "Booking registered; awaiting receipt at the origin depot."
+                    if parcel.current_status == Parcel.Status.REGISTERED
+                    else f"Cargo checkpoint confirmed at {location}."
+                )
             ),
             internal_note=(
                 "[DEMO] Awaiting label details."
@@ -338,77 +420,103 @@ def seed_logistics_demo(*, business_id, actor_id=None):
     events = ParcelEvent.objects.filter(business=business, parcel__in=parcels).order_by("pk")
     for event in events:
         own(event)
-    # Shared Services and Invoice models; no booking setup or payment side effects.
-    import uuid
-
-    services = [
-        own(
-            BusinessService.objects.create(
-                business=business,
-                name=f"[DEMO] {name}",
-                unit_price=Decimal(price),
-                description=f"[DEMO] {name}",
-                tax_rate=business.tax_rate,
-            )
-        )
-        for name, price in (
-            ("Small Parcel Delivery", "15"),
-            ("Medium Parcel Delivery", "25"),
-            ("Large Parcel Delivery", "40"),
-            ("Standard Handling", "5"),
-            ("Fragile Handling", "12"),
-            ("Storage", "8"),
-            ("Freight", "150"),
-            ("Customs Processing", "35"),
-        )
-    ]
-    charges = []
-    for parcel, service, price, description in (
-        (parcels[0], services[1], None, ""),
-        (parcels[0], services[4], None, ""),
-        (parcels[10], services[0], None, ""),  # Same client, another parcel.
-        (parcels[1], services[2], Decimal("35"), "Negotiated delivery"),
-        (parcels[2], None, Decimal("37.50"), "Special oversized handling"),
-        (parcels[3], services[1], None, ""),
-        (parcels[3], services[4], None, ""),
-        (parcels[3], services[5], None, ""),
-    ):
-        charges.append(
-            own(
-                add_charge(
-                    business=business,
-                    actor=actor,
-                    parcel=parcel,
-                    service=service,
-                    unit_price=price,
-                    description=description,
-                    idempotency_key=uuid.uuid4(),
-                )
-            )
-        )
-    # A dedicated, single-client shipment shows shipment-level billing safely.
-    billing_shipment = shipments[4]
-    shipment_charge = own(
-        add_charge(
-            business=business,
-            actor=actor,
-            shipment=billing_shipment,
-            service=services[6],
-            idempotency_key=uuid.uuid4(),
-        )
+    # Demo charge snapshots need no SERVICE catalogue or appointment objects.
+    rates = (
+        ("Small Parcel Delivery", "15"),
+        ("Medium Parcel Delivery", "25"),
+        ("Large Parcel Delivery", "40"),
+        ("Standard Handling", "5"),
+        ("Fragile Handling", "12"),
+        ("Storage", "8"),
+        ("Freight", "150"),
+        ("Customs Processing", "35"),
     )
-    for group in (charges[:3], [charges[3]], [shipment_charge]):
+
+    def charge(target, rate_index, *, quantity=1, price=None, description=""):
+        if rate_index is not None:
+            name, standard_price = rates[rate_index]
+            description = description or f"[DEMO] {name}"
+            if price is None:
+                price = Decimal(standard_price)
+        return own(
+            add_charge(
+                business=business,
+                actor=actor,
+                **({"parcel": target} if isinstance(target, Parcel) else {"shipment": target}),
+                quantity=Decimal(quantity),
+                unit_price=price,
+                description=description,
+                idempotency_key=uuid4(),
+            )
+        )
+
+    # Each shipment billed here has one client. Mixed-client shipment billing is
+    # deliberately not bypassed. Paid/Sent are fictional local invoice snapshots;
+    # no email, payment, Stripe or subscription action is performed.
+    invoice_scenarios = (
+        (
+            Invoice.Status.SENT,
+            "A: Books moving from Sint Maarten to Anguilla",
+            [
+                charge(shipments[1], 6),
+                charge(parcels[3], 3, quantity=2),
+                charge(parcels[4], 7),
+            ],
+        ),
+        (
+            Invoice.Status.PAID,
+            "C: Shop supplies delivered from Miami to Sint Maarten",
+            [
+                charge(shipments[0], 6),
+                charge(parcels[0], 2, price=Decimal("35.00"), description="Negotiated delivery"),
+                charge(parcels[1], 3),
+                charge(
+                    parcels[2], None, price=Decimal("37.50"), description="Oversized cargo handling"
+                ),
+            ],
+        ),
+        (
+            Invoice.Status.SENT,
+            "D: Tableware ready, awaiting onward local delivery",
+            [
+                charge(parcels[14], 0),
+                charge(parcels[14], 4),
+                charge(parcels[14], 5, quantity=2),
+            ],
+        ),
+        (
+            Invoice.Status.DRAFT,
+            "E: Display materials booked for local road dispatch",
+            [
+                charge(shipments[4], 6),
+                charge(parcels[10], 7),
+                charge(parcels[11], 3),
+            ],
+        ),
+    )
+    for state, story, group in invoice_scenarios:
         invoice = own(
             invoice_charges(
                 business=business, actor=actor, charge_ids=[charge.pk for charge in group]
             )
         )
+        invoice.status = state
+        invoice.notes = (
+            f"[DEMO] {story}. Simulated {state.lower()} status; no email or payment processed."
+        )
+        invoice.save(update_fields=["status", "notes", "updated_at"])
         for line in invoice.lines.all():
             own(line)
         for activity in ActivityLog.objects.filter(
-            business=business, payload__invoice_number=invoice.invoice_number
+            business=business,
+            client=invoice.client,
+            payload__invoice_number=invoice.invoice_number,
         ):
             own(activity)
+    # Unbilled estimates demonstrate the existing charge-to-invoice workflow too.
+    charge(parcels[16], 5, quantity=3)
+    charge(parcels[16], 3)
+    charge(parcels[8], 1)
     return seed
 
 

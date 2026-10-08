@@ -81,11 +81,14 @@ and tenant inventory/demo reset/purge registration. Migrations:
 `python3 src/manage.py seed_demo_data --business-id <ID>` previews without writes;
 add `--execute` to seed the selected existing tenant. The Logistics branch retains
 explicit selection, existing operator/subscription checks, ownership metadata, and
-reset safeguards. It creates eight shared Services, nine charge snapshots, three
-shared invoices and five lines: standard price, multiple parcel services, negotiated
+reset safeguards. It creates no Service objects, 16 self-contained charge snapshots,
+four shared invoices and 13 lines: standard price, multiple parcel charges, negotiated
 price, custom one-off charge, pending charges, several parcels on one invoice, and
 single-client shipment billing. No notifications, Stripe calls or payment operations
-are triggered. The SERVICE seed dataset remains unchanged.
+are triggered. The invoices include one Draft, two Sent and one Paid, with clearly
+labelled simulated states. Three charges remain uninvoiced. The SERVICE seed
+dataset remains unchanged. See [LOGISTICS_OPERATIONS.md](LOGISTICS_OPERATIONS.md)
+for connected client stories, classification, manifests and command output.
 
 Tests cover catalogue access/booking isolation, saved/custom parcel and shipment
 charges, overrides, history/archive, quantity/money validation, multiple targets,

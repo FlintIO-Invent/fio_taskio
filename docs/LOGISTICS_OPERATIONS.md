@@ -20,6 +20,9 @@ python src/manage.py seed_logistics_demo_data --business-id <ID>
 python src/manage.py seed_logistics_demo_data --business-id <ID> --execute
 python src/manage.py seed_logistics_demo_data --business-id <ID> --reset-demo
 python src/manage.py seed_logistics_demo_data --business-id <ID> --reset-demo --execute
+# --reset is also accepted by the Logistics-specific command:
+python src/manage.py seed_logistics_demo_data --business-id <ID> --reset
+python src/manage.py seed_logistics_demo_data --business-id <ID> --reset --execute
 ```
 
 The Logistics command accepts LOGISTICS businesses only and defaults to a
@@ -33,9 +36,20 @@ selector and preview-by-default behavior; it never guesses the target tenant.
 SERVICE count/booking options are rejected for LOGISTICS rather than silently
 ignored. Both commands use the same ownership records and reset safeguards.
 
-The fixed Logistics example contains 10 Clients (eight businesses and two
-individuals), 20 Parcels, 83 ParcelEvents, and six Shipments, one in each shipment
-status. Twelve parcels are assigned to shipments; eight remain unassigned.
+The fixed Logistics example contains six business Clients, 20 Parcels, 83
+ParcelEvents, six Shipments (one in each supported status), no BusinessServices,
+16 LogisticsCharges, four shared Invoices, 13 InvoiceLines and four ActivityLogs.
+Twelve parcels are assigned to shipments; eight remain unassigned. Every listed
+demo record belongs to the selected existing business and is tracked by the
+demo run (152 owned records in total).
+
+The operating profile is Transportation with Sea + Road. A missing profile is
+created; an existing Transportation profile with unknown modes is filled. An
+incompatible explicit profile aborts preview/execute without modifying it. Reset
+keeps this operational profile. Preview reports its conditional creation count,
+planned record counts and parcel/shipment/invoice status distributions. Execute
+also prints two owned tracking codes (active and delivered) and the active
+shipment's ID/reference for manifest demonstration.
 
 | Parcel status | Count |
 | --- | ---: |
@@ -48,9 +62,35 @@ status. Twelve parcels are assigned to shipments; eight remain unassigned.
 | On hold | 2 |
 | Cancelled | 2 |
 
-Every client is linked to two parcels. Metadata varies across sea, air and local
-road routes, sender/recipient names and contacts, addresses, country/tax IDs,
-content, quantity, weight, structured centimetre measurements, volume, legacy
+The six connected client stories are:
+
+| Client | Parcels | Operational story | Invoice |
+| --- | ---: | --- | --- |
+| A: Coral Bay Books | 4 | Three parcels in transit Sint Maarten → Anguilla; one new registration | Sent: freight, handling, customs; 3 lines, subtotal 195.00 |
+| B: Harbor Cafe | 2 | Packaging holds with a private inspection/contact note | Storage/handling charges awaiting invoicing |
+| C: Island Supplies | 3 | Completed Miami → Sint Maarten shipment; all parcels delivered | Paid: freight, negotiated delivery and handling; 4 lines, subtotal 227.50 |
+| D: Sunrise Guest House | 2 | Tableware ready for onward local delivery; one minimal registration | Sent: delivery, fragile handling and storage; 3 lines, subtotal 43.00 |
+| E: Blue Horizon Design | 4 | Two arrived Dominica → Guadeloupe parcels; two on a draft local road shipment | Draft: freight, customs and handling; 3 lines, subtotal 190.00 |
+| F: Seabreeze Market | 5 | Two received parcels on a ready Sint Maarten → Curaçao shipment, one received/unassigned and two cancelled orders | One unbilled delivery charge |
+
+Invoice subtotals use the workspace currency; totals use existing tax calculation.
+Sent/Paid are explicitly labelled simulated local demo states: no email, payment,
+Stripe or subscription operation occurs. Overdue is omitted because the existing
+Invoice model has neither that status nor a due-date field. The shared billing
+services create all charges, invoice lines and totals. The demo's charge prices and
+descriptions are self-contained snapshots: no Service, Appointment or Service
+Request objects are needed or seeded. Shipment-level billing uses
+single-client groups, respecting existing billing validation. Three charges remain
+uninvoiced to demonstrate the normal charge-to-invoice flow.
+
+The ready tableware is awaiting onward delivery, not assigned to a new shipment:
+current assignment services accept only registered/received parcels. The cancelled
+shipment is empty and cancelled safely before departure. All other shipment
+readiness/departure/arrival/completion transitions use existing services.
+
+Metadata varies across sea and local road routes, sender/recipient names and
+contacts, addresses, country/tax IDs, content, quantity, weight, structured
+centimetre measurements, volume, legacy
 dimensions, declared value, HS codes, marks, carrier/vessel and voyage details,
 ports, bills of lading, issue dates, Incoterms, handling flags, expiry dates and
 private notes. Status history follows normal parcel/shipment transitions. Location
@@ -62,10 +102,17 @@ parcels, attention items and shipment/dashboard summaries for manual testing.
 its optional metadata, measurements and location are unknown. Some other parcels
 omit contacts, addresses, declared values, marks or notes to exercise empty states;
 legacy-dimension examples omit structured measurements. Sea-only voyage/IMO and
-bill-of-lading fields are empty on air/road parcels. Expiry dates are provided only
+bill-of-lading fields are empty on road parcels. Expiry dates are provided only
 for the compostable-container examples. Creation/update/event timestamps remain
 the real service-write times, preserving immutable history; document/expiry and
 shipment schedule dates vary relative to seeding time.
+
+The active Anguilla shipment demonstrates both HTML and CSV manifests with three
+parcels, seven units, 9.750 kg known weight and client names. Public tracking exposes
+only the existing public projection: public status messages/checkpoints are
+present, while client contact details, internal references and private notes are
+excluded. Routes and sample port codes are demo values; classification adds no
+route restrictions.
 
 Parcel/Shipment services perform every lifecycle mutation. Tracking codes and
 shipment references retain normal random generation; sample content and counts
@@ -75,8 +122,13 @@ execution requires preview/reset first and cannot append another Logistics datas
 The existing `DemoSeedRun`/`DemoSeedRecord` ownership metadata tracks every new
 record. A second seed refuses to append until the existing run is reset. Reset
 checks tenant ownership, supported labels, relationships and competing ownership
-claims, then removes only tracked events, parcels, shipments and clients, in that
-order, atomically. Genuine or untracked dependents abort the entire reset,
+claims, then removes only tracked charges, invoice lines, invoices, activity logs,
+events, parcels, shipments, clients and services, in that order, atomically.
+Demo-owned simulated Paid/Sent invoices are removable through the existing reset
+path; genuine financial records remain untouched. Reset still supports owned
+BusinessServices from older Logistics seeds; new seeds create none.
+Genuine or untracked dependents
+abort the entire reset,
 including new events on demo parcels and parcels assigned to demo shipments.
 Demo parcels attached to genuine shipments also block reset. Review and resolve
 dependencies explicitly; reset never deletes or detaches genuine operational
