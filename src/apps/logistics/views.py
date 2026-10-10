@@ -1,5 +1,6 @@
 import logging
 
+from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -342,6 +343,7 @@ def parcel_edit(request, parcel_id):
             "parcel": parcel,
             "title": "Edit parcel",
             "editing_metadata": True,
+            "can_prefill_shipping": can_view_module(request.current_business, "crm"),
         },
     )
 
@@ -372,6 +374,9 @@ def parcel_register(request):
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
+            messages.success(
+                request, "Parcel registered. Preview, print or download its shipping label below."
+            )
             return redirect("logistics_parcel_detail", parcel_id=parcel.pk)
     return render(
         request,
@@ -382,6 +387,7 @@ def parcel_register(request):
             "quick_client_form": QuickClientForm(prefix="new_client"),
             "has_clients": form.fields["client"].queryset.exists(),
             "can_add_client": can_use_module(request.current_business, "crm"),
+            "can_prefill_shipping": can_view_module(request.current_business, "crm"),
         },
     )
 

@@ -324,7 +324,9 @@ class LogisticsDemoDataTests(TestCase):
         minimal = Parcel.objects.get(internal_reference="DEMO-020")
         self.assertIsNone(minimal.weight_kg)
         self.assertIsNone(minimal.length_cm)
-        self.assertEqual(minimal.sender_name, "")
+        self.assertTrue(minimal.sender_name.startswith("[DEMO]"))
+        self.assertTrue(minimal.recipient_address_line_1)
+        self.assertEqual(minimal.recipient_country_code, "SX")
         self.assertFalse(minimal.shipment_id)
         self.assertTrue(Parcel.objects.filter(dimensions__gt="", length_cm__isnull=True).exists())
         self.assertEqual(

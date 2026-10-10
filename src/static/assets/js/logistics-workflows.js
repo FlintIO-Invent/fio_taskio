@@ -90,6 +90,43 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  document.querySelectorAll('[data-shipping-prefill]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const form = button.closest('form');
+      const side = button.dataset.shippingPrefill;
+      const status = form.querySelector(`[data-shipping-prefill-status="${side}"]`);
+      const client = form.querySelector('[name="client"]')?.value || form.dataset.shippingClientId;
+      if (!client) {
+        status.textContent = 'Select a Client first.';
+        return;
+      }
+      button.disabled = true;
+      try {
+        const url = new URL(form.dataset.shippingPrefillUrl, window.location.origin);
+        url.searchParams.set('client', client);
+        const response = await fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+        if (!response.ok || !response.headers.get('Content-Type')?.includes('application/json')) {
+          throw new Error('Prefill unavailable');
+        }
+        const values = await response.json();
+        Object.entries(values).forEach(([suffix, value]) => {
+          const field = form.elements.namedItem(`${side}_${suffix}`);
+          if (field && !field.value && value) {
+            const choices = selections.get(field);
+            if (choices) choices.setChoiceByValue(value);
+            else field.value = value;
+            field.dispatchEvent(new Event('change', {bubbles: true}));
+          }
+        });
+        status.textContent = 'Empty fields copied. Review the shipping details before saving.';
+      } catch {
+        status.textContent = 'Client details are unavailable. Enter shipping details directly.';
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
   const clientForm = document.querySelector('[data-parcel-client-form]');
   if (!clientForm) return;
   const modal = document.getElementById('parcelClientModal');

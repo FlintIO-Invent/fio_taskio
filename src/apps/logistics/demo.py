@@ -22,7 +22,7 @@ from .classification import OperatingArea, TransportationMode
 from .location_access import assignments_for, has_wide_access
 from .location_access_services import select_work_location
 from .location_operations import operation_location, operations_enabled
-from .location_reference import country_choices
+from .location_reference import country_choices, exact_country_code
 from .models import (
     LogisticsCharge,
     LogisticsLocation,
@@ -165,9 +165,31 @@ def parcel_demo_fields(*, index, client, route, today):
         "destination": destination,
         "package_description": description,
         "internal_reference": f"DEMO-{index + 1:03d}",
+        "sender_name": "[DEMO] Mainland Supply"
+        if origin.startswith("Miami")
+        else "[DEMO] Island Distribution",
+        "sender_contact": "dispatch@example.test",
+        "sender_address_line_1": f"{100 + index} Demo Cargo Road",
+        "sender_address_line_2": f"Demo dispatch unit {index + 1}",
+        "sender_city": origin.split()[0],
+        "sender_region": "Demo dispatch district",
+        "sender_postal_code": f"DEMO-{100 + index}",
+        "sender_country_code": "US"
+        if origin.startswith("Miami")
+        else "DM"
+        if origin.startswith("Roseau")
+        else "SX",
+        "recipient_name": f"[DEMO] {client.first_name} {client.last_name}",
+        "recipient_contact": client.email if index % 2 == 0 else client.phone,
+        "recipient_address_line_1": client.street_address,
+        "recipient_address_line_2": client.company_name,
+        "recipient_city": client.get_district_display(),
+        "recipient_region": "Demo delivery district",
+        "recipient_postal_code": f"DEMO-{200 + index}",
+        "recipient_country_code": exact_country_code(client.country),
     }
     if index == 19:
-        return fields  # New registration before weighing, addressing and routing.
+        return fields  # Addressed registration before weighing and Shipment assignment.
     length = Decimal(20 + index * 2)
     width = Decimal(15 + index)
     height = Decimal(10 + index)
@@ -186,15 +208,8 @@ def parcel_demo_fields(*, index, client, route, today):
         declared_value=Decimal("35.00") + Decimal(index * 18) if index % 4 != 3 else None,
         hs_code=hs_code,
         marks_numbers=f"DEMO-BOX-{index + 1:03d}" if index % 3 != 2 else "",
-        sender_name=f"Demo {'Mainland Supply' if origin.startswith('Miami') else 'Island Distribution'}",
-        sender_contact="dispatch@example.test" if index % 4 != 1 else "",
         sender_address=f"{100 + index} Demo Cargo Road, {origin.split()[0]}",
-        sender_country_code=(
-            "US" if origin.startswith("Miami") else "DM" if origin.startswith("Roseau") else "SX"
-        ),
         sender_tax_id=f"DEMO-TAX-{index + 1:03d}" if mode == "Sea" else "",
-        recipient_name=f"{client.first_name} {client.last_name}",
-        recipient_contact=client.email if index % 2 == 0 else client.phone,
         recipient_address=f"{client.company_name}, {destination}" if index % 4 != 1 else "",
         mode_of_transport=mode,
         vessel_name="Demo Coral Voyager" if mode == "Sea" else "",

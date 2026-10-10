@@ -15,7 +15,7 @@
       <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
     </div>
   </div>
-  <form method="post" class="mb-9" novalidate data-logistics-parcel-form data-cancel-confirmation="Cancel this parcel?">
+  <form method="post" class="mb-9" novalidate data-logistics-parcel-form data-cancel-confirmation="Cancel this parcel?"{% if can_prefill_shipping %} data-shipping-prefill-url="{% url 'logistics_shipping_prefill' %}"{% if parcel %} data-shipping-client-id="{{ parcel.client_id }}"{% endif %}{% endif %}>
     {% csrf_token %}
     {% include 'logistics/includes/form_errors.html' %}
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
@@ -64,6 +64,10 @@
               {% for section in form.sections %}
               <div class="tab-pane fade{% if forloop.first %} show active{% endif %}" id="parcel-{{ section.id }}" role="tabpanel" aria-labelledby="parcel-{{ section.id }}-tab">
                 <h5 class="mb-3 text-body-highlight">{{ section.title }}</h5>
+                {% if can_prefill_shipping and section.id == 'sender' or can_prefill_shipping and section.id == 'recipient' %}
+                <button class="btn btn-phoenix-secondary btn-sm mb-2" type="button" data-shipping-prefill="{{ section.id }}">Prefill empty fields from Client</button>
+                <p class="text-body-secondary small" data-shipping-prefill-status="{{ section.id }}" role="status">Optional copy. Review before saving; Client details remain independent.</p>
+                {% endif %}
                 <div class="row g-3">
                   {% for field in section.fields %}
                     {% if field.name == 'sender_address' or field.name == 'recipient_address' or field.name == 'internal_notes' %}

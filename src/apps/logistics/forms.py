@@ -5,8 +5,8 @@ from django.core.exceptions import ValidationError
 
 from .classification import OperatingArea, TransportationMode
 from .dashboard_forms import style_dashboard_fields
-from .location_forms import configure_route_fields, geographic_country_field
-from .location_reference import ROUTE_LOCATION_FIELDS
+from .location_forms import configure_route_fields, geographic_country_field, searchable
+from .location_reference import ROUTE_LOCATION_FIELDS, country_choices, exact_country_code
 from .models import LogisticsApplication
 
 
@@ -361,6 +361,11 @@ PARCEL_FIELD_SECTIONS = (
         (
             "sender_name",
             "sender_contact",
+            "sender_address_line_1",
+            "sender_address_line_2",
+            "sender_city",
+            "sender_region",
+            "sender_postal_code",
             "sender_address",
             "sender_country_code",
             "sender_tax_id",
@@ -373,6 +378,12 @@ PARCEL_FIELD_SECTIONS = (
         (
             "recipient_name",
             "recipient_contact",
+            "recipient_address_line_1",
+            "recipient_address_line_2",
+            "recipient_city",
+            "recipient_region",
+            "recipient_postal_code",
+            "recipient_country_code",
             "recipient_address",
         ),
     ),
@@ -415,6 +426,14 @@ PARCEL_FIELD_SECTIONS = (
 )
 
 
+class ShippingCountryField(forms.ChoiceField):
+    def to_python(self, value):
+        value = super().to_python(value)
+        if value and value not in dict(self.choices):
+            value = exact_country_code(value) or value
+        return value
+
+
 class ParcelMetadataForm(forms.ModelForm):
     class Meta:
         from .models import Parcel
@@ -440,6 +459,41 @@ class ParcelMetadataForm(forms.ModelForm):
             "recipient_name"
         ].help_text = "Optional delivery contact when different from the linked client."
         self.fields["internal_notes"].help_text = "Workspace only. Never shown on public tracking."
+        for side in ("sender", "recipient"):
+            name = f"{side}_country_code"
+            saved = getattr(self.instance, name)
+            choices = [("", "Select country / territory"), *country_choices()]
+            if saved and saved not in dict(choices):
+                choices.append((saved, f"{saved} (saved value)"))
+            self.fields[name] = ShippingCountryField(
+                choices=choices, required=False, label=f"{side.title()} country / territory"
+            )
+            searchable(self.fields[name], "Search countries and territories")
+            self.fields[f"{side}_name"].label = f"{side.title()} person / company"
+            self.fields[f"{side}_contact"].label = f"{side.title()} phone / contact"
+            self.fields[f"{side}_address"].label = f"{side.title()} legacy address"
+            self.fields[
+                f"{side}_address"
+            ].help_text = (
+                "Saved free-text address. Labels use structured address fields when supplied."
+            )
+        # Older API/form payloads must not erase additive shipping fields on edits.
+        if self.is_bound and self.instance.pk:
+            data = self.data.copy()
+            for side in ("sender", "recipient"):
+                for suffix in (
+                    "address_line_1",
+                    "address_line_2",
+                    "city",
+                    "region",
+                    "postal_code",
+                    "country_code",
+                ):
+                    name = f"{side}_{suffix}"
+                    key = self.add_prefix(name)
+                    if key not in data:
+                        data[key] = getattr(self.instance, name) or ""
+            self.data = data
         configure_route_fields(self, business, actor)
         style_dashboard_fields(self.fields)
         for field in self.fields.values():

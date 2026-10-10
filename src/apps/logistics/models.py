@@ -752,6 +752,15 @@ class Parcel(ParcelDomainModel, LogisticsRouteFields):
     sender_name = models.CharField(max_length=255, blank=True)
     sender_contact = models.CharField(max_length=100, blank=True)
     sender_address = models.CharField(max_length=1000, blank=True)
+    sender_address_line_1 = models.CharField(
+        "Sender address line 1", max_length=255, null=True, blank=True
+    )
+    sender_address_line_2 = models.CharField(
+        "Sender address line 2", max_length=255, null=True, blank=True
+    )
+    sender_city = models.CharField(max_length=100, null=True, blank=True)
+    sender_region = models.CharField(max_length=100, null=True, blank=True)
+    sender_postal_code = models.CharField(max_length=32, null=True, blank=True)
     sender_country_code = models.CharField(
         "Sender country code",
         max_length=3,
@@ -764,6 +773,18 @@ class Parcel(ParcelDomainModel, LogisticsRouteFields):
     recipient_name = models.CharField(max_length=255, blank=True)
     recipient_contact = models.CharField(max_length=100, blank=True)
     recipient_address = models.CharField(max_length=1000, blank=True)
+    recipient_address_line_1 = models.CharField(
+        "Recipient address line 1", max_length=255, null=True, blank=True
+    )
+    recipient_address_line_2 = models.CharField(
+        "Recipient address line 2", max_length=255, null=True, blank=True
+    )
+    recipient_city = models.CharField(max_length=100, null=True, blank=True)
+    recipient_region = models.CharField(max_length=100, null=True, blank=True)
+    recipient_postal_code = models.CharField(max_length=32, null=True, blank=True)
+    recipient_country_code = models.CharField(
+        "Recipient country / territory", max_length=2, null=True, blank=True
+    )
     mode_of_transport = models.CharField(max_length=100, blank=True)
     vessel_name = models.CharField("Vessel / carrier name", max_length=255, blank=True)
     voyage_no = models.CharField("Voyage number", max_length=100, blank=True)
@@ -837,6 +858,23 @@ class Parcel(ParcelDomainModel, LogisticsRouteFields):
         validate_route_locations(self)
         if self.sender_country_code:
             self.sender_country_code = self.sender_country_code.upper()
+            if not exact_country_code(self.sender_country_code):
+                previous_country = (
+                    type(self)
+                    .objects.filter(pk=self.pk)
+                    .values_list("sender_country_code", flat=True)
+                    .first()
+                    if not self._state.adding
+                    else None
+                )
+                if self.sender_country_code != previous_country:
+                    raise ValidationError(
+                        {"sender_country_code": "Select a valid ISO country or territory."}
+                    )
+        self.recipient_country_code = self.recipient_country_code or None
+        if self.recipient_country_code:
+            self.recipient_country_code = self.recipient_country_code.upper()
+            validate_country_code(self.recipient_country_code)
         if not Business.objects.filter(
             pk=self.business_id, vertical=Business.Vertical.LOGISTICS
         ).exists():

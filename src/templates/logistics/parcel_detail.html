@@ -1,6 +1,9 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% block content %}
 <div class="content">
+  {% if messages %}{% for message in messages %}
+  <div class="alert alert-subtle-{{ message.tags|default:'info' }} mb-3" role="status">{{ message }}</div>
+  {% endfor %}{% endif %}
   {% include 'logistics/includes/route_location_details.html' with item=parcel %}
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
@@ -25,6 +28,9 @@
   </div>
   <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
     {% include 'logistics/includes/copy_tracking.html' with tracking_code=parcel.tracking_code %}
+    <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipping_label' parcel.pk %}">Preview Shipping Label</a>
+    <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipping_label' parcel.pk %}?print=1" target="_blank" rel="noopener">Print Shipping Label</a>
+    <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipping_label_pdf' parcel.pk %}?download=1">Download PDF</a>
     {% if module_access.tracking and module_write_access.parcels %}
     <form method="post" action="{% url 'logistics_public_tracking' %}" target="_blank" rel="noopener">
       {% csrf_token %}<input type="hidden" name="tracking_code" value="{{ parcel.tracking_code }}">
