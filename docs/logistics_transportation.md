@@ -39,9 +39,14 @@ same. Consumers using fixed metadata row offsets must accommodate the new row.
 `inspect_business_data` includes tenant-scoped `shipment_transport_mode_summary`
 counts with an `unknown` bucket; these are informational, not dashboard KPIs.
 
-The default Logistics demo still configures Transportation with SEA and ROAD.
-It creates four Sea shipments on Miami/inter-island routes and two Road / Truck
-shipments on the Philipsburg to Cole Bay route. Existing seed ownership,
+The Logistics demo preserves existing profiles and uses their configured modes.
+SEA-only and ROAD-only profiles receive six shipments of that mode; AIR/RAIL use
+generic carrier, route and schedule fields without Sea/Road references. Multiple
+modes receive alternating examples in taxonomy order. SEA + ROAD retains four Sea
+shipments on Miami/inter-island routes and two Road / Truck shipments on the
+Philipsburg to Cole Bay route. Unknown modes or a missing profile retain those
+legacy-compatible examples without creating or filling operational settings.
+Explicit profiles without Transportation are refused. Existing seed ownership,
 dry-run, reset and financial safeguards remain in effect. Existing demo runs
 are not automatically rewritten; use the existing reset/reseed workflow.
 

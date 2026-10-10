@@ -66,11 +66,13 @@ Application inspection reports the historical classification. Business inspectio
 reports profile inventory and the current operating profile in its Logistics
 summary. Both commands remain read-only.
 
-Logistics demo seeding creates a missing profile or fills an existing Transportation
-profile with unknown modes using Sea + Road, matching its demo routes.
-An incompatible explicit profile is preserved and seeding is refused; select or
-configure a compatible demo workspace first. Compatible profiles are kept, and
-dry-run mode writes nothing.
+Logistics demo seeding reads the existing profile without creating or changing it.
+An explicit profile must include Transportation; other selected areas are preserved
+without seeding additional operational workflows. Shipment examples use configured
+modes, with Sea + Road retaining the existing mixed dataset. Missing profiles and
+unknown modes use legacy-compatible Sea + Road examples without saving operational
+settings. Preview reports existing areas/modes, intended shipment mode counts and
+record counts; dry-run mode writes nothing.
 The profile is operational state, so demo reset keeps it. SERVICE seeding is unchanged.
 Deactivation retains the profile. Controlled business purge includes its explicit
 inventory/deletion count and deletes it while retaining historical application

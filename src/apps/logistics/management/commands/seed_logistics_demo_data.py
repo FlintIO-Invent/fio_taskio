@@ -79,6 +79,7 @@ class Command(BaseCommand):
                                 **LOGISTICS_DEMO_COUNTS,
                             },
                             "logistics_profile": profile_plan,
+                            "shipment_mode_counts": profile_plan["shipment_mode_counts"],
                             "parcel_status_counts": PARCEL_STATUS_COUNTS,
                             "shipment_status_counts": SHIPMENT_STATUS_COUNTS,
                             "invoice_status_counts": {"DRAFT": 1, "SENT": 2, "PAID": 1},
