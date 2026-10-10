@@ -140,6 +140,55 @@ class LogisticsOperationConcurrencyTests(TransactionTestCase):
         self.assertEqual(Parcel.objects.count(), 1)
         self.assertEqual(ParcelEvent.objects.count(), 1)
 
+    def test_cross_tenant_tracking_collision_retries_after_database_unique_race(self):
+        other = Business.objects.create(
+            name="Other courier", slug="collision-other", vertical="LOGISTICS"
+        )
+        BusinessUser.objects.create(business=other, user=self.user, role="owner")
+        BusinessSubscription.objects.create(
+            business=other,
+            plan=self.business.subscription.plan,
+            status="active",
+            billing_interval="yearly",
+        )
+        customer = Client.objects.create(business=other, first_name="Other", last_name="Customer")
+        collision = "MM-PCL-" + "A" * 39
+        replacement = "MM-PCL-" + "B" * 39
+        insert_barrier = Barrier(2)
+        original_clean = Parcel.full_clean
+
+        def simultaneous_validation(parcel, *args, **kwargs):
+            result = original_clean(parcel, *args, **kwargs)
+            if (
+                "tracking_code" not in (kwargs.get("exclude") or [])
+                and parcel.tracking_code == collision
+            ):
+                insert_barrier.wait(timeout=10)
+            return result
+
+        def other_registration():
+            return register_parcel(
+                business=other,
+                actor=self.user,
+                client=customer,
+                origin="Miami",
+                destination="Sint Maarten",
+                package_description="Books",
+            ).tracking_code
+
+        with (
+            patch("secrets.choice", return_value="A"),
+            patch(
+                "apps.logistics.parcel_services.generate_tracking_code", return_value=replacement
+            ) as retry,
+            patch.object(Parcel, "full_clean", simultaneous_validation),
+        ):
+            results = race([lambda: self.parcel().tracking_code, other_registration])
+        self.assertCountEqual(results, [("ok", collision), ("ok", replacement)])
+        retry.assert_called_once_with()
+        self.assertEqual(Parcel.objects.count(), 2)
+        self.assertEqual(ParcelEvent.objects.count(), 2)
+
     def test_competing_metadata_edits_reject_the_stale_writer(self):
         parcel = self.parcel()
         expected = parcel.updated_at

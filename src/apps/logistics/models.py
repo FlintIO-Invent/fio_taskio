@@ -18,6 +18,12 @@ from .classification import (
     validate_transportation_modes,
 )
 from .policy import normalized_identity
+from .tracking_codes import (
+    TRACKING_CODE_ALPHABET,
+    TRACKING_CODE_PREFIX,
+    TRACKING_CODE_REGEX,
+    TRACKING_CODE_SUFFIX_LENGTH,
+)
 
 
 class LogisticsProfile(ClassificationHelpers, models.Model):
@@ -422,10 +428,12 @@ class LogisticsEnrollmentToken(models.Model):
 
 
 def generate_tracking_code():
-    """192 random bits, URL-safe, independent of the database identity."""
+    """Readable V2 bearer secret with at least the legacy 192 bits of entropy."""
     import secrets
 
-    return secrets.token_hex(24).upper()
+    return TRACKING_CODE_PREFIX + "".join(
+        secrets.choice(TRACKING_CODE_ALPHABET) for _ in range(TRACKING_CODE_SUFFIX_LENGTH)
+    )
 
 
 class ParcelDomainQuerySet(models.QuerySet):
@@ -506,7 +514,7 @@ class Parcel(ParcelDomainModel):
         unique=True,
         default=generate_tracking_code,
         editable=False,
-        validators=[RegexValidator(r"\A[A-F0-9]{48}\Z")],
+        validators=[RegexValidator(TRACKING_CODE_REGEX)],
     )
     internal_reference = models.CharField(max_length=100, blank=True)
     origin = models.CharField(max_length=255)

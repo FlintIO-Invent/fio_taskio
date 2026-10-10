@@ -11,13 +11,15 @@ from pathlib import Path
 
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from django.db import connections
+from django.db.models import QuerySet
 from django.test import override_settings
 from django.urls import reverse
 
 from apps.businesses.models import UserOnboardingState
 from apps.logistics import test_parcels as fixtures
-from apps.logistics.models import ParcelEvent
+from apps.logistics.models import Parcel, ParcelEvent
 from apps.logistics.shipment_services import assign_parcel, create_shipment
+from apps.logistics.tracking_codes import TRACKING_CODE_INPUT_ERROR
 
 
 @override_settings(
@@ -36,6 +38,8 @@ class ScanBrowserChecks(StaticLiveServerTestCase):
             business=self.service, user=self.user, completed_welcome=True
         )
         self.parcels = [self.register() for _ in range(4)]
+        QuerySet(model=Parcel).filter(pk=self.parcels[0].pk).update(tracking_code="A10F" * 12)
+        self.parcels[0].refresh_from_db()
         shipment = create_shipment(
             business=self.business,
             actor=self.user,
@@ -211,9 +215,7 @@ class ScanBrowserChecks(StaticLiveServerTestCase):
                     field.fill("invalid")
                     self.assertEqual(page.locator("[data-scan-parcel]").count(), 0)
                     field.press("Enter")
-                    page.get_by_text(
-                        "Enter a complete 48-character tracking code.", exact=True
-                    ).wait_for()
+                    page.get_by_text(TRACKING_CODE_INPUT_ERROR, exact=True).wait_for()
                     self.assertTrue(field.evaluate("(input) => document.activeElement === input"))
                     field.fill("0" * 48)
                     field.press("Enter")
@@ -227,6 +229,20 @@ class ScanBrowserChecks(StaticLiveServerTestCase):
                     self.assertEqual(field.input_value(), parcel.tracking_code)
                     self.assertFalse(page.locator("[data-scan-action-success]").count())
                     context.set_offline(False)
+            for parcel in self.parcels[:2]:
+                # Check the complete legacy and V2 payloads passed to the clipboard.
+                page.goto(
+                    self.live_server_url + reverse("logistics_parcel_detail", args=[parcel.pk])
+                )
+                page.evaluate(
+                    """() => Object.defineProperty(navigator, 'clipboard', {
+                        configurable: true,
+                        value: {writeText: async value => {window.copiedTracking = value;}},
+                    })"""
+                )
+                page.locator("[data-copy-tracking]").click()
+                page.get_by_text("Tracking code copied.", exact=True).wait_for()
+                self.assertEqual(page.evaluate("window.copiedTracking"), parcel.tracking_code)
             self.assertEqual(errors, [])
             context.close()
             browser.close()

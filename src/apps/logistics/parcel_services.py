@@ -3,12 +3,12 @@
 import uuid
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 from apps.crm.models import Client
 
-from .models import Parcel, ParcelEvent
+from .models import Parcel, ParcelEvent, generate_tracking_code
 from .parcel_policy import ALLOWED_TRANSITIONS, PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 
 PARCEL_INPUT_FIELDS = (
@@ -49,6 +49,34 @@ PARCEL_INPUT_FIELDS = (
     "expiry_date",
     "internal_notes",
 )
+
+
+TRACKING_CODE_ATTEMPTS = 5
+
+
+def _insert_registered_parcel(parcel):
+    """Retry only code collisions, including concurrent inserts in other tenants."""
+    for attempt in range(TRACKING_CODE_ATTEMPTS):
+        try:
+            # A savepoint keeps a database collision from poisoning registration.
+            with transaction.atomic():
+                parcel._domain_save(force_insert=True)
+            return
+        except ValidationError as exc:
+            errors = getattr(exc, "error_dict", {})
+            if set(errors) != {"tracking_code"} or any(
+                error.code != "unique" for error in errors["tracking_code"]
+            ):
+                raise
+        except IntegrityError as exc:
+            constraint = getattr(getattr(exc.__cause__, "diag", None), "constraint_name", None)
+            if constraint and "tracking_code" not in constraint:
+                raise
+            if not Parcel.objects.filter(tracking_code=parcel.tracking_code).exists():
+                raise
+        if attempt + 1 < TRACKING_CODE_ATTEMPTS:
+            parcel.tracking_code = generate_tracking_code()
+    raise ValidationError("Unable to allocate a unique parcel tracking code. Please retry.")
 
 
 def require_parcel_access(*, business, actor, write=False):
@@ -133,7 +161,7 @@ def register_parcel(*, business, client, actor, idempotency_key=None, **fields):
         ):
             raise ValidationError("This retry key was already used for a different operation.")
         return previous
-    parcel._domain_save(force_insert=True)
+    _insert_registered_parcel(parcel)
     ParcelEvent(
         business=current,
         parcel=parcel,

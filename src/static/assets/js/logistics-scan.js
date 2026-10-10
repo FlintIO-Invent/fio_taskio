@@ -7,7 +7,9 @@
   const result = root.querySelector('[data-scan-result]');
   let busy = false;
   const normalizeCode = value => typeof value === 'string' && value.length <= 256 ? value.trim().toUpperCase() : '';
-  const validCode = code => /^[A-F0-9]{48}$/.test(code);
+  const codePattern = new RegExp(input.dataset.trackingCodePattern);
+  const codeError = input.dataset.trackingCodeError;
+  const validCode = code => codePattern.test(code);
   const clearParcel = () => result.querySelector('[data-scan-parcel]')?.remove();
   const focusInput = () => { input.focus(); input.select(); };
   const feedback = (message, isError = true) => {
@@ -53,7 +55,7 @@
     const code = normalizeCode(value);
     if (!validCode(code)) {
       clearParcel();
-      feedback('Enter a complete 48-character tracking code.');
+      feedback(codeError);
       input.setAttribute('aria-invalid', 'true');
       focusInput();
       return false;
@@ -75,10 +77,10 @@
     const code = normalizeCode(event.clipboardData.getData('text'));
     clearParcel();
     input.value = code;
-    input.setCustomValidity(validCode(code) ? '' : 'Enter a complete 48-character tracking code.');
+    input.setCustomValidity(validCode(code) ? '' : codeError);
     if (!validCode(code)) {
       input.setAttribute('aria-invalid', 'true');
-      feedback('Enter a complete 48-character tracking code.');
+      feedback(codeError);
     } else input.removeAttribute('aria-invalid');
   });
   root.querySelector('[data-next-scan]').addEventListener('click', reset);
@@ -92,7 +94,7 @@
       clearParcel();
       const code = normalizeCode(input.value);
       if (!validCode(code)) {
-        feedback('Enter a complete 48-character tracking code.');
+        feedback(codeError);
         input.setAttribute('aria-invalid', 'true');
         focusInput();
         return;

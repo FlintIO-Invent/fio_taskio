@@ -8,7 +8,8 @@ native wrapper, or offline queue.
 ## Existing patterns reused
 
 - Parcel list search remains a general search. The scanner uses exact equality on
-  the existing generated 48-character hexadecimal `tracking_code`.
+  `tracking_code`, accepting both legacy 48-character hexadecimal codes and V2
+  `MM-PCL-` codes with 39 readable suffix characters.
 - `parcels_for_business` enforces persisted tenant, vertical, membership, role,
   module and effective-access checks. Public tracking and its deliberately limited
   projection are unchanged and are not used by operational scanning.
@@ -41,7 +42,7 @@ native wrapper, or offline queue.
 ## Normalization and focus
 
 Boundary whitespace, CR/LF and tab suffixes are trimmed, then codes are uppercased.
-The result must be exactly 48 hexadecimal characters; raw input is limited to 256
+The result must be a complete legacy or V2 code; raw input is limited to 256
 characters. Interior whitespace, concatenated codes, URLs and arbitrary prefixes
 are rejected rather than repaired. Paste validation occurs before the browser can
 remove embedded newlines from a text input.
