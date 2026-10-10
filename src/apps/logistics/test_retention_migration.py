@@ -6,7 +6,7 @@ from django.utils import timezone
 from apps.accounts.models import TaskIOUser
 from apps.businesses.models import Business
 
-from .models import Parcel, ParcelEvent
+from .models import ParcelEvent
 from .tests import application_data
 
 
@@ -92,7 +92,12 @@ class ParcelMetadataMigrationTests(TransactionTestCase):
                 public_message="Parcel registered.",
             )
             MigrationExecutor(connection).migrate(new_target)
-            migrated = Parcel.objects.get(pk=parcel.pk)
+            migrated = (
+                MigrationExecutor(connection)
+                .loader.project_state(new_target)
+                .apps.get_model("logistics", "Parcel")
+                .objects.get(pk=parcel.pk)
+            )
             self.assertEqual(
                 (migrated.business_id, migrated.client_id, migrated.tracking_code),
                 (business.pk, customer.pk, "F" * 48),
@@ -150,7 +155,12 @@ class ParcelMetadataMigrationTests(TransactionTestCase):
                 schema_editor.alter_field(parcel_model, field, earlier)
             MigrationExecutor(connection).migrate(new_target)
             for original, expected in zip(parcels, (True, False), strict=True):
-                repaired = Parcel.objects.get(pk=original.pk)
+                repaired = (
+                    MigrationExecutor(connection)
+                    .loader.project_state(new_target)
+                    .apps.get_model("logistics", "Parcel")
+                    .objects.get(pk=original.pk)
+                )
                 self.assertEqual(repaired.biodegradable_goods, expected)
                 self.assertEqual(repaired.sender_name, "Existing sender")
                 self.assertEqual(repaired.updated_at, original.updated_at)

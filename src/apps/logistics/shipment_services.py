@@ -15,7 +15,15 @@ from django.db import transaction
 
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 
-from .models import Parcel, Shipment
+from .location_access import (
+    require_creation_site,
+    require_record_operation,
+    require_route_edit,
+    require_work_location,
+    scope_records,
+)
+from .location_reference import ROUTE_LOCATION_FIELDS
+from .models import LogisticsLocation, Parcel, Shipment
 from .parcel_services import _key, change_parcel_status, require_parcel_access
 from .shipment_policy import (
     ALLOWED_TRANSITIONS,
@@ -33,17 +41,23 @@ from .shipment_references import (
 from .shipment_transport import validate_shipment_mode
 
 SHIPMENT_INPUT_FIELDS = (
-    "origin",
-    "destination",
-    "transport_mode",
-    "departure_at",
-    "estimated_arrival_at",
-    "notes",
-) + SHIPMENT_REFERENCE_FIELDS
+    (
+        "origin",
+        "destination",
+        "transport_mode",
+        "departure_at",
+        "estimated_arrival_at",
+        "notes",
+    )
+    + SHIPMENT_REFERENCE_FIELDS
+    + ROUTE_LOCATION_FIELDS
+)
 
 
 class _ReceiptEncoder(DjangoJSONEncoder):
     def default(self, value):
+        if isinstance(value, LogisticsLocation):
+            return value.pk
         if isinstance(value, datetime):
             # Django's default encoder truncates to milliseconds; retry identity
             # must distinguish the full precision accepted by the services.
@@ -76,11 +90,14 @@ def require_shipment_access(*, business, actor, write=False, manifest=False):
         raise PermissionDenied(
             "Your workspace subscription does not permit this shipment operation."
         )
+    if write:
+        require_work_location(current, actor)
     return current
 
 
 def shipments_for_business(*, business, actor):
-    return Shipment.objects.filter(business=require_shipment_access(business=business, actor=actor))
+    current = require_shipment_access(business=business, actor=actor)
+    return scope_records(Shipment.objects.filter(business=current), business=current, actor=actor)
 
 
 def _locked_business(business, actor, *, write=True, manifest=False):
@@ -88,7 +105,7 @@ def _locked_business(business, actor, *, write=True, manifest=False):
     return require_shipment_access(business=current, actor=actor, write=write, manifest=manifest)
 
 
-def _shipment(current, shipment):
+def _shipment(current, shipment, actor, *, write=True):
     locked = (
         Shipment.objects.select_for_update()
         .filter(business=current, pk=getattr(shipment, "pk", shipment))
@@ -96,10 +113,16 @@ def _shipment(current, shipment):
     )
     if locked is None:
         raise ValidationError("Shipment is unavailable in this workspace.")
+    if write:
+        require_record_operation(locked, business=current, actor=actor)
+    elif not scope_records(
+        Shipment.objects.filter(pk=locked.pk, business=current), business=current, actor=actor
+    ).exists():
+        raise PermissionDenied("Shipment is unavailable in your assigned locations.")
     return locked
 
 
-def _parcel(current, parcel):
+def _parcel(current, parcel, actor):
     locked = (
         Parcel.objects.select_for_update()
         .filter(business=current, client__business=current, pk=getattr(parcel, "pk", parcel))
@@ -107,6 +130,7 @@ def _parcel(current, parcel):
     )
     if locked is None:
         raise ValidationError("Parcel is unavailable in this workspace.")
+    require_record_operation(locked, business=current, actor=actor)
     return locked
 
 
@@ -155,7 +179,15 @@ def _save_write(shipment, *, fields, key, fingerprint):
     shipment.revision += 1
     if key:
         shipment.write_receipts = {**shipment.write_receipts, str(key): fingerprint}
-    shipment._domain_save(update_fields=[*fields, "revision", "write_receipts", "updated_at"])
+    shipment._domain_save(
+        update_fields=[
+            *fields,
+            "location_review_required",
+            "revision",
+            "write_receipts",
+            "updated_at",
+        ]
+    )
 
 
 @transaction.atomic
@@ -168,12 +200,14 @@ def create_shipment(*, business, actor, idempotency_key=None, parcel=None, **fie
         if key
         else None
     )
-    item = _parcel(current, parcel) if parcel is not None else None
+    item = _parcel(current, parcel, actor) if parcel is not None else None
     shipment = Shipment(business=current, created_by=actor, idempotency_key=key, **fields)
+    shipment._route_previous = existing
     if shipment.transport_mode == "":
         shipment.transport_mode = None
     for name in SHIPMENT_REFERENCE_FIELDS:
         setattr(shipment, name, normalize_reference(getattr(shipment, name)))
+    require_creation_site(shipment, business=current, actor=actor)
     shipment.full_clean(exclude=["reference", "idempotency_key"])
     fingerprint = _fingerprint(
         "create",
@@ -182,8 +216,11 @@ def create_shipment(*, business, actor, idempotency_key=None, parcel=None, **fie
             "fields": {
                 name: getattr(shipment, name)
                 for name in SHIPMENT_INPUT_FIELDS
-                if name not in ("transport_mode", *SHIPMENT_REFERENCE_FIELDS)
-                or getattr(shipment, name) is not None
+                if (name not in ROUTE_LOCATION_FIELDS or getattr(shipment, name))
+                and (
+                    name not in ("transport_mode", *SHIPMENT_REFERENCE_FIELDS)
+                    or getattr(shipment, name) is not None
+                )
             },
             "parcel": item.pk if item else None,
         },
@@ -193,6 +230,7 @@ def create_shipment(*, business, actor, idempotency_key=None, parcel=None, **fie
             raise ValidationError(
                 "Shipment retry authorization is unavailable. Reload before retrying."
             )
+        require_record_operation(existing, business=current, actor=actor)
         return existing
     shipment.transport_mode = validate_shipment_mode(shipment.transport_mode, business=current)
     validate_shipment_references(
@@ -220,7 +258,7 @@ def update_shipment(
     **fields,
 ):
     current = _locked_business(business, actor)
-    locked = _shipment(current, shipment)
+    locked = _shipment(current, shipment, actor)
     _input_fields(fields)
     if expected_revision is None:
         expected_revision = getattr(shipment, "revision", None)
@@ -233,10 +271,16 @@ def update_shipment(
     for name in SHIPMENT_REFERENCE_FIELDS:
         if name in fields:
             fields[name] = normalize_reference(fields[name])
-    fields = {
-        name: Shipment._meta.get_field(name).clean(value, locked) for name, value in fields.items()
-    }
-    item = _parcel(current, parcel) if parcel is not None else None
+    cleaned = {}
+    for name, value in fields.items():
+        field = Shipment._meta.get_field(name)
+        if name in ("origin_location", "destination_location"):
+            pk = field.clean(getattr(value, "pk", value), locked)
+            cleaned[name] = LogisticsLocation.objects.get(pk=pk) if pk else None
+        else:
+            cleaned[name] = field.clean(value, locked)
+    fields = cleaned
+    item = _parcel(current, parcel, actor) if parcel is not None else None
     fingerprint = _fingerprint(
         "edit",
         actor,
@@ -264,6 +308,7 @@ def update_shipment(
         {**previous, **fields},
         previous=previous,
     )
+    require_route_edit(locked, fields, business=current, actor=actor)
     for name, value in fields.items():
         setattr(locked, name, value)
     _save_write(locked, fields=fields, key=key, fingerprint=fingerprint)
@@ -279,8 +324,8 @@ def assign_parcel(
 ):
     current = _locked_business(business, actor)
     require_parcel_access(business=current, actor=actor, write=True)
-    locked = _shipment(current, shipment)
-    item = _parcel(current, parcel)
+    locked = _shipment(current, shipment, actor)
+    item = _parcel(current, parcel, actor)
     key = _key(idempotency_key)
     fingerprint = _fingerprint("assign", actor, {"parcel": item.pk, "revision": expected_revision})
     if _replayed(locked, key, fingerprint):
@@ -307,8 +352,8 @@ def remove_parcel(
 ):
     current = _locked_business(business, actor)
     require_parcel_access(business=current, actor=actor, write=True)
-    locked = _shipment(current, shipment)
-    item = _parcel(current, parcel)
+    locked = _shipment(current, shipment, actor)
+    item = _parcel(current, parcel, actor)
     key = _key(idempotency_key)
     fingerprint = _fingerprint("remove", actor, {"parcel": item.pk, "revision": expected_revision})
     if _replayed(locked, key, fingerprint):
@@ -335,7 +380,7 @@ def change_shipment_status(
     idempotency_key=None,
 ):
     current = _locked_business(business, actor)
-    locked = _shipment(current, shipment)
+    locked = _shipment(current, shipment, actor)
     key = _key(idempotency_key)
     fingerprint = _fingerprint(
         "status",
@@ -379,6 +424,8 @@ def change_shipment_status(
             raise ValidationError(
                 "Complete the shipment only after all assigned parcels are delivered."
             )
+    for item in items:
+        require_record_operation(item, business=current, actor=actor)
     parcel_status = {
         Shipment.Status.IN_TRANSIT: Parcel.Status.IN_TRANSIT,
         Shipment.Status.ARRIVED: Parcel.Status.ARRIVED,
@@ -413,13 +460,22 @@ def change_shipment_status(
 def generate_manifest(*, business, shipment, actor):
     """Current operational snapshot; explicit allowlist excludes client contact/private data."""
     current = _locked_business(business, actor, write=False, manifest=True)
-    locked = _shipment(current, shipment)
+    locked = _shipment(current, shipment, actor, write=False)
     items = list(
         Parcel.objects.select_for_update()
         .filter(shipment=locked, business=current, client__business=current)
         .select_related("client")
         .order_by("tracking_code")
     )
+    visible_ids = scope_records(
+        Parcel.objects.filter(business=current), business=current, actor=actor
+    ).values_list("pk", flat=True)
+    if (
+        Parcel.objects.filter(pk__in=[item.pk for item in items])
+        .exclude(pk__in=visible_ids)
+        .exists()
+    ):
+        raise PermissionDenied("A complete manifest requires access to every parcel.")
     rows = [
         {
             "tracking_code": item.tracking_code,

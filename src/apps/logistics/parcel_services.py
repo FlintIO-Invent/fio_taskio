@@ -8,6 +8,14 @@ from django.db import IntegrityError, transaction
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 from apps.crm.models import Client
 
+from .location_access import (
+    require_creation_site,
+    require_record_operation,
+    require_route_edit,
+    require_work_location,
+    scope_records,
+)
+from .location_reference import ROUTE_LOCATION_FIELDS, exact_country_code
 from .models import Parcel, ParcelEvent, generate_tracking_code
 from .parcel_policy import ALLOWED_TRANSITIONS, PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 
@@ -48,7 +56,7 @@ PARCEL_INPUT_FIELDS = (
     "biodegradable_goods",
     "expiry_date",
     "internal_notes",
-)
+) + ROUTE_LOCATION_FIELDS
 
 
 TRACKING_CODE_ATTEMPTS = 5
@@ -105,12 +113,18 @@ def require_parcel_access(*, business, actor, write=False):
     )
     if not allowed:
         raise PermissionDenied("Your workspace subscription does not permit this parcel operation.")
+    if write:
+        require_work_location(current, actor)
     return current
 
 
 def parcels_for_business(*, business, actor):
     current = require_parcel_access(business=business, actor=actor)
-    return Parcel.objects.filter(business=current, client__business=current)
+    return scope_records(
+        Parcel.objects.filter(business=current, client__business=current),
+        business=current,
+        actor=actor,
+    )
 
 
 def _key(value):
@@ -144,11 +158,26 @@ def register_parcel(*, business, client, actor, idempotency_key=None, **fields):
         raise ValidationError({"client": "Select a client owned by this workspace."})
     key = _key(idempotency_key)
     parcel = Parcel(business=current, client=customer, created_by=actor, **fields)
-    # Validation also normalizes decimal and integer values before comparing retries.
-    parcel.full_clean(exclude=["tracking_code"])
     existing = (
         ParcelEvent.objects.filter(business=current, idempotency_key=key).first() if key else None
     )
+    parcel._route_previous = (
+        Parcel.objects.filter(pk=existing.parcel_id, business=current).first() if existing else None
+    )
+    if parcel._route_previous:
+        # Country-only backfills must not invalidate an older registration retry.
+        for side in ("origin", "destination"):
+            name = f"{side}_country_code"
+            previous = parcel._route_previous
+            if (
+                getattr(parcel, name) is None
+                and getattr(parcel, side) == getattr(previous, side)
+                and getattr(previous, name) == exact_country_code(getattr(previous, side))
+            ):
+                setattr(parcel, name, getattr(previous, name))
+    require_creation_site(parcel, business=current, actor=actor)
+    # Validation also normalizes decimal and integer values before comparing retries.
+    parcel.full_clean(exclude=["tracking_code"])
     if existing:
         previous = Parcel.objects.filter(pk=existing.parcel_id, business=current).first()
         if (
@@ -160,6 +189,7 @@ def register_parcel(*, business, client, actor, idempotency_key=None, **fields):
             or any(getattr(previous, name) != getattr(parcel, name) for name in PARCEL_INPUT_FIELDS)
         ):
             raise ValidationError("This retry key was already used for a different operation.")
+        require_record_operation(previous, business=current, actor=actor)
         return previous
     _insert_registered_parcel(parcel)
     ParcelEvent(
@@ -187,12 +217,14 @@ def edit_parcel(*, business, parcel, actor, expected_updated_at=None, **fields):
     )
     if locked is None:
         raise ValidationError("Parcel is unavailable in this workspace.")
+    require_record_operation(locked, business=current, actor=actor)
     if (
         not Client.objects.select_for_update()
         .filter(pk=locked.client_id, business=current)
         .exists()
     ):
         raise ValidationError("Parcel client is unavailable in this workspace.")
+    require_route_edit(locked, fields, business=current, actor=actor)
     previous = {name: getattr(locked, name) for name in fields}
     for name, value in fields.items():
         setattr(locked, name, value)
@@ -203,7 +235,7 @@ def edit_parcel(*, business, parcel, actor, expected_updated_at=None, **fields):
         return locked
     if expected_updated_at is not None and locked.updated_at != expected_updated_at:
         raise ValidationError("The parcel changed. Reload before saving your edits.")
-    locked._domain_save(update_fields=[*changed, "updated_at"])
+    locked._domain_save(update_fields=[*changed, "location_review_required", "updated_at"])
     ParcelEvent(
         business=current,
         parcel=locked,
@@ -237,6 +269,7 @@ def record_parcel_event(
     )
     if locked is None:
         raise ValidationError("Parcel is unavailable in this workspace.")
+    require_record_operation(locked, business=current, actor=actor)
     # Recheck the CRM relation too, including legacy/unowned or subsequently moved clients.
     if (
         not Client.objects.select_for_update()

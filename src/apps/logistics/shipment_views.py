@@ -12,7 +12,9 @@ from django.views.decorators.http import require_http_methods, require_POST, req
 from apps.businesses.utils import business_module_required, business_role_required, can_use_module
 
 from .billing_views import billing_context
-from .models import Parcel, Shipment
+from .location_access import can_operate_record
+from .models import Shipment
+from .parcel_services import parcels_for_business
 from .shipment_forms import (
     ShipmentAssignmentForm,
     ShipmentFilterForm,
@@ -58,7 +60,7 @@ def _initial_parcel(request):
         raise Http404("Parcel assignment is unavailable in this workspace.")
     try:
         return (
-            ShipmentAssignmentForm(business=request.current_business)
+            ShipmentAssignmentForm(business=request.current_business, actor=request.user)
             .fields["parcel"]
             .to_python(request.GET["parcel"])
         )
@@ -68,11 +70,8 @@ def _initial_parcel(request):
 
 def _detail(request, shipment, *, error=None, assignment_form=None, status_form=None):
     parcels = (
-        Parcel.objects.filter(
-            shipment=shipment,
-            business=request.current_business,
-            client__business=request.current_business,
-        )
+        parcels_for_business(business=request.current_business, actor=request.user)
+        .filter(shipment=shipment)
         .select_related("client")
         .order_by("tracking_code")
     )
@@ -81,6 +80,7 @@ def _detail(request, shipment, *, error=None, assignment_form=None, status_form=
     if assignment_form is None:
         assignment_form = ShipmentAssignmentForm(
             business=request.current_business,
+            actor=request.user,
             shipment=shipment,
             initial={"parcel": _initial_parcel(request)},
         )
@@ -90,6 +90,9 @@ def _detail(request, shipment, *, error=None, assignment_form=None, status_form=
         {
             **billing_context(request, shipment),
             "shipment": shipment,
+            "can_operate_shipment": can_operate_record(
+                shipment, business=request.current_business, actor=request.user
+            ),
             "parcels": parcels,
             "status_actions": ShipmentStatusForm(shipment=shipment).fields["status"].choices,
             "error": error,
@@ -119,6 +122,9 @@ def shipment_list(request):
             parcel_count=Count(
                 "parcels",
                 filter=Q(
+                    parcels__pk__in=parcels_for_business(
+                        business=request.current_business, actor=request.user
+                    ).values("pk"),
                     parcels__business=request.current_business,
                     parcels__client__business=request.current_business,
                 ),
@@ -173,6 +179,7 @@ def shipment_create(request):
     form = ShipmentForm(
         request.POST if request.method == "POST" and not refresh_fields else None,
         business=request.current_business,
+        actor=request.user,
         allow_assignment=_can_assign_parcels(request),
         initial=request.POST.dict() if refresh_fields else initial,
     )
@@ -220,6 +227,7 @@ def shipment_edit(request, shipment_id):
         request.POST if request.method == "POST" and not refresh_fields else None,
         instance=shipment,
         business=request.current_business,
+        actor=request.user,
         allow_assignment=_can_assign_parcels(request),
         initial=request.POST.dict() if refresh_fields else None,
     )
@@ -265,7 +273,7 @@ def shipment_edit(request, shipment_id):
 def shipment_assign(request, shipment_id):
     shipment = _get_shipment(request, shipment_id)
     form = ShipmentAssignmentForm(
-        request.POST, business=request.current_business, shipment=shipment
+        request.POST, business=request.current_business, actor=request.user, shipment=shipment
     )
     if not form.is_valid():
         return _detail(
@@ -296,10 +304,7 @@ def shipment_assign(request, shipment_id):
 def shipment_remove(request, shipment_id, parcel_id):
     shipment = _get_shipment(request, shipment_id)
     parcel = get_object_or_404(
-        Parcel.objects.filter(
-            business=request.current_business,
-            client__business=request.current_business,
-        ),
+        parcels_for_business(business=request.current_business, actor=request.user),
         pk=parcel_id,
     )
     form = ShipmentWriteForm(request.POST, shipment=shipment)

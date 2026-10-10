@@ -101,10 +101,18 @@ class LogisticsApplicationAdmin(ClassificationDisplayMixin, admin.ModelAdmin):
         "monthly_parcel_estimate",
         "evaluated_at",
     )
-    list_filter = ("status", "country", "operation_type", ("business", admin.EmptyFieldListFilter))
+    list_filter = (
+        "status",
+        "country",
+        "location_review_required",
+        "operation_type",
+        ("business", admin.EmptyFieldListFilter),
+    )
     list_select_related = ("business",)
     search_fields = ("business_name", "trading_name", "email", "registration_number")
     readonly_fields = LogisticsApplication.DECISION_FIELDS + (
+        "country_code",
+        "location_review_required",
         "normalized_email",
         "normalized_business_name",
         "normalized_registration_number",
@@ -294,6 +302,33 @@ class ParcelAdmin(ParcelInspectionAdmin):
         "shipment",
         "created_at",
     )
+
+    def get_list_display(self, request):
+        from .location_access import has_wide_access
+
+        if not has_wide_access(get_current_business(request), request.user):
+            return tuple(name for name in self.list_display if name != "shipment")
+        return self.list_display
+
+    def get_fields(self, request, obj=None):
+        fields = super().get_fields(request, obj)
+        if obj and obj.shipment_id:
+            from .shipment_services import shipments_for_business
+
+            try:
+                visible = (
+                    shipments_for_business(
+                        business=get_current_business(request), actor=request.user
+                    )
+                    .filter(pk=obj.shipment_id)
+                    .exists()
+                )
+            except PermissionDenied:
+                visible = False
+            if not visible:
+                return [name for name in fields if name != "shipment"]
+        return fields
+
     list_filter = (("business", admin.RelatedOnlyFieldListFilter), "current_status", "created_at")
     search_fields = ("tracking_code", "internal_reference")
     list_select_related = ("client", "business", "shipment")

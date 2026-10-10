@@ -23,6 +23,7 @@ from apps.crm.models import ActivityLog, BusinessService, Client, Lead
 from . import test_operations as fixtures
 from .billing_services import invoice_charges
 from .demo import LOGISTICS_DEMO_COUNTS, PARCEL_STATUS_COUNTS, SHIPMENT_STATUS_COUNTS
+from .location_reference import ROUTE_LOCATION_FIELDS
 from .models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
 from .parcel_policy import ALLOWED_TRANSITIONS
 from .parcel_services import PARCEL_INPUT_FIELDS
@@ -282,7 +283,8 @@ class LogisticsDemoDataTests(TestCase):
             set(Shipment.objects.values_list("status", flat=True)), set(Shipment.Status.values)
         )
         self.assertEqual(sum(parcel.shipment_id is not None for parcel in parcels), 12)
-        for name in PARCEL_INPUT_FIELDS:
+        # Facility/geography selectors are optional additions, not fictional seed facilities.
+        for name in (name for name in PARCEL_INPUT_FIELDS if name not in ROUTE_LOCATION_FIELDS):
             with self.subTest(populated_field=name):
                 self.assertTrue(
                     any(getattr(parcel, name) not in (None, "", False) for parcel in parcels)

@@ -412,6 +412,11 @@ class ParcelTests(TestCase):
         self.assertEqual(parcel.current_status, "RECEIVED")
 
     def test_roles_and_membership_enforced_in_services_and_ui(self):
+        from .location_test_support import approve_test_site
+
+        self.fields["origin_location"] = approve_test_site(
+            business=self.business, membership=self.membership
+        )
         for role in (BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN, BusinessUser.Role.STAFF):
             self.membership.role = role
             self.membership.save()

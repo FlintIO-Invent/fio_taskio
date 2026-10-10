@@ -35,7 +35,7 @@
             <h4 class="mb-1"><a class="mobile-record-link stretched-link font-monospace" href="{% url 'logistics_parcel_detail' parcel.pk %}">{{ parcel.tracking_code }}</a></h4>
             <p class="fw-semibold mb-2">{{ parcel.client }}</p>
             <p class="mb-2 text-body-secondary">{{ parcel.origin }} → {{ parcel.destination }}</p>
-            {% if module_access.shipments and parcel.shipment and parcel.shipment.business_id == current_business.pk %}
+            {% if module_access.shipments and parcel.shipment_id in visible_shipment_ids %}
             <p class="mb-2 fs-9">Shipment {{ parcel.shipment.reference }} · {{ parcel.shipment.get_transport_mode_display|default:'Unknown mode' }}</p>
             {% endif %}
             <div class="mobile-secondary-action">{% include 'logistics/includes/copy_tracking.html' with tracking_code=parcel.tracking_code %}</div>

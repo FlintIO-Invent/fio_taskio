@@ -768,6 +768,7 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
         "invoice": invoice,
         "whatsapp_share_url": _invoice_whatsapp_share_url(invoice),
         "has_logistics_charges": invoice.lines.filter(logistics_charge__isnull=False).exists(),
+        **_operational_invoice_links(request, invoice),
     }
     return render(request, "billings/invoice_detail.html", context)
 
@@ -787,6 +788,7 @@ def invoice_pdf_download(request: HttpRequest, invoice_id: int) -> HttpResponse:
         pk=invoice_id,
     )
 
+    _operational_invoice_links(request, invoice)
     try:
         pdf_bytes = render_invoice_pdf(invoice, current_business=current_business)
     except Exception:
@@ -825,6 +827,7 @@ def invoice_email_send(request: HttpRequest, invoice_id: int) -> HttpResponse:
         )
         return redirect("invoice_detail", invoice_id=invoice.id)
 
+    _operational_invoice_links(request, invoice)
     try:
         pdf_bytes = render_invoice_pdf(
             invoice,
@@ -1088,3 +1091,46 @@ def invoice_change_status(request: HttpRequest, invoice_id: int) -> HttpResponse
     )
 
     return redirect("invoice_detail", invoice_id=invoice.id)
+
+
+def _operational_invoice_links(request, invoice):
+    """Redact operational references in this response; never change saved billing rows."""
+    from apps.logistics.location_access import scope_records
+    from apps.logistics.models import Parcel, Shipment
+
+    if request.current_business.vertical != Business.Vertical.LOGISTICS:
+        return {}
+    business = request.current_business
+    visibility = {
+        "visible_parcel_ids": set(
+            scope_records(
+                Parcel.objects.filter(
+                    business=business,
+                    client__business=business,
+                    pk__in=invoice.lines.values("parcel_id"),
+                ),
+                business=business,
+                actor=request.user,
+            ).values_list("pk", flat=True)
+        ),
+        "visible_shipment_ids": set(
+            scope_records(
+                Shipment.objects.filter(
+                    business=business, pk__in=invoice.lines.values("shipment_id")
+                ),
+                business=business,
+                actor=request.user,
+            ).values_list("pk", flat=True)
+        ),
+    }
+    for line in invoice.lines.all():
+        if (
+            line.parcel_id
+            and line.parcel_id not in visibility["visible_parcel_ids"]
+            or line.shipment_id
+            and line.shipment_id not in visibility["visible_shipment_ids"]
+        ):
+            # Charge snapshots include the anonymous public tracking code. Shared
+            # finance access must not disclose a restricted operational identifier.
+            line.description = "Logistics charge (operational reference restricted)"
+    return visibility

@@ -43,6 +43,7 @@
           {% include 'logistics/includes/form_field.html' with field=form.package_description %}
           {% include 'logistics/includes/form_field.html' with field=form.origin column_class='col-12 col-md-6' %}
           {% include 'logistics/includes/form_field.html' with field=form.destination column_class='col-12 col-md-6' %}
+          {% include 'logistics/includes/route_location_fields.html' %}
           {% include 'logistics/includes/form_field.html' with field=form.quantity column_class='col-12 col-md-6' %}
           {% include 'logistics/includes/form_field.html' with field=form.internal_reference column_class='col-12 col-md-6' %}
         </div>

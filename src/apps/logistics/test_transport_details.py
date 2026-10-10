@@ -509,7 +509,12 @@ class TransportDetailsMigrationTests(TransactionTestCase):
                 saved.append((item.pk, item.updated_at, mode))
             MigrationExecutor(connection).migrate(new)
             for pk, updated_at, mode in saved:
-                item = Shipment.objects.get(pk=pk)
+                item = (
+                    MigrationExecutor(connection)
+                    .loader.project_state(new)
+                    .apps.get_model("logistics", "Shipment")
+                    .objects.get(pk=pk)
+                )
                 for name in SHIPMENT_REFERENCE_FIELDS:
                     self.assertIsNone(getattr(item, name))
                 self.assertEqual(item.transport_mode, mode)

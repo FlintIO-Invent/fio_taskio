@@ -664,16 +664,19 @@ class ShipmentTests(TestCase):
         )
 
     def test_roles_membership_and_user_activity_in_services_and_ui(self):
-        shipment = self.shipment()
+        from .location_test_support import approve_test_site
+
+        site = approve_test_site(business=self.business, membership=self.membership)
+        shipment = self.shipment(origin_location=site)
         for role in ("owner", "admin", "staff"):
             self.membership.role = role
             self.membership.save(update_fields=["role"])
-            self.shipment()
+            self.shipment(origin_location=site)
         for role in ("accountant", "viewer"):
             self.membership.role = role
             self.membership.save(update_fields=["role"])
             with self.assertRaises(PermissionDenied):
-                self.shipment()
+                self.shipment(origin_location=site)
             with self.assertRaises(PermissionDenied):
                 self.status(shipment, "CANCELLED")
             self.assertEqual(self.manifest(shipment)["parcel_count"], 0)

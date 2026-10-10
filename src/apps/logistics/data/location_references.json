@@ -1,0 +1,233 @@
+{
+  "source": "https://unlocode.unece.org/publications/",
+  "release": "2025-1",
+  "license": "CC BY 4.0",
+  "archive_sha256": "ad409fc7149b10f98d61190c34d9daf78b78bb8b31464cc66de1a89d09b01b5d",
+  "locations": [
+    {
+      "code": "AIAXA",
+      "country_code": "AI",
+      "name": "Anguilla",
+      "types": [
+        "AIRPORT"
+      ],
+      "status": "AI",
+      "functions": "---45---"
+    },
+    {
+      "code": "AIMBB",
+      "country_code": "AI",
+      "name": "Meads Bay Beach",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-------"
+    },
+    {
+      "code": "AIRBY",
+      "country_code": "AI",
+      "name": "Road Bay",
+      "types": [
+        "PORT"
+      ],
+      "status": "AS",
+      "functions": "1-3-----"
+    },
+    {
+      "code": "AISOM",
+      "country_code": "AI",
+      "name": "Sombrero",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-------"
+    },
+    {
+      "code": "AIWLL",
+      "country_code": "AI",
+      "name": "Wall Blake",
+      "types": [
+        "PORT",
+        "AIRPORT"
+      ],
+      "status": "RL",
+      "functions": "1--4----"
+    },
+    {
+      "code": "CWBUB",
+      "country_code": "CW",
+      "name": "Bullenbaai",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-------"
+    },
+    {
+      "code": "CWCRB",
+      "country_code": "CW",
+      "name": "Caracas Baai",
+      "types": [
+        "PORT"
+      ],
+      "status": "AI",
+      "functions": "1-------"
+    },
+    {
+      "code": "CWCUR",
+      "country_code": "CW",
+      "name": "Curaçao",
+      "types": [
+        "PORT",
+        "AIRPORT"
+      ],
+      "status": "AI",
+      "functions": "1--45---"
+    },
+    {
+      "code": "CWFUI",
+      "country_code": "CW",
+      "name": "Fuikbaai",
+      "types": [
+        "PORT"
+      ],
+      "status": "AI",
+      "functions": "1-------"
+    },
+    {
+      "code": "CWSMB",
+      "country_code": "CW",
+      "name": "Sint Michielsbaai",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-------"
+    },
+    {
+      "code": "CWWIL",
+      "country_code": "CW",
+      "name": "Willemstad",
+      "types": [
+        "PORT"
+      ],
+      "status": "AI",
+      "functions": "1-------"
+    },
+    {
+      "code": "DMADM",
+      "country_code": "DM",
+      "name": "Anse du Mai",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-------"
+    },
+    {
+      "code": "DMBEL",
+      "country_code": "DM",
+      "name": "Belfast",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-------"
+    },
+    {
+      "code": "DMDOM",
+      "country_code": "DM",
+      "name": "Dominica",
+      "types": [
+        "AIRPORT"
+      ],
+      "status": "AI",
+      "functions": "---45---"
+    },
+    {
+      "code": "DMPOR",
+      "country_code": "DM",
+      "name": "Portsmouth",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-3-----"
+    },
+    {
+      "code": "DMRSU",
+      "country_code": "DM",
+      "name": "Roseau",
+      "types": [
+        "PORT"
+      ],
+      "status": "AI",
+      "functions": "1-------"
+    },
+    {
+      "code": "SXGES",
+      "country_code": "SX",
+      "name": "Gallis Bay",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-3-----"
+    },
+    {
+      "code": "SXMAR",
+      "country_code": "SX",
+      "name": "Marigot",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-------"
+    },
+    {
+      "code": "SXPHI",
+      "country_code": "SX",
+      "name": "Philipsburg",
+      "types": [
+        "PORT"
+      ],
+      "status": "RL",
+      "functions": "1-3-----"
+    },
+    {
+      "code": "SXSXM",
+      "country_code": "SX",
+      "name": "Sint-Maarten Apt",
+      "types": [
+        "PORT",
+        "AIRPORT"
+      ],
+      "status": "AI",
+      "functions": "1--45---"
+    },
+    {
+      "code": "USMIA",
+      "country_code": "US",
+      "name": "Miami",
+      "types": [
+        "PORT",
+        "AIRPORT"
+      ],
+      "status": "AI",
+      "functions": "1--45---"
+    },
+    {
+      "code": "USNYC",
+      "country_code": "US",
+      "name": "New York",
+      "types": [
+        "PORT",
+        "AIRPORT"
+      ],
+      "status": "AI",
+      "functions": "12345---"
+    }
+  ]
+}

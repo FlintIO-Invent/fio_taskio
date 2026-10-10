@@ -316,6 +316,9 @@ class LogisticsBillingTests(TestCase):
 
     def test_permissions_reuse_billing_roles_and_subscription(self):
         parcel = self.parcel()
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership, parcel=parcel)
         for role in ("staff", "accountant"):
             self.membership.role = role
             self.membership.save()

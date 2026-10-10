@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import billing_views, scan_views, shipment_views
+from . import billing_views, location_access_views, location_views, scan_views, shipment_views
 from .public_tracking_views import public_tracking
 from .views import (
     application_checkout,
@@ -16,6 +16,14 @@ from .views import (
 )
 
 urlpatterns = [
+    path("locations/access/", location_access_views.location_access_settings, name="logistics_location_access"),
+    path("locations/work/", location_access_views.work_location, name="logistics_work_location"),
+    path("locations/", location_views.location_settings, name="logistics_location_settings"),
+    path(
+        "locations/<int:location_id>/edit/",
+        location_views.location_settings,
+        name="logistics_location_edit",
+    ),
     path("parcels/scan/", scan_views.scan_parcel, name="logistics_parcel_scan"),
     path(
         "parcels/scan/<int:parcel_id>/action/",

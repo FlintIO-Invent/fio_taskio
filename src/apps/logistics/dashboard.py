@@ -69,7 +69,7 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             .values_list("current_status", "total")
         )
         events = ParcelEvent.objects.filter(
-            business=business, parcel__business=business, parcel__client__business=business
+            business=business, parcel__in=parcels, parcel__business=business, parcel__client__business=business
         )
         delivered = (
             events.filter(

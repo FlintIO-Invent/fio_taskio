@@ -61,6 +61,13 @@ class LogisticsMobileTests(TestCase):
 
     def test_mobile_actions_respect_role_and_csrf(self):
         shipment = self.shipment()
+        from .location_test_support import approve_test_site
+        from .models import LogisticsHandlingSite
+
+        site = approve_test_site(business=self.business, membership=self.membership)
+        LogisticsHandlingSite.objects.create(
+            business=self.business, shipment=shipment, location=site, kind="STOP"
+        )
         self.membership.role = BusinessUser.Role.VIEWER
         self.membership.save(update_fields=["role"])
         response = self.client.get(reverse("logistics_shipment_detail", args=[shipment.pk]))

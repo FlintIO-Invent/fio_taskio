@@ -17,6 +17,15 @@ from .classification import (
     validate_operating_areas,
     validate_transportation_modes,
 )
+from .location_reference import (
+    country_choices,
+    exact_country_code,
+    location_references,
+    reference_choices,
+    validate_country_code,
+    validate_reference_code,
+    validate_route_locations,
+)
 from .policy import normalized_identity
 from .tracking_codes import (
     TRACKING_CODE_ALPHABET,
@@ -36,6 +45,7 @@ class LogisticsProfile(ClassificationHelpers, models.Model):
     transportation_modes = models.JSONField(
         default=list, validators=[validate_transportation_modes], blank=True
     )
+    location_access_reviewed_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -149,6 +159,10 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
         validators=[RegexValidator(r"^[+()\d .-]+$", "Enter a valid phone number.")],
     )
     country = models.CharField("Country / territory", max_length=100)
+    country_code = models.CharField(
+        max_length=2, null=True, blank=True, editable=False, validators=[validate_country_code]
+    )
+    location_review_required = models.BooleanField(default=False, editable=False)
     business_address = models.TextField(max_length=1000, validators=[MaxLengthValidator(1000)])
     registration_number = models.CharField(
         "Registration / company number", max_length=100, blank=True
@@ -269,6 +283,8 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
             if isinstance(value, str):
                 setattr(self, name, value.strip())
         self.email = self.email.casefold()
+        self.country_code = exact_country_code(self.country)
+        self.location_review_required = bool(self.country and not self.country_code)
         # Historical applications did not collect classification. Preserve their
         # unrecorded values on unrelated edits; all new/classification edits validate.
         legacy = (
@@ -353,6 +369,8 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
                 self.approved_revision = None
             if update_fields is not None:
                 kwargs["update_fields"] = set(update_fields) | {
+                    "country_code",
+                    "location_review_required",
                     "normalized_email",
                     "normalized_business_name",
                     "normalized_registration_number",
@@ -486,7 +504,173 @@ class ParcelDomainModel(models.Model):
         return super().save(**kwargs)
 
 
-class Parcel(ParcelDomainModel):
+class LogisticsLocation(models.Model):
+    """A company's facility, distinct from geography and public port references."""
+
+    class Type(models.TextChoices):
+        PORT = "PORT", "Port"
+        AIRPORT = "AIRPORT", "Airport"
+        WAREHOUSE = "WAREHOUSE", "Warehouse"
+        BRANCH = "BRANCH", "Branch"
+        HUB = "HUB", "Hub"
+        PICKUP_POINT = "PICKUP_POINT", "Pickup point"
+        OTHER = "OTHER", "Other"
+
+    business = models.ForeignKey(
+        "businesses.Business", on_delete=models.PROTECT, related_name="logistics_locations"
+    )
+    name = models.CharField("Canonical name", max_length=160)
+    code = models.CharField(
+        "Stable short code",
+        max_length=20,
+        validators=[
+            RegexValidator(
+                r"\A[A-Za-z][A-Za-z0-9-]{1,19}\Z",
+                "Use 2–20 letters, numbers or hyphens, starting with a letter.",
+            )
+        ],
+    )
+    location_type = models.CharField(max_length=12, choices=Type.choices)
+    country_code = models.CharField(
+        "Country / territory",
+        max_length=2,
+        choices=country_choices,
+        validators=[validate_country_code],
+    )
+    reference_code = models.CharField(
+        "Verified port / airport reference",
+        max_length=5,
+        blank=True,
+        choices=reference_choices,
+        validators=[validate_reference_code],
+    )
+    address_line_1 = models.CharField(max_length=255, blank=True)
+    address_line_2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    region = models.CharField(max_length=120, blank=True)
+    postal_code = models.CharField(max_length=40, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower("code"), "business", name="logistics_location_code_unique"
+            ),
+            models.UniqueConstraint(
+                models.functions.Lower("name"), "business", name="logistics_location_name_unique"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    location_type__in=[
+                        "PORT",
+                        "AIRPORT",
+                        "WAREHOUSE",
+                        "BRANCH",
+                        "HUB",
+                        "PICKUP_POINT",
+                        "OTHER",
+                    ]
+                ),
+                name="logistics_location_type_known",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.code} · {self.name} · {self.country_code}" + (
+            " (inactive)" if not self.is_active else ""
+        )
+
+    def clean(self):
+        from apps.businesses.models import Business
+
+        super().clean()
+        self.name = self.name.strip()
+        self.code = self.code.strip().upper()
+        if not self.name:
+            raise ValidationError({"name": "Enter a canonical name."})
+        if not Business.objects.filter(
+            pk=self.business_id, vertical=Business.Vertical.LOGISTICS
+        ).exists():
+            raise ValidationError({"business": "Locations require a Logistics workspace."})
+        if self.pk:
+            previous = type(self).objects.filter(pk=self.pk).first()
+            if previous and (self.business_id, self.code, self.country_code) != (
+                previous.business_id,
+                previous.code,
+                previous.country_code,
+            ):
+                raise ValidationError("Location ownership, short code and country are immutable.")
+        reference = location_references().get(self.reference_code)
+        if reference and (
+            reference["country_code"] != self.country_code
+            or self.location_type not in reference["types"]
+        ):
+            raise ValidationError(
+                {"reference_code": "Select a reference matching this location's country and type."}
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class LogisticsRouteFields(models.Model):
+    origin_country_code = models.CharField(
+        "Origin country / territory",
+        max_length=2,
+        null=True,
+        blank=True,
+        choices=country_choices,
+        validators=[validate_country_code],
+    )
+    destination_country_code = models.CharField(
+        "Destination country / territory",
+        max_length=2,
+        null=True,
+        blank=True,
+        choices=country_choices,
+        validators=[validate_country_code],
+    )
+    origin_location = models.ForeignKey(
+        LogisticsLocation,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="%(class)s_origins",
+        verbose_name="Origin company facility",
+    )
+    destination_location = models.ForeignKey(
+        LogisticsLocation,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="%(class)s_destinations",
+        verbose_name="Destination company facility",
+    )
+    origin_reference_code = models.CharField(
+        "Origin port / airport reference",
+        max_length=5,
+        blank=True,
+        choices=reference_choices,
+        validators=[validate_reference_code],
+    )
+    destination_reference_code = models.CharField(
+        "Destination port / airport reference",
+        max_length=5,
+        blank=True,
+        choices=reference_choices,
+        validators=[validate_reference_code],
+    )
+    location_review_required = models.BooleanField(default=False, editable=False)
+
+    class Meta:
+        abstract = True
+
+
+class Parcel(ParcelDomainModel, LogisticsRouteFields):
     class Status(models.TextChoices):
         REGISTERED = "REGISTERED", "Registered"
         RECEIVED = "RECEIVED", "Received"
@@ -649,6 +833,7 @@ class Parcel(ParcelDomainModel):
         from apps.crm.models import Client
 
         super().clean()
+        validate_route_locations(self)
         if self.sender_country_code:
             self.sender_country_code = self.sender_country_code.upper()
         if not Business.objects.filter(
@@ -749,7 +934,7 @@ def generate_shipment_reference():
     return f"SHP-{uuid.uuid4().hex.upper()}"
 
 
-class Shipment(ParcelDomainModel):
+class Shipment(ParcelDomainModel, LogisticsRouteFields):
     """One operational grouping; all writes go through shipment_services."""
 
     class Status(models.TextChoices):
@@ -844,6 +1029,7 @@ class Shipment(ParcelDomainModel):
             pk=self.business_id, vertical=Business.Vertical.LOGISTICS
         ).exists():
             raise ValidationError({"business": "Shipments require a Logistics workspace."})
+        validate_route_locations(self)
         if self._state.adding:
             self._validate_actor("created_by")
         else:
@@ -942,7 +1128,7 @@ class LogisticsCharge(ParcelDomainModel):
     @property
     def invoice_description(self):
         target = f"{'Parcel' if self.parcel_id else 'Shipment'} {self.target_reference}"
-        return f"{self.description[:255 - len(target) - 3]} — {target}"
+        return f"{self.description[: 255 - len(target) - 3]} — {target}"
 
     def clean(self):
         super().clean()
@@ -1006,3 +1192,112 @@ class LogisticsCharge(ParcelDomainModel):
                 previous.invoice_line_id and previous.invoice_line_id != self.invoice_line_id
             ):
                 raise ValidationError("Saved charge snapshots and invoice links are immutable.")
+
+
+class LogisticsLocationAssignment(models.Model):
+    """Owner-approved access for an existing workspace membership."""
+
+    business = models.ForeignKey(
+        "businesses.Business",
+        on_delete=models.PROTECT,
+        related_name="logistics_location_assignments",
+    )
+    membership = models.ForeignKey(
+        "businesses.BusinessUser",
+        on_delete=models.CASCADE,
+        related_name="logistics_location_assignments",
+    )
+    location = models.ForeignKey(
+        LogisticsLocation, on_delete=models.PROTECT, related_name="worker_assignments"
+    )
+    can_operate = models.BooleanField(default=False)
+    is_current = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["membership", "location"], name="logistics_worker_location_unique"
+            ),
+            models.UniqueConstraint(
+                fields=["membership"],
+                condition=models.Q(is_current=True),
+                name="logistics_worker_current_unique",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self.business_id or not self.membership_id or not self.location_id:
+            return
+        if (
+            self.membership.business_id != self.business_id
+            or self.location.business_id != self.business_id
+        ):
+            raise ValidationError("Membership and location must belong to this workspace.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class LogisticsHandlingSite(models.Model):
+    """An explicit site association; no scheduling or transport planning."""
+
+    class Kind(models.TextChoices):
+        EXPECTED = "EXPECTED", "Expected at site"
+        CURRENT = "CURRENT", "Currently handled at site"
+        STOP = "STOP", "Operational stop"
+
+    business = models.ForeignKey(
+        "businesses.Business", on_delete=models.PROTECT, related_name="logistics_handling_sites"
+    )
+    location = models.ForeignKey(
+        LogisticsLocation, on_delete=models.PROTECT, related_name="handling_sites"
+    )
+    parcel = models.ForeignKey(
+        Parcel, null=True, blank=True, on_delete=models.CASCADE, related_name="handling_sites"
+    )
+    shipment = models.ForeignKey(
+        Shipment, null=True, blank=True, on_delete=models.CASCADE, related_name="handling_sites"
+    )
+    kind = models.CharField(max_length=8, choices=Kind.choices)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(parcel__isnull=False, shipment__isnull=True)
+                    | models.Q(parcel__isnull=True, shipment__isnull=False)
+                ),
+                name="logistics_handling_one_target",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(kind__in=["EXPECTED", "CURRENT", "STOP"]),
+                name="logistics_handling_kind_known",
+            ),
+            models.UniqueConstraint(
+                fields=["parcel", "location", "kind"], name="logistics_parcel_site_unique"
+            ),
+            models.UniqueConstraint(
+                fields=["shipment", "location", "kind"], name="logistics_shipment_site_unique"
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        target = self.parcel if self.parcel_id else self.shipment if self.shipment_id else None
+        if bool(self.parcel_id) == bool(self.shipment_id):
+            raise ValidationError("Select exactly one parcel or shipment.")
+        if (
+            target
+            and self.location_id
+            and (
+                target.business_id != self.business_id
+                or self.location.business_id != self.business_id
+            )
+        ):
+            raise ValidationError("Target and handling site must belong to this workspace.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)

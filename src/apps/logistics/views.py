@@ -34,6 +34,7 @@ from .forms import (
     ParcelMetadataForm,
     ParcelRegistrationForm,
 )
+from .location_access import can_operate_record
 from .models import LogisticsApplication, ParcelEvent
 from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 from .parcel_services import edit_parcel, parcels_for_business, record_parcel_event, register_parcel
@@ -228,6 +229,7 @@ def parcel_list(request):
         {
             "page_obj": Paginator(parcels, 50).get_page(request.GET.get("page")),
             "filter_form": filters,
+            "visible_shipment_ids": _visible_shipment_ids(request),
             "filters_active": any(request.GET.get(key) for key in ("q", "status", "client")),
             "pagination_query": pagination_query.urlencode(),
         },
@@ -253,7 +255,9 @@ def parcel_detail(request, parcel_id):
     from .billing_views import billing_context
     from .shipment_services import shipments_for_business
 
-    metadata_form = ParcelMetadataForm(instance=parcel, business=request.current_business)
+    metadata_form = ParcelMetadataForm(
+        instance=parcel, business=request.current_business, actor=request.user
+    )
     detail_sections = []
     for section in metadata_form.sections:
         fields = []
@@ -282,6 +286,9 @@ def parcel_detail(request, parcel_id):
         {
             **billing_context(request, parcel),
             "parcel": parcel,
+            "can_operate_parcel": can_operate_record(
+                parcel, business=request.current_business, actor=request.user
+            ),
             "events": events,
             "recent_events": list(reversed(events))[:3],
             "shipment": shipment,
@@ -312,6 +319,7 @@ def parcel_edit(request, parcel_id):
         request.POST if request.method == "POST" else None,
         instance=parcel,
         business=request.current_business,
+        actor=request.user,
         initial={"expected_updated_at": parcel.updated_at.isoformat()},
     )
     if request.method == "POST" and form.is_valid():
@@ -348,6 +356,7 @@ def parcel_register(request):
     form = ParcelRegistrationForm(
         request.POST if request.method == "POST" else None,
         business=request.current_business,
+        actor=request.user,
         initial={"idempotency_key": uuid.uuid4()},
     )
     if request.method == "GET" and request.GET.get("client"):
@@ -409,3 +418,16 @@ def parcel_update(request, parcel_id):
         "logistics/parcel_form.html",
         {"form": form, "parcel": parcel, "title": "Record parcel update"},
     )
+
+
+def _visible_shipment_ids(request):
+    from .shipment_services import shipments_for_business
+
+    try:
+        return set(
+            shipments_for_business(
+                business=request.current_business, actor=request.user
+            ).values_list("pk", flat=True)
+        )
+    except PermissionDenied:
+        return set()

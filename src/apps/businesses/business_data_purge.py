@@ -10,7 +10,16 @@ from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
-from apps.logistics.models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
+from apps.logistics.models import (
+    LogisticsCharge,
+    LogisticsHandlingSite,
+    LogisticsLocation,
+    LogisticsLocationAssignment,
+    LogisticsProfile,
+    Parcel,
+    ParcelEvent,
+    Shipment,
+)
 
 from .business_data_inventory import (
     DIRECT_BUSINESS_RELATION_REGISTRY,
@@ -51,8 +60,11 @@ PURGE_DELETION_ORDER = (
     "activity_logs",
     "leads",
     "parcel_events",
+    "logistics_handling_sites",
+    "logistics_location_assignments",
     "parcels",
     "shipments",
+    "logistics_locations",
     "clients",
     "business_services",
     "service_categories",
@@ -427,8 +439,17 @@ def _delete_business_records(
         "parcel_events": _delete_parcel_history(
             ParcelEvent.objects.filter(business_id=business_id)
         ),
+        "logistics_handling_sites": _delete_queryset(
+            LogisticsHandlingSite.objects.filter(business_id=business_id)
+        ),
+        "logistics_location_assignments": _delete_queryset(
+            LogisticsLocationAssignment.objects.filter(business_id=business_id)
+        ),
         "parcels": _delete_parcel_history(Parcel.objects.filter(business_id=business_id)),
         "shipments": _delete_parcel_history(Shipment.objects.filter(business_id=business_id)),
+        "logistics_locations": _delete_queryset(
+            LogisticsLocation.objects.filter(business_id=business_id)
+        ),
         "clients": _delete_queryset(Client.objects.filter(business_id=business_id)),
         "business_services": _delete_queryset(
             BusinessService.objects.filter(business_id=business_id)

@@ -5,12 +5,18 @@ from django.core.exceptions import ValidationError
 
 from .classification import OperatingArea, TransportationMode
 from .dashboard_forms import style_dashboard_fields
+from .location_forms import configure_route_fields, geographic_country_field
+from .location_reference import ROUTE_LOCATION_FIELDS
 from .models import LogisticsApplication
 
 
 class ClassificationFormMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if "country" in self.fields:
+            self.fields["country"] = geographic_country_field(
+                value=self.instance.country, required=True
+            )
         for name, label, choices, required, help_text in (
             (
                 "operating_areas",
@@ -146,16 +152,18 @@ class LogisticsApplicationForm(ClassificationFormMixin, forms.ModelForm):
             field.widget.attrs["class"] = (
                 "form-check-input"
                 if isinstance(field.widget, forms.CheckboxInput)
-                else "form-select" if isinstance(field.widget, forms.Select) else "form-control"
+                else "form-select"
+                if isinstance(field.widget, forms.Select)
+                else "form-control"
             )
             if isinstance(field.widget, forms.Textarea):
                 field.widget.attrs["rows"] = 3
-        self.fields["timezone"].help_text = (
-            "IANA timezone, for example America/Curacao or Europe/Amsterdam."
-        )
-        self.fields["registration_number"].help_text = (
-            "Optional at submission; further registration details may be requested."
-        )
+        self.fields[
+            "timezone"
+        ].help_text = "IANA timezone, for example America/Curacao or Europe/Amsterdam."
+        self.fields[
+            "registration_number"
+        ].help_text = "Optional at submission; further registration details may be requested."
         for name, autocomplete in {
             "business_name": "organization",
             "contact_first_name": "given-name",
@@ -423,15 +431,16 @@ class ParcelMetadataForm(forms.ModelForm):
             "expiry_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         }
 
-    def __init__(self, *args, business, **kwargs):
+    def __init__(self, *args, business, actor=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.instance.business = business
         self.fields["declared_value"].label = f"Declared value ({business.currency})"
         self.fields["weight_kg"].label = "Weight (kg)"
-        self.fields["recipient_name"].help_text = (
-            "Optional delivery contact when different from the linked client."
-        )
+        self.fields[
+            "recipient_name"
+        ].help_text = "Optional delivery contact when different from the linked client."
         self.fields["internal_notes"].help_text = "Workspace only. Never shown on public tracking."
+        configure_route_fields(self, business, actor)
         style_dashboard_fields(self.fields)
         for field in self.fields.values():
             if isinstance(field.widget, forms.CheckboxInput):
@@ -441,9 +450,13 @@ class ParcelMetadataForm(forms.ModelForm):
         self.fields["volume_m3"].widget.attrs["min"] = "0"
         self.fields["origin"].widget.attrs["placeholder"] = "e.g. Miami"
         self.fields["destination"].widget.attrs["placeholder"] = "e.g. Curaçao"
-        self.fields["package_description"].widget.attrs[
-            "placeholder"
-        ] = "Briefly describe the parcel"
+        self.fields["package_description"].widget.attrs["placeholder"] = (
+            "Briefly describe the parcel"
+        )
+
+    @property
+    def route_location_fields(self):
+        return [self[name] for name in ROUTE_LOCATION_FIELDS]
 
     @property
     def sections(self):
@@ -466,10 +479,10 @@ class ParcelRegistrationForm(ParcelMetadataForm):
     class Meta(ParcelMetadataForm.Meta):
         fields = ("client",) + ParcelMetadataForm.Meta.fields
 
-    def __init__(self, *args, business, **kwargs):
+    def __init__(self, *args, business, actor=None, **kwargs):
         from apps.crm.models import Client
 
-        super().__init__(*args, business=business, **kwargs)
+        super().__init__(*args, business=business, actor=actor, **kwargs)
         self.fields["client"].queryset = Client.objects.filter(business=business).order_by(
             "first_name", "last_name", "pk"
         )

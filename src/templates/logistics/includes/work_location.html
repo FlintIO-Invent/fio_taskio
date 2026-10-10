@@ -1,0 +1,13 @@
+{% if logistics_worker %}
+<div class="content logistics-work-location pb-0">
+  {% if logistics_work_assignments %}
+  <form method="post" action="{% url 'logistics_work_location' %}" class="d-flex flex-wrap align-items-center gap-2">
+    {% csrf_token %}<label for="logistics-work-location">Active work location</label>
+    <select id="logistics-work-location" name="location" class="form-select form-select-sm w-auto">
+      {% if not logistics_has_current_location %}<option value="" selected disabled>Select work location</option>{% endif %}
+      {% for assignment in logistics_work_assignments %}<option value="{{ assignment.location_id }}"{% if assignment.is_current %} selected{% endif %}>{{ assignment.location.code }} · {{ assignment.location.name }}{% if not assignment.can_operate %} (read only){% endif %}</option>{% endfor %}
+    </select><button class="btn btn-phoenix-secondary btn-sm">Use location</button>
+  </form>
+  {% else %}<div class="alert alert-info mb-0">Logistics operational access requires reviewed, active location assignments. Contact a workspace owner or administrator.</div>{% endif %}
+</div>
+{% endif %}

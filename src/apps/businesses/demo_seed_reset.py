@@ -7,7 +7,13 @@ from django.db import models
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, Lead, ServiceCategory
-from apps.logistics.models import LogisticsCharge, Parcel, ParcelEvent, Shipment
+from apps.logistics.models import (
+    LogisticsCharge,
+    LogisticsHandlingSite,
+    Parcel,
+    ParcelEvent,
+    Shipment,
+)
 
 from .models import (
     Business,
@@ -240,6 +246,13 @@ def _validate_related_tenant_ids(*, obj: models.Model, business_id: int) -> None
 
 
 def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -> None:
+    if LogisticsHandlingSite.objects.filter(
+        models.Q(parcel_id__in=object_pks.get("logistics.Parcel", ()))
+        | models.Q(shipment_id__in=object_pks.get("logistics.Shipment", ()))
+    ).exists():
+        raise DemoSeedResetError(
+            "Reset aborted: demo records have manually registered handling sites."
+        )
     owned = {
         model._meta.label: set()
         for model in (

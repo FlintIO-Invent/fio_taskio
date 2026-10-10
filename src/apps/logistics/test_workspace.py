@@ -264,6 +264,9 @@ class LogisticsWorkspaceTests(TestCase):
         self.assertTemplateUsed(response, "logistics/public_tracking.html")
 
     def test_logistics_sidebar_write_links_respect_roles(self):
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership)
         for role in BusinessUser.Role.values:
             self.membership.role = role
             self.membership.save(update_fields=["role"])
@@ -426,6 +429,9 @@ class LogisticsWorkspaceTests(TestCase):
         self.assertEqual(response.context["parcel_count"], 1)
 
     def test_dashboard_actions_respect_all_roles(self):
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership)
         for role in BusinessUser.Role.values:
             self.membership.role = role
             self.membership.save(update_fields=["role"])

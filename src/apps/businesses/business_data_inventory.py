@@ -19,6 +19,8 @@ from apps.logistics.models import (
     LogisticsApplicationDecision,
     LogisticsCharge,
     LogisticsEnrollmentToken,
+    LogisticsHandlingSite,
+    LogisticsLocationAssignment,
     Parcel,
     ParcelEvent,
     Shipment,
@@ -285,6 +287,33 @@ DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
         "logistics.ParcelEvent",
         "business",
         "Business.parcel_events",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
+    InventoryRegistration(
+        "logistics_location_assignments",
+        "logistics.LogisticsLocationAssignment",
+        "business",
+        "Business.logistics_location_assignments",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
+    InventoryRegistration(
+        "logistics_handling_sites",
+        "logistics.LogisticsHandlingSite",
+        "business",
+        "Business.logistics_handling_sites",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
+    InventoryRegistration(
+        "logistics_locations",
+        "logistics.LogisticsLocation",
+        "business",
+        "Business.logistics_locations",
         InventoryClassification.PROTECT_BLOCKER,
         True,
         False,
@@ -1020,7 +1049,26 @@ def _cross_business_user_references(
 
 def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ...]:
     selected_members = BusinessUser.objects.filter(business_id=business_id).values("user_id")
-    checks = (
+    location_checks = []
+    for model, relations in (
+        (LogisticsLocationAssignment, ("membership", "location")),
+        (LogisticsHandlingSite, ("parcel", "shipment", "location")),
+    ):
+        for relation in relations:
+            lookup = f"{relation}__business_id"
+            outbound = model.objects.filter(
+                business_id=business_id, **{f"{relation}__isnull": False}
+            ).exclude(**{lookup: business_id})
+            inbound = model.objects.filter(**{lookup: business_id}).exclude(business_id=business_id)
+            location_checks.append(
+                _blocker_check(
+                    f"cross_tenant_{model._meta.model_name}_{relation}",
+                    f"{model._meta.label}.{relation} -> Business",
+                    outbound.count() + inbound.count(),
+                    "Location access associations cross workspace boundaries.",
+                )
+            )
+    checks = tuple(location_checks) + (
         _blocker_check(
             "cross_tenant_logistics_conversion_snapshot",
             "logistics.LogisticsApplication.business_id_snapshot -> Business.pk",
@@ -1311,6 +1359,10 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
     )
     extra_checks = []
     for model, owner, field, related_owner in (
+        (Parcel, "business_id", "origin_location", "business_id"),
+        (Parcel, "business_id", "destination_location", "business_id"),
+        (Shipment, "business_id", "origin_location", "business_id"),
+        (Shipment, "business_id", "destination_location", "business_id"),
         (LogisticsCharge, "business_id", "client", "business_id"),
         (LogisticsCharge, "business_id", "parcel", "business_id"),
         (LogisticsCharge, "business_id", "shipment", "business_id"),
@@ -1337,7 +1389,7 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
                     f"cross_tenant_{model._meta.model_name}_{field}_{direction}",
                     f"{model._meta.label}.{field}",
                     qs.count(),
-                    "Billing references must remain inside one business.",
+                    "Operational and billing references must remain inside one business.",
                 )
             )
     from django.db.models import F

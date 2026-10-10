@@ -227,6 +227,9 @@ class ScanWorkflowTests(TestCase):
 
     def test_readers_can_lookup_but_cannot_mutate(self):
         parcel = self.register()
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership, parcel=parcel)
         for role in (BusinessUser.Role.VIEWER, BusinessUser.Role.ACCOUNTANT):
             self.membership.role = role
             self.membership.save(update_fields=["role"])

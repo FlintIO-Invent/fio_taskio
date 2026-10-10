@@ -1,6 +1,7 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% block content %}
 <div class="content">
+  {% include 'logistics/includes/route_location_details.html' with item=parcel %}
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
@@ -15,7 +16,7 @@
       <p class="d-lg-none mt-2 mb-0 text-break">{{ parcel.origin }} → {{ parcel.destination }}</p>
       {% if shipment %}<p class="d-lg-none mt-2 mb-0 text-break">Shipment <a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a> · {{ shipment.get_transport_mode_display|default:'Unknown mode' }}</p>{% endif %}
     </div>
-    {% if role_access.can_manage_parcels and module_write_access.parcels %}
+    {% if can_operate_parcel and role_access.can_manage_parcels and module_write_access.parcels %}
     <div class="col-auto d-flex flex-wrap gap-2">
       <a class="btn btn-phoenix-primary" href="{% url 'logistics_parcel_edit' parcel.pk %}">Edit Parcel</a>
       <a class="btn btn-primary" href="{% url 'logistics_parcel_update' parcel.pk %}">Record Update</a>

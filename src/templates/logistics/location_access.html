@@ -1,0 +1,39 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<div class="content">
+  <h2 class="mb-3">Logistics location access</h2>
+  <p>Owners and administrators can access all operating sites. Other workspace members need an approved location assignment. Operational writes also require the existing staff role, permission to operate and an active work location.</p>
+  <a class="btn btn-phoenix-secondary mb-3" href="{% url 'logistics_location_settings' %}">Operating locations</a>
+  <div class="card mb-3"><div class="card-body">
+    <h4>Worker assignments</h4>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="assignment">
+      {% for error in assignment_form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+      <div class="row g-3">{% for field in assignment_form %}{% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}{% endfor %}</div>
+      <button class="btn btn-primary mt-3">Save assignment</button>
+    </form>
+    <div class="table-responsive mt-3"><table class="table"><thead><tr><th>Worker</th><th>Site</th><th>Operational writes</th><th>Current site</th></tr></thead><tbody>
+      {% for item in assignments %}<tr><td>{{ item.membership.user }}</td><td>{{ item.location }}</td><td>{{ item.can_operate|yesno:'Allowed,Read only' }}</td><td>{{ item.is_current|yesno:'Yes,No' }}</td></tr>{% empty %}<tr><td colspan="4">No assignments approved.</td></tr>{% endfor %}
+    </tbody></table></div>
+    <p>Staff without an active site assignment: {% for item in unassigned_workers %}{{ item.user }}{% if not forloop.last %}, {% endif %}{% empty %}None{% endfor %}</p>
+  </div></div>
+  <div class="card mb-3"><div class="card-body"><h4>Handling sites</h4>
+    <p>Associate one parcel or shipment with an expected site, a current handling site or an operational stop.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="handling">
+      {% for error in handling_form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+      <div class="row g-3">{% for field in handling_form %}{% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}{% endfor %}</div>
+      <button class="btn btn-primary mt-3">Save handling site</button>
+    </form>
+    <div class="table-responsive mt-3"><table class="table"><thead><tr><th>Record</th><th>Site</th><th>Association</th></tr></thead><tbody>
+      {% for item in handling_sites %}<tr><td>{% if item.parcel_id %}{{ item.parcel.tracking_code }}{% else %}{{ item.shipment.reference }}{% endif %}</td><td>{{ item.location }}</td><td>{{ item.get_kind_display }}</td></tr>{% empty %}<tr><td colspan="3">No handling sites registered.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </div></div>
+  <div class="card"><div class="card-body"><h4>Assignment review</h4>
+    <p>{% if access_reviewed %}Location access has been reviewed.{% else %}Staff operational access is pending review. Review existing workers and historical records before enabling assignments.{% endif %} Unassigned workers receive no operational access.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="review">
+      <label class="form-check"><input class="form-check-input" type="checkbox" name="confirm_review" value="yes" required> I have reviewed worker assignments and operating-site associations.</label>
+      <button class="btn btn-primary mt-3">Confirm review</button>
+    </form>
+  </div></div>
+</div>
+{% include 'logistics/includes/scripts.html' %}
+{% endblock %}
