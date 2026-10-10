@@ -31,7 +31,7 @@
     <form method="post" action="{% url 'logistics_public_tracking' %}">
       {% csrf_token %}
       <label for="tracking-code">Tracking code</label>
-      <p id="tracking-help">Enter the exact tracking code from your parcel receipt.</p>
+      <p id="tracking-help">Enter the exact, complete tracking code from your parcel receipt (MM-PCL-… or a legacy code).</p>
       <input id="tracking-code" name="tracking_code" type="text" maxlength="48" required
              autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="tracking-help">
       <button type="submit">Track parcel</button>

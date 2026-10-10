@@ -62,11 +62,15 @@ def shipment_billing_client(shipment):
     return Client.objects.get(pk=client_ids.pop(), business_id=shipment.business_id)
 
 
-def _target(business, parcel=None, shipment=None, *, lock=False):
+def _target(business, parcel=None, shipment=None, *, lock=False, actor=None):
     if (parcel is None) == (shipment is None):
         raise ValidationError("Select exactly one parcel or shipment.")
     model, value = (Parcel, parcel) if parcel is not None else (Shipment, shipment)
     qs = model.objects.filter(business=business, pk=getattr(value, "pk", value))
+    if actor is not None:
+        from .location_access import scope_records
+
+        qs = scope_records(qs, business=business, actor=actor)
     if lock:
         qs = qs.select_for_update()
     target = qs.first()
@@ -94,7 +98,7 @@ def add_charge(
     current = Business.objects.select_for_update().get(pk=business.pk)
     kind = "parcel" if parcel is not None else "shipment"
     current = require_billing_access(business=current, actor=actor, write=True, target_kind=kind)
-    target, client = _target(current, parcel, shipment, lock=True)
+    target, client = _target(current, parcel, shipment, lock=True, actor=actor)
     try:
         key = UUID(str(idempotency_key))
     except (ValueError, TypeError, AttributeError) as exc:
@@ -161,7 +165,7 @@ def invoice_charges(*, business, actor, charge_ids, invoice=None):
             write=True,
             target_kind="parcel" if charge.parcel_id else "shipment",
         )
-        _, client = _target(current, charge.parcel, charge.shipment, lock=True)
+        _, client = _target(current, charge.parcel, charge.shipment, lock=True, actor=actor)
         if client.pk != charge.client_id:
             raise ValidationError("Charge client no longer matches its billing target.")
         charge.full_clean()

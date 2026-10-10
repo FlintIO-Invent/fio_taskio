@@ -1,21 +1,24 @@
 """Source-independent authenticated tracking-code resolution and scan forms."""
 
-import re
-
 from django import forms
 from django.core.exceptions import ValidationError
 
 from .forms import ParcelEventForm
 from .parcel_services import parcels_for_business
+from .tracking_codes import (
+    TRACKING_CODE_BODY_PATTERN,
+    TRACKING_CODE_INPUT_ERROR,
+    TRACKING_CODE_PATTERN,
+)
 
 
 def normalize_scan_code(value):
     """Remove surrounding scanner CR/LF/tab suffixes; never remove interior data."""
     if not isinstance(value, str) or len(value) > 256:
-        raise ValidationError("Enter a complete 48-character tracking code.")
+        raise ValidationError(TRACKING_CODE_INPUT_ERROR)
     code = value.strip().upper()
-    if not re.fullmatch(r"[A-F0-9]{48}", code):
-        raise ValidationError("Enter a complete 48-character tracking code.")
+    if not TRACKING_CODE_PATTERN.fullmatch(code):
+        raise ValidationError(TRACKING_CODE_INPUT_ERROR)
     return code
 
 
@@ -44,6 +47,8 @@ class ScanLookupForm(forms.Form):
                 "enterkeyhint": "go",
                 "aria-describedby": "scan-input-help scan-feedback",
                 "data-scan-input": "",
+                "data-tracking-code-pattern": "^" + TRACKING_CODE_BODY_PATTERN + "$",
+                "data-tracking-code-error": TRACKING_CODE_INPUT_ERROR,
             }
         ),
     )
@@ -57,6 +62,6 @@ class ScanActionForm(ParcelEventForm):
 
     def __init__(self, *args, parcel, **kwargs):
         super().__init__(*args, parcel=parcel, **kwargs)
-        for name in ("location", "public_message", "internal_note"):
-            self.fields.pop(name)
+        for name in ("location", "public_message", "internal_note", "location_override_reason"):
+            self.fields.pop(name, None)
         self.fields["status"].required = True

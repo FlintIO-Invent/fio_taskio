@@ -376,6 +376,9 @@ class ParcelMetadataTests(TestCase):
 
     def test_roles_membership_and_service_vertical_enforced_for_edit(self):
         parcel = self.register()
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership, parcel=parcel)
         url = reverse("logistics_parcel_edit", args=[parcel.pk])
         for role in (BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN, BusinessUser.Role.STAFF):
             self.membership.role = role

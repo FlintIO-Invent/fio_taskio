@@ -41,7 +41,7 @@ formats are intersected with the browser's supported set; fallback formats are
 explicitly restricted to that list. If native detection returns several codes,
 QR is preferred. Format never changes Parcel validation or authorization. For
 example, an ordinary EAN/UPC product number is decoded but fails the existing
-48-character hexadecimal Parcel tracking-code validation. URLs and arbitrary
+shared legacy/V2 Parcel tracking-code validation. URLs and arbitrary
 barcode contents are not transformed into tracking codes.
 
 ## Flow and camera lifecycle

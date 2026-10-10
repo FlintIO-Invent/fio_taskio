@@ -18,7 +18,7 @@
         {% csrf_token %}
         <label class="form-label" for="{{ lookup_form.tracking_code.id_for_label }}">{{ lookup_form.tracking_code.label }}</label>
         {{ lookup_form.tracking_code }}
-        <p class="form-text" id="scan-input-help">Type, paste or scan a tracking code, then press Enter.</p>
+        <p class="form-text" id="scan-input-help">Type, paste or scan the complete MM-PCL-… or legacy tracking code, then press Enter.</p>
         <div class="d-flex flex-wrap gap-2">
           <button type="submit" class="btn btn-primary">Find Parcel</button>
           <button type="button" class="btn btn-phoenix-secondary" data-next-scan>Next Scan</button>

@@ -90,3 +90,8 @@
   .logistics-workspace .mobile-dashboard-quick .btn { flex: 1 1 140px; }
   .logistics-workspace .logistics-dashboard a.logistics-tracking-code { display: inline-block; min-height: 44px; padding: 10px 0; }
 }
+
+/* Keep the shared work-site selector aligned with the existing page content. */
+.logistics-work-location { min-height: 0; }
+.logistics-work-location .form-select { max-width: 100%; }
+.logistics-work-location + .content { padding-top: 1rem; }

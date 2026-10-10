@@ -1,6 +1,13 @@
 from django.urls import path
 
-from . import billing_views, scan_views, shipment_views
+from . import (
+    billing_views,
+    label_views,
+    location_access_views,
+    location_views,
+    scan_views,
+    shipment_views,
+)
 from .public_tracking_views import public_tracking
 from .views import (
     application_checkout,
@@ -16,6 +23,18 @@ from .views import (
 )
 
 urlpatterns = [
+    path(
+        "locations/access/",
+        location_access_views.location_access_settings,
+        name="logistics_location_access",
+    ),
+    path("locations/work/", location_access_views.work_location, name="logistics_work_location"),
+    path("locations/", location_views.location_settings, name="logistics_location_settings"),
+    path(
+        "locations/<int:location_id>/edit/",
+        location_views.location_settings,
+        name="logistics_location_edit",
+    ),
     path("parcels/scan/", scan_views.scan_parcel, name="logistics_parcel_scan"),
     path(
         "parcels/scan/<int:parcel_id>/action/",
@@ -77,6 +96,21 @@ urlpatterns = [
     path("track/", public_tracking, name="logistics_public_tracking"),
     path("parcels/", parcel_list, name="logistics_parcel_list"),
     path("parcels/register/", parcel_register, name="logistics_parcel_register"),
+    path(
+        "parcels/shipping-prefill/",
+        label_views.shipping_client_prefill,
+        name="logistics_shipping_prefill",
+    ),
+    path(
+        "parcels/<int:parcel_id>/label/",
+        label_views.shipping_label_preview,
+        name="logistics_shipping_label",
+    ),
+    path(
+        "parcels/<int:parcel_id>/label/pdf/",
+        label_views.shipping_label_pdf,
+        name="logistics_shipping_label_pdf",
+    ),
     path("parcels/<int:parcel_id>/", parcel_detail, name="logistics_parcel_detail"),
     path("parcels/<int:parcel_id>/edit/", parcel_edit, name="logistics_parcel_edit"),
     path("parcels/<int:parcel_id>/update/", parcel_update, name="logistics_parcel_update"),

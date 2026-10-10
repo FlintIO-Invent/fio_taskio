@@ -1,6 +1,10 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% block content %}
 <div class="content">
+  {% if messages %}{% for message in messages %}
+  <div class="alert alert-subtle-{{ message.tags|default:'info' }} mb-3" role="status">{{ message }}</div>
+  {% endfor %}{% endif %}
+  {% include 'logistics/includes/route_location_details.html' with item=parcel %}
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
@@ -15,7 +19,7 @@
       <p class="d-lg-none mt-2 mb-0 text-break">{{ parcel.origin }} → {{ parcel.destination }}</p>
       {% if shipment %}<p class="d-lg-none mt-2 mb-0 text-break">Shipment <a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a> · {{ shipment.get_transport_mode_display|default:'Unknown mode' }}</p>{% endif %}
     </div>
-    {% if role_access.can_manage_parcels and module_write_access.parcels %}
+    {% if can_operate_parcel and role_access.can_manage_parcels and module_write_access.parcels %}
     <div class="col-auto d-flex flex-wrap gap-2">
       <a class="btn btn-phoenix-primary" href="{% url 'logistics_parcel_edit' parcel.pk %}">Edit Parcel</a>
       <a class="btn btn-primary" href="{% url 'logistics_parcel_update' parcel.pk %}">Record Update</a>
@@ -24,6 +28,9 @@
   </div>
   <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
     {% include 'logistics/includes/copy_tracking.html' with tracking_code=parcel.tracking_code %}
+    <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipping_label' parcel.pk %}">Preview Shipping Label</a>
+    <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipping_label' parcel.pk %}?print=1" target="_blank" rel="noopener">Print Shipping Label</a>
+    <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipping_label_pdf' parcel.pk %}?download=1">Download PDF</a>
     {% if module_access.tracking and module_write_access.parcels %}
     <form method="post" action="{% url 'logistics_public_tracking' %}" target="_blank" rel="noopener">
       {% csrf_token %}<input type="hidden" name="tracking_code" value="{{ parcel.tracking_code }}">
@@ -105,6 +112,8 @@
     <div class="card-body text-break">
       <p class="fw-semibold mb-2">{{ event.get_status_display|default:event.get_event_type_display }}</p>
       <p class="text-body-secondary mb-2">{{ event.timestamp }} · {{ event.actor|default:'—' }}</p>
+      {% if event.operational_location %}<p class="mb-2">Authorized work site: {{ event.operational_location }}{% if event.previous_status %} · {{ event.get_previous_status_display }} → {{ event.get_resulting_status_display }}{% endif %}</p>{% endif %}
+      {% if event.location_override_reason %}<p class="bg-body-tertiary rounded p-3">Administrator site override · Workspace only: {{ event.location_override_reason }}</p>{% endif %}
       {% if event.location %}<p class="mb-2">{{ event.location }}</p>{% endif %}
       {% if event.public_message %}<div class="border rounded p-3 mb-2"><p class="fw-semibold mb-1">Public message</p><p class="mb-0">{{ event.public_message }}</p></div>{% endif %}
       {% if event.internal_note %}<div class="bg-body-tertiary rounded p-3"><p class="fw-semibold mb-1">Internal note · Workspace only</p><p class="mb-0">{{ event.internal_note }}</p></div>{% endif %}

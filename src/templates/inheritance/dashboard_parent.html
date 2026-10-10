@@ -490,7 +490,8 @@
 	        </div>
 	      {% endif %}
 
-	      {% block content %} {% endblock %}
+	      {% include "logistics/includes/work_location.html" %}
+          {% block content %} {% endblock %}
       
       <script>
           var navbarTopStyle = window.config.config.phoenixNavbarTopStyle;

@@ -37,6 +37,7 @@
   <section class="card mb-4" aria-labelledby="logistics-profile-title">
     <div class="card-body">
       <h2 class="h5" id="logistics-profile-title">Logistics operating profile</h2>
+      <a class="btn btn-phoenix-secondary mb-3" href="{% url 'logistics_location_settings' %}">Operating locations</a>
       <dl class="mb-0">
         <dt>Operating areas</dt><dd>{{ logistics_profile.operating_area_labels|join:", "|default:"Not recorded" }}</dd>
         <dt>Transportation modes</dt><dd>{{ logistics_profile.transportation_mode_labels|join:", "|default:"Not recorded" }}</dd>
@@ -316,4 +317,5 @@
     </div>
   </div>
 </div>
+{% if business.vertical == 'LOGISTICS' %}{% include 'logistics/includes/scripts.html' %}{% endif %}
 {% endblock %}

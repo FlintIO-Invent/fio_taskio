@@ -2,7 +2,6 @@
 
 import ipaddress
 import os
-import re
 import time
 
 from django.conf import settings
@@ -15,8 +14,8 @@ from django.views.decorators.debug import sensitive_variables
 from apps.businesses.models import Business, BusinessSubscription
 
 from .models import Parcel, ParcelEvent
+from .tracking_codes import TRACKING_CODE_PATTERN
 
-TRACKING_CODE_PATTERN = re.compile(r"[A-F0-9]{48}")
 LOOKUP_LIMIT = 30
 LOOKUP_WINDOW_SECONDS = 60
 ATOMIC_SHARED_CACHES = {

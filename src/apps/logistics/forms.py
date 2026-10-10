@@ -5,12 +5,18 @@ from django.core.exceptions import ValidationError
 
 from .classification import OperatingArea, TransportationMode
 from .dashboard_forms import style_dashboard_fields
+from .location_forms import configure_route_fields, geographic_country_field, searchable
+from .location_reference import ROUTE_LOCATION_FIELDS, country_choices, exact_country_code
 from .models import LogisticsApplication
 
 
 class ClassificationFormMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if "country" in self.fields:
+            self.fields["country"] = geographic_country_field(
+                value=self.instance.country, required=True
+            )
         for name, label, choices, required, help_text in (
             (
                 "operating_areas",
@@ -146,16 +152,18 @@ class LogisticsApplicationForm(ClassificationFormMixin, forms.ModelForm):
             field.widget.attrs["class"] = (
                 "form-check-input"
                 if isinstance(field.widget, forms.CheckboxInput)
-                else "form-select" if isinstance(field.widget, forms.Select) else "form-control"
+                else "form-select"
+                if isinstance(field.widget, forms.Select)
+                else "form-control"
             )
             if isinstance(field.widget, forms.Textarea):
                 field.widget.attrs["rows"] = 3
-        self.fields["timezone"].help_text = (
-            "IANA timezone, for example America/Curacao or Europe/Amsterdam."
-        )
-        self.fields["registration_number"].help_text = (
-            "Optional at submission; further registration details may be requested."
-        )
+        self.fields[
+            "timezone"
+        ].help_text = "IANA timezone, for example America/Curacao or Europe/Amsterdam."
+        self.fields[
+            "registration_number"
+        ].help_text = "Optional at submission; further registration details may be requested."
         for name, autocomplete in {
             "business_name": "organization",
             "contact_first_name": "given-name",
@@ -353,6 +361,11 @@ PARCEL_FIELD_SECTIONS = (
         (
             "sender_name",
             "sender_contact",
+            "sender_address_line_1",
+            "sender_address_line_2",
+            "sender_city",
+            "sender_region",
+            "sender_postal_code",
             "sender_address",
             "sender_country_code",
             "sender_tax_id",
@@ -365,6 +378,12 @@ PARCEL_FIELD_SECTIONS = (
         (
             "recipient_name",
             "recipient_contact",
+            "recipient_address_line_1",
+            "recipient_address_line_2",
+            "recipient_city",
+            "recipient_region",
+            "recipient_postal_code",
+            "recipient_country_code",
             "recipient_address",
         ),
     ),
@@ -407,6 +426,14 @@ PARCEL_FIELD_SECTIONS = (
 )
 
 
+class ShippingCountryField(forms.ChoiceField):
+    def to_python(self, value):
+        value = super().to_python(value)
+        if value and value not in dict(self.choices):
+            value = exact_country_code(value) or value
+        return value
+
+
 class ParcelMetadataForm(forms.ModelForm):
     class Meta:
         from .models import Parcel
@@ -423,15 +450,51 @@ class ParcelMetadataForm(forms.ModelForm):
             "expiry_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         }
 
-    def __init__(self, *args, business, **kwargs):
+    def __init__(self, *args, business, actor=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.instance.business = business
         self.fields["declared_value"].label = f"Declared value ({business.currency})"
         self.fields["weight_kg"].label = "Weight (kg)"
-        self.fields["recipient_name"].help_text = (
-            "Optional delivery contact when different from the linked client."
-        )
+        self.fields[
+            "recipient_name"
+        ].help_text = "Optional delivery contact when different from the linked client."
         self.fields["internal_notes"].help_text = "Workspace only. Never shown on public tracking."
+        for side in ("sender", "recipient"):
+            name = f"{side}_country_code"
+            saved = getattr(self.instance, name)
+            choices = [("", "Select country / territory"), *country_choices()]
+            if saved and saved not in dict(choices):
+                choices.append((saved, f"{saved} (saved value)"))
+            self.fields[name] = ShippingCountryField(
+                choices=choices, required=False, label=f"{side.title()} country / territory"
+            )
+            searchable(self.fields[name], "Search countries and territories")
+            self.fields[f"{side}_name"].label = f"{side.title()} person / company"
+            self.fields[f"{side}_contact"].label = f"{side.title()} phone / contact"
+            self.fields[f"{side}_address"].label = f"{side.title()} legacy address"
+            self.fields[
+                f"{side}_address"
+            ].help_text = (
+                "Saved free-text address. Labels use structured address fields when supplied."
+            )
+        # Older API/form payloads must not erase additive shipping fields on edits.
+        if self.is_bound and self.instance.pk:
+            data = self.data.copy()
+            for side in ("sender", "recipient"):
+                for suffix in (
+                    "address_line_1",
+                    "address_line_2",
+                    "city",
+                    "region",
+                    "postal_code",
+                    "country_code",
+                ):
+                    name = f"{side}_{suffix}"
+                    key = self.add_prefix(name)
+                    if key not in data:
+                        data[key] = getattr(self.instance, name) or ""
+            self.data = data
+        configure_route_fields(self, business, actor)
         style_dashboard_fields(self.fields)
         for field in self.fields.values():
             if isinstance(field.widget, forms.CheckboxInput):
@@ -441,9 +504,13 @@ class ParcelMetadataForm(forms.ModelForm):
         self.fields["volume_m3"].widget.attrs["min"] = "0"
         self.fields["origin"].widget.attrs["placeholder"] = "e.g. Miami"
         self.fields["destination"].widget.attrs["placeholder"] = "e.g. Curaçao"
-        self.fields["package_description"].widget.attrs[
-            "placeholder"
-        ] = "Briefly describe the parcel"
+        self.fields["package_description"].widget.attrs["placeholder"] = (
+            "Briefly describe the parcel"
+        )
+
+    @property
+    def route_location_fields(self):
+        return [self[name] for name in ROUTE_LOCATION_FIELDS]
 
     @property
     def sections(self):
@@ -466,10 +533,10 @@ class ParcelRegistrationForm(ParcelMetadataForm):
     class Meta(ParcelMetadataForm.Meta):
         fields = ("client",) + ParcelMetadataForm.Meta.fields
 
-    def __init__(self, *args, business, **kwargs):
+    def __init__(self, *args, business, actor=None, **kwargs):
         from apps.crm.models import Client
 
-        super().__init__(*args, business=business, **kwargs)
+        super().__init__(*args, business=business, actor=actor, **kwargs)
         self.fields["client"].queryset = Client.objects.filter(business=business).order_by(
             "first_name", "last_name", "pk"
         )
@@ -484,7 +551,18 @@ class ParcelRegistrationForm(ParcelMetadataForm):
 
 class ParcelEventForm(forms.Form):
     status = forms.ChoiceField(required=False)
-    location = forms.CharField(max_length=255, required=False)
+    location = forms.CharField(
+        max_length=255,
+        required=False,
+        label="Location description",
+        help_text="Optional descriptive text. Select your work site separately; this text does not authorize operations or appear in public tracking.",
+    )
+    location_override_reason = forms.CharField(
+        max_length=1000,
+        required=False,
+        label="Administrator site override reason",
+        help_text="Optional. Only owners and administrators can approve a route-site exception. Kept private.",
+    )
     public_message = forms.CharField(
         max_length=1000,
         required=False,
@@ -495,11 +573,16 @@ class ParcelEventForm(forms.Form):
     idempotency_key = forms.UUIDField(widget=forms.HiddenInput)
     expected_status = forms.CharField(widget=forms.HiddenInput)
 
-    def __init__(self, *args, parcel, **kwargs):
+    def __init__(self, *args, parcel, actor=None, **kwargs):
         from .models import Parcel
         from .parcel_policy import ALLOWED_TRANSITIONS
 
         super().__init__(*args, **kwargs)
+        if actor is not None:
+            from .location_access import has_wide_access
+
+            if not has_wide_access(parcel.business, actor):
+                self.fields.pop("location_override_reason")
         allowed = ALLOWED_TRANSITIONS[parcel.current_status]
         self.fields["status"].choices = [("", "Tracking note (keep status)")] + [
             (value, label)

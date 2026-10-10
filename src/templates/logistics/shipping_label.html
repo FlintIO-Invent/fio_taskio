@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shipping label · {{ parcel.tracking_code }}</title>
+  <style>
+    {{ label_font_css|safe }}
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #eee; color: #000; font: 14px system-ui, sans-serif; }
+    .label-tools { padding: 16px; background: #fff; }
+    .label-tools a, .label-tools button { display: inline-block; margin: 4px 12px 4px 0; }
+    .label-tools p { margin: 8px 0 0; }
+    .shipping-label { width: 4in; height: 6in; margin: 24px auto; background: #fff; }
+    .shipping-label svg { display: block; width: 100%; height: 100%; }
+    .error { max-width: 600px; padding: 20px; margin: 20px auto; background: #fff; }
+    @media screen and (max-width: 420px) {
+      .shipping-label { width: calc(100vw - 24px); height: auto; aspect-ratio: 2 / 3; }
+    }
+    @page { size: 4in 6in; margin: 0; }
+    @media print {
+      html, body { width: 4in; height: 6in; margin: 0; padding: 0; background: #fff; }
+      .label-tools { display: none; }
+      .shipping-label { width: 4in; height: 6in; margin: 0; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="label-tools" aria-label="Label actions">
+    <a href="{% url 'logistics_parcel_detail' parcel.pk %}">Back to Parcel</a>
+    {% if not label_error %}
+    <button type="button" onclick="window.print()">Print Shipping Label</button>
+    <a href="{% url 'logistics_shipping_label_pdf' parcel.pk %}?download=1">Download PDF</a>
+    <p>4 × 6 inches (102 × 152 mm). Print at actual size / 100%; turn off browser headers and footers.</p>
+    {% endif %}
+  </nav>
+  {% if label_error %}
+  <div class="error" role="alert"><p>{{ label_error }}</p><a href="{% url 'logistics_parcel_edit' parcel.pk %}">Review shipping information</a></div>
+  {% else %}
+  <main class="shipping-label" aria-label="Shipping label">{{ label_svg|safe }}</main>
+  {% if print_on_load %}<script>document.fonts.ready.then(() => window.print());</script>{% endif %}
+  {% endif %}
+</body>
+</html>

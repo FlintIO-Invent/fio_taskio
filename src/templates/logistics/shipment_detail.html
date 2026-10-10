@@ -1,6 +1,7 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% block content %}
 <div class="content">
+  {% include 'logistics/includes/route_location_details.html' with item=shipment %}
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
@@ -15,12 +16,12 @@
       <p class="d-lg-none mt-2 mb-0">{% include 'logistics/includes/transport_mode_badge.html' with mode=shipment.transport_mode label=shipment.get_transport_mode_display %} · {{ parcels|length }} parcel{{ parcels|length|pluralize }}</p>
     </div>
     <div class="col-auto d-flex flex-wrap gap-2">
-      {% if role_access.can_manage_shipments and module_write_access.shipments and status_actions %}<a class="btn btn-primary d-lg-none" href="#shipment-lifecycle">Change Status</a>{% endif %}
+      {% if can_operate_shipment and role_access.can_manage_shipments and module_write_access.shipments and status_actions %}<a class="btn btn-primary d-lg-none" href="#shipment-lifecycle">Change Status</a>{% endif %}
       {% if module_access.manifests %}
       <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipment_manifest' shipment.pk %}">View Manifest</a>
       <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipment_manifest' shipment.pk %}?download=csv">Download Manifest (CSV)</a>
       {% endif %}
-      {% if role_access.can_manage_shipments and module_write_access.shipments and shipment.status == 'DRAFT' %}
+      {% if can_operate_shipment and role_access.can_manage_shipments and module_write_access.shipments and shipment.status == 'DRAFT' %}
       <a class="btn btn-primary" href="{% url 'logistics_shipment_edit' shipment.pk %}">Edit Draft</a>
       {% endif %}
     </div>
@@ -46,7 +47,7 @@
       </dl>
     </div>
   </div>
-  {% if role_access.can_manage_shipments and module_write_access.shipments %}
+  {% if can_operate_shipment and role_access.can_manage_shipments and module_write_access.shipments %}
   <div class="row g-4 mb-4 mobile-detail-lifecycle" id="shipment-lifecycle">
     {% if status_actions %}
     <div class="col-12 col-xl-6">
@@ -57,6 +58,7 @@
           {% csrf_token %}
           {% include 'logistics/includes/form_errors.html' with form=status_form %}
           {% for hidden in status_form.hidden_fields %}<input type="hidden" name="{{ hidden.name }}" value="{{ hidden.value }}">{% endfor %}
+          {% if status_form.location_override_reason %}<label class="form-label" for="mobile-site-override">Administrator site override reason</label><input id="mobile-site-override" type="text" name="location_override_reason" maxlength="1000" class="form-control mb-3" value="{{ status_form.location_override_reason.value|default_if_none:'' }}"><p class="fs-9 text-body-secondary">Optional private reason for an approved route-site exception.</p>{% endif %}
           <div class="d-flex flex-wrap gap-2">
             {% for value, label in status_actions %}
             <button type="submit" name="status" value="{{ value }}" class="btn {% if value == 'CANCELLED' %}btn-outline-danger{% else %}btn-primary{% endif %}">{% if value == 'CANCELLED' %}Cancel shipment{% else %}Mark {{ label }}{% endif %}</button>
@@ -100,6 +102,15 @@
   </div>
   {% endif %}
   {% include "logistics/includes/billing.html" %}
+  {% if shipment.operation_history %}
+  <div class="card mb-4"><div class="card-body"><h4>Recent operational history · Workspace only</h4>
+    {% for operation in operation_history %}<div class="border-bottom py-2 text-break">
+      <p class="mb-1">{{ operation.action|capfirst }} · {{ operation.previous_state }} → {{ operation.new_state }}</p>
+      <p class="text-body-secondary mb-1">{{ operation.timestamp }} · {{ operation.actor_name }}{% if operation.location_code %} · {{ operation.location_code }}{% endif %}</p>
+      {% if operation.location_override_reason %}<p class="mb-0">Administrator site override: {{ operation.location_override_reason }}</p>{% endif %}
+    </div>{% endfor %}
+  </div></div>
+  {% endif %}
   <h3 class="mb-3">Assigned parcels</h3>
   <div class="card">
     {% if parcels %}
@@ -115,7 +126,7 @@
               <td>{% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}</td><td>{{ parcel.quantity }}</td>
               <td>{{ parcel.weight_kg|default_if_none:'—' }}</td>
               <td>
-                {% if can_assign and role_access.can_manage_shipments and module_write_access.shipments and module_write_access.parcels %}
+                {% if can_assign and can_operate_shipment and role_access.can_manage_shipments and module_write_access.shipments and module_write_access.parcels %}
                 <form method="post" action="{% url 'logistics_shipment_remove' shipment.pk parcel.pk %}">
                   {% csrf_token %}
                   {% for hidden in parcel.shipment_remove_form.hidden_fields %}{{ hidden }}{% endfor %}

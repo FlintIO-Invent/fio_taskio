@@ -22,6 +22,7 @@ from .billing_services import (
     require_billing_access,
     shipment_billing_client,
 )
+from .location_access import scope_records
 from .models import Parcel, Shipment
 
 
@@ -78,7 +79,14 @@ def charge_create(request, parcel_id=None, shipment_id=None):
     require_billing_access(
         business=request.current_business, actor=request.user, write=True, target_kind=kind
     )
-    target = get_object_or_404(model, business=request.current_business, pk=pk)
+    target = get_object_or_404(
+        scope_records(
+            model.objects.filter(business=request.current_business),
+            business=request.current_business,
+            actor=request.user,
+        ),
+        pk=pk,
+    )
     form = LogisticsChargeForm(
         request.POST if request.method == "POST" else None,
         business=request.current_business,
@@ -126,7 +134,14 @@ def charge_invoice(request, parcel_id=None, shipment_id=None):
     require_billing_access(
         business=request.current_business, actor=request.user, write=True, target_kind=kind
     )
-    target = get_object_or_404(model, business=request.current_business, pk=pk)
+    target = get_object_or_404(
+        scope_records(
+            model.objects.filter(business=request.current_business),
+            business=request.current_business,
+            actor=request.user,
+        ),
+        pk=pk,
+    )
     try:
         client = target.client if kind == "parcel" else shipment_billing_client(target)
     except ValidationError:

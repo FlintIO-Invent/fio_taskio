@@ -12,10 +12,21 @@ from decimal import Decimal
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
+from django.utils import timezone
 
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 
-from .models import Parcel, Shipment
+from .location_access import (
+    lock_actor_membership,
+    require_creation_site,
+    require_record_operation,
+    require_route_edit,
+    require_work_location,
+    scope_records,
+)
+from .location_operations import operation_location, validate_transition_location
+from .location_reference import ROUTE_LOCATION_FIELDS
+from .models import LogisticsLocation, Parcel, Shipment
 from .parcel_services import _key, change_parcel_status, require_parcel_access
 from .shipment_policy import (
     ALLOWED_TRANSITIONS,
@@ -33,17 +44,23 @@ from .shipment_references import (
 from .shipment_transport import validate_shipment_mode
 
 SHIPMENT_INPUT_FIELDS = (
-    "origin",
-    "destination",
-    "transport_mode",
-    "departure_at",
-    "estimated_arrival_at",
-    "notes",
-) + SHIPMENT_REFERENCE_FIELDS
+    (
+        "origin",
+        "destination",
+        "transport_mode",
+        "departure_at",
+        "estimated_arrival_at",
+        "notes",
+    )
+    + SHIPMENT_REFERENCE_FIELDS
+    + ROUTE_LOCATION_FIELDS
+)
 
 
 class _ReceiptEncoder(DjangoJSONEncoder):
     def default(self, value):
+        if isinstance(value, LogisticsLocation):
+            return value.pk
         if isinstance(value, datetime):
             # Django's default encoder truncates to milliseconds; retry identity
             # must distinguish the full precision accepted by the services.
@@ -76,19 +93,24 @@ def require_shipment_access(*, business, actor, write=False, manifest=False):
         raise PermissionDenied(
             "Your workspace subscription does not permit this shipment operation."
         )
+    if write:
+        require_work_location(current, actor)
     return current
 
 
 def shipments_for_business(*, business, actor):
-    return Shipment.objects.filter(business=require_shipment_access(business=business, actor=actor))
+    current = require_shipment_access(business=business, actor=actor)
+    return scope_records(Shipment.objects.filter(business=current), business=current, actor=actor)
 
 
 def _locked_business(business, actor, *, write=True, manifest=False):
     current = Business.objects.select_for_update().filter(pk=getattr(business, "pk", None)).first()
+    if write:
+        lock_actor_membership(current, actor)
     return require_shipment_access(business=current, actor=actor, write=write, manifest=manifest)
 
 
-def _shipment(current, shipment):
+def _shipment(current, shipment, actor, *, write=True):
     locked = (
         Shipment.objects.select_for_update()
         .filter(business=current, pk=getattr(shipment, "pk", shipment))
@@ -96,10 +118,17 @@ def _shipment(current, shipment):
     )
     if locked is None:
         raise ValidationError("Shipment is unavailable in this workspace.")
+    if write:
+        require_record_operation(locked, business=current, actor=actor)
+        _audit_context(locked, current, actor)
+    elif not scope_records(
+        Shipment.objects.filter(pk=locked.pk, business=current), business=current, actor=actor
+    ).exists():
+        raise PermissionDenied("Shipment is unavailable in your assigned locations.")
     return locked
 
 
-def _parcel(current, parcel):
+def _parcel(current, parcel, actor):
     locked = (
         Parcel.objects.select_for_update()
         .filter(business=current, client__business=current, pk=getattr(parcel, "pk", parcel))
@@ -107,6 +136,7 @@ def _parcel(current, parcel):
     )
     if locked is None:
         raise ValidationError("Parcel is unavailable in this workspace.")
+    require_record_operation(locked, business=current, actor=actor)
     return locked
 
 
@@ -120,7 +150,10 @@ def _input_fields(fields):
         raise ValidationError("Unsupported shipment fields.")
 
 
-def _fingerprint(kind, actor, payload):
+def _fingerprint(kind, actor, payload, *, business):
+    site = operation_location(business, actor)
+    if site:
+        payload = {**payload, "work_location": site.pk}
     return hashlib.sha256(
         json.dumps(
             {"operation": kind, "actor": actor.pk, "payload": payload},
@@ -151,11 +184,51 @@ def _check_revision(shipment, expected_revision):
         )
 
 
-def _save_write(shipment, *, fields, key, fingerprint):
+def _audit_context(shipment, business, actor):
+    shipment._operation_actor = actor
+    shipment._operation_site = operation_location(business, actor)
+    shipment._operation_previous = shipment.status
+
+
+def _append_audit(shipment, *, action, key=None, parcel=None, override_reason=""):
+    site = shipment._operation_site
+    shipment.operation_history = [
+        *shipment.operation_history,
+        {
+            "action": action,
+            "business_id": shipment.business_id,
+            "actor_id": shipment._operation_actor.pk,
+            "actor_name": str(shipment._operation_actor),
+            "location_id": site.pk if site else None,
+            "location_code": site.code if site else None,
+            "previous_state": shipment._operation_previous,
+            "new_state": shipment.status,
+            "timestamp": timezone.now().isoformat(),
+            "revision": shipment.revision,
+            "idempotency_key": str(key) if key else None,
+            "parcel_id": str(parcel.pk) if parcel else None,
+            "location_override_reason": (override_reason or "").strip(),
+        },
+    ]
+
+
+def _save_write(
+    shipment, *, fields, key, fingerprint, action="edit", parcel=None, override_reason=""
+):
     shipment.revision += 1
+    _append_audit(shipment, action=action, key=key, parcel=parcel, override_reason=override_reason)
     if key:
         shipment.write_receipts = {**shipment.write_receipts, str(key): fingerprint}
-    shipment._domain_save(update_fields=[*fields, "revision", "write_receipts", "updated_at"])
+    shipment._domain_save(
+        update_fields=[
+            *fields,
+            "location_review_required",
+            "revision",
+            "write_receipts",
+            "operation_history",
+            "updated_at",
+        ]
+    )
 
 
 @transaction.atomic
@@ -168,12 +241,15 @@ def create_shipment(*, business, actor, idempotency_key=None, parcel=None, **fie
         if key
         else None
     )
-    item = _parcel(current, parcel) if parcel is not None else None
+    item = _parcel(current, parcel, actor) if parcel is not None else None
     shipment = Shipment(business=current, created_by=actor, idempotency_key=key, **fields)
+    _audit_context(shipment, current, actor)
+    shipment._route_previous = existing
     if shipment.transport_mode == "":
         shipment.transport_mode = None
     for name in SHIPMENT_REFERENCE_FIELDS:
         setattr(shipment, name, normalize_reference(getattr(shipment, name)))
+    require_creation_site(shipment, business=current, actor=actor)
     shipment.full_clean(exclude=["reference", "idempotency_key"])
     fingerprint = _fingerprint(
         "create",
@@ -182,17 +258,22 @@ def create_shipment(*, business, actor, idempotency_key=None, parcel=None, **fie
             "fields": {
                 name: getattr(shipment, name)
                 for name in SHIPMENT_INPUT_FIELDS
-                if name not in ("transport_mode", *SHIPMENT_REFERENCE_FIELDS)
-                or getattr(shipment, name) is not None
+                if (name not in ROUTE_LOCATION_FIELDS or getattr(shipment, name))
+                and (
+                    name not in ("transport_mode", *SHIPMENT_REFERENCE_FIELDS)
+                    or getattr(shipment, name) is not None
+                )
             },
             "parcel": item.pk if item else None,
         },
+        business=current,
     )
     if existing:
         if not _replayed(existing, key, fingerprint):
             raise ValidationError(
                 "Shipment retry authorization is unavailable. Reload before retrying."
             )
+        require_record_operation(existing, business=current, actor=actor)
         return existing
     shipment.transport_mode = validate_shipment_mode(shipment.transport_mode, business=current)
     validate_shipment_references(
@@ -201,6 +282,7 @@ def create_shipment(*, business, actor, idempotency_key=None, parcel=None, **fie
     )
     if key:
         shipment.write_receipts = {str(key): fingerprint}
+    _append_audit(shipment, action="create", key=key)
     shipment._domain_save(force_insert=True)
     if item:
         assign_parcel(business=current, shipment=shipment, parcel=item, actor=actor)
@@ -220,7 +302,7 @@ def update_shipment(
     **fields,
 ):
     current = _locked_business(business, actor)
-    locked = _shipment(current, shipment)
+    locked = _shipment(current, shipment, actor)
     _input_fields(fields)
     if expected_revision is None:
         expected_revision = getattr(shipment, "revision", None)
@@ -233,10 +315,16 @@ def update_shipment(
     for name in SHIPMENT_REFERENCE_FIELDS:
         if name in fields:
             fields[name] = normalize_reference(fields[name])
-    fields = {
-        name: Shipment._meta.get_field(name).clean(value, locked) for name, value in fields.items()
-    }
-    item = _parcel(current, parcel) if parcel is not None else None
+    cleaned = {}
+    for name, value in fields.items():
+        field = Shipment._meta.get_field(name)
+        if name in ("origin_location", "destination_location"):
+            pk = field.clean(getattr(value, "pk", value), locked)
+            cleaned[name] = LogisticsLocation.objects.get(pk=pk) if pk else None
+        else:
+            cleaned[name] = field.clean(value, locked)
+    fields = cleaned
+    item = _parcel(current, parcel, actor) if parcel is not None else None
     fingerprint = _fingerprint(
         "edit",
         actor,
@@ -245,6 +333,7 @@ def update_shipment(
             "revision": expected_revision,
             "parcel": item.pk if item else None,
         },
+        business=current,
     )
     if _replayed(locked, key, fingerprint):
         return locked
@@ -264,6 +353,7 @@ def update_shipment(
         {**previous, **fields},
         previous=previous,
     )
+    require_route_edit(locked, fields, business=current, actor=actor)
     for name, value in fields.items():
         setattr(locked, name, value)
     _save_write(locked, fields=fields, key=key, fingerprint=fingerprint)
@@ -279,10 +369,12 @@ def assign_parcel(
 ):
     current = _locked_business(business, actor)
     require_parcel_access(business=current, actor=actor, write=True)
-    locked = _shipment(current, shipment)
-    item = _parcel(current, parcel)
+    locked = _shipment(current, shipment, actor)
+    item = _parcel(current, parcel, actor)
     key = _key(idempotency_key)
-    fingerprint = _fingerprint("assign", actor, {"parcel": item.pk, "revision": expected_revision})
+    fingerprint = _fingerprint(
+        "assign", actor, {"parcel": item.pk, "revision": expected_revision}, business=current
+    )
     if _replayed(locked, key, fingerprint):
         return item
     _check_revision(locked, expected_revision)
@@ -297,7 +389,7 @@ def assign_parcel(
         raise ValidationError("A shipment with saved charges must retain a single billing client.")
     item.shipment = locked
     item._domain_save(update_fields=["shipment", "updated_at"])
-    _save_write(locked, fields=[], key=key, fingerprint=fingerprint)
+    _save_write(locked, fields=[], key=key, fingerprint=fingerprint, action="assign", parcel=item)
     return item
 
 
@@ -307,10 +399,12 @@ def remove_parcel(
 ):
     current = _locked_business(business, actor)
     require_parcel_access(business=current, actor=actor, write=True)
-    locked = _shipment(current, shipment)
-    item = _parcel(current, parcel)
+    locked = _shipment(current, shipment, actor)
+    item = _parcel(current, parcel, actor)
     key = _key(idempotency_key)
-    fingerprint = _fingerprint("remove", actor, {"parcel": item.pk, "revision": expected_revision})
+    fingerprint = _fingerprint(
+        "remove", actor, {"parcel": item.pk, "revision": expected_revision}, business=current
+    )
     if _replayed(locked, key, fingerprint):
         return item
     _check_revision(locked, expected_revision)
@@ -319,7 +413,7 @@ def remove_parcel(
         raise ValidationError("This parcel is not assigned to this shipment.")
     item.shipment = None
     item._domain_save(update_fields=["shipment", "updated_at"])
-    _save_write(locked, fields=[], key=key, fingerprint=fingerprint)
+    _save_write(locked, fields=[], key=key, fingerprint=fingerprint, action="remove", parcel=item)
     return item
 
 
@@ -333,9 +427,10 @@ def change_shipment_status(
     expected_status=None,
     expected_revision=None,
     idempotency_key=None,
+    location_override_reason="",
 ):
     current = _locked_business(business, actor)
-    locked = _shipment(current, shipment)
+    locked = _shipment(current, shipment, actor)
     key = _key(idempotency_key)
     fingerprint = _fingerprint(
         "status",
@@ -344,7 +439,13 @@ def change_shipment_status(
             "status": status,
             "expected_status": expected_status,
             "revision": expected_revision,
+            **(
+                {"location_override_reason": location_override_reason.strip()}
+                if location_override_reason
+                else {}
+            ),
         },
+        business=current,
     )
     if _replayed(locked, key, fingerprint):
         return locked
@@ -353,6 +454,13 @@ def change_shipment_status(
         raise ValidationError("The shipment status changed. Reload before recording this update.")
     if status not in Shipment.Status.values or status not in ALLOWED_TRANSITIONS[locked.status]:
         raise ValidationError("This shipment status transition is not allowed.")
+    validate_transition_location(
+        locked,
+        business=current,
+        actor=actor,
+        status=status,
+        override_reason=location_override_reason,
+    )
     # Inspect every member, including corrupt inbound relations; never silently depart
     # with an incomplete tenant-filtered grouping.
     members = Parcel.objects.filter(shipment=locked)
@@ -379,11 +487,31 @@ def change_shipment_status(
             raise ValidationError(
                 "Complete the shipment only after all assigned parcels are delivered."
             )
+    for item in items:
+        require_record_operation(item, business=current, actor=actor)
+        if status == Shipment.Status.READY:
+            validate_transition_location(
+                item,
+                business=current,
+                actor=actor,
+                status=Parcel.Status.RECEIVED,
+                override_reason=location_override_reason,
+            )
     parcel_status = {
         Shipment.Status.IN_TRANSIT: Parcel.Status.IN_TRANSIT,
         Shipment.Status.ARRIVED: Parcel.Status.ARRIVED,
     }.get(status)
     if parcel_status:
+        # Validate every cargo site before creating even the first successful event.
+        for item in items:
+            validate_transition_location(
+                item,
+                business=current,
+                actor=actor,
+                status=parcel_status,
+                override_reason=location_override_reason,
+                shipment_context=locked,
+            )
         for item in items:
             change_parcel_status(
                 business=current,
@@ -397,6 +525,8 @@ def change_shipment_status(
                     else "Parcel arrived."
                 ),
                 internal_note=f"Shipment {locked.reference}: {status}",
+                location_override_reason=location_override_reason,
+                _shipment_context=locked,
             )
     if status == Shipment.Status.CANCELLED:
         # Cancellation before departure releases membership without cancelling parcels.
@@ -405,7 +535,14 @@ def change_shipment_status(
         # Nested removals advance the same row's revision; preserve their writes.
         locked.refresh_from_db()
     locked.status = status
-    _save_write(locked, fields=["status"], key=key, fingerprint=fingerprint)
+    _save_write(
+        locked,
+        fields=["status"],
+        key=key,
+        fingerprint=fingerprint,
+        action="status",
+        override_reason=location_override_reason,
+    )
     return locked
 
 
@@ -413,13 +550,22 @@ def change_shipment_status(
 def generate_manifest(*, business, shipment, actor):
     """Current operational snapshot; explicit allowlist excludes client contact/private data."""
     current = _locked_business(business, actor, write=False, manifest=True)
-    locked = _shipment(current, shipment)
+    locked = _shipment(current, shipment, actor, write=False)
     items = list(
         Parcel.objects.select_for_update()
         .filter(shipment=locked, business=current, client__business=current)
         .select_related("client")
         .order_by("tracking_code")
     )
+    visible_ids = scope_records(
+        Parcel.objects.filter(business=current), business=current, actor=actor
+    ).values_list("pk", flat=True)
+    if (
+        Parcel.objects.filter(pk__in=[item.pk for item in items])
+        .exclude(pk__in=visible_ids)
+        .exists()
+    ):
+        raise PermissionDenied("A complete manifest requires access to every parcel.")
     rows = [
         {
             "tracking_code": item.tracking_code,

@@ -35,11 +35,13 @@ from .forms import ParcelRegistrationForm
 from .models import Parcel, ParcelEvent
 from .parcel_policy import ALLOWED_TRANSITIONS
 from .parcel_services import (
+    TRACKING_CODE_ATTEMPTS,
     change_parcel_status,
     parcels_for_business,
     record_parcel_event,
     register_parcel,
 )
+from .tracking_codes import TRACKING_CODE_ALPHABET, TRACKING_CODE_SUFFIX_LENGTH
 
 
 class ParcelTests(TestCase):
@@ -171,13 +173,14 @@ class ParcelTests(TestCase):
         parcels = [self.register() for _ in range(5)]
         self.assertEqual(len({parcel.tracking_code for parcel in parcels}), 5)
         for parcel in parcels:
-            self.assertRegex(parcel.tracking_code, r"\A[A-F0-9]{48}\Z")
+            self.assertRegex(parcel.tracking_code, r"\AMM-PCL-[A-HJKM-NP-Z2-9]{39}\Z")
             self.assertNotEqual(parcel.tracking_code, str(parcel.pk))
-        with patch("secrets.token_hex", return_value="a" * 48) as random_source:
+        with patch("secrets.choice", return_value="A") as random_source:
             parcel = self.register()
-        random_source.assert_called_with(24)
-        self.assertEqual(parcel.tracking_code, "A" * 48)
-        parcel.tracking_code = "B" * 48
+        random_source.assert_called_with(TRACKING_CODE_ALPHABET)
+        self.assertEqual(random_source.call_count, TRACKING_CODE_SUFFIX_LENGTH)
+        self.assertEqual(parcel.tracking_code, "MM-PCL-" + "A" * 39)
+        parcel.tracking_code = "MM-PCL-" + "B" * 39
         with self.assertRaises(ValidationError):
             parcel.save()
         with self.assertRaises(ValidationError):
@@ -249,7 +252,7 @@ class ParcelTests(TestCase):
 
     def test_registration_and_status_retries_are_idempotent(self):
         registration_key = uuid.uuid4()
-        with patch("secrets.token_hex", return_value="c" * 48):
+        with patch("secrets.choice", return_value="C"):
             parcel = self.register(idempotency_key=registration_key)
             self.assertEqual(self.register(idempotency_key=registration_key).pk, parcel.pk)
         key = uuid.uuid4()
@@ -409,6 +412,11 @@ class ParcelTests(TestCase):
         self.assertEqual(parcel.current_status, "RECEIVED")
 
     def test_roles_and_membership_enforced_in_services_and_ui(self):
+        from .location_test_support import approve_test_site
+
+        self.fields["origin_location"] = approve_test_site(
+            business=self.business, membership=self.membership
+        )
         for role in (BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN, BusinessUser.Role.STAFF):
             self.membership.role = role
             self.membership.save()
@@ -629,11 +637,14 @@ class ParcelTests(TestCase):
         self.assertContains(response, "&lt;b&gt;Internal&lt;/b&gt;")
 
     def test_database_unique_tracking_constraint(self):
-        parcel = self.register()
-        with patch("secrets.token_hex", return_value=parcel.tracking_code.lower()):
-            with self.assertRaises(ValidationError):
+        with patch("secrets.choice", return_value="A"):
+            self.register()
+        with patch("secrets.choice", return_value="A") as random_source:
+            with self.assertRaisesMessage(ValidationError, "Unable to allocate"):
                 self.register()
+        self.assertEqual(random_source.call_count, TRACKING_CODE_ATTEMPTS * 39)
         self.assertEqual(Parcel.objects.count(), 1)
+        self.assertEqual(ParcelEvent.objects.count(), 1)
 
     def test_corrupt_event_tenant_blocks_outgoing_and_incoming_purge(self):
         parcel = self.register()

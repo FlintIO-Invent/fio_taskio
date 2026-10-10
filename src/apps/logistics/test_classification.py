@@ -189,9 +189,10 @@ class ClassificationProvisioningTests(TestCase):
 
     @override_settings(LOGISTICS_AUTO_APPROVE_ALL=False)
     def test_classification_changes_revise_approval_and_revoke_tokens(self):
-        self.application.operating_areas, self.application.transportation_modes = [
-            "WAREHOUSING"
-        ], []
+        self.application.operating_areas, self.application.transportation_modes = (
+            ["WAREHOUSING"],
+            [],
+        )
         self.application.save()
         self.assertEqual(self.application.revision, 2)
         self.assertEqual(self.application.approved_revision, 2)
@@ -277,15 +278,27 @@ class ClassificationMigrationTests(TransactionTestCase):
                 }
             )
             MigrationExecutor(connection).migrate(new)
-            profile = LogisticsProfile.objects.get(business_id=logistics.pk)
+            ProfileModel = (
+                MigrationExecutor(connection)
+                .loader.project_state(new)
+                .apps.get_model("logistics", "LogisticsProfile")
+            )
+            profile = ProfileModel.objects.get(business_id=logistics.pk)
             self.assertEqual(profile.operating_areas, ["TRANSPORTATION"])
             self.assertEqual(profile.transportation_modes, [])
-            self.assertFalse(LogisticsProfile.objects.filter(business_id=service.pk).exists())
-            migrated = LogisticsApplication.objects.get(pk=application.pk)
+            self.assertFalse(ProfileModel.objects.filter(business_id=service.pk).exists())
+            migrated = (
+                MigrationExecutor(connection)
+                .loader.project_state(new)
+                .apps.get_model("logistics", "LogisticsApplication")
+                .objects.get(pk=application.pk)
+            )
             self.assertEqual(migrated.operating_areas, [])
             self.assertEqual(migrated.transportation_modes, [])
             self.assertEqual(migrated.revision, application.revision)
             self.assertEqual(migrated.updated_at, application.updated_at)
+            MigrationExecutor(connection).migrate(latest)
+            migrated = LogisticsApplication.objects.get(pk=application.pk)
             migrated.operational_notes = "Unrelated legacy correction"
             migrated.save()
             self.assertEqual(migrated.operating_areas, [])

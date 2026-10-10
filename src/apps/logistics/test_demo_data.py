@@ -9,6 +9,7 @@ from unittest.mock import patch
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db.models import QuerySet
 from django.test import TestCase
 from django.urls import reverse
 
@@ -22,6 +23,7 @@ from apps.crm.models import ActivityLog, BusinessService, Client, Lead
 from . import test_operations as fixtures
 from .billing_services import invoice_charges
 from .demo import LOGISTICS_DEMO_COUNTS, PARCEL_STATUS_COUNTS, SHIPMENT_STATUS_COUNTS
+from .location_reference import ROUTE_LOCATION_FIELDS
 from .models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
 from .parcel_policy import ALLOWED_TRANSITIONS
 from .parcel_services import PARCEL_INPUT_FIELDS
@@ -75,6 +77,36 @@ class LogisticsDemoDataTests(TestCase):
         self.assertFalse(LogisticsProfile.objects.exists())
         self.command(reset_demo=True, execute=True)
         self.assertFalse(LogisticsProfile.objects.exists())
+
+    def test_v2_seed_preview_never_generates_codes(self):
+        with patch("secrets.choice", side_effect=AssertionError("Preview generated a code")):
+            self.command()
+            call_command(
+                "seed_logistics_demo_data", business_id=self.business.pk, stdout=StringIO()
+            )
+        self.assertFalse(DemoSeedRun.objects.exists())
+
+    def test_legacy_seed_codes_and_invoices_survive_reruns_and_preview(self):
+        self.command(execute=True)
+        parcel = Parcel.objects.order_by("pk").first()
+        legacy_code = "A10F" * 12
+        QuerySet(model=Parcel).filter(pk=parcel.pk).update(tracking_code=legacy_code)
+        models = (Parcel, ParcelEvent, Shipment, Invoice, InvoiceLine, DemoSeedRecord, DemoSeedRun)
+        before = {model: list(model.objects.order_by("pk").values()) for model in models}
+        for command in ("seed_demo_data", "seed_logistics_demo_data"):
+            with self.assertRaisesMessage(CommandError, "preview/reset"):
+                call_command(command, business_id=self.business.pk, execute=True, stdout=StringIO())
+            call_command(command, business_id=self.business.pk, reset_demo=True, stdout=StringIO())
+        for model in models:
+            self.assertEqual(list(model.objects.order_by("pk").values()), before[model])
+        parcel.refresh_from_db()
+        self.assertEqual(parcel.tracking_code, legacy_code)
+        parcel.full_clean()
+        self.assertIsNotNone(lookup_public_tracking(legacy_code))
+        self.command(reset_demo=True, execute=True)
+        self.assertFalse(Parcel.objects.exists())
+        self.assertFalse(DemoSeedRecord.objects.exists())
+        self.assertEqual(list(Client.objects.all()), [self.genuine])
 
     def test_seed_preserves_explicit_operating_profile(self):
         profile = LogisticsProfile.objects.create(
@@ -168,6 +200,7 @@ class LogisticsDemoDataTests(TestCase):
                 line.full_clean()
         for parcel in Parcel.objects.prefetch_related("events"):
             parcel.full_clean()
+            self.assertRegex(parcel.tracking_code, r"\AMM-PCL-[A-HJKM-NP-Z2-9]{39}\Z")
             statuses = [
                 event.status for event in parcel.events.all() if event.event_type == "STATUS"
             ]
@@ -250,7 +283,8 @@ class LogisticsDemoDataTests(TestCase):
             set(Shipment.objects.values_list("status", flat=True)), set(Shipment.Status.values)
         )
         self.assertEqual(sum(parcel.shipment_id is not None for parcel in parcels), 12)
-        for name in PARCEL_INPUT_FIELDS:
+        # Facility/geography selectors are optional additions, not fictional seed facilities.
+        for name in (name for name in PARCEL_INPUT_FIELDS if name not in ROUTE_LOCATION_FIELDS):
             with self.subTest(populated_field=name):
                 self.assertTrue(
                     any(getattr(parcel, name) not in (None, "", False) for parcel in parcels)
@@ -262,7 +296,7 @@ class LogisticsDemoDataTests(TestCase):
                 self.assertEqual(parcel.client.business_id, self.business.pk)
                 self.assertEqual(parcel.created_by_id, self.user.pk)
                 self.assertLessEqual(parcel.created_at, parcel.updated_at)
-                self.assertRegex(parcel.tracking_code, r"\A[A-F0-9]{48}\Z")
+                self.assertRegex(parcel.tracking_code, r"\AMM-PCL-[A-HJKM-NP-Z2-9]{39}\Z")
                 if parcel.shipment_id:
                     self.assertEqual(parcel.shipment.business_id, self.business.pk)
                     self.assertEqual(
@@ -290,7 +324,9 @@ class LogisticsDemoDataTests(TestCase):
         minimal = Parcel.objects.get(internal_reference="DEMO-020")
         self.assertIsNone(minimal.weight_kg)
         self.assertIsNone(minimal.length_cm)
-        self.assertEqual(minimal.sender_name, "")
+        self.assertTrue(minimal.sender_name.startswith("[DEMO]"))
+        self.assertTrue(minimal.recipient_address_line_1)
+        self.assertEqual(minimal.recipient_country_code, "SX")
         self.assertFalse(minimal.shipment_id)
         self.assertTrue(Parcel.objects.filter(dimensions__gt="", length_cm__isnull=True).exists())
         self.assertEqual(

@@ -22,10 +22,12 @@ The Client model and SERVICE CRM workflows are unchanged. Weight is in kilograms
 dimensions are optional text including units. Declared value uses workspace
 currency and is informational, with no invoicing or payment effect.
 
-Parcel ownership, Client and tracking code are immutable. Codes use 24 bytes
-(192 bits) from Python's cryptographic random source, encoded as 48 uppercase hex
-characters, with a database uniqueness constraint. They contain no PK encoding.
-No tracking-code recovery operation is provided.
+Parcel ownership, Client and tracking code are immutable. New codes use
+`MM-PCL-` plus 39 cryptographically selected characters (about 193.2 bits),
+with a database uniqueness constraint and bounded collision retries. Existing
+48-character uppercase hex codes retain their original 192-bit secrets.
+They contain no PK encoding. No tracking-code recovery operation is provided.
+See [Tracking Code V2](MOTIONMATE_LOGISTICS_TRACKING_CODE_V2.md).
 
 ## History and transitions
 

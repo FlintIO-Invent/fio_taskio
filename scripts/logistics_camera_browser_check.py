@@ -19,12 +19,13 @@ from urllib.parse import urlsplit
 
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from django.db import connections
+from django.db.models import QuerySet
 from django.test import override_settings
 from django.urls import reverse
 
 from apps.businesses.models import UserOnboardingState
 from apps.logistics import test_parcels as fixtures
-from apps.logistics.models import ParcelEvent
+from apps.logistics.models import Parcel, ParcelEvent
 from apps.logistics.parcel_services import register_parcel
 
 # Real synthetic video tracks make playback/readiness representative. Only camera
@@ -353,8 +354,8 @@ class CameraBrowserChecks(StaticLiveServerTestCase):
                 self.assert_stopped(page)
                 self.assertEqual(page.evaluate("cameraTest.stops"), 1)
                 for raw, text in (
-                    ("invalid", "complete 48-character tracking code"),
-                    ("1234567890128", "complete 48-character tracking code"),
+                    ("invalid", "complete parcel tracking code"),
+                    ("1234567890128", "complete parcel tracking code"),
                     ("0" * 48, "Parcel not found in this workspace"),
                     (self.foreign.tracking_code, "Parcel not found in this workspace"),
                 ):
@@ -488,7 +489,15 @@ class CameraBrowserChecks(StaticLiveServerTestCase):
                 )
                 self.assertEqual(page.evaluate("cameraTest.stops"), 1)
                 page.screenshot(
-                    path=str(self.output / "iphone-fallback-result.png"), full_page=True
+                    path=str(
+                        self.output
+                        / (
+                            "iphone-v2-fallback-result.png"
+                            if self.parcel.tracking_code.startswith("MM-PCL-")
+                            else "iphone-legacy-fallback-result.png"
+                        )
+                    ),
+                    full_page=True,
                 )
                 page.get_by_role("button", name="Next Scan", exact=True).click()
                 barcode = createBarcodeDrawing(
@@ -519,6 +528,11 @@ class CameraBrowserChecks(StaticLiveServerTestCase):
                     page.evaluate("cameraTest.submissions"), [self.parcel.tracking_code] * 2
                 )
                 self.assertEqual(page.evaluate("cameraTest.stops"), 2)
+
+    def test_https_iphone_profile_real_legacy_qr_and_code128_decoding(self):
+        QuerySet(model=Parcel).filter(pk=self.parcel.pk).update(tracking_code="A10F" * 12)
+        self.parcel.refresh_from_db()
+        self.test_https_iphone_profile_real_fallback_qr_and_code128_decoding()
 
     def test_https_installed_android_pwa_camera_and_private_cache(self):
         from playwright.sync_api import sync_playwright

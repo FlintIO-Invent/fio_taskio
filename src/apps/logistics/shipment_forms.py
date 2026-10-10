@@ -5,6 +5,8 @@ from django.db.models import Q
 
 from .classification import TransportationMode
 from .dashboard_forms import style_dashboard_fields
+from .location_forms import configure_route_fields
+from .location_reference import ROUTE_LOCATION_FIELDS
 from .models import Parcel, Shipment
 from .shipment_policy import ALLOWED_TRANSITIONS, ASSIGNABLE_PARCEL_STATUSES
 from .shipment_references import (
@@ -23,11 +25,11 @@ class EligibleParcelField(forms.ModelChoiceField):
         return f"{parcel.tracking_code} · {parcel.client} · {parcel.get_current_status_display()} · {parcel.origin} → {parcel.destination}"
 
 
-def eligible_parcels(business, replay_shipment=None):
+def eligible_parcels(business, replay_shipment=None, actor=None):
     eligible = Q(shipment__isnull=True, current_status__in=ASSIGNABLE_PARCEL_STATUSES)
     if replay_shipment is not None:
         eligible |= Q(shipment=replay_shipment)
-    return (
+    queryset = (
         Parcel.objects.filter(
             eligible,
             business=business,
@@ -36,6 +38,12 @@ def eligible_parcels(business, replay_shipment=None):
         .select_related("client")
         .order_by("tracking_code")
     )
+
+    if actor is not None:
+        from .location_access import scope_records
+
+        queryset = scope_records(queryset, business=business, actor=actor)
+    return queryset
 
 
 def style_parcel_selection(field):
@@ -86,7 +94,7 @@ class ShipmentForm(forms.ModelForm):
             "notes": "Optional internal notes for this shipment.",
         }
 
-    def __init__(self, *args, business, allow_assignment=False, **kwargs):
+    def __init__(self, *args, business, actor=None, allow_assignment=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.instance.business = business
         self.business = business
@@ -108,9 +116,12 @@ class ShipmentForm(forms.ModelForm):
             except forms.ValidationError:
                 key = None
             if key:
-                replay_shipment = Shipment.objects.filter(
-                    business=business, idempotency_key=key
-                ).first()
+                query = Shipment.objects.filter(business=business, idempotency_key=key)
+                if actor is not None:
+                    from .location_access import scope_records
+
+                    query = scope_records(query, business=business, actor=actor)
+                replay_shipment = query.first()
         if replay_shipment is not None:
             self.previous_mode = replay_shipment.transport_mode
             self.mode_existing = True
@@ -147,13 +158,20 @@ class ShipmentForm(forms.ModelForm):
             else "Optional. Workspace transportation modes are not configured; leave unknown if unsure."
         )
         if allow_assignment:
-            self.fields["parcel"].queryset = eligible_parcels(business, replay_shipment)
+            self.fields["parcel"].queryset = eligible_parcels(business, replay_shipment, actor)
             style_parcel_selection(self.fields["parcel"])
         else:
             self.fields.pop("parcel")
+        configure_route_fields(self, business, actor)
+        self.fields["origin_location"].label = "Departure company facility"
+        self.fields["destination_location"].label = "Arrival company facility"
         style_dashboard_fields(self.fields)
         self.fields["origin"].widget.attrs.update({"placeholder": "e.g. Miami", "autofocus": True})
         self.fields["destination"].widget.attrs["placeholder"] = "e.g. Curaçao"
+
+    @property
+    def route_location_fields(self):
+        return [self[name] for name in ROUTE_LOCATION_FIELDS]
 
     def clean_transport_mode(self):
         if self.mode_replay:
@@ -257,10 +275,10 @@ class ShipmentWriteForm(forms.Form):
 class ShipmentAssignmentForm(ShipmentWriteForm):
     parcel = EligibleParcelField(queryset=Parcel.objects.none(), label="Parcel")
 
-    def __init__(self, *args, business, shipment=None, **kwargs):
+    def __init__(self, *args, business, actor=None, shipment=None, **kwargs):
         super().__init__(*args, shipment=shipment, **kwargs)
         self.fields["parcel"].queryset = eligible_parcels(
-            business, shipment if self.is_bound else None
+            business, shipment if self.is_bound else None, actor
         )
         style_parcel_selection(self.fields["parcel"])
         style_dashboard_fields(self.fields)
@@ -269,9 +287,20 @@ class ShipmentAssignmentForm(ShipmentWriteForm):
 class ShipmentStatusForm(ShipmentWriteForm):
     status = forms.ChoiceField()
     expected_status = forms.CharField(widget=forms.HiddenInput)
+    location_override_reason = forms.CharField(
+        max_length=1000,
+        required=False,
+        label="Administrator site override reason",
+        help_text="Owners/admins only. A private reason is required to approve a route-site exception.",
+    )
 
-    def __init__(self, *args, shipment, **kwargs):
+    def __init__(self, *args, shipment, actor=None, **kwargs):
         super().__init__(*args, shipment=shipment, **kwargs)
+        if actor is not None:
+            from .location_access import has_wide_access
+
+            if not has_wide_access(shipment.business, actor):
+                self.fields.pop("location_override_reason")
         self.fields["status"].choices = [
             (value, label)
             for value, label in Shipment.Status.choices

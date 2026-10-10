@@ -209,8 +209,8 @@
                 {% for line in invoice.lines.all %}
                 <tr>
                   <td>{{ line.description }}
-                    {% if line.parcel_id and module_access.parcels %}<br><a href="{% url 'logistics_parcel_detail' line.parcel_id %}" class="small">View parcel</a>{% endif %}
-                    {% if line.shipment_id and module_access.shipments %}<br><a href="{% url 'logistics_shipment_detail' line.shipment_id %}" class="small">View shipment</a>{% endif %}
+                    {% if line.parcel_id in visible_parcel_ids and module_access.parcels %}<br><a href="{% url 'logistics_parcel_detail' line.parcel_id %}" class="small">View parcel</a>{% endif %}
+                    {% if line.shipment_id in visible_shipment_ids and module_access.shipments %}<br><a href="{% url 'logistics_shipment_detail' line.shipment_id %}" class="small">View shipment</a>{% endif %}
                   </td>
                   <td class="text-end">{{ line.quantity }}</td>
                   <td class="text-end">{{ line.unit_price|money:invoice.business }}</td>

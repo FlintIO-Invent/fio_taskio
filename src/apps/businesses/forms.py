@@ -111,6 +111,11 @@ def _plan_allowed_invitation_roles(business: Business | None) -> set[str]:
 class BusinessSettingsForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.instance.vertical == Business.Vertical.LOGISTICS:
+            from apps.logistics.location_forms import geographic_country_field
+
+            self.fields["country"] = geographic_country_field(value=self.instance.country)
+            self.fields["country"].widget.attrs["class"] = "form-select"
         self._apply_address_style()
 
     def _address_country(self) -> str:
