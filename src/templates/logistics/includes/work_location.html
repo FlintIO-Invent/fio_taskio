@@ -1,3 +1,14 @@
+{% if logistics_administrator and logistics_work_locations %}
+<div class="content logistics-work-location pb-0">
+  <form method="post" action="{% url 'logistics_work_location' %}" class="d-flex flex-wrap align-items-center gap-2">
+    {% csrf_token %}<label for="logistics-work-location">Active work location</label>
+    <select id="logistics-work-location" name="location" class="form-select form-select-sm w-auto">
+      {% if not logistics_current_location_id %}<option value="" selected disabled>Select work location</option>{% endif %}
+      {% for site in logistics_work_locations %}<option value="{{ site.pk }}"{% if site.pk == logistics_current_location_id %} selected{% endif %}>{{ site.code }} · {{ site.name }}</option>{% endfor %}
+    </select><button class="btn btn-phoenix-secondary btn-sm">Use location</button>
+  </form>
+</div>
+{% endif %}
 {% if logistics_worker %}
 <div class="content logistics-work-location pb-0">
   {% if logistics_work_assignments %}

@@ -5,7 +5,7 @@ from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -19,7 +19,18 @@ from apps.crm.models import ActivityLog, BusinessService, Client
 
 from .billing_services import add_charge, invoice_charges
 from .classification import OperatingArea, TransportationMode
-from .models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
+from .location_access import assignments_for, has_wide_access
+from .location_access_services import select_work_location
+from .location_operations import operation_location, operations_enabled
+from .location_reference import country_choices
+from .models import (
+    LogisticsCharge,
+    LogisticsLocation,
+    LogisticsProfile,
+    Parcel,
+    ParcelEvent,
+    Shipment,
+)
 from .parcel_policy import PARCEL_MANAGE_ROLES
 from .parcel_services import (
     change_parcel_status,
@@ -297,8 +308,51 @@ def demo_actor(*, business, actor_id=None):
     return member.user
 
 
+def logistics_demo_location_plan(
+    *, business, actor, origin_location_id=None, destination_location_id=None
+):
+    """Read-only, explicit facility selection; never infer or create company sites."""
+    if (
+        not operations_enabled(business)
+        and origin_location_id is None
+        and destination_location_id is None
+    ):
+        return None
+    if not origin_location_id or not destination_location_id:
+        raise ValidationError(
+            "Verified demo seeding requires explicit --origin-location-id and "
+            "--destination-location-id for registered operating facilities."
+        )
+    sites = []
+    for value in (origin_location_id, destination_location_id):
+        site = LogisticsLocation.objects.filter(business=business, pk=value, is_active=True).first()
+        if site is None:
+            raise ValidationError("Select active demo facilities owned by this workspace.")
+        if (
+            not has_wide_access(business, actor)
+            and not assignments_for(business, actor)
+            .filter(location=site, can_operate=True)
+            .exists()
+        ):
+            raise PermissionDenied("Demo operations require permission to operate at both sites.")
+        sites.append(site)
+    if operations_enabled(business) and operation_location(business, actor).pk != sites[0].pk:
+        raise ValidationError("Select the demo origin as your current work location first.")
+    return {
+        side: {
+            "id": site.pk,
+            "code": site.code,
+            "name": site.name,
+            "country_code": site.country_code,
+        }
+        for side, site in zip(("origin", "destination"), sites, strict=True)
+    }
+
+
 @transaction.atomic
-def seed_logistics_demo(*, business_id, actor_id=None):
+def seed_logistics_demo(
+    *, business_id, actor_id=None, origin_location_id=None, destination_location_id=None
+):
     business = Business.objects.select_for_update().get(pk=business_id)
     require_logistics_business(business)
     if DemoSeedRun.objects.filter(business=business).exists():
@@ -306,6 +360,20 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             "Demo ownership metadata already exists; preview/reset it before seeding again."
         )
     actor = demo_actor(business=business, actor_id=actor_id)
+    location_plan = logistics_demo_location_plan(
+        business=business,
+        actor=actor,
+        origin_location_id=origin_location_id,
+        destination_location_id=destination_location_id,
+    )
+    route_fields = {}
+    if location_plan:
+        for side in ("origin", "destination"):
+            site = location_plan[side]
+            route_fields[f"{side}_location"] = LogisticsLocation.objects.get(pk=site["id"])
+            route_fields[f"{side}_country_code"] = site["country_code"]
+            route_fields[side] = dict(country_choices())[site["country_code"]]
+        select_work_location(business=business, actor=actor, location=origin_location_id)
     profile_plan = logistics_demo_profile_plan(business)
     shipment_routes, parcel_routes = logistics_demo_routes(profile_plan)
     seed = DemoSeedRun.objects.create(business=business, planned_counts=LOGISTICS_DEMO_COUNTS)
@@ -342,12 +410,15 @@ def seed_logistics_demo(*, business_id, actor_id=None):
                 business=business,
                 client=clients[PARCEL_CLIENT_INDEXES[index]],
                 actor=actor,
-                **parcel_demo_fields(
-                    index=index,
-                    client=clients[PARCEL_CLIENT_INDEXES[index]],
-                    route=parcel_routes[index],
-                    today=today,
-                ),
+                **{
+                    **parcel_demo_fields(
+                        index=index,
+                        client=clients[PARCEL_CLIENT_INDEXES[index]],
+                        route=parcel_routes[index],
+                        today=today,
+                    ),
+                    **route_fields,
+                },
             )
         )
         for index in range(LOGISTICS_DEMO_COUNTS["parcels"])
@@ -357,8 +428,13 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             create_shipment(
                 business=business,
                 actor=actor,
-                origin=shipment_routes[index][0],
-                destination=shipment_routes[index][1],
+                **{
+                    **{
+                        "origin": shipment_routes[index][0],
+                        "destination": shipment_routes[index][1],
+                    },
+                    **route_fields,
+                },
                 transport_mode=profile_plan["shipment_modes"][index],
                 departure_at=now + timedelta(days=(-8, -1, -4, 2, 4, 7)[index]),
                 estimated_arrival_at=now + timedelta(days=(-3, 3, -1, 5, 4, 12)[index]),
@@ -370,6 +446,16 @@ def seed_logistics_demo(*, business_id, actor_id=None):
     ]
 
     def status(parcel, value):
+        if location_plan:
+            select_work_location(
+                business=business,
+                actor=actor,
+                location=(
+                    destination_location_id
+                    if value in {"ARRIVED", "READY", "DELIVERED"}
+                    else origin_location_id
+                ),
+            )
         messages = {
             Parcel.Status.RECEIVED: "Received and weighed at the origin depot.",
             Parcel.Status.IN_TRANSIT: "Dispatched from the origin depot to the destination hub.",
@@ -407,6 +493,16 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             status(parcel, Parcel.Status.RECEIVED)
             assign_parcel(business=business, shipment=shipment, parcel=parcel, actor=actor)
         for value in (Shipment.Status.READY, Shipment.Status.IN_TRANSIT, Shipment.Status.ARRIVED):
+            if location_plan:
+                select_work_location(
+                    business=business,
+                    actor=actor,
+                    location=(
+                        destination_location_id
+                        if value == Shipment.Status.ARRIVED
+                        else origin_location_id
+                    ),
+                )
             change_shipment_status(business=business, shipment=shipment, actor=actor, status=value)
             if value == target:
                 break
@@ -440,6 +536,16 @@ def seed_logistics_demo(*, business_id, actor_id=None):
 
     for parcel in parcels:
         parcel.refresh_from_db()
+        if location_plan:
+            select_work_location(
+                business=business,
+                actor=actor,
+                location=(
+                    destination_location_id
+                    if parcel.current_status in {"ARRIVED", "READY", "DELIVERED"}
+                    else origin_location_id
+                ),
+            )
         location = parcel.origin
         if parcel.current_status == Parcel.Status.IN_TRANSIT:
             location = "En route to " + parcel.destination
@@ -575,6 +681,8 @@ def seed_logistics_demo(*, business_id, actor_id=None):
     charge(parcels[16], 5, quantity=3)
     charge(parcels[16], 3)
     charge(parcels[8], 1)
+    if location_plan:
+        select_work_location(business=business, actor=actor, location=origin_location_id)
     return seed
 
 

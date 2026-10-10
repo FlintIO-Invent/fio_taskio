@@ -106,6 +106,8 @@
     <div class="card-body text-break">
       <p class="fw-semibold mb-2">{{ event.get_status_display|default:event.get_event_type_display }}</p>
       <p class="text-body-secondary mb-2">{{ event.timestamp }} · {{ event.actor|default:'—' }}</p>
+      {% if event.operational_location %}<p class="mb-2">Authorized work site: {{ event.operational_location }}{% if event.previous_status %} · {{ event.get_previous_status_display }} → {{ event.get_resulting_status_display }}{% endif %}</p>{% endif %}
+      {% if event.location_override_reason %}<p class="bg-body-tertiary rounded p-3">Administrator site override · Workspace only: {{ event.location_override_reason }}</p>{% endif %}
       {% if event.location %}<p class="mb-2">{{ event.location }}</p>{% endif %}
       {% if event.public_message %}<div class="border rounded p-3 mb-2"><p class="fw-semibold mb-1">Public message</p><p class="mb-0">{{ event.public_message }}</p></div>{% endif %}
       {% if event.internal_note %}<div class="bg-body-tertiary rounded p-3"><p class="fw-semibold mb-1">Internal note · Workspace only</p><p class="mb-0">{{ event.internal_note }}</p></div>{% endif %}

@@ -10,6 +10,7 @@ from apps.businesses.utils import business_module_required, business_role_requir
 from .location_access import WIDE_ROLES
 from .location_access_forms import HandlingSiteForm, LocationAssignmentForm
 from .location_access_services import (
+    enable_location_operations,
     review_location_access,
     select_work_location,
     set_handling_site,
@@ -59,6 +60,19 @@ def location_access_settings(request):
                 request, "Location access reviewed. Unassigned workers have no operational access."
             )
             return redirect("logistics_location_access")
+    elif action == "enable_operations":
+        if request.POST.get("confirm_operations") != "yes":
+            messages.error(request, "Confirm the operational-site rollout review.")
+        else:
+            try:
+                enable_location_operations(business=business, actor=request.user)
+            except ValidationError as exc:
+                messages.error(request, "; ".join(exc.messages))
+            else:
+                messages.success(
+                    request, "Verified operating sites are now required for all operators."
+                )
+                return redirect("logistics_location_access")
     elif action is not None:
         raise PermissionDenied("Unsupported location access operation.")
     return render(
@@ -70,8 +84,11 @@ def location_access_settings(request):
             "access_reviewed": LogisticsProfile.objects.filter(
                 business=business, location_access_reviewed_at__isnull=False
             ).exists(),
+            "operations_enabled": LogisticsProfile.objects.filter(
+                business=business, location_operations_enabled_at__isnull=False
+            ).exists(),
             "assignments": LogisticsLocationAssignment.objects.filter(
-                business=business
+                business=business, is_work_context=False
             ).select_related("membership__user", "location"),
             "handling_sites": LogisticsHandlingSite.objects.filter(
                 business=business

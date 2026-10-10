@@ -1053,6 +1053,7 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
     for model, relations in (
         (LogisticsLocationAssignment, ("membership", "location")),
         (LogisticsHandlingSite, ("parcel", "shipment", "location")),
+        (ParcelEvent, ("operational_location",)),
     ):
         for relation in relations:
             lookup = f"{relation}__business_id"

@@ -15,6 +15,20 @@ from .models import LogisticsLocation, LogisticsLocationAssignment, LogisticsPro
 WIDE_ROLES = (BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
 
 
+def lock_actor_membership(business, actor):
+    """Call inside the Business transaction before authorization.
+
+    Team deactivation updates this existing row without taking a Business lock.
+    Lock only this tenant's membership so other tenants can operate independently.
+    """
+    return (
+        BusinessUser.objects.order_by("pk")
+        .select_for_update(of=("self",))
+        .filter(business=business, user_id=getattr(actor, "pk", None))
+        .first()
+    )
+
+
 def membership_for(business, actor):
     return BusinessUser.objects.filter(
         business=business, user_id=getattr(actor, "pk", None), is_active=True, user__is_active=True
@@ -36,7 +50,11 @@ def assignments_for(business, actor):
     ):
         return LogisticsLocationAssignment.objects.none()
     return LogisticsLocationAssignment.objects.filter(
-        business=business, membership=member, location__business=business, location__is_active=True
+        business=business,
+        membership=member,
+        location__business=business,
+        location__is_active=True,
+        is_work_context=False,
     ).select_related("location")
 
 
@@ -79,6 +97,9 @@ def require_work_location(business, actor):
 
 
 def require_record_operation(record, *, business, actor):
+    from .location_operations import operation_location
+
+    operation_location(business, actor)
     location = require_work_location(business, actor)
     if (
         location is not None
@@ -93,12 +114,17 @@ def require_record_operation(record, *, business, actor):
 
 
 def require_creation_site(record, *, business, actor):
+    from .location_operations import operation_location, operations_enabled
+
     location = require_work_location(business, actor)
+    if has_wide_access(business, actor) and operations_enabled(business):
+        location = operation_location(business, actor)
     if location is not None:
         if record.origin_location_id != location.pk:
             raise PermissionDenied("The origin facility must be your active work location.")
         if (
-            record.destination_location_id
+            not has_wide_access(business, actor)
+            and record.destination_location_id
             and not locations_for(business, actor)
             .filter(pk=record.destination_location_id)
             .exists()

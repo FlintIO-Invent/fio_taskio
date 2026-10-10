@@ -113,3 +113,73 @@ class LocationMigrationTests(TransactionTestCase):
             self.assertEqual(new.get_model("logistics", "LogisticsHandlingSite").objects.count(), 0)
         finally:
             MigrationExecutor(connection).migrate(latest)
+
+
+class VerifiedOperationsMigrationTests(TransactionTestCase):
+    def test_nullable_history_fields_preserve_legacy_state_and_no_implicit_rollout(self):
+        executor = MigrationExecutor(connection)
+        latest = executor.loader.graph.leaf_nodes()
+        old_target = [("logistics", "0016_worker_location_access")]
+        try:
+            executor.migrate(old_target)
+            old = executor.loader.project_state(old_target).apps
+            business = old.get_model("businesses", "Business").objects.create(
+                name="Legacy operations", slug="legacy-operations", vertical="LOGISTICS"
+            )
+            client = old.get_model("crm", "Client").objects.create(
+                business=business, first_name="Legacy"
+            )
+            parcel = old.get_model("logistics", "Parcel").objects.create(
+                business=business,
+                client=client,
+                tracking_code="B" * 48,
+                origin="Historical origin",
+                destination="Unverified destination",
+                package_description="Books",
+                current_status="ARRIVED",
+            )
+            event = old.get_model("logistics", "ParcelEvent").objects.create(
+                business=business,
+                parcel=parcel,
+                event_type="STATUS",
+                status="ARRIVED",
+                location="Historical text",
+                internal_note="Keep private",
+                public_message="Arrived",
+            )
+            shipment = old.get_model("logistics", "Shipment").objects.create(
+                business=business,
+                origin="Historical origin",
+                destination="Unverified destination",
+                status="ARRIVED",
+                revision=7,
+                write_receipts={"old-receipt": "old-fingerprint"},
+            )
+            executor = MigrationExecutor(connection)
+            executor.migrate(latest)
+            new = executor.loader.project_state(latest).apps
+            after = new.get_model("logistics", "ParcelEvent").objects.get(pk=event.pk)
+            self.assertIsNone(after.operational_location_id)
+            self.assertIsNone(after.actor_id)
+            self.assertIsNone(after.previous_status)
+            self.assertIsNone(after.resulting_status)
+            self.assertEqual(
+                (after.status, after.location, after.timestamp, after.internal_note),
+                ("ARRIVED", "Historical text", event.timestamp, "Keep private"),
+            )
+            moved = new.get_model("logistics", "Shipment").objects.get(pk=shipment.pk)
+            self.assertEqual(
+                (moved.status, moved.revision, moved.write_receipts, moved.operation_history),
+                ("ARRIVED", 7, {"old-receipt": "old-fingerprint"}, []),
+            )
+            self.assertFalse(
+                new.get_model("logistics", "LogisticsProfile")
+                .objects.filter(location_operations_enabled_at__isnull=False)
+                .exists()
+            )
+            self.assertEqual(
+                new.get_model("logistics", "Parcel").objects.get(pk=parcel.pk).tracking_code,
+                "B" * 48,
+            )
+        finally:
+            MigrationExecutor(connection).migrate(latest)

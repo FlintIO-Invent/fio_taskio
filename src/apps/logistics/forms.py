@@ -497,7 +497,18 @@ class ParcelRegistrationForm(ParcelMetadataForm):
 
 class ParcelEventForm(forms.Form):
     status = forms.ChoiceField(required=False)
-    location = forms.CharField(max_length=255, required=False)
+    location = forms.CharField(
+        max_length=255,
+        required=False,
+        label="Location description",
+        help_text="Optional descriptive text. Select your work site separately; this text does not authorize operations or appear in public tracking.",
+    )
+    location_override_reason = forms.CharField(
+        max_length=1000,
+        required=False,
+        label="Administrator site override reason",
+        help_text="Optional. Only owners and administrators can approve a route-site exception. Kept private.",
+    )
     public_message = forms.CharField(
         max_length=1000,
         required=False,
@@ -508,11 +519,16 @@ class ParcelEventForm(forms.Form):
     idempotency_key = forms.UUIDField(widget=forms.HiddenInput)
     expected_status = forms.CharField(widget=forms.HiddenInput)
 
-    def __init__(self, *args, parcel, **kwargs):
+    def __init__(self, *args, parcel, actor=None, **kwargs):
         from .models import Parcel
         from .parcel_policy import ALLOWED_TRANSITIONS
 
         super().__init__(*args, **kwargs)
+        if actor is not None:
+            from .location_access import has_wide_access
+
+            if not has_wide_access(parcel.business, actor):
+                self.fields.pop("location_override_reason")
         allowed = ALLOWED_TRANSITIONS[parcel.current_status]
         self.fields["status"].choices = [("", "Tracking note (keep status)")] + [
             (value, label)

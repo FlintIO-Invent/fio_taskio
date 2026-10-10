@@ -58,6 +58,7 @@
           {% csrf_token %}
           {% include 'logistics/includes/form_errors.html' with form=status_form %}
           {% for hidden in status_form.hidden_fields %}<input type="hidden" name="{{ hidden.name }}" value="{{ hidden.value }}">{% endfor %}
+          {% if status_form.location_override_reason %}<label class="form-label" for="mobile-site-override">Administrator site override reason</label><input id="mobile-site-override" type="text" name="location_override_reason" maxlength="1000" class="form-control mb-3" value="{{ status_form.location_override_reason.value|default_if_none:'' }}"><p class="fs-9 text-body-secondary">Optional private reason for an approved route-site exception.</p>{% endif %}
           <div class="d-flex flex-wrap gap-2">
             {% for value, label in status_actions %}
             <button type="submit" name="status" value="{{ value }}" class="btn {% if value == 'CANCELLED' %}btn-outline-danger{% else %}btn-primary{% endif %}">{% if value == 'CANCELLED' %}Cancel shipment{% else %}Mark {{ label }}{% endif %}</button>
@@ -101,6 +102,15 @@
   </div>
   {% endif %}
   {% include "logistics/includes/billing.html" %}
+  {% if shipment.operation_history %}
+  <div class="card mb-4"><div class="card-body"><h4>Recent operational history · Workspace only</h4>
+    {% for operation in operation_history %}<div class="border-bottom py-2 text-break">
+      <p class="mb-1">{{ operation.action|capfirst }} · {{ operation.previous_state }} → {{ operation.new_state }}</p>
+      <p class="text-body-secondary mb-1">{{ operation.timestamp }} · {{ operation.actor_name }}{% if operation.location_code %} · {{ operation.location_code }}{% endif %}</p>
+      {% if operation.location_override_reason %}<p class="mb-0">Administrator site override: {{ operation.location_override_reason }}</p>{% endif %}
+    </div>{% endfor %}
+  </div></div>
+  {% endif %}
   <h3 class="mb-3">Assigned parcels</h3>
   <div class="card">
     {% if parcels %}

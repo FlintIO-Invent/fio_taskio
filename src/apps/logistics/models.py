@@ -46,6 +46,7 @@ class LogisticsProfile(ClassificationHelpers, models.Model):
         default=list, validators=[validate_transportation_modes], blank=True
     )
     location_access_reviewed_at = models.DateTimeField(null=True, blank=True, editable=False)
+    location_operations_enabled_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -886,6 +887,21 @@ class ParcelEvent(ParcelDomainModel):
         related_name="parcel_events",
     )
     location = models.CharField(max_length=255, blank=True)
+    operational_location = models.ForeignKey(
+        LogisticsLocation,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="parcel_events",
+        editable=False,
+    )
+    previous_status = models.CharField(
+        max_length=20, choices=Parcel.Status.choices, null=True, blank=True, editable=False
+    )
+    resulting_status = models.CharField(
+        max_length=20, choices=Parcel.Status.choices, null=True, blank=True, editable=False
+    )
+    location_override_reason = models.CharField(max_length=1000, blank=True, editable=False)
     public_message = models.CharField(max_length=1000, blank=True)
     internal_note = models.CharField(max_length=2000, blank=True)
     idempotency_key = models.UUIDField(null=True, blank=True, editable=False)
@@ -926,6 +942,17 @@ class ParcelEvent(ParcelDomainModel):
         if not Parcel.objects.filter(pk=self.parcel_id, business_id=self.business_id).exists():
             raise ValidationError({"parcel": "Select a parcel owned by this workspace."})
         self._validate_actor("actor")
+        if (
+            self.operational_location_id
+            and not LogisticsLocation.objects.filter(
+                pk=self.operational_location_id, business_id=self.business_id
+            ).exists()
+        ):
+            raise ValidationError("Operational location must belong to this workspace.")
+        if self.operational_location_id and not self.actor_id:
+            raise ValidationError("Verified operational events require an authenticated actor.")
+        if self.resulting_status and self.status and self.resulting_status != self.status:
+            raise ValidationError("Event resulting state must match its transition status.")
         if not self._state.adding:
             raise ValidationError("Parcel events are immutable.")
 
@@ -991,6 +1018,7 @@ class Shipment(ParcelDomainModel, LogisticsRouteFields):
     idempotency_key = models.UUIDField(null=True, blank=True, editable=False)
     revision = models.PositiveBigIntegerField(default=1, editable=False)
     write_receipts = models.JSONField(default=dict, blank=True, editable=False)
+    operation_history = models.JSONField(default=list, blank=True, editable=False)
 
     class Meta:
         ordering = ["-created_at", "-pk"]
@@ -1211,6 +1239,7 @@ class LogisticsLocationAssignment(models.Model):
         LogisticsLocation, on_delete=models.PROTECT, related_name="worker_assignments"
     )
     can_operate = models.BooleanField(default=False)
+    is_work_context = models.BooleanField(default=False, editable=False)
     is_current = models.BooleanField(default=False)
 
     class Meta:

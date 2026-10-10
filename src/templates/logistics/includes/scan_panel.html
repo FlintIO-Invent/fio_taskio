@@ -28,6 +28,7 @@
       {% if recent_event %}<div class="border-top pt-3 mb-3">
         <h4 class="fs-8">Latest event</h4>
         <p class="mb-1">{{ recent_event.get_status_display|default:recent_event.get_event_type_display }} · {{ recent_event.timestamp }}</p>
+        {% if recent_event.operational_location %}<p class="mb-1">Authorized work site: {{ recent_event.operational_location }} · {{ recent_event.actor|default:'—' }}</p>{% endif %}
         {% if recent_event.location %}<p class="mb-1">{{ recent_event.location }}</p>{% endif %}
         {% if recent_event.public_message %}<p class="mb-0">{{ recent_event.public_message }}</p>{% endif %}
       </div>{% endif %}

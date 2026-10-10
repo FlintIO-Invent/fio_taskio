@@ -399,6 +399,7 @@ def parcel_update(request, parcel_id):
     form = ParcelEventForm(
         request.POST if request.method == "POST" else None,
         parcel=parcel,
+        actor=request.user,
         initial={"idempotency_key": uuid.uuid4(), "expected_status": parcel.current_status},
     )
     if request.method == "POST" and form.is_valid():

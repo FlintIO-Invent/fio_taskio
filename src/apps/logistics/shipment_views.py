@@ -90,11 +90,14 @@ def _detail(request, shipment, *, error=None, assignment_form=None, status_form=
         {
             **billing_context(request, shipment),
             "shipment": shipment,
+            "operation_history": list(reversed(shipment.operation_history[-10:])),
             "can_operate_shipment": can_operate_record(
                 shipment, business=request.current_business, actor=request.user
             ),
             "parcels": parcels,
-            "status_actions": ShipmentStatusForm(shipment=shipment).fields["status"].choices,
+            "status_actions": ShipmentStatusForm(shipment=shipment, actor=request.user)
+            .fields["status"]
+            .choices,
             "error": error,
             "can_assign": shipment.status in ASSIGNABLE_SHIPMENT_STATUSES,
             "assignment_form": assignment_form,
@@ -104,7 +107,9 @@ def _detail(request, shipment, *, error=None, assignment_form=None, status_form=
                 else False
             ),
             "status_form": (
-                status_form if status_form is not None else ShipmentStatusForm(shipment=shipment)
+                status_form
+                if status_form is not None
+                else ShipmentStatusForm(shipment=shipment, actor=request.user)
             ),
         },
         status=400 if error else 200,
@@ -333,7 +338,7 @@ def shipment_remove(request, shipment_id, parcel_id):
 @require_POST
 def shipment_status(request, shipment_id):
     shipment = _get_shipment(request, shipment_id)
-    form = ShipmentStatusForm(request.POST, shipment=shipment)
+    form = ShipmentStatusForm(request.POST, shipment=shipment, actor=request.user)
     if not form.is_valid():
         return _detail(
             request,

@@ -62,6 +62,6 @@ class ScanActionForm(ParcelEventForm):
 
     def __init__(self, *args, parcel, **kwargs):
         super().__init__(*args, parcel=parcel, **kwargs)
-        for name in ("location", "public_message", "internal_note"):
-            self.fields.pop(name)
+        for name in ("location", "public_message", "internal_note", "location_override_reason"):
+            self.fields.pop(name, None)
         self.fields["status"].required = True

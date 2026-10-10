@@ -2,7 +2,7 @@
 {% block content %}
 <div class="content">
   <h2 class="mb-3">Logistics location access</h2>
-  <p>Owners and administrators can access all operating sites. Other workspace members need an approved location assignment. Operational writes also require the existing staff role, permission to operate and an active work location.</p>
+  <p>Owners and administrators can access all operating sites. Other workspace members need an approved location assignment. Operational writes also require the existing staff role, permission to operate and an active work location. A selected work location is an authorized work context, not proof of physical presence.</p>
   <a class="btn btn-phoenix-secondary mb-3" href="{% url 'logistics_location_settings' %}">Operating locations</a>
   <div class="card mb-3"><div class="card-body">
     <h4>Worker assignments</h4>
@@ -33,6 +33,16 @@
       <label class="form-check"><input class="form-check-input" type="checkbox" name="confirm_review" value="yes" required> I have reviewed worker assignments and operating-site associations.</label>
       <button class="btn btn-primary mt-3">Confirm review</button>
     </form>
+  </div></div>
+  <div class="card mt-3"><div class="card-body"><h4>Verified operational sites</h4>
+    {% if operations_enabled %}<p>Enabled. Every operator, including owners and administrators, must select an active work site. Movement must follow the approved route.</p>
+    {% else %}
+    <p>Existing administrator workflows remain available until rollout review. Map historical routes and current handling sites, approve one next expected stop where needed, review worker assignments, and select your work site before enabling verification. Historical events will retain their original data.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="enable_operations">
+      <label class="form-check"><input class="form-check-input" type="checkbox" name="confirm_operations" value="yes" required> I have reviewed operating sites, routes and worker assignments and approve requiring verified sites for every operator.</label>
+      <button class="btn btn-primary mt-3">Enable verified operations</button>
+    </form>
+    {% endif %}
   </div></div>
 </div>
 {% include 'logistics/includes/scripts.html' %}

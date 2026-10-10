@@ -287,9 +287,20 @@ class ShipmentAssignmentForm(ShipmentWriteForm):
 class ShipmentStatusForm(ShipmentWriteForm):
     status = forms.ChoiceField()
     expected_status = forms.CharField(widget=forms.HiddenInput)
+    location_override_reason = forms.CharField(
+        max_length=1000,
+        required=False,
+        label="Administrator site override reason",
+        help_text="Owners/admins only. A private reason is required to approve a route-site exception.",
+    )
 
-    def __init__(self, *args, shipment, **kwargs):
+    def __init__(self, *args, shipment, actor=None, **kwargs):
         super().__init__(*args, shipment=shipment, **kwargs)
+        if actor is not None:
+            from .location_access import has_wide_access
+
+            if not has_wide_access(shipment.business, actor):
+                self.fields.pop("location_override_reason")
         self.fields["status"].choices = [
             (value, label)
             for value, label in Shipment.Status.choices

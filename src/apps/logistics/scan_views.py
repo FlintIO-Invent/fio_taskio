@@ -12,6 +12,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from apps.businesses.utils import business_module_required, business_role_required
 
 from .location_access import require_record_operation
+from .location_operations import validate_transition_location
 from .models import ParcelEvent
 from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 from .parcel_services import parcels_for_business, record_parcel_event, require_parcel_access
@@ -60,6 +61,16 @@ def _render(request, *, lookup_form=None, parcel=None, error="", confirmation=""
                 for value, label in action_form.fields["status"].widget.choices
                 if value
             ]
+            available = []
+            for value, label in context["scan_actions"]:
+                try:
+                    validate_transition_location(
+                        parcel, business=request.current_business, actor=request.user, status=value
+                    )
+                except (PermissionDenied, ValidationError):
+                    continue
+                available.append((value, label))
+            context["scan_actions"] = available
     template = (
         "logistics/includes/scan_panel.html"
         if request.headers.get("X-Requested-With") == "XMLHttpRequest"

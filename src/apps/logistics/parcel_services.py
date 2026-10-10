@@ -9,14 +9,16 @@ from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 from apps.crm.models import Client
 
 from .location_access import (
+    lock_actor_membership,
     require_creation_site,
     require_record_operation,
     require_route_edit,
     require_work_location,
     scope_records,
 )
+from .location_operations import operation_location, validate_transition_location
 from .location_reference import ROUTE_LOCATION_FIELDS, exact_country_code
-from .models import Parcel, ParcelEvent, generate_tracking_code
+from .models import Parcel, ParcelEvent, Shipment, generate_tracking_code
 from .parcel_policy import ALLOWED_TRANSITIONS, PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 
 PARCEL_INPUT_FIELDS = (
@@ -138,6 +140,7 @@ def _key(value):
 
 def _locked_business(business, actor):
     current = Business.objects.select_for_update().filter(pk=getattr(business, "pk", None)).first()
+    lock_actor_membership(current, actor)
     return require_parcel_access(business=current, actor=actor, write=True)
 
 
@@ -198,6 +201,8 @@ def register_parcel(*, business, client, actor, idempotency_key=None, **fields):
         actor=actor,
         event_type=ParcelEvent.Type.STATUS,
         status=Parcel.Status.REGISTERED,
+        operational_location=operation_location(current, actor),
+        resulting_status=Parcel.Status.REGISTERED,
         public_message="Parcel registered.",
         idempotency_key=key,
     )._domain_save(force_insert=True)
@@ -241,6 +246,9 @@ def edit_parcel(*, business, parcel, actor, expected_updated_at=None, **fields):
         parcel=locked,
         actor=actor,
         event_type=ParcelEvent.Type.NOTE,
+        operational_location=operation_location(current, actor),
+        previous_status=locked.current_status,
+        resulting_status=locked.current_status,
         internal_note="Parcel details updated: "
         + ", ".join(str(Parcel._meta.get_field(name).verbose_name) for name in changed)
         + ".",
@@ -260,6 +268,8 @@ def record_parcel_event(
     internal_note="",
     idempotency_key=None,
     expected_status=None,
+    location_override_reason="",
+    _shipment_context=None,
 ):
     current = _locked_business(business, actor)
     locked = (
@@ -280,6 +290,29 @@ def record_parcel_event(
     if status is not None and status not in Parcel.Status.values:
         raise ValidationError({"status": "Select a valid parcel status."})
     key = _key(idempotency_key)
+    site = operation_location(current, actor)
+    if _shipment_context is not None and (
+        _shipment_context.pk != locked.shipment_id or _shipment_context.business_id != current.pk
+    ):
+        raise PermissionDenied("Shipment context does not match this parcel.")
+    if _shipment_context is not None:
+        from .shipment_services import require_shipment_access
+
+        require_shipment_access(business=current, actor=actor, write=True)
+        # Never trust fields on a caller-supplied instance, even for internal adapters.
+        _shipment_context = (
+            Shipment.objects.select_for_update()
+            .filter(pk=locked.shipment_id, business=current)
+            .first()
+        )
+        if _shipment_context is None:
+            raise ValidationError("Shipment relationship requires integrity review.")
+        require_record_operation(_shipment_context, business=current, actor=actor)
+        if (
+            status == Parcel.Status.ARRIVED
+            and _shipment_context.status != Shipment.Status.IN_TRANSIT
+        ):
+            raise ValidationError("Shipment arrival requires an in-transit shipment.")
     event = ParcelEvent(
         business=current,
         parcel=locked,
@@ -290,6 +323,10 @@ def record_parcel_event(
         public_message=public_message,
         internal_note=internal_note,
         idempotency_key=key,
+        operational_location=site,
+        previous_status=locked.current_status,
+        resulting_status=status or locked.current_status,
+        location_override_reason=(location_override_reason or "").strip(),
     )
     existing = (
         ParcelEvent.objects.filter(business=current, idempotency_key=key).first() if key else None
@@ -305,12 +342,22 @@ def record_parcel_event(
                 "location",
                 "public_message",
                 "internal_note",
+                "operational_location_id",
+                "location_override_reason",
             )
         ):
             raise ValidationError("This retry key was already used for a different operation.")
         return existing
     if expected_status is not None and locked.current_status != expected_status:
         raise ValidationError("The parcel status changed. Reload before recording this update.")
+    validate_transition_location(
+        locked,
+        business=current,
+        actor=actor,
+        status=status,
+        override_reason=location_override_reason,
+        shipment_context=_shipment_context,
+    )
     if status:
         if status not in ALLOWED_TRANSITIONS[locked.current_status]:
             raise ValidationError({"status": "This status transition is not allowed."})

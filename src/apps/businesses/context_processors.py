@@ -80,8 +80,33 @@ def current_business(request):
     }
 
     logistics_context = {}
-    if business and business.vertical == "LOGISTICS" and membership:
-        from apps.logistics.location_access import assignments_for, has_wide_access
+    if (
+        business
+        and business.vertical == "LOGISTICS"
+        and membership
+        and (module_access["parcels"] or module_access["shipments"])
+    ):
+        from apps.logistics.location_access import assignments_for, has_wide_access, locations_for
+        from apps.logistics.models import LogisticsLocationAssignment
+
+        if has_wide_access(business, request.user):
+            sites = list(locations_for(business, request.user))
+            current_site = (
+                LogisticsLocationAssignment.objects.filter(
+                    business=business,
+                    membership=membership,
+                    is_current=True,
+                    location__business=business,
+                    location__is_active=True,
+                )
+                .values_list("location_id", flat=True)
+                .first()
+            )
+            logistics_context = {
+                "logistics_administrator": True,
+                "logistics_work_locations": sites,
+                "logistics_current_location_id": current_site,
+            }
 
         if not has_wide_access(business, request.user):
             assignments = list(assignments_for(business, request.user))
