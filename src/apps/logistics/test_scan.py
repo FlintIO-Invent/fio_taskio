@@ -127,6 +127,24 @@ class ScanWorkflowTests(TestCase):
         self.assertIsNone(response.context["parcel"])
         self.assertNotContains(response, parcel.tracking_code)
 
+    def test_camera_entrypoint_is_local_and_logistics_only(self):
+        response = self.client.get(reverse("logistics_parcel_scan"))
+        self.assertContains(response, "Scan with Camera")
+        self.assertContains(response, "Stop Camera")
+        self.assertContains(response, "assets/js/logistics-camera.js")
+        self.assertContains(response, "vendors/zxing/zxing-browser-0.2.1.min.js")
+        self.switch(self.service)
+        for route in ("agent_dashboard", "staff_client_list"):
+            response = self.client.get(reverse(route))
+            self.assertNotContains(response, "data-scan-camera")
+            self.assertNotContains(response, "assets/js/logistics-camera.js")
+        self.assertEqual(
+            self.client.get(
+                reverse("logistics_parcel_scan"), HTTP_ACCEPT="application/json"
+            ).status_code,
+            403,
+        )
+
     def test_repeated_lookup_is_read_only(self):
         parcel = self.register()
         for _ in range(4):
