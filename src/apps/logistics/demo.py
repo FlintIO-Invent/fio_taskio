@@ -1,5 +1,6 @@
 """Varied, attributable Logistics demo data created through operational services."""
 
+from collections import Counter
 from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -33,6 +34,7 @@ from .shipment_services import (
     create_shipment,
     require_shipment_access,
 )
+from .shipment_transport import configured_shipment_modes
 
 LOGISTICS_RESET_ORDER = (
     LogisticsCharge,
@@ -128,12 +130,14 @@ def shipment_demo_references(index, mode):
             "container_reference": f"DEMO-CONT-{index + 1:03d}",
             "bill_of_lading_reference": f"DEMO-BOL-{index + 1:03d}",
         }
-    return {
-        "carrier_name": "[DEMO] Island Dispatch",
-        "vehicle_reference": f"DEMO-TRUCK-{index + 1:03d}",
-        "driver_name": "[DEMO] Alex Example",
-        "dispatch_reference": f"DEMO-DISPATCH-{index + 1:03d}",
-    }
+    if mode == TransportationMode.ROAD:
+        return {
+            "carrier_name": "[DEMO] Island Dispatch",
+            "vehicle_reference": f"DEMO-TRUCK-{index + 1:03d}",
+            "driver_name": "[DEMO] Alex Example",
+            "dispatch_reference": f"DEMO-DISPATCH-{index + 1:03d}",
+        }
+    return {"carrier_name": "[DEMO] Example Cargo Carrier"}
 
 
 def parcel_demo_fields(*, index, client, route, today):
@@ -207,27 +211,71 @@ def require_logistics_business(business):
 
 
 def logistics_demo_profile_plan(business):
-    """Preview classification without overwriting an explicit operational profile."""
+    """Plan compatible examples without creating or changing operational settings."""
     profile = LogisticsProfile.objects.filter(business=business).first()
-    modes = [TransportationMode.SEA, TransportationMode.ROAD]
-    if profile and (
-        profile.operating_areas != [OperatingArea.TRANSPORTATION]
-        or (profile.transportation_modes and set(profile.transportation_modes) != set(modes))
-    ):
+    if profile and OperatingArea.TRANSPORTATION not in profile.operating_areas:
         raise ValidationError(
-            "The demo requires Transportation with Sea + Road. The existing explicit "
-            "LogisticsProfile was preserved; configure a compatible demo workspace first."
+            "The current demo requires Transportation. The existing explicit "
+            "LogisticsProfile was preserved; no operating areas or modes were changed."
         )
+    modes = configured_shipment_modes(business)
+    # Unknown modes retain the existing mixed examples. Shipment services allow
+    # these legacy writes when no recognized mode is configured; the profile stays
+    # unknown rather than treating demo content as operational configuration.
+    if not modes or set(modes) == {TransportationMode.SEA, TransportationMode.ROAD}:
+        shipment_modes = [ROUTES[index][2].upper() for index in SHIPMENT_ROUTE_INDEXES]
+    else:
+        shipment_modes = [
+            modes[index % len(modes)] for index in range(LOGISTICS_DEMO_COUNTS["shipments"])
+        ]
     return {
-        "create_count": int(profile is None),
-        "action": (
-            "create"
-            if profile is None
-            else "fill_modes" if not profile.transportation_modes else "keep"
-        ),
-        "operating_areas": [OperatingArea.TRANSPORTATION],
-        "transportation_modes": modes,
+        "create_count": 0,
+        "action": "keep" if profile else "leave_missing",
+        "operating_areas": profile.operating_areas if profile else [],
+        "transportation_modes": profile.transportation_modes if profile else [],
+        "strategy": "configured_modes" if modes else "legacy_mixed_unknown_modes",
+        "shipment_modes": shipment_modes,
+        "shipment_mode_counts": dict(Counter(shipment_modes)),
     }
+
+
+def logistics_demo_routes(profile_plan):
+    shipment_modes = profile_plan["shipment_modes"]
+    if shipment_modes == [ROUTES[index][2].upper() for index in SHIPMENT_ROUTE_INDEXES]:
+        return (
+            [ROUTES[index] for index in SHIPMENT_ROUTE_INDEXES],
+            [ROUTES[index] for index in PARCEL_ROUTE_INDEXES],
+        )
+    sea_routes = [route for route in ROUTES if route[2] == "Sea"]
+    generic_routes = {
+        TransportationMode.AIR: (ROUTES[0][0], ROUTES[0][1], "Air", "", ""),
+        TransportationMode.RAIL: (
+            "Miami consolidation depot",
+            "Orlando collection depot",
+            "Rail",
+            "",
+            "",
+        ),
+        TransportationMode.ROAD: ROUTES[2],
+    }
+    shipment_routes = [
+        (
+            sea_routes[index % len(sea_routes)]
+            if mode == TransportationMode.SEA
+            else generic_routes[mode]
+        )
+        for index, mode in enumerate(shipment_modes)
+    ]
+    # Assigned parcel metadata follows its shipment, including mode and Sea fields.
+    parcel_routes = [
+        (
+            shipment_routes[ASSIGNED_PARCEL_SHIPMENT_INDEXES[index]]
+            if index < len(ASSIGNED_PARCEL_SHIPMENT_INDEXES)
+            else shipment_routes[index % len(shipment_routes)]
+        )
+        for index in range(LOGISTICS_DEMO_COUNTS["parcels"])
+    ]
+    return shipment_routes, parcel_routes
 
 
 def demo_actor(*, business, actor_id=None):
@@ -258,18 +306,8 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             "Demo ownership metadata already exists; preview/reset it before seeding again."
         )
     actor = demo_actor(business=business, actor_id=actor_id)
-    logistics_demo_profile_plan(business)
-    profile, created = LogisticsProfile.objects.get_or_create(business=business)
-    # Fill only the legacy/default unknown-mode profile, preserving explicit settings.
-    if created or (
-        profile.operating_areas == [OperatingArea.TRANSPORTATION]
-        and not profile.transportation_modes
-    ):
-        profile.transportation_modes = [
-            TransportationMode.SEA,
-            TransportationMode.ROAD,
-        ]
-        profile.save(update_fields=["transportation_modes", "updated_at"])
+    profile_plan = logistics_demo_profile_plan(business)
+    shipment_routes, parcel_routes = logistics_demo_routes(profile_plan)
     seed = DemoSeedRun.objects.create(business=business, planned_counts=LOGISTICS_DEMO_COUNTS)
     now = timezone.now()
     today = timezone.localdate(now)
@@ -307,7 +345,7 @@ def seed_logistics_demo(*, business_id, actor_id=None):
                 **parcel_demo_fields(
                     index=index,
                     client=clients[PARCEL_CLIENT_INDEXES[index]],
-                    route=ROUTES[PARCEL_ROUTE_INDEXES[index]],
+                    route=parcel_routes[index],
                     today=today,
                 ),
             )
@@ -319,15 +357,13 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             create_shipment(
                 business=business,
                 actor=actor,
-                origin=ROUTES[SHIPMENT_ROUTE_INDEXES[index]][0],
-                destination=ROUTES[SHIPMENT_ROUTE_INDEXES[index]][1],
-                transport_mode=TransportationMode(ROUTES[SHIPMENT_ROUTE_INDEXES[index]][2].upper()),
+                origin=shipment_routes[index][0],
+                destination=shipment_routes[index][1],
+                transport_mode=profile_plan["shipment_modes"][index],
                 departure_at=now + timedelta(days=(-8, -1, -4, 2, 4, 7)[index]),
                 estimated_arrival_at=now + timedelta(days=(-3, 3, -1, 5, 4, 12)[index]),
                 notes=f"[DEMO] Shipment {index + 1:02d}; fictional cargo for UI testing.",
-                **shipment_demo_references(
-                    index, TransportationMode(ROUTES[SHIPMENT_ROUTE_INDEXES[index]][2].upper())
-                ),
+                **shipment_demo_references(index, profile_plan["shipment_modes"][index]),
             )
         )
         for index in range(LOGISTICS_DEMO_COUNTS["shipments"])
@@ -477,7 +513,7 @@ def seed_logistics_demo(*, business_id, actor_id=None):
     invoice_scenarios = (
         (
             Invoice.Status.SENT,
-            "A: Books moving from Sint Maarten to Anguilla",
+            f"A: Books moving from {shipments[1].origin} to {shipments[1].destination}",
             [
                 charge(shipments[1], 6),
                 charge(parcels[3], 3, quantity=2),
@@ -486,7 +522,7 @@ def seed_logistics_demo(*, business_id, actor_id=None):
         ),
         (
             Invoice.Status.PAID,
-            "C: Shop supplies delivered from Miami to Sint Maarten",
+            f"C: Shop supplies delivered from {shipments[0].origin} to {shipments[0].destination}",
             [
                 charge(shipments[0], 6),
                 charge(parcels[0], 2, price=Decimal("35.00"), description="Negotiated delivery"),
@@ -507,7 +543,8 @@ def seed_logistics_demo(*, business_id, actor_id=None):
         ),
         (
             Invoice.Status.DRAFT,
-            "E: Display materials booked for local road dispatch",
+            "E: Display materials booked for "
+            f"{TransportationMode(shipments[4].transport_mode).label.lower()} dispatch",
             [
                 charge(shipments[4], 6),
                 charge(parcels[10], 7),
