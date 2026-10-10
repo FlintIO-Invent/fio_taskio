@@ -19,3 +19,12 @@
 }
 .logistics-workspace .logistics-scan [aria-busy="true"] { opacity: .75; }
 .logistics-workspace .logistics-scan [data-scan-action] .btn { flex: 1 1 140px; }
+.logistics-workspace .logistics-scan .scan-camera-preview {
+  display: block;
+  width: 100%;
+  max-height: 42vh;
+  object-fit: contain;
+  background: #000;
+  border-radius: .5rem;
+}
+.logistics-workspace .logistics-scan .scan-camera-panel { min-width: 0; }
