@@ -228,6 +228,10 @@ class Settings(BaseSettings):
         default=False,
         description="Allow pending Logistics operations only with ENV=local and DEBUG=True.",
     )
+    logistics_test_lab_enabled: bool = Field(default=False)
+    logistics_test_lab_database_id: str = Field(default="")
+    logistics_test_lab_staging_app: str = Field(default="")
+    logistics_test_lab_entitlement_approval: str = Field(default="")
     logistics_rule_version: str = Field(default="pilot-v1", min_length=1, max_length=100)
     logistics_auto_approve_all: bool = Field(
         default=True,

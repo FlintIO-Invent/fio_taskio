@@ -35,6 +35,18 @@ from .tracking_codes import (
 )
 
 
+class LogisticsTestLabAudit(models.Model):
+    """Non-secret operation references retained even after guarded lab cleanup."""
+
+    fixture_version = models.CharField(max_length=80)
+    environment = models.CharField(max_length=20)
+    business_id_snapshot = models.PositiveBigIntegerField()
+    action = models.CharField(max_length=30)
+    reason_reference = models.CharField(max_length=120)
+    approval_reference = models.CharField(max_length=120, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class LogisticsProfile(ClassificationHelpers, models.Model):
     business = models.OneToOneField(
         "businesses.Business", on_delete=models.CASCADE, related_name="logistics_profile"

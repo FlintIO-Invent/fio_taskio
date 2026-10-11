@@ -36,8 +36,10 @@ Both symbols encode the exact stored tracking code, without URL, another token,
 case conversion or shortened identifier. The existing ReportLab encoders handle
 QR and Code 128. Code 128 runs vertically along the six-inch edge so legacy
 48-character codes and secure 46-character V2 codes fit without compressing them
-across four inches. Its module width is 0.66 points (9.17 mils), with the encoder's
-quiet zones; QR keeps its four-module border. Reference:
+across four inches. V2 codes use a 0.72-point (10 mil) module width and explicit
+10-module quiet zones, giving just over two dots per module at 203 DPI. Longer
+legacy codes retain 0.66-point (9.17 mil) modules with the encoder's default quiet
+zones. QR keeps its four-module border. Reference:
 [ReportLab barcode documentation](https://docs.reportlab.com/reportlab/barcode/).
 
 Text wraps using the embedded font's measured widths, including long unbroken
