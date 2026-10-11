@@ -17,12 +17,14 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from .location_reference import country_choices, exact_country_code
+from .tracking_codes import TRACKING_CODE_PREFIX
 
 LABEL_WIDTH = 288  # 4 inches, PDF points (72 per inch).
 LABEL_HEIGHT = 432  # 6 inches.
 CONTENT_X = 64
 CONTENT_WIDTH = 212
 BAR_MODULE_WIDTH = 0.66  # 9.17 mils; retain quiet zones, never squeeze across 4 inches.
+V2_BAR_MODULE_WIDTH = 0.72  # 10 mils, just over two printer dots at 203 DPI.
 FONT = "MotionmateLabel"
 BOLD = "MotionmateLabelBold"
 
@@ -115,15 +117,18 @@ def shipping_label_drawing(parcel, *, shipment=None):
     label_fonts()
     drawing = Drawing(LABEL_WIDTH, LABEL_HEIGHT)
     drawing.add(Rect(0, 0, LABEL_WIDTH, LABEL_HEIGHT, fillColor=colors.white, strokeColor=None))
-    # Rotate the existing Code128 encoder into the long edge. Defaults provide
-    # >=10-module quiet zones on both ends; the QR encoder includes four modules.
+    # V2's 46 characters fit at 10 mils with explicit 10-module quiet zones.
+    # Keep the existing width/default quiet zones for longer legacy codes.
+    v2 = parcel.tracking_code.startswith(TRACKING_CODE_PREFIX)
+    module_width = V2_BAR_MODULE_WIDTH if v2 else BAR_MODULE_WIDTH
     barcode = createBarcodeDrawing(
         "Code128",
         value=parcel.tracking_code,
-        barWidth=BAR_MODULE_WIDTH,
+        barWidth=module_width,
         barHeight=34,
         humanReadable=False,
         quiet=True,
+        **({"lquiet": 10 * module_width, "rquiet": 10 * module_width} if v2 else {}),
     )
     barcode._bc.validate()
     if barcode._bc.validated != parcel.tracking_code:

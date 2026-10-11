@@ -35,6 +35,10 @@ AUTH_USER_MODEL = "accounts.TaskIOUser"
 
 DEBUG = settings.debug
 MOTIONMATE_ENVIRONMENT = settings.env.strip().lower()
+LOGISTICS_TEST_LAB_ENABLED = settings.logistics_test_lab_enabled
+LOGISTICS_TEST_LAB_DATABASE_ID = settings.logistics_test_lab_database_id
+LOGISTICS_TEST_LAB_STAGING_APP = settings.logistics_test_lab_staging_app
+LOGISTICS_TEST_LAB_ENTITLEMENT_APPROVAL = settings.logistics_test_lab_entitlement_approval
 
 if settings.secret_key:
     SECRET_KEY = settings.secret_key
