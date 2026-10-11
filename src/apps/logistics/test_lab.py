@@ -8,6 +8,7 @@ import secrets
 import shutil
 import stat
 import subprocess
+import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -367,19 +368,44 @@ def credential_target(path, recipient):
         )
     if target.exists():
         raise CommandError("Credential artifact already exists; select a new path.")
+    # A correctly shaped recipient may have an invalid Bech32 checksum. Exercise
+    # the actual CLI with non-secret input before entering the write transaction.
+    try:
+        ciphertext = encrypt_with_age(recipient, b"Motionmate Test Lab encryption preflight.")
+        # Check the destination filesystem too, without reserving the final path
+        # or creating an artifact containing any credentials.
+        with tempfile.TemporaryFile(dir=parent) as probe:
+            probe.write(ciphertext)
+            probe.flush()
+            os.fsync(probe.fileno())
+    except (OSError, subprocess.SubprocessError):
+        raise CommandError(
+            "Encrypted handoff failed during preflight; no accounts were created."
+        ) from None
     return target
+
+
+@sensitive_variables()
+def encrypt_with_age(recipient, plaintext):
+    encrypted = subprocess.run(
+        ["age", "--armor", "--recipient", recipient],
+        input=plaintext,
+        capture_output=True,
+        check=True,
+        timeout=30,
+    ).stdout
+    if not re.fullmatch(
+        rb"-----BEGIN AGE ENCRYPTED FILE-----\n(?:[A-Za-z0-9+/=]+\n)+-----END AGE ENCRYPTED FILE-----\n",
+        encrypted,
+    ):
+        raise subprocess.SubprocessError("age did not return armored ciphertext.")
+    return encrypted
 
 
 @sensitive_variables()
 def encrypted_handoff(path, recipient, payload):
     try:
-        encrypted = subprocess.run(
-            ["age", "--armor", "--recipient", recipient],
-            input=json.dumps(payload).encode(),
-            capture_output=True,
-            check=True,
-            timeout=30,
-        ).stdout
+        encrypted = encrypt_with_age(recipient, json.dumps(payload).encode())
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         try:
             with os.fdopen(fd, "wb") as stream:

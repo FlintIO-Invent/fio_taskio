@@ -38,7 +38,16 @@ from .location_services import save_location
 from .models import LogisticsLocation, LogisticsTestLabAudit, Parcel, Shipment
 from .parcel_services import parcels_for_business, register_parcel
 from .shipment_services import create_shipment, shipments_for_business
-from .test_lab import ACCOUNTS, DOMAIN, SLUG, authorize, database_identity, require_entitlement
+from .test_lab import (
+    ACCOUNTS,
+    DOMAIN,
+    SLUG,
+    authorize,
+    create_account,
+    database_identity,
+    encrypt_with_age,
+    require_entitlement,
+)
 
 
 @override_settings(
@@ -378,15 +387,101 @@ class LogisticsTestLabTests(TestCase):
                 require_entitlement(self.business.subscription, "staging")
 
     def test_encryption_failure_rolls_back_every_record(self):
-        with patch(
-            "apps.logistics.test_lab.subprocess.run",
-            side_effect=subprocess.CalledProcessError(1, "age", stderr=b"provider details"),
+        preflight = encrypt_with_age(self.recipient, b"Non-secret test preflight.")
+        with (
+            patch(
+                "apps.logistics.test_lab.encrypt_with_age",
+                side_effect=[
+                    preflight,
+                    subprocess.CalledProcessError(1, "age", stderr=b"provider details"),
+                ],
+            ),
+            patch("apps.logistics.test_lab.create_account", wraps=create_account) as create,
         ):
             with self.assertRaisesMessage(CommandError, "Encrypted handoff failed"):
                 self.execute()
+            self.assertEqual(create.call_count, len(ACCOUNTS))
         self.assertFalse(Business.objects.filter(slug=SLUG).exists())
         self.assertFalse(TaskIOUser.objects.filter(email__endswith=DOMAIN).exists())
         self.assertFalse(self.artifact.exists())
+
+    def test_missing_age_refuses_before_creating_accounts(self):
+        with (
+            patch("apps.logistics.test_lab.shutil.which", return_value=None),
+            patch("apps.logistics.test_lab.create_account") as create,
+        ):
+            with self.assertRaisesMessage(CommandError, "Credential writes require age"):
+                self.execute(initialize=True)
+            create.assert_not_called()
+        self.assertFalse(Business.objects.filter(slug=SLUG).exists())
+        self.assertFalse(self.artifact.exists())
+
+    def test_invalid_recipient_checksum_refuses_before_any_writes(self):
+        invalid = self.recipient[:-1] + ("q" if self.recipient[-1] != "q" else "p")
+        with (
+            CaptureQueriesContext(connection) as queries,
+            patch("apps.logistics.test_lab.create_account") as create,
+        ):
+            with self.assertRaisesMessage(CommandError, "failed during preflight"):
+                self.command(
+                    initialize=True,
+                    execute=True,
+                    confirm_database=self.identity,
+                    reason_reference="TEST",
+                    credential_file=str(self.root / "invalid-checksum.age"),
+                    credential_recipient=invalid,
+                )
+            create.assert_not_called()
+        self.assertFalse(
+            any(
+                q["sql"].lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE"))
+                for q in queries
+            )
+        )
+        self.assertFalse(Business.objects.filter(slug=SLUG).exists())
+
+    def test_unwritable_handoff_destination_refuses_before_creating_accounts(self):
+        with (
+            patch(
+                "apps.logistics.test_lab.tempfile.TemporaryFile", side_effect=OSError("disk full")
+            ),
+            patch("apps.logistics.test_lab.create_account") as create,
+        ):
+            with self.assertRaisesMessage(CommandError, "failed during preflight"):
+                self.execute(initialize=True)
+            create.assert_not_called()
+        self.assertFalse(Business.objects.filter(slug=SLUG).exists())
+        self.assertFalse(self.artifact.exists())
+
+    def test_unusable_age_refuses_before_creating_accounts_without_output(self):
+        failures = (
+            subprocess.CalledProcessError(1, "age", stderr=b"private diagnostic"),
+            subprocess.TimeoutExpired("age", 30),
+            FileNotFoundError("age disappeared"),
+            subprocess.CompletedProcess("age", 0, stdout=b"", stderr=b""),
+            subprocess.CompletedProcess("age", 0, stdout=b"plaintext must not escape", stderr=b""),
+        )
+        for failure in failures:
+            with self.subTest(failure=type(failure).__name__):
+                effect = (
+                    {"side_effect": failure}
+                    if isinstance(failure, Exception)
+                    else {"return_value": failure}
+                )
+                with (
+                    patch("apps.logistics.test_lab.subprocess.run", **effect),
+                    patch("apps.logistics.test_lab.create_account") as create,
+                ):
+                    with self.assertRaisesMessage(
+                        CommandError, "failed during preflight"
+                    ) as raised:
+                        self.execute(initialize=True)
+                    create.assert_not_called()
+                self.assertNotIn("private diagnostic", str(raised.exception))
+                self.assertNotIn("plaintext", str(raised.exception))
+                self.assertFalse(self.artifact.exists())
+        self.assertFalse(Business.objects.filter(slug=SLUG).exists())
+        self.assertFalse(TaskIOUser.objects.filter(email__endswith=DOMAIN).exists())
 
     def test_artifact_requires_private_directory_new_file_valid_recipient(self):
         artifact = self.root / "existing.age"

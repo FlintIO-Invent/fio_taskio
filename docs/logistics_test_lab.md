@@ -4,6 +4,8 @@ For connected cargo, invoices, manifests and labels after provisioning, see
 [Block 06B dataset procedures](logistics_test_lab_dataset.md).
 For automated suites, operator evidence and promotion gates, see
 [Block 06C acceptance](logistics_test_lab_acceptance.md).
+For the pinned Heroku encryption CLI and read-only deployment verification, see
+[age runtime setup](heroku_age_runtime.md).
 
 `setup_logistics_test_lab` creates Motionmate Global Cargo, a uniquely marked
 fictional LOGISTICS workspace. Fixture identity is
