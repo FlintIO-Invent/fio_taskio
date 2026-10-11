@@ -16,12 +16,19 @@ from django.utils import timezone
 
 from apps.billings.models import Invoice
 from apps.billings.services import calculate_tax_amount
-from apps.businesses.models import Business, SubscriptionNotification
+from apps.businesses.models import Business, DemoSeedRecord, DemoSeedRun, SubscriptionNotification
 from apps.crm.models import Client
 
 from . import test_test_lab as foundation_tests
 from .location_access import locations_for
-from .models import LogisticsTestLabAudit, Parcel, ParcelEvent, Shipment
+from .location_access_services import select_work_location
+from .models import (
+    LogisticsLocationAssignment,
+    LogisticsTestLabAudit,
+    Parcel,
+    ParcelEvent,
+    Shipment,
+)
 from .parcel_policy import ALLOWED_TRANSITIONS
 from .parcel_services import parcels_for_business, record_parcel_event
 from .scan import resolve_scanned_parcel
@@ -114,6 +121,155 @@ class LogisticsTestLabDatasetTests(TestCase):
             )
         self.assertFalse(Parcel.objects.exists())
 
+    def assignment_snapshot(self):
+        return list(LogisticsLocationAssignment.objects.order_by("pk").values())
+
+    def test_fresh_foundation_tracks_all_nine_assignments(self):
+        self.provision()
+        assignments = self.assignment_snapshot()
+        self.assertEqual(len(assignments), 9)
+        self.assertEqual(
+            set(
+                self.seed.owned_records.filter(
+                    model_label=LogisticsLocationAssignment._meta.label
+                ).values_list("object_pk", flat=True)
+            ),
+            {str(row["id"]) for row in assignments},
+        )
+        self.seed_data()
+        self.assertEqual(self.assignment_snapshot(), assignments)
+
+    def test_existing_admin_contexts_preserved_without_adoption_and_repeat_refused(self):
+        service = Business.objects.create(pk=133, name="Retained service", slug="service-133")
+        other = Business.objects.create(
+            name="Retained logistics", slug="other", vertical="LOGISTICS"
+        )
+        clients = [
+            Client.objects.create(business=b, first_name="Retained", last_name="Client")
+            for b in (service, other)
+        ]
+        unrelated = [digest(obj) for obj in (service, other, *clients)]
+        self.provision()
+        for name, code in (("owner", "DM-HUB"), ("admin", "SXM-PORT")):
+            select_work_location(
+                business=self.business, actor=self.users[name], location=self.sites[code]
+            )
+        before = self.assignment_snapshot()
+        foundation = self.foundation_snapshot()
+        ownership = list(self.seed.owned_records.order_by("pk").values())
+        # Full cleanup remains strict: these contexts are preserved, not adopted.
+        with self.assertRaisesMessage(
+            CommandError, "Unowned logistics.LogisticsLocationAssignment"
+        ):
+            owned_objects(self.business, self.seed)
+        with CaptureQueriesContext(connection) as queries:
+            self.data_command()
+        self.assertFalse(
+            any(
+                q["sql"].lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE"))
+                for q in queries
+            )
+        )
+
+        def select_admin_only(**kwargs):
+            self.assertIn(kwargs["actor"], [self.users[n] for n in ("owner", "admin", "manager")])
+            return select_work_location(**kwargs)
+
+        with patch(
+            "apps.logistics.test_lab_dataset.select_work_location", side_effect=select_admin_only
+        ):
+            self.seed_data()
+        self.assertEqual(self.assignment_snapshot(), before)
+        self.assertEqual(self.foundation_snapshot(), foundation)
+        self.assertEqual(
+            list(
+                self.seed.owned_records.filter(pk__in=[r["id"] for r in ownership])
+                .order_by("pk")
+                .values()
+            ),
+            ownership,
+        )
+        self.assertEqual(
+            self.seed.owned_records.filter(
+                model_label=LogisticsLocationAssignment._meta.label
+            ).count(),
+            9,
+        )
+        with self.assertRaisesMessage(CommandError, "already exists"):
+            self.seed_data()
+        self.assertEqual(self.assignment_snapshot(), before)
+        self.assertEqual(LogisticsTestLabAudit.objects.filter(action="dataset-seed").count(), 1)
+        self.seed_data(reset=True, confirm_test_financial_data=True)
+        self.assertEqual(self.assignment_snapshot(), before)
+        self.assertEqual(self.foundation_snapshot(), foundation)
+        with self.assertRaisesMessage(
+            CommandError, "Unowned logistics.LogisticsLocationAssignment"
+        ):
+            owned_objects(self.business, self.seed)
+        for obj, expected in zip((service, other, *clients), unrelated, strict=True):
+            obj.refresh_from_db()
+            self.assertEqual(digest(obj), expected)
+        self.assertFalse(Parcel.objects.filter(business_id__in=(133, other.pk)).exists())
+
+    def test_missing_staff_assignment_ownership_remains_fail_closed(self):
+        self.provision()
+        assignment = LogisticsLocationAssignment.objects.get(membership__user=self.users["miami"])
+        self.seed.owned_records.filter(
+            model_label=assignment._meta.label, object_pk=str(assignment.pk)
+        ).delete()
+        before = self.assignment_snapshot()
+        for action in (self.data_command, self.seed_data):
+            with self.assertRaisesMessage(
+                CommandError, f"LogisticsLocationAssignment {assignment.pk}"
+            ):
+                action()
+        self.assertEqual(self.assignment_snapshot(), before)
+        self.assertFalse(Parcel.objects.exists())
+
+    def test_ambiguous_admin_context_and_other_seed_claim_refused(self):
+        self.provision()
+        select_work_location(
+            business=self.business, actor=self.users["owner"], location=self.sites["DM-HUB"]
+        )
+        context = LogisticsLocationAssignment.objects.get(
+            membership__user=self.users["owner"], location=self.sites["DM-HUB"]
+        )
+        other = Business.objects.create(name="Other", slug="other")
+        for changes in (
+            {"can_operate": True},
+            {"is_work_context": False},
+            {"business_id": other.pk},
+        ):
+            LogisticsLocationAssignment.objects.filter(pk=context.pk).update(**changes)
+            before = self.assignment_snapshot()
+            with self.assertRaisesMessage(
+                CommandError, f"LogisticsLocationAssignment {context.pk}"
+            ):
+                self.seed_data()
+            self.assertEqual(self.assignment_snapshot(), before)
+            LogisticsLocationAssignment.objects.filter(pk=context.pk).update(
+                can_operate=False, is_work_context=True, business=self.business
+            )
+        other_seed = DemoSeedRun.objects.create(business=other)
+        DemoSeedRecord.objects.create(
+            seed_run=other_seed, model_label=context._meta.label, object_pk=str(context.pk)
+        )
+        with self.assertRaisesMessage(CommandError, "Another seed claims"):
+            self.seed_data()
+        self.assertFalse(Parcel.objects.exists())
+
+    def test_changed_staff_selection_refused_without_editing_assignments(self):
+        self.provision()
+        select_work_location(
+            business=self.business, actor=self.users["regional"], location=self.sites["SXM-PORT"]
+        )
+        before = self.assignment_snapshot()
+        with self.assertRaisesMessage(CommandError, "worker work location changed"):
+            self.seed_data()
+        self.assertEqual(self.assignment_snapshot(), before)
+        self.assertFalse(Parcel.objects.exists())
+        self.assertFalse(LogisticsTestLabAudit.objects.filter(action="dataset-seed").exists())
+
     def test_counts_relationships_states_attribution_invoices_and_foundation_unchanged(self):
         self.provision()
         before = self.foundation_snapshot()
@@ -165,7 +321,7 @@ class LogisticsTestLabDatasetTests(TestCase):
             ("sxm-port", {"SXM-PORT"}),
             ("sxm-warehouse", {"SXM-DC"}),
             ("dominica", {"DM-HUB"}),
-            ("regional", {"MIA-HUB", "SXM-PORT"}),
+            ("regional", {"MIA-HUB"}),
         ):
             self.assertEqual(
                 set(

@@ -22,6 +22,7 @@ from apps.crm.models import ActivityLog, Client
 
 from .billing_services import add_charge, invoice_charges, require_billing_access
 from .demo import shipment_demo_references
+from .location_access import has_wide_access, require_work_location
 from .location_access_services import select_work_location, set_handling_site
 from .models import (
     LogisticsCharge,
@@ -220,7 +221,7 @@ def context(business, seed, *, environment, lock=False):
     # Cargo setup/reset preserves the foundation. Normal login/billing metadata
     # and unrelated lab records need not be fixture-owned; reset_plan separately
     # rejects every unowned dependency of the cargo it would actually delete.
-    owned_objects(business, seed, lock=lock, check_dependents=False)
+    owned_objects(business, seed, lock=lock, check_dependents=False, preserve_admin_contexts=True)
     require_entitlement(business.subscription, environment)
     members = {m.user.email.split("@")[0]: m for m in business.memberships.select_related("user")}
     if set(members) != {name for name, _, _ in ACCOUNTS}:
@@ -241,6 +242,8 @@ def context(business, seed, *, environment, lock=False):
         )
         if set(grants.values_list("location__code", flat=True)) != set(codes):
             raise CommandError("Lab worker grants changed; no permissions will be modified.")
+        if codes and require_work_location(business, member.user).code != codes[0]:
+            raise CommandError("Lab worker work location changed; no assignments will be modified.")
     sites = {site.code: site for site in business.logistics_locations.all()}
     if set(sites) != {site["code"] for site in LOCATIONS}:
         raise CommandError("The four standardized operating sites are required.")
@@ -323,6 +326,13 @@ def inspect_dataset(*, environment, business_id):
 @contextmanager
 def work_at(business, actor, site):
     """Use normal context selection, then restore every existing assignment exactly."""
+    if not has_wide_access(business, actor):
+        # Staff use their existing selection. Cargo seeding never edits grants or
+        # staff context; a changed selection needs operator review before retry.
+        if require_work_location(business, actor).pk != site.pk:
+            raise CommandError("Lab worker work location changed; no assignments will be modified.")
+        yield
+        return
     member = business.memberships.get(user=actor)
     assignments = LogisticsLocationAssignment.objects.filter(membership=member)
     original = list(assignments.values("pk", "is_current", "can_operate", "is_work_context"))
@@ -521,7 +531,8 @@ def _seed(business, seed, users, sites, modes):
         )
         event(obj, "RECEIVED", source)
         event(obj, "IN_TRANSIT", source)
-        event(obj, "ARRIVED", stop, "regional")
+        # Use the port operator already selected here; never switch regional staff.
+        event(obj, "ARRIVED", stop)
         event(obj, "HOLD", stop, message="Transshipment inspection at Sint Maarten Port.")
         event(
             obj,

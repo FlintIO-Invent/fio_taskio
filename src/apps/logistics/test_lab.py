@@ -195,8 +195,10 @@ def own(seed, obj):
     return obj
 
 
-def owned_objects(business, seed, *, lock=False, check_dependents=True):
-    """Refuse changed ownership and any untracked incoming relation, even SET_NULL."""
+def owned_objects(
+    business, seed, *, lock=False, check_dependents=True, preserve_admin_contexts=False
+):
+    """Validate ownership; cargo alone may preserve non-grant administrator contexts."""
     models = {model._meta.label: model for model in OWNED_MODELS}
     owned = {model: set() for model in OWNED_MODELS}
     dataset = {}
@@ -247,6 +249,47 @@ def owned_objects(business, seed, *, lock=False, check_dependents=True):
             or user.user_permissions.exists()
         ):
             raise CommandError("Lab user identity or global privileges changed.")
+    preserved_contexts = set()
+    if preserve_admin_contexts:
+        if check_dependents:
+            raise CommandError("Preserved work contexts are only permitted for cargo preflight.")
+        # Normal administrator site selection creates a context, never a grant.
+        # Preserve it for cargo operations without claiming it for cleanup/reset.
+        candidates = (
+            LogisticsLocationAssignment.objects.filter(
+                Q(business=business)
+                | Q(membership_id__in=owned[BusinessUser])
+                | Q(location_id__in=owned[LogisticsLocation])
+            )
+            .exclude(pk__in=owned[LogisticsLocationAssignment])
+            .order_by("pk")
+        )
+        if lock:
+            candidates = candidates.select_for_update()
+        members = {member.pk: member for member in objects[BusinessUser]}
+        sites = {site.pk: site for site in objects[LogisticsLocation]}
+        for item in candidates:
+            member = members.get(item.membership_id)
+            site = sites.get(item.location_id)
+            if (
+                item.business_id != business.pk
+                or member is None
+                or site is None
+                or member.role not in (BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+                or not member.is_active
+                or not site.is_active
+                or not item.is_work_context
+                or item.can_operate
+            ):
+                raise CommandError(
+                    f"Unowned logistics.LogisticsLocationAssignment {item.pk} references the lab; manual review required."
+                )
+            preserved_contexts.add(item.pk)
+        if DemoSeedRecord.objects.filter(
+            model_label=LogisticsLocationAssignment._meta.label,
+            object_pk__in=[str(pk) for pk in preserved_contexts],
+        ).exists():
+            raise CommandError("Another seed claims preserved lab work contexts.")
     for model in apps.get_models():
         if model in (DemoSeedRun, DemoSeedRecord):
             continue
@@ -258,7 +301,12 @@ def owned_objects(business, seed, *, lock=False, check_dependents=True):
                 conditions |= Q(**{field.attname + "__in": owned[field.related_model]})
         if (
             conditions
-            and model.objects.filter(conditions).exclude(pk__in=owned.get(model, set())).exists()
+            and model.objects.filter(conditions)
+            .exclude(
+                pk__in=owned.get(model, set())
+                | (preserved_contexts if model == LogisticsLocationAssignment else set())
+            )
+            .exists()
         ):
             raise CommandError(
                 f"Unowned {model._meta.label} references the lab; manual review required."

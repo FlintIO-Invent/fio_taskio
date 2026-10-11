@@ -158,6 +158,18 @@ preserved; they need not be adopted into fixture ownership. It validates
 the entire ownership graph, tenant relationships, other seed claims and all incoming
 foreign keys. Missing or edited fixture rows, real operator events, unowned dependents,
 sent/paid/dispatched invoices, malformed metadata and cross-tenant links cause safe refusal.
+Cargo preflight also preserves additional administrator work contexts created by normal
+work-site selection. These must reference this lab's owned active membership and location,
+belong to an owner/administrator, have `is_work_context=True` and `can_operate=False`,
+and have no competing seed claim. They are never adopted into fixture ownership.
+Untracked staff grants and ambiguous contexts still block preview and execution.
+Full lab cleanup retains its strict unowned-record rejection.
+
+Staff assignments are never written by cargo seeding. Each worker must already have
+the fixture's first assigned site selected (regional: MIA-HUB); preview refuses a changed
+selection. Sint Maarten transshipment arrival uses the existing port operator, avoiding
+a temporary switch of regional staff. Administrator work contexts are temporarily selected
+through the existing service and restored, including additional preexisting contexts.
 Reset of invoice drafts requires explicit financial confirmation. It does not bypass
 `purge_business` or enable financial deletion on a customer business. Full lab cleanup
 still hits the existing invoice deletion gate; reset the dataset first.
@@ -166,6 +178,33 @@ Seed/reset are atomic, serialize on the Business row in PostgreSQL, and append d
 `LogisticsTestLabAudit` actions `dataset-seed` / `dataset-reset` with the reason reference.
 No rebuild flag erases cargo automatically: preview reset, execute reset, preview seed,
 then execute seed. Edited fixtures require manual review, rather than a force flag.
+
+### Development ownership conflict (Business 166)
+
+Read-only investigation found seed run 34 owns assignments 1–9, including the owner
+context at MIA-HUB (assignment 9). The rejected record was assignment 10: owner membership
+166 at DM-HUB, `is_work_context=True`, `can_operate=False`, selected as current, with no
+ownership record. This matches the normal `select_work_location()` creation path after
+provisioning, not a missing Block 06A staff-grant ownership record. Assignment rows have
+no creation audit, so the initiating UI/request cannot be established from these rows alone.
+
+Deploy this code to Development; no new migration, ownership backfill, password rotation,
+reprovisioning or cleanup is needed. Recheck the read-only preview before the operator
+executes the seed. Use the fingerprint returned by that preview, verified against the
+configured dedicated Development database identity:
+
+```bash
+heroku run --no-tty --exit-code --app mm-development-app \
+  'python3 src/manage.py seed_logistics_test_lab --environment development --business-id 166'
+heroku run --no-tty --exit-code --app mm-development-app \
+  'python3 src/manage.py seed_logistics_test_lab --environment development --business-id 166 --confirm-business-id 166 --execute --confirm-app mm-development-app --confirm-database VERIFIED_FINGERPRINT --reason-reference MM-LAB-DEV-001'
+heroku run --no-tty --exit-code --app mm-development-app \
+  'python3 src/manage.py seed_logistics_test_lab --environment development --business-id 166 --inspect'
+```
+
+Replace `VERIFIED_FINGERPRINT` before executing. If inspection reports an existing
+dataset, do not repeat execution or reset automatically; duplicate seeding is refused.
+Business 133 remains explicitly excluded, and Production remains prohibited.
 
 ## Manifests, labels and validation
 
