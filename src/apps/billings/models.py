@@ -3,16 +3,20 @@ from __future__ import annotations
 from copy import copy
 from decimal import ROUND_HALF_UP, Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
+from django.utils import timezone
 
 from apps.crm.models import Client, TimeStampedModel
 
 
 class InvoiceQuerySet(models.QuerySet):
     def delete(self):
+        if self.filter(payments__isnull=False).exists():
+            raise ProtectedError("Customer payment history must be retained.", list(self))
         protected = self.filter(business__vertical="LOGISTICS").filter(
             Q(lines__charge_source__isnull=False) | Q(lines__logistics_charge__isnull=False)
         )
@@ -77,6 +81,8 @@ class Invoice(TimeStampedModel):
         return self.invoice_number
 
     def delete(self, *args, **kwargs):
+        if self.payments.exists():
+            raise ProtectedError("Customer payment history must be retained.", [self])
         if (
             self.business.vertical == "LOGISTICS"
             and self.lines.filter(
@@ -119,6 +125,16 @@ class Invoice(TimeStampedModel):
         super().clean()
 
         errors: dict[str, str] = {}
+
+        if self.pk and self.payments.exists():
+            previous = type(self).objects.get(pk=self.pk)
+            if any(
+                getattr(self, field) != getattr(previous, field)
+                for field in ("business_id", "client_id", "subtotal", "tax", "total")
+            ):
+                raise ValidationError(
+                    "Invoices with customer payments retain their monetary basis."
+                )
 
         if self.business_id is not None and self.client_id is not None:
             if self.client.business_id != self.business_id:
@@ -218,6 +234,8 @@ class Invoice(TimeStampedModel):
 
 class InvoiceLineQuerySet(models.QuerySet):
     def delete(self):
+        if self.filter(invoice__payments__isnull=False).exists():
+            raise ProtectedError("Receipted Invoice lines must be retained.", list(self))
         protected = self.filter(charge_source__isnull=False)
         if protected.exists():
             raise ProtectedError("Linked Logistics lines must be retained.", list(protected))
@@ -266,12 +284,33 @@ class InvoiceLine(TimeStampedModel):
         ordering = ["created_at"]
 
     def delete(self, *args, **kwargs):
+        if self.invoice.payments.exists():
+            raise ProtectedError("Receipted Invoice lines must be retained.", [self])
         if self.pk and type(self).objects.filter(pk=self.pk, charge_source__isnull=False).exists():
             raise ProtectedError("Linked Logistics lines must be retained.", [self])
         return super().delete(*args, **kwargs)
 
     def clean(self):
         super().clean()
+        previous = type(self).objects.filter(pk=self.pk).first() if self.pk else None
+        if self.invoice_id and (
+            self.invoice.payments.exists() or (previous and previous.invoice.payments.exists())
+        ):
+            if previous is None or any(
+                getattr(self, field) != getattr(previous, field)
+                for field in (
+                    "invoice_id",
+                    "service_id",
+                    "parcel_id",
+                    "shipment_id",
+                    "charge_source_id",
+                    "description",
+                    "quantity",
+                    "unit_price",
+                    "line_total",
+                )
+            ):
+                raise ValidationError("Receipted Invoice lines are immutable.")
         if self.parcel_id and self.shipment_id:
             raise ValidationError("A line can reference a parcel or a shipment, not both.")
         if self.invoice_id:
@@ -370,3 +409,126 @@ class InvoiceLine(TimeStampedModel):
         if self.parcel_id or self.shipment_id:
             self.line_total = self.line_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         super().save(*args, **kwargs)
+
+
+class InvoicePaymentQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("Customer payment history is append-only.")
+
+    def delete(self):
+        raise ProtectedError("Customer payment history must be retained.", list(self))
+
+    def bulk_create(self, *args, **kwargs):
+        raise ValidationError("Use the shared customer payment services.")
+
+    def bulk_update(self, *args, **kwargs):
+        raise ValidationError("Customer payment history is append-only.")
+
+
+class InvoicePayment(models.Model):
+    """Append-only customer receipts and linked reductions, independent of SaaS billing."""
+
+    class Kind(models.TextChoices):
+        RECEIPT = "RECEIPT", "Receipt"
+        REVERSAL = "REVERSAL", "Reversal"
+        REFUND = "REFUND", "Refund"
+
+    class Method(models.TextChoices):
+        CASH = "CASH", "Cash"
+        BANK_TRANSFER = "BANK_TRANSFER", "Bank transfer"
+        VERIFIED_ONLINE = "VERIFIED_ONLINE", "Externally verified online"
+
+    objects = InvoicePaymentQuerySet.as_manager()
+    business = models.ForeignKey(
+        "businesses.Business", on_delete=models.PROTECT, related_name="customer_payments"
+    )
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name="payments")
+    original = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="adjustments"
+    )
+    kind = models.CharField(max_length=8, choices=Kind.choices, default=Kind.RECEIPT)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3)
+    invoice_total_snapshot = models.DecimalField(max_digits=12, decimal_places=2, editable=False)
+    method = models.CharField(max_length=16, choices=Method.choices)
+    reference = models.CharField(max_length=160)
+    verification_reference = models.CharField(max_length=160, blank=True)
+    reason_reference = models.CharField(max_length=160, blank=True)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="customer_payment_entries"
+    )
+    recorded_at = models.DateTimeField(default=timezone.now, editable=False)
+    idempotency_key = models.UUIDField(editable=False)
+
+    class Meta:
+        ordering = ["recorded_at", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "idempotency_key"], name="billings_payment_retry_unique"
+            ),
+            models.UniqueConstraint(
+                fields=["business", "reference"],
+                condition=Q(kind="RECEIPT", original__isnull=True),
+                name="billings_payment_root_reference_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["original"],
+                condition=Q(kind="RECEIPT", original__isnull=False),
+                name="billings_payment_correction_unique",
+            ),
+            models.CheckConstraint(condition=Q(amount__gt=0), name="billings_payment_positive"),
+            models.CheckConstraint(
+                condition=Q(kind="RECEIPT") | Q(original__isnull=False),
+                name="billings_payment_adjustment_original",
+            ),
+            models.CheckConstraint(
+                condition=Q(kind__in=["RECEIPT", "REVERSAL", "REFUND"]),
+                name="billings_payment_known_kind",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.business_id != self.invoice.business_id:
+            raise ValidationError("Payment and Invoice must share a workspace.")
+        if self.invoice.client.business_id != self.business_id:
+            raise ValidationError("Payment Invoice has an invalid Client relationship.")
+        if self.amount is None or not self.amount.is_finite() or self.amount <= 0:
+            raise ValidationError("Payment entries require a finite positive amount.")
+        if not self.reference.strip():
+            raise ValidationError("A stable receipt/transaction reference is required.")
+        if self.method == self.Method.VERIFIED_ONLINE and not self.verification_reference.strip():
+            raise ValidationError("Externally verified payments require an evidence reference.")
+        if self.original_id:
+            original = self.original
+            if original.kind != self.Kind.RECEIPT or (
+                original.business_id,
+                original.invoice_id,
+                original.currency,
+                original.invoice_total_snapshot,
+            ) != (
+                self.business_id,
+                self.invoice_id,
+                self.currency,
+                self.invoice_total_snapshot,
+            ):
+                raise ValidationError(
+                    "Adjustments must reference a receipt on the same Invoice basis."
+                )
+            if not self.reason_reference.strip():
+                raise ValidationError("Payment adjustments require an audit reason reference.")
+        elif self.kind != self.Kind.RECEIPT:
+            raise ValidationError("Payment reductions require an original receipt.")
+
+    def save(self, *args, **kwargs):
+        raise ValidationError("Use the shared customer payment services.")
+
+    def delete(self, *args, **kwargs):
+        raise ProtectedError("Customer payment history must be retained.", [self])
+
+    def _append(self):
+        if not self._state.adding:
+            raise ValidationError("Customer payment history is append-only.")
+        self.full_clean()
+        super().save(force_insert=True)
+        return self

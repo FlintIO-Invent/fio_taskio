@@ -145,6 +145,11 @@ class BusinessPurgePlan:
             blockers.append("logistics_conversion_protected")
         if self.has_stripe_references:
             blockers.append("stripe_references_present")
+        if any(
+            record.key == "customer_payments" and record.total_count
+            for record in self.inventory.records
+        ):
+            blockers.append("customer_payment_history_protected")
         if self.invoice_confirmation_required:
             blockers.append("test_financial_data_confirmation_required")
         return tuple(blockers)
@@ -315,6 +320,7 @@ def _build_purge_plan(
 
 def _enforce_purge_safety(plan: BusinessPurgePlan) -> None:
     messages = {
+        "customer_payment_history_protected": "Customer receipt/refund history blocks tenant purge, including confirmed test-financial purges.",
         "business_active": "The business must be deactivated before permanent purge.",
         "cross_tenant_integrity_blockers": (
             "Cross-tenant integrity blockers must be resolved before permanent purge."

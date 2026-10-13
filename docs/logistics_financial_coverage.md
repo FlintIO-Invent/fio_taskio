@@ -55,9 +55,9 @@ Active membership/user, tenant and subscription/module checks still apply. Shipm
 
 `financial_coverage.py` exports `coverage_for_parcel`, `coverage_for_parcels`, `coverage_for_shipment` and a narrow `clearance_for_parcel`. Detailed projections honor Invoice visibility and withhold restricted Shipment/shared Invoice details from STAFF. The clearance service evaluates applicable shared freight internally but returns only the accessible Parcel ID, completeness, clearance and generic issues. It exposes no amounts, Invoice IDs or other cargo IDs, and does not grant Invoice access or mutation.
 
-Clearance means every known active charge has one PAID Invoice and all evidence/integrity checks pass. Manual PAID status is not proof of a provider receipt. Future payment/scanner integrations must recheck this result inside the existing Business write transaction together with operational work-location permission before acting. These read services neither collect payments nor release cargo.
+Clearance now requires every known active charge to have one receipt-backed financially settled Invoice and all evidence/integrity checks to pass. The [shared customer payment implementation](customer_invoice_payments.md) replaces the original manual PAID-only clearance calculation; historical PAID without receipts is unverified. Future scanner integrations must recheck this result inside the existing Business write transaction together with operational work-location permission before acting. These read services neither collect payments nor release cargo.
 
-## Verification
+## Original coverage verification
 
 Final local evidence is recorded below. Suites overlap and should not be summed as unique tests.
 

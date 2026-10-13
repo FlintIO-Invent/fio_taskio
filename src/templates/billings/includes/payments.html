@@ -1,0 +1,21 @@
+<section class="card mb-4" aria-label="Customer payments"><div class="card-body">
+  <h3>Customer payments</h3>
+  <p>Settlement: <strong>{{ payment_balance.state_label }}</strong></p>
+  <p>Net receipts: <strong>{{ payment_balance.currency }} {{ payment_balance.net_paid|floatformat:2 }}</strong> · Outstanding: <strong>{{ payment_balance.currency }} {{ payment_balance.outstanding|floatformat:2 }}</strong></p>
+  {% if payment_currency_differs %}<p class="text-body-secondary">Payment accounting retains {{ payment_balance.currency }}, recorded with the first receipt. Invoice display defaults currently use {{ invoice.currency_code }}.</p>{% endif %}
+  {% if payment_balance.legacy_paid_unverified %}<p class="text-body-secondary">Legacy manually marked PAID. No receipts establish settlement; the balance remains unverified.</p>{% endif %}
+  {% if invoice.status == 'PAID' and not payment_balance.settled and not payment_balance.legacy_paid_unverified %}<p class="text-body-secondary">Manual PAID status does not establish receipt-backed settlement.</p>{% endif %}
+  {% for issue in payment_balance.issues %}<p class="text-danger">{{ issue }}</p>{% endfor %}
+  {% if payment_entries %}<div class="table-responsive"><table class="table align-middle">
+    <thead><tr><th>Entry</th><th>Amount</th><th>Method / reference</th><th>Recorded by / time</th><th>Audit</th><th></th></tr></thead>
+    <tbody>{% for entry in payment_entries %}<tr>
+      <td>{{ entry.get_kind_display }}{% if entry.original_id %} · Receipt #{{ entry.original_id }}{% endif %}</td>
+      <td>{% if entry.kind != 'RECEIPT' %}−{% endif %}{{ entry.currency }} {{ entry.amount|floatformat:2 }}</td>
+      <td>{{ entry.get_method_display }} · {{ entry.reference }}</td>
+      <td>{{ entry.recorded_by }} · {{ entry.recorded_at }}</td>
+      <td>{{ entry.reason_reference }}{% if entry.verification_reference %} · Evidence: {{ entry.verification_reference }}{% endif %}</td>
+      <td>{% if entry.can_adjust %}<a href="{% url 'invoice_payment_adjust' invoice.pk entry.pk %}">Adjust receipt</a>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>{% elif payment_balance.issues %}<p>Receipt history needs accounting review.</p>{% else %}<p>No customer receipts recorded.</p>{% endif %}
+  {% if can_record_payment %}<a class="btn btn-primary" href="{% url 'invoice_payment_record' invoice.pk %}">Record customer payment</a>{% endif %}
+</div></section>

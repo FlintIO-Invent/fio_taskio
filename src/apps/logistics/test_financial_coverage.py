@@ -10,6 +10,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.billings.models import Invoice, InvoiceLine
+from apps.billings.payment_services import adjust_invoice_payment, record_invoice_payment
 from apps.billings.pdf import render_invoice_pdf, render_invoice_pdf_html
 from apps.billings.services import (
     change_invoice_status,
@@ -80,6 +81,19 @@ class FinancialCoverageTests(TestCase):
     def coverage(self, parcel):
         return coverage_for_parcel(business=self.business, actor=self.user, parcel=parcel)
 
+    def settle(self, invoice):
+        invoice.refresh_from_db()
+        return record_invoice_payment(
+            business=self.business,
+            actor=self.user,
+            invoice=invoice,
+            amount=invoice.total,
+            currency=invoice.currency_code,
+            method="CASH",
+            reference=f"RECEIPT-{uuid.uuid4()}",
+            idempotency_key=uuid.uuid4(),
+        )
+
     def test_direct_charge_is_resolved_once_through_direct_and_snapshot_relationships(self):
         parcel = self.parcel()
         charge = self.charge(parcel=parcel)
@@ -91,7 +105,21 @@ class FinancialCoverageTests(TestCase):
         invoice = self.bill(charge)
         self.change(invoice, "SENT")
         self.change(invoice, "PAID")
+        self.assertFalse(self.coverage(parcel).cleared)
+        receipt = self.settle(invoice)
         self.assertTrue(self.coverage(parcel).cleared)
+        adjust_invoice_payment(
+            business=self.business,
+            actor=self.user,
+            invoice=invoice,
+            payment=receipt,
+            kind="REFUND",
+            amount=5,
+            reference="PARCEL-REFUND",
+            reason_reference="CASE-REFUND",
+            idempotency_key=uuid.uuid4(),
+        )
+        self.assertFalse(self.coverage(parcel).cleared)
 
     def test_empty_finances_never_imply_payment_or_clearance(self):
         result = self.coverage(self.parcel())
@@ -105,6 +133,7 @@ class FinancialCoverageTests(TestCase):
         paid = self.bill(charge)
         self.change(paid, "SENT")
         self.change(paid, "PAID")
+        self.settle(paid)
         self.assertTrue(self.coverage(parcel).cleared)
         self.cargo(shipment, parcel)
         for target in ({"parcel": parcel}, {"shipment": shipment}):
@@ -147,6 +176,7 @@ class FinancialCoverageTests(TestCase):
         )
         self.change(invoice, "SENT")
         self.change(invoice, "PAID")
+        self.settle(invoice)
         self.assertTrue(self.coverage(a).cleared)
 
     def test_multiple_parcels_per_invoice_and_multiple_invoices_per_parcel(self):
@@ -155,10 +185,12 @@ class FinancialCoverageTests(TestCase):
         second = self.bill(self.charge(parcel=a, description="Insurance"))
         self.change(first, "SENT")
         self.change(first, "PAID")
+        self.settle(first)
         self.assertFalse(self.coverage(a).cleared)
         self.assertTrue(self.coverage(b).cleared)
         self.change(second, "SENT")
         self.change(second, "PAID")
+        self.settle(second)
         result = self.coverage(a)
         self.assertTrue(result.cleared)
         self.assertEqual(
@@ -693,6 +725,37 @@ class FinancialCoverageTests(TestCase):
         self.assertEqual(bucket["outstanding_invoice_total"], Decimal("100"))
         self.assertContains(response, "Saved Invoice currency: USD")
         self.assertContains(response, "$100.00")
+        receipt = record_invoice_payment(
+            business=self.business,
+            actor=self.user,
+            invoice=old,
+            amount=40,
+            currency="USD",
+            method="CASH",
+            reference="DASHBOARD-RECEIPT",
+            idempotency_key=uuid.uuid4(),
+        )
+        response = self.client.get(reverse("agent_dashboard"))
+        bucket = response.context["other_currency_invoice_totals"][0]
+        self.assertEqual(
+            (bucket["outstanding_invoice_total"], bucket["paid_invoice_total"]), (60, 40)
+        )
+        adjust_invoice_payment(
+            business=self.business,
+            actor=self.user,
+            invoice=old,
+            payment=receipt,
+            kind="REFUND",
+            amount=20,
+            reference="DASHBOARD-REFUND",
+            reason_reference="CASE-DASHBOARD",
+            idempotency_key=uuid.uuid4(),
+        )
+        response = self.client.get(reverse("agent_dashboard"))
+        bucket = response.context["other_currency_invoice_totals"][0]
+        self.assertEqual(
+            (bucket["outstanding_invoice_total"], bucket["paid_invoice_total"]), (80, 20)
+        )
 
     def test_staff_clearance_for_shared_freight_exposes_no_invoice_or_other_cargo_data(self):
         from apps.accounts.models import TaskIOUser
@@ -713,6 +776,7 @@ class FinancialCoverageTests(TestCase):
         self.assertTrue(before.complete)
         self.assertFalse(before.cleared)
         self.change(invoice, "PAID")
+        self.settle(invoice)
         result = clearance_for_parcel(business=self.business, actor=staff, parcel=a)
         self.assertTrue(result.cleared)
         self.assertEqual(set(vars(result)), {"parcel_id", "complete", "cleared", "issues"})

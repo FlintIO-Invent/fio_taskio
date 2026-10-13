@@ -780,6 +780,9 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
         **_operational_invoice_links(request, invoice),
         **invoice_ui_permissions(business=current_business, actor=request.user, invoice=invoice),
     }
+    from .payment_views import payment_context
+
+    context.update(payment_context(business=current_business, actor=request.user, invoice=invoice))
     return render(request, "billings/invoice_detail.html", context)
 
 
@@ -954,6 +957,9 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
 
     if invoice.status != Invoice.Status.DRAFT:
         return redirect("invoice_detail", invoice_id=invoice.id)
+    if invoice.payments.exists():
+        messages.info(request, "Invoice payment history protects its saved monetary basis.")
+        return redirect("invoice_detail", invoice_id=invoice.id)
 
     if invoice.lines.filter(
         Q(logistics_charge__isnull=False) | Q(charge_source__isnull=False)
@@ -1060,6 +1066,9 @@ def invoice_delete(request: HttpRequest, invoice_id: int) -> HttpResponse:
         _invoice_queryset_for_business(current_business, request.user), pk=invoice_id
     )
     invoice_number = invoice.invoice_number
+    if invoice.payments.exists():
+        messages.error(request, "Invoices with customer payment history must be retained.")
+        return redirect("invoice_detail", invoice_id=invoice.id)
     if invoice.lines.filter(
         Q(logistics_charge__isnull=False) | Q(charge_source__isnull=False)
     ).exists():
@@ -1098,7 +1107,10 @@ def invoice_change_status(request: HttpRequest, invoice_id: int) -> HttpResponse
             status=request.POST.get("status", ""),
         )
     except ValidationError as exc:
-        if current_business.vertical != Business.Vertical.LOGISTICS:
+        if (
+            current_business.vertical != Business.Vertical.LOGISTICS
+            and not invoice.payments.exists()
+        ):
             raise
         messages.error(request, "; ".join(exc.messages))
     return redirect("invoice_detail", invoice_id=invoice.id)

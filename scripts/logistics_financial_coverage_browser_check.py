@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
+from django.db import connections
 from django.test import override_settings
 from django.urls import reverse
 from playwright.sync_api import sync_playwright
@@ -42,8 +43,14 @@ class FinancialCoverageBrowserChecks(StaticLiveServerTestCase):
         evidence.mkdir(exist_ok=True)
 
         def db(action):
+            def worker():
+                try:
+                    return action()
+                finally:
+                    connections.close_all()
+
             with ThreadPoolExecutor(max_workers=1) as pool:
-                return pool.submit(action).result(timeout=20)
+                return pool.submit(worker).result(timeout=20)
 
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(

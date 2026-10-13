@@ -12,7 +12,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.appointments.models import Appointment
-from apps.billings.models import Invoice, InvoiceLine
+from apps.billings.models import Invoice, InvoiceLine, InvoicePayment
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
 from apps.logistics.models import (
     LogisticsApplication,
@@ -505,6 +505,15 @@ DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
         "billings.Invoice",
         "business",
         "Business.invoices",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        True,
+    ),
+    InventoryRegistration(
+        "customer_payments",
+        "billings.InvoicePayment",
+        "business",
+        "Business.customer_payments",
         InventoryClassification.PROTECT_BLOCKER,
         True,
         True,
@@ -1394,6 +1403,8 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
         )
     )
     for model, owner, field, related_owner in (
+        (InvoicePayment, "business_id", "invoice", "business_id"),
+        (InvoicePayment, "business_id", "original", "business_id"),
         (Parcel, "business_id", "origin_location", "business_id"),
         (Parcel, "business_id", "destination_location", "business_id"),
         (Shipment, "business_id", "origin_location", "business_id"),

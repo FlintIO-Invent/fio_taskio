@@ -9,6 +9,7 @@ from django.db.models import Count, Q, Sum, Value
 from django.db.models.functions import Coalesce
 
 from apps.billings.models import Invoice
+from apps.billings.payment_services import _invoice_settlement
 from apps.businesses.utils import BILLING_VIEW_ROLES, can_view_module, membership_has_any_role
 
 from .financial_access import scope_invoices
@@ -67,8 +68,6 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
                         created_at__lt=month_end,
                     ),
                 ),
-                outstanding_invoice_total=Sum("total", filter=Q(status=Invoice.Status.SENT)),
-                paid_invoice_total=Sum("total", filter=Q(status=Invoice.Status.PAID)),
                 draft_invoice_total=Sum("total", filter=Q(status=Invoice.Status.DRAFT)),
             )
         )
@@ -79,9 +78,41 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             "draft_invoice_total",
         )
         context.update({key: Decimal("0.00") for key in keys})
+        receipt_totals = {}
+        review_count = 0
+        for invoice in (
+            invoices.filter(status__in=[Invoice.Status.SENT, Invoice.Status.PAID])
+            .select_related("business")
+            .prefetch_related("payments")
+        ):
+            balance = _invoice_settlement(invoice)
+            if balance.issues:
+                review_count += 1
+                continue
+            if balance.legacy_paid_unverified or invoice.snapshot_is_legacy:
+                review_count += 1
+            values = receipt_totals.setdefault(
+                balance.currency,
+                {
+                    "outstanding_invoice_total": Decimal("0.00"),
+                    "paid_invoice_total": Decimal("0.00"),
+                },
+            )
+            values["outstanding_invoice_total"] += balance.outstanding
+            values["paid_invoice_total"] += balance.net_paid
+        context["payment_review_invoice_count"] = review_count
         other_currencies = []
         for bucket in buckets.order_by("finance_currency"):
-            values = {key: bucket[key] or Decimal("0.00") for key in keys}
+            values = {key: bucket.get(key) or Decimal("0.00") for key in keys}
+            values.update(
+                receipt_totals.get(
+                    bucket["finance_currency"],
+                    {
+                        "outstanding_invoice_total": Decimal("0.00"),
+                        "paid_invoice_total": Decimal("0.00"),
+                    },
+                )
+            )
             if bucket["finance_currency"] == business.currency:
                 context.update(values)
             else:

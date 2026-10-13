@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from django.db import models
 
 from apps.appointments.models import Appointment
-from apps.billings.models import Invoice, InvoiceLine
+from apps.billings.models import Invoice, InvoiceLine, InvoicePayment
 from apps.crm.models import ActivityLog, BusinessService, Client, Lead, ServiceCategory
 from apps.logistics.models import (
     LogisticsCharge,
@@ -358,6 +358,8 @@ def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -
         queryset=InvoiceLine.objects.filter(invoice_id__in=owned[Invoice._meta.label]),
         owned_pks=owned[InvoiceLine._meta.label],
     )
+    if InvoicePayment.objects.filter(invoice_id__in=owned[Invoice._meta.label]).exists():
+        blockers.append("customer payment history -> seeded invoice")
     _append_unowned_blocker(
         blockers,
         description="billings.Invoice.appointment -> seeded appointment",

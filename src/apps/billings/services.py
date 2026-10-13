@@ -187,17 +187,20 @@ def create_invoice_from_lead(*, actor, lead: Lead) -> Invoice:
 
 @transaction.atomic
 def recalculate_invoice_totals(invoice: Invoice, *, actor=None) -> None:
+    business = Business.objects.select_for_update().get(pk=invoice.business_id)
     if invoice.business.vertical == Business.Vertical.LOGISTICS:
         from apps.logistics.financial_access import require_invoice_access
         from apps.logistics.location_access import lock_actor_membership
 
-        business = Business.objects.select_for_update().get(pk=invoice.business_id)
         lock_actor_membership(business, actor)
+    persisted = Invoice.objects.select_for_update().get(pk=invoice.pk, business=business)
+    if persisted.payments.exists():
+        raise ValidationError("Invoices with payment history retain their monetary basis.")
+    if invoice.business.vertical == Business.Vertical.LOGISTICS:
         require_invoice_access(business=business, actor=actor, invoice=invoice, write=True)
         from apps.logistics.financial_coverage import validate_invoice_charge_bindings
 
         validate_invoice_charge_bindings(invoice)
-        persisted = Invoice.objects.get(pk=invoice.pk, business=business)
         if persisted.financial_snapshot_at or persisted.status != Invoice.Status.DRAFT:
             raise ValidationError("Issued Logistics Invoice totals cannot be recalculated.")
     subtotal = sum(
@@ -237,6 +240,14 @@ def change_invoice_status(*, business, actor, invoice, status):
         )
     if status not in STATUS_TRANSITIONS.get(selected.status, set()):
         return selected
+    if status == Invoice.Status.CANCELLED and selected.payments.exists():
+        from .payment_services import _invoice_settlement
+
+        balance = _invoice_settlement(selected)
+        if balance.issues or balance.net_paid:
+            raise ValidationError(
+                "Reverse/refund active customer receipts before cancelling an Invoice."
+            )
     if current.vertical == Business.Vertical.LOGISTICS and status in (
         Invoice.Status.SENT,
         Invoice.Status.PAID,

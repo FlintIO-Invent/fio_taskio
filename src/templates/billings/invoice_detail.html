@@ -80,7 +80,7 @@
         <button class="btn btn-phoenix-primary" onclick="window.print()">
           <span class="fa-solid fa-print me-2"></span>Print
         </button>
-        {% if role_access.can_delete_invoices and workspace_can_modify and not has_logistics_charges %}
+        {% if role_access.can_delete_invoices and workspace_can_modify and not has_logistics_charges and not has_customer_payments %}
           <form method="post" action="{% url 'invoice_delete' invoice.pk %}">
             {% csrf_token %}
             <button
@@ -95,6 +95,8 @@
       </div>
     </div>
   </div>
+
+  {% include 'billings/includes/payments.html' %}
 
   <div class="row gx-4">
     <div class="col-12 col-lg-8">

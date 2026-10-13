@@ -1,8 +1,8 @@
 """Reusable, read-only financial applicability for later payment/scanner integrations.
 
 Shipment amounts are shared obligations, never invented per-Parcel allocations.
-A bulk result counts each charge once. Invoice PAID is manual status clearance,
-not evidence of a payment-provider receipt.
+A bulk result counts each charge once. Settlement requires authoritative shared
+customer receipts; manual Invoice PAID status alone cannot clear cargo.
 """
 
 from dataclasses import dataclass
@@ -38,6 +38,7 @@ class ChargeCoverage:
     state: str
     invoice_ids: tuple[int, ...]
     shared: bool
+    financially_settled: bool = False
 
 
 @dataclass(frozen=True)
@@ -205,6 +206,14 @@ def _result(*, business, actor, parcels, charges, clearance_only=False):
             if charge.voided_at
             else (active[0].invoice.status if len(active) == 1 else "UNINVOICED")
         )
+        financially_settled = False
+        if not charge.voided_at and len(active) == 1:
+            from apps.billings.payment_services import _invoice_settlement
+
+            balance = _invoice_settlement(active[0].invoice)
+            financially_settled = balance.settled
+            if balance.issues or balance.legacy_paid_unverified:
+                issues.append("Invoice receipt history requires accounting settlement review.")
         if not charge.voided_at and (
             charge.currency_is_legacy
             or not charge.currency_snapshot
@@ -228,6 +237,7 @@ def _result(*, business, actor, parcels, charges, clearance_only=False):
                 state,
                 tuple(dict.fromkeys(line.invoice_id for line in lines)),
                 len(members) > 1,
+                financially_settled,
             )
         )
     ids = tuple(sorted(item.pk for item in parcels))
@@ -246,9 +256,7 @@ def _result(*, business, actor, parcels, charges, clearance_only=False):
         uncovered,
         issues,
         complete,
-        complete
-        and bool(active_rows)
-        and all(row.state == Invoice.Status.PAID for row in active_rows),
+        complete and bool(active_rows) and all(row.financially_settled for row in active_rows),
     )
 
 

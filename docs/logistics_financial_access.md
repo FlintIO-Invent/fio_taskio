@@ -15,6 +15,8 @@ Accounting access is independent of operational work-site selection. It does not
 
 The financial coverage implementation also exposes a bounded status-only clearance service for an accessible Parcel. It can account for shared freight without exposing the Invoice, amounts or other cargo, and grants no additional Invoice access or mutation rights.
 
+[Shared customer payment accounting](customer_invoice_payments.md) adds receipt entry within the same Invoice/location scope. Reversals, refunds and corrections remain accounting-only. Financial clearance uses receipt-backed settlement; the retained Mark as Paid lifecycle action never fabricates a receipt.
+
 All roles remain subject to active Business, active membership/user and invoicing subscription/module access. Charge targets additionally require the relevant Parcel/Shipment module. STAFF Invoice access also requires the Parcel module. Restricted subscriptions may retain reads but never permit writes.
 
 Shared Invoice list/detail/PDF/status/edit/delete/email/create routes apply the policy. Logistics dashboard totals and Parcel billing panels use the same Invoice scope; a linked restricted Invoice appears only as “Invoiced (restricted)” without its number, status or link. Accounting readers retain the existing response-only redaction of inaccessible operational references. Direct PDF rendering requires an actor for Logistics and applies the same authorization and redaction.
