@@ -6,17 +6,19 @@
     {% if role_access.can_manage_services and module_access.services %}<a href="{% url 'business_service_list' %}" class="btn btn-sm btn-phoenix-secondary">Services &amp; Pricing</a>{% endif %}
   </div>
   {% if billing.client %}<p>Client: {{ billing.client }}</p>{% endif %}
-  {% if billing.kind == 'shipment' %}<p class="text-body-secondary">These charges cover the shipment only. Parcel charges are billed separately.</p>{% endif %}
+  {% if billing.kind == 'shipment' %}<p class="text-body-secondary">Shipment freight applies to its saved Parcel membership. Shared charges are counted once; later cargo changes do not change that membership.</p>{% endif %}
+  {% if billing.restricted_invoices %}<p class="text-body-secondary">Invoiced (restricted)</p>{% endif %}
+  {% for issue in billing.coverage_issues %}<p class="text-body-secondary">{{ issue }}</p>{% endfor %}
   {% if billing.error %}<p class="text-body-secondary">{{ billing.error }}</p>{% endif %}
   {% if billing.charges %}<div class="table-responsive"><table class="table align-middle">
     <thead><tr><th>Charge</th><th>Service</th><th>Quantity</th><th>Unit price</th><th>Total</th><th>Invoice</th></tr></thead>
     <tbody>{% for charge in billing.charges %}<tr>
-      <td>{{ charge.description }}</td><td>{{ charge.service.name|default:'Custom charge' }}{% if charge.service and not charge.service.is_active %} <span class="badge badge-phoenix badge-phoenix-secondary">Archived</span>{% endif %}</td>
-      <td>{{ charge.quantity }}</td><td>{{ charge.unit_price|money:current_business }}</td><td>{{ charge.total|money:current_business }}</td>
-      <td>{% if charge.invoice_line %}{% if charge.invoice_accessible %}<a href="{% url 'invoice_detail' charge.invoice_line.invoice_id %}">{{ charge.invoice_line.invoice.invoice_number }}</a> · {{ charge.invoice_line.invoice.get_status_display }}{% else %}Invoiced (restricted){% endif %}{% else %}<span class="badge badge-phoenix badge-phoenix-warning">Not invoiced</span>{% endif %}</td>
+      <td>{{ charge.description }}{% if charge.shipment_id %} <span class="badge badge-phoenix badge-phoenix-info">Shipment coverage</span>{% endif %}{% if charge.voided_at %} <span class="badge badge-phoenix badge-phoenix-secondary">Voided</span>{% endif %}</td><td>{{ charge.service.name|default:'Custom charge' }}{% if charge.service and not charge.service.is_active %} <span class="badge badge-phoenix badge-phoenix-secondary">Archived</span>{% endif %}</td>
+      <td>{{ charge.quantity }}</td><td>{{ charge.unit_price|money:charge.billing_business }}</td><td>{{ charge.total|money:charge.billing_business }}</td>
+      <td>{% if charge.display_invoice_line %}{% if charge.invoice_accessible %}<a href="{% url 'invoice_detail' charge.display_invoice_line.invoice_id %}">{{ charge.display_invoice_line.invoice.invoice_number }}</a> · {{ charge.display_invoice_line.invoice.get_status_display }}{% else %}Invoiced (restricted){% endif %}{% else %}<span class="badge badge-phoenix badge-phoenix-warning">Not invoiced</span>{% endif %}</td>
     </tr>{% empty %}<tr><td colspan="6">No charges yet.</td></tr>{% endfor %}</tbody>
   </table></div>{% else %}<p class="text-body-secondary">No charges yet.</p>{% endif %}
-  <p class="fw-semibold">Total {{ billing.kind }} charges (before tax): {{ billing.total|money:current_business }}</p>
+  {% for currency, amount in billing.totals_by_currency.items %}<p class="fw-semibold">Applicable charges counted once (before tax): {{ currency }} {{ amount|floatformat:2 }}</p>{% endfor %}
   {% if billing.can_manage %}<div class="d-flex flex-wrap gap-2">
     <a class="btn btn-primary" href="{{ billing.add_url }}">Add charge</a>
     {% if billing.pending %}<a class="btn btn-phoenix-primary" href="{{ billing.invoice_url }}">Create invoice / Add to existing invoice</a>{% endif %}

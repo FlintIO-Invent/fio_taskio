@@ -40,6 +40,13 @@
         {% include 'logistics/includes/kpi_card.html' with label='Outstanding Invoices' value=outstanding_invoice_total|money:current_business icon='fa-hourglass-half' tone='warning' description='Unpaid sent invoices, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
         {% include 'logistics/includes/kpi_card.html' with label='Paid Invoice Value' value=paid_invoice_total|money:current_business icon='fa-circle-check' tone='success' description='Invoices marked paid, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
         {% include 'logistics/includes/kpi_card.html' with label='Draft Invoice Value' value=draft_invoice_total|money:current_business icon='fa-file-circle-plus' tone='info' description='Draft invoices awaiting issue, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% for totals in other_currency_invoice_totals %}
+        <div class="col-12"><p class="fw-semibold mb-0">Saved Invoice currency: {{ totals.currency }}</p></div>
+        {% include 'logistics/includes/kpi_card.html' with label='Invoiced This Month' value=totals.invoiced_this_month_total|money:totals.billing_business icon='fa-chart-line' tone='primary' description='Sent and paid invoices created this calendar month.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Invoices' value=totals.outstanding_invoice_total|money:totals.billing_business icon='fa-hourglass-half' tone='warning' description='Unpaid sent invoices, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Paid Invoice Value' value=totals.paid_invoice_total|money:totals.billing_business icon='fa-circle-check' tone='success' description='Invoices marked paid, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Draft Invoice Value' value=totals.draft_invoice_total|money:totals.billing_business icon='fa-file-circle-plus' tone='info' description='Draft invoices awaiting issue, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% endfor %}
       </div>
     </section>
   {% endif %}

@@ -81,7 +81,7 @@
     </tr>
     {% if invoice.tax %}
       <tr>
-        <td>Tax ({{ invoice.tax_rate_percentage }}%)</td>
+        <td>{% if invoice.snapshot_is_legacy %}Tax (legacy effective rate {{ invoice.tax_rate_percentage }}%){% else %}Tax ({{ invoice.tax_rate_percentage }}%){% endif %}</td>
         <td class="text-end">{{ invoice.tax|money:business }}</td>
       </tr>
     {% endif %}

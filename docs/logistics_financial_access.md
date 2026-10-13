@@ -1,6 +1,6 @@
 # Logistics financial access
 
-The shared `Invoice` / `InvoiceLine` models remain authoritative. `apps.logistics.financial_access` centralizes the Logistics overlay on existing BusinessUser roles, subscription/module checks, tenant boundaries and persisted location assignments. SERVICE billing retains its existing permissions and controls. No schema changes or historical financial-data rewrites are required.
+The shared `Invoice` / `InvoiceLine` models remain authoritative. `apps.logistics.financial_access` centralizes the Logistics overlay on existing BusinessUser roles, subscription/module checks, tenant boundaries and persisted location assignments. SERVICE billing retains its existing permissions and controls. The access fix itself requires no migrations; the subsequent [financial coverage implementation](logistics_financial_coverage.md) adds nullable snapshots and frozen charge membership while preserving historical amounts.
 
 | Role | Invoice reads / PDF | Financial writes |
 | --- | --- | --- |
@@ -12,6 +12,8 @@ The shared `Invoice` / `InvoiceLine` models remain authoritative. `apps.logistic
 | VIEWER | Existing business-wide read-only financial scope | None |
 
 Accounting access is independent of operational work-site selection. It does not grant accountants or viewers operational Parcel/Shipment visibility. STAFF financial clearance excludes empty, manual, Shipment-linked and partially accessible Invoices. Generic Invoice creation/editing, emailing and cancellation remain accounting actions. This conservative boundary avoids giving a location worker authority over unrelated financial rows or shipment-wide charges.
+
+The financial coverage implementation also exposes a bounded status-only clearance service for an accessible Parcel. It can account for shared freight without exposing the Invoice, amounts or other cargo, and grants no additional Invoice access or mutation rights.
 
 All roles remain subject to active Business, active membership/user and invoicing subscription/module access. Charge targets additionally require the relevant Parcel/Shipment module. STAFF Invoice access also requires the Parcel module. Restricted subscriptions may retain reads but never permit writes.
 
@@ -27,7 +29,7 @@ Automated coverage lives in `test_financial_access.py` and `test_financial_acces
 
 Raw ORM/SQL writes and platform Django administration remain trusted maintenance surfaces under the existing architecture. Actual email delivery and deployed workspace configuration require deployment verification; mocked email tests prove authorization and call behavior, not provider delivery.
 
-## Local verification
+## Original access-fix verification
 
 - Final PostgreSQL 14.24 run: 62 permission, billing/location concurrency and demo tests passed, including 13 concurrency tests. Log: `/tmp/mm-finance-final-postgres.log`.
 - Final SQLite run: 119 Logistics finance/demo and shared SERVICE billing regressions passed. Log: `/tmp/mm-finance-final-regression.log`.

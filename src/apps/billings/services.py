@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.businesses.models import Business
@@ -84,6 +85,8 @@ def create_invoice_for_client(
     appointment: Appointment | None = None,
     notes: str = "",
     logistics_target=None,
+    currency_snapshot=None,
+    tax_rate_snapshot=None,
 ) -> Invoice:
     business = client.business or (lead.business if lead is not None else None)
     if business is None:
@@ -135,6 +138,16 @@ def create_invoice_for_client(
         appointment=appointment,
         status=Invoice.Status.DRAFT,
         notes=notes.strip(),
+        **(
+            {
+                "currency_snapshot": currency_snapshot or business.currency,
+                "tax_rate_snapshot": (
+                    business.tax_rate if tax_rate_snapshot is None else tax_rate_snapshot
+                ),
+            }
+            if business.vertical == Business.Vertical.LOGISTICS
+            else {}
+        ),
         tax=calculate_tax_amount(subtotal=Decimal("0.00"), tax_rate=business.tax_rate),
     )
 
@@ -181,12 +194,18 @@ def recalculate_invoice_totals(invoice: Invoice, *, actor=None) -> None:
         business = Business.objects.select_for_update().get(pk=invoice.business_id)
         lock_actor_membership(business, actor)
         require_invoice_access(business=business, actor=actor, invoice=invoice, write=True)
+        from apps.logistics.financial_coverage import validate_invoice_charge_bindings
+
+        validate_invoice_charge_bindings(invoice)
+        persisted = Invoice.objects.get(pk=invoice.pk, business=business)
+        if persisted.financial_snapshot_at or persisted.status != Invoice.Status.DRAFT:
+            raise ValidationError("Issued Logistics Invoice totals cannot be recalculated.")
     subtotal = sum(
         (line.line_total for line in InvoiceLine.objects.filter(invoice=invoice)),
         start=Decimal("0.00"),
     )
     invoice.subtotal = subtotal
-    invoice.tax = calculate_tax_amount(subtotal=subtotal, tax_rate=invoice.business.tax_rate)
+    invoice.tax = calculate_tax_amount(subtotal=subtotal, tax_rate=invoice.tax_rate_percentage)
     invoice.total = subtotal + invoice.tax
     invoice.save(update_fields=["subtotal", "tax", "total"])
 
@@ -218,6 +237,13 @@ def change_invoice_status(*, business, actor, invoice, status):
         )
     if status not in STATUS_TRANSITIONS.get(selected.status, set()):
         return selected
+    if current.vertical == Business.Vertical.LOGISTICS and status in (
+        Invoice.Status.SENT,
+        Invoice.Status.PAID,
+    ):
+        from apps.logistics.financial_coverage import validate_invoice_charge_bindings
+
+        validate_invoice_charge_bindings(selected)
     previous_status = selected.status
     selected.status = status
     selected.save()

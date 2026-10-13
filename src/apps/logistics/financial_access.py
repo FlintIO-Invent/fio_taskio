@@ -113,6 +113,20 @@ def scope_invoices(queryset, *, business, actor, write=False):
     except PermissionDenied:
         return queryset.none()
     queryset = queryset.filter(business=business, client__business=business)
+    lines = InvoiceLine.objects.filter(invoice_id=OuterRef("pk"))
+    invalid_sources = lines.filter(
+        Q(charge_source__isnull=False)
+        & (
+            ~Q(charge_source__business_id=business.pk)
+            | ~Q(charge_source__client_id=OuterRef("client_id"))
+        )
+        | Q(logistics_charge__isnull=False)
+        & (
+            ~Q(logistics_charge__business_id=business.pk)
+            | ~Q(logistics_charge__client_id=OuterRef("client_id"))
+        )
+    )
+    queryset = queryset.filter(~Exists(invalid_sources))
     if membership_for(business, actor).role != BusinessUser.Role.STAFF:
         return queryset
     location_ids = None

@@ -9,13 +9,14 @@ from unittest.mock import patch
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import models
 from django.db.models import QuerySet
 from django.test import TestCase
 from django.urls import reverse
 
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
-from apps.billings.services import generate_invoice_number
+from apps.billings.services import generate_invoice_number, recalculate_invoice_totals
 from apps.businesses.models import DemoSeedRecord, DemoSeedRun
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 from apps.crm.models import ActivityLog, BusinessService, Client, Lead
@@ -504,11 +505,14 @@ class LogisticsDemoDataTests(TestCase):
         )
         application = fixtures.LogisticsOperationsTests.link_application(self)
         invoice = Invoice.objects.create(
-            business=self.business, client=self.genuine, invoice_number="REAL-PAID", status="PAID"
+            business=self.business, client=self.genuine, invoice_number="REAL-PAID", status="DRAFT"
         )
         line = InvoiceLine.objects.create(
             invoice=invoice, description="Real freight", unit_price=Decimal("42.00")
         )
+        recalculate_invoice_totals(invoice, actor=self.user)
+        invoice.status = "PAID"
+        invoice.save(update_fields=["status"])
         before = {
             model: model.objects.count() for model in (Parcel, Invoice, InvoiceLine, DemoSeedRecord)
         }
@@ -532,9 +536,20 @@ class LogisticsDemoDataTests(TestCase):
     def test_reset_refuses_genuine_line_on_seed_owned_paid_invoice(self):
         self.command(execute=True)
         invoice = Invoice.objects.get(status="PAID")
-        line = InvoiceLine.objects.create(
-            invoice=invoice, description="Genuine financial history", unit_price=Decimal("42.00")
+        with self.assertRaises(ValidationError):
+            InvoiceLine.objects.create(
+                invoice=invoice,
+                description="Genuine financial history",
+                unit_price=Decimal("42.00"),
+            )
+        # Simulate a historical/trusted-ORM modification to verify reset still fails closed.
+        line = InvoiceLine(
+            invoice=invoice,
+            description="Genuine financial history",
+            unit_price=Decimal("42.00"),
+            line_total=Decimal("42.00"),
         )
+        models.Model.save(line, force_insert=True)
         before = {
             model: model.objects.count() for model in (Parcel, Invoice, InvoiceLine, DemoSeedRecord)
         }

@@ -1,5 +1,4 @@
 import uuid
-from decimal import Decimal
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
@@ -23,7 +22,7 @@ from .billing_services import (
     shipment_billing_client,
 )
 from .financial_access import require_financial_target, scope_financial_targets, scope_invoices
-from .models import Parcel, Shipment
+from .models import LogisticsCharge, Parcel, Shipment
 
 
 def billing_context(request, target):
@@ -37,27 +36,36 @@ def billing_context(request, target):
         )
     except PermissionDenied:
         return {}
-    charges = list(
-        target.charges.filter(business=request.current_business).select_related(
-            "service", "client", "invoice_line__invoice"
+    from .financial_coverage import coverage_for_parcel, coverage_for_shipment
+
+    try:
+        coverage = (coverage_for_parcel if kind == "parcel" else coverage_for_shipment)(
+            business=request.current_business, actor=request.user, **{kind: target}
         )
+    except ValidationError as exc:
+        return {"billing": {"error": "; ".join(exc.messages), "kind": kind, "can_manage": False}}
+    charges = list(
+        LogisticsCharge.objects.filter(
+            business=request.current_business, pk__in=[row.charge_id for row in coverage.charges]
+        ).select_related("service", "client", "business")
     )
     from apps.billings.models import Invoice
 
-    accessible_invoices = set(
-        scope_invoices(
-            Invoice.objects.filter(
-                pk__in=[
-                    charge.invoice_line.invoice_id for charge in charges if charge.invoice_line_id
-                ]
-            ),
-            business=request.current_business,
-            actor=request.user,
-        ).values_list("pk", flat=True)
+    readable = scope_invoices(
+        Invoice.objects.filter(business=request.current_business),
+        business=request.current_business,
+        actor=request.user,
     )
     for charge in charges:
+        charge.display_invoice_line = (
+            charge.invoice_lines.exclude(invoice__status="CANCELLED")
+            .select_related("invoice")
+            .first()
+            or charge.invoice_lines.select_related("invoice").order_by("-pk").first()
+        )
         charge.invoice_accessible = bool(
-            charge.invoice_line_id and charge.invoice_line.invoice_id in accessible_invoices
+            charge.display_invoice_line
+            and readable.filter(pk=charge.display_invoice_line.invoice_id).exists()
         )
     try:
         client = target.client if kind == "parcel" else shipment_billing_client(target)
@@ -77,14 +85,18 @@ def billing_context(request, target):
     return {
         "billing": {
             "charges": charges,
-            "total": sum((charge.total for charge in charges), Decimal("0.00")),
+            "totals_by_currency": coverage.totals_by_currency,
+            "coverage_issues": coverage.issues,
+            "restricted_invoices": any("Restricted" in issue for issue in coverage.issues),
             "client": client,
             "error": error,
             "can_manage": writable,
             "kind": kind,
             "add_url": reverse(f"logistics_{kind}_charge", args=[target.pk]),
             "invoice_url": reverse(f"logistics_{kind}_invoice", args=[target.pk]),
-            "pending": any(charge.invoice_line_id is None for charge in charges),
+            "pending": any(
+                row.state == "UNINVOICED" for row in coverage.charges if row.target_kind == kind
+            ),
         }
     }
 
@@ -142,6 +154,7 @@ def charge_create(request, parcel_id=None, shipment_id=None):
             "kind": kind,
             "title": "Add charge",
             "prices": prices,
+            "charge_currency": request.current_business.currency,
             "back_url": reverse(f"logistics_{kind}_detail", args=[pk]),
         },
     )
@@ -183,7 +196,9 @@ def charge_invoice(request, parcel_id=None, shipment_id=None):
         actor=request.user,
         initial={
             "charges": list(
-                target.charges.filter(invoice_line__isnull=True).values_list("pk", flat=True)
+                target.charges.filter(voided_at__isnull=True)
+                .exclude(invoice_lines__invoice__status__in=["DRAFT", "SENT", "PAID"])
+                .values_list("pk", flat=True)
             )
         },
     )

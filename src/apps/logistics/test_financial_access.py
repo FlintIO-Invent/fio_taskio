@@ -55,6 +55,7 @@ class LogisticsFinancialAccessTests(TestCase):
             description="Handling",
             unit_price=25,
             idempotency_key=uuid.uuid4(),
+            occurrence_reference=uuid.uuid4().hex,
             **fields,
         )
 

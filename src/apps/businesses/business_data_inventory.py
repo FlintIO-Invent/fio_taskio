@@ -18,6 +18,7 @@ from apps.logistics.models import (
     LogisticsApplication,
     LogisticsApplicationDecision,
     LogisticsCharge,
+    LogisticsChargeParcel,
     LogisticsEnrollmentToken,
     LogisticsHandlingSite,
     LogisticsLocationAssignment,
@@ -586,6 +587,16 @@ def build_business_data_inventory(business: Business | int) -> BusinessDataInven
         )
     )
 
+    records.append(
+        _queryset_record(
+            key="logistics_charge_parcels",
+            queryset=LogisticsChargeParcel.objects.filter(charge__business_id=business_id),
+            relationship_path="Business.logistics_charges -> frozen Parcel coverage",
+            classification=InventoryClassification.INDIRECT,
+            explicit_deletion_required=False,
+            financially_or_legally_sensitive=True,
+        )
+    )
     subscription = BusinessSubscription.objects.filter(business_id=business_id).first()
     webhook_queryset = _correlated_webhook_events(selected_business, subscription)
     records.append(
@@ -1358,7 +1369,30 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
             "Another business has invoice lines referencing selected-business services.",
         ),
     )
+    # Coverage and reissue edges are financially sensitive even without a direct Business FK.
     extra_checks = []
+    extra_checks.append(
+        _blocker_check(
+            "cross_client_logistics_charge_coverage",
+            "LogisticsChargeParcel.charge -> Parcel.client",
+            LogisticsChargeParcel.objects.filter(charge__business_id=business_id)
+            .exclude(parcel__client_id=models.F("charge__client_id"))
+            .count(),
+            "Frozen charge coverage must preserve its saved Client.",
+        )
+    )
+    extra_checks.append(
+        _blocker_check(
+            "cross_client_invoice_charge_source",
+            "InvoiceLine.charge_source -> Invoice.client",
+            InvoiceLine.objects.filter(
+                invoice__business_id=business_id, charge_source__isnull=False
+            )
+            .exclude(charge_source__client_id=models.F("invoice__client_id"))
+            .count(),
+            "Reissue lines must preserve the charge Client.",
+        )
+    )
     for model, owner, field, related_owner in (
         (Parcel, "business_id", "origin_location", "business_id"),
         (Parcel, "business_id", "destination_location", "business_id"),
@@ -1371,6 +1405,9 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
         (LogisticsCharge, "business_id", "invoice_line", "invoice__business_id"),
         (InvoiceLine, "invoice__business_id", "parcel", "business_id"),
         (InvoiceLine, "invoice__business_id", "shipment", "business_id"),
+        (InvoiceLine, "invoice__business_id", "charge_source", "business_id"),
+        (LogisticsCharge, "business_id", "supersedes", "business_id"),
+        (LogisticsChargeParcel, "charge__business_id", "parcel", "business_id"),
     ):
         path = f"{field}__{related_owner}"
         for direction, qs in (

@@ -26,6 +26,7 @@ from .location_access import has_wide_access, require_work_location
 from .location_access_services import select_work_location, set_handling_site
 from .models import (
     LogisticsCharge,
+    LogisticsChargeParcel,
     LogisticsHandlingSite,
     LogisticsLocationAssignment,
     Parcel,
@@ -97,6 +98,10 @@ COUNT_NAMES = dict(
 def digest(obj):
     """Refuse to erase fixture records subsequently edited by an operator."""
     data = {field.attname: getattr(obj, field.attname) for field in obj._meta.concrete_fields}
+    if isinstance(obj, LogisticsCharge):
+        data["covered_parcel_ids"] = list(
+            obj.parcel_coverage.order_by("parcel_id").values_list("parcel_id", flat=True)
+        )
     return hashlib.sha256(
         json.dumps(data, cls=DjangoJSONEncoder, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
@@ -179,9 +184,47 @@ def dataset_objects(business, seed, *, lock=False, verify=False):
     return objects
 
 
+def dataset_coverage_objects(objects, metadata):
+    """Exact manifest ownership of derived edges; never adopt merely matching rows."""
+    manifests = {
+        entry["pk"]: entry
+        for entry in metadata["records"].values()
+        if entry.get("model") == LogisticsCharge._meta.label
+    }
+    owned_parcels = {obj.pk for obj in objects[Parcel]}
+    rows = list(LogisticsChargeParcel.objects.filter(charge_id__in=manifests).order_by("pk"))
+    for charge in objects[LogisticsCharge]:
+        entry = manifests[charge.pk]
+        expected_edges, expected_members = entry.get("coverage_edge_ids"), entry.get(
+            "coverage_parcel_ids"
+        )
+        actual = [row for row in rows if row.charge_id == charge.pk]
+        if (
+            not isinstance(expected_edges, list)
+            or not isinstance(expected_members, list)
+            or not charge.coverage_recorded_at
+            or not actual
+        ):
+            raise CommandError(
+                "Frozen charge coverage ownership is missing; manual review required."
+            )
+        if (
+            {row.pk for row in actual} != set(expected_edges)
+            or {row.parcel_id for row in actual} != set(expected_members)
+            or not set(expected_members) <= owned_parcels
+        ):
+            raise CommandError(
+                "Frozen charge coverage changed or is unowned; manual review required."
+            )
+    return rows
+
+
 def reset_plan(business, seed, *, lock=False):
     objects = dataset_objects(business, seed, lock=lock, verify=True)
     owned = {model: {obj.pk for obj in items} for model, items in objects.items()}
+    owned[LogisticsChargeParcel] = {
+        row.pk for row in dataset_coverage_objects(objects, seed.planned_counts["dataset"])
+    }
     # Include every incoming FK, even SET_NULL and unfamiliar future app models.
     for model in apps.get_models():
         conditions = Q()
@@ -353,6 +396,13 @@ def _seed(business, seed, users, sites, modes):
     def remember(key, obj):
         own(seed, obj)
         records[key] = {"model": obj._meta.label, "pk": obj.pk}
+        if isinstance(obj, LogisticsCharge):
+            records[key]["coverage_edge_ids"] = list(
+                obj.parcel_coverage.order_by("pk").values_list("pk", flat=True)
+            )
+            records[key]["coverage_parcel_ids"] = list(
+                obj.parcel_coverage.order_by("parcel_id").values_list("parcel_id", flat=True)
+            )
         return obj
 
     clients = []

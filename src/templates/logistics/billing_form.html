@@ -2,7 +2,7 @@
 {% block content %}
 <div class="content">
   <h2 class="mb-3">{{ title }}</h2>
-  <p class="text-body-secondary">{{ kind|title }} {{ target.internal_reference|default:target }} · {{ current_business.currency }}</p>
+  <p class="text-body-secondary">{{ kind|title }} {{ target.internal_reference|default:target }}{% if charge_currency %} · {{ charge_currency }}{% endif %}</p>
   <div class="card"><div class="card-body">
     <form method="post" novalidate>
       {% csrf_token %}

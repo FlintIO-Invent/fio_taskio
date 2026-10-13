@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -113,7 +113,7 @@ def _invoice_whatsapp_share_url(invoice: Invoice) -> str:
     business = invoice.business
     client_name = " ".join(part for part in [client.first_name, client.last_name] if part).strip()
     greeting = f"Hello {client_name}," if client_name else "Hello,"
-    total = format_money_for_business(invoice.total, business)
+    total = format_money_for_business(invoice.total, invoice.billing_business)
     message = (
         f"{greeting} invoice {invoice.invoice_number} from {business.name} is ready. "
         f"Total: {total}. Please contact us if you have any questions."
@@ -774,7 +774,9 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     context: dict[str, Any] = {
         "invoice": invoice,
         "whatsapp_share_url": _invoice_whatsapp_share_url(invoice),
-        "has_logistics_charges": invoice.lines.filter(logistics_charge__isnull=False).exists(),
+        "has_logistics_charges": invoice.lines.filter(
+            Q(logistics_charge__isnull=False) | Q(charge_source__isnull=False)
+        ).exists(),
         **_operational_invoice_links(request, invoice),
         **invoice_ui_permissions(business=current_business, actor=request.user, invoice=invoice),
     }
@@ -953,7 +955,9 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
     if invoice.status != Invoice.Status.DRAFT:
         return redirect("invoice_detail", invoice_id=invoice.id)
 
-    if invoice.lines.filter(logistics_charge__isnull=False).exists():
+    if invoice.lines.filter(
+        Q(logistics_charge__isnull=False) | Q(charge_source__isnull=False)
+    ).exists():
         messages.info(
             request,
             "Saved Logistics charges are protected. Add further charges from the parcel or shipment Billing section.",
@@ -1056,7 +1060,9 @@ def invoice_delete(request: HttpRequest, invoice_id: int) -> HttpResponse:
         _invoice_queryset_for_business(current_business, request.user), pk=invoice_id
     )
     invoice_number = invoice.invoice_number
-    if invoice.lines.filter(logistics_charge__isnull=False).exists():
+    if invoice.lines.filter(
+        Q(logistics_charge__isnull=False) | Q(charge_source__isnull=False)
+    ).exists():
         messages.error(
             request, "Invoices with saved Logistics charges must be retained for billing history."
         )
@@ -1084,12 +1090,17 @@ def invoice_change_status(request: HttpRequest, invoice_id: int) -> HttpResponse
     invoice = get_object_or_404(
         _invoice_queryset_for_business(current_business, request.user), pk=invoice_id
     )
-    change_invoice_status(
-        business=current_business,
-        actor=request.user,
-        invoice=invoice,
-        status=request.POST.get("status", ""),
-    )
+    try:
+        change_invoice_status(
+            business=current_business,
+            actor=request.user,
+            invoice=invoice,
+            status=request.POST.get("status", ""),
+        )
+    except ValidationError as exc:
+        if current_business.vertical != Business.Vertical.LOGISTICS:
+            raise
+        messages.error(request, "; ".join(exc.messages))
     return redirect("invoice_detail", invoice_id=invoice.id)
 
 

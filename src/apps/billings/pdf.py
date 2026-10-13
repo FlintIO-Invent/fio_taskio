@@ -54,7 +54,7 @@ def _client_address_lines(invoice: Invoice) -> list[str]:
 
 
 def _invoice_context(invoice: Invoice, *, include_notes: bool = True) -> dict:
-    business = invoice.business
+    business = invoice.billing_business
     return {
         "invoice": invoice,
         "business": business,
@@ -286,7 +286,10 @@ def _draw_totals(pdf: canvas.Canvas, invoice: Invoice, y: int) -> int:
     pdf.drawRightString(value_x, y, _money(invoice, invoice.subtotal))
     y -= 16
     if invoice.tax:
-        pdf.drawRightString(label_x, y, f"Tax ({invoice.tax_rate_percentage}%):")
+        tax_label = f"Tax ({invoice.tax_rate_percentage}%):"
+        if invoice.snapshot_is_legacy:
+            tax_label = f"Tax (legacy effective rate {invoice.tax_rate_percentage}%):"
+        pdf.drawRightString(label_x, y, tax_label)
         pdf.drawRightString(value_x, y, _money(invoice, invoice.tax))
         y -= 16
     pdf.setFont("Helvetica-Bold", 12)

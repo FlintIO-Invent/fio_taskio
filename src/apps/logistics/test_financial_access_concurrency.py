@@ -66,6 +66,7 @@ class FinancialAccessConcurrencyTests(TransactionTestCase):
             description="Handling",
             unit_price=25,
             idempotency_key=uuid.uuid4(),
+            occurrence_reference=uuid.uuid4().hex,
         )
 
     def bill(self, charge, actor=None, invoice=None):

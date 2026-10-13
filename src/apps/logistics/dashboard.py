@@ -1,10 +1,12 @@
 """Read-only workspace presentation; lifecycle decisions stay in domain services."""
 
+from copy import copy
 from datetime import datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q, Sum, Value
+from django.db.models.functions import Coalesce
 
 from apps.billings.models import Invoice
 from apps.businesses.utils import BILLING_VIEW_ROLES, can_view_module, membership_has_any_role
@@ -51,20 +53,48 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             business=business,
             actor=actor,
         )
-        totals = invoices.aggregate(
-            invoiced_this_month_total=Sum(
-                "total",
-                filter=Q(
-                    status__in=(Invoice.Status.SENT, Invoice.Status.PAID),
-                    created_at__gte=month_start,
-                    created_at__lt=month_end,
+        buckets = (
+            invoices.annotate(
+                finance_currency=Coalesce("currency_snapshot", Value(business.currency))
+            )
+            .values("finance_currency")
+            .annotate(
+                invoiced_this_month_total=Sum(
+                    "total",
+                    filter=Q(
+                        status__in=(Invoice.Status.SENT, Invoice.Status.PAID),
+                        created_at__gte=month_start,
+                        created_at__lt=month_end,
+                    ),
                 ),
-            ),
-            outstanding_invoice_total=Sum("total", filter=Q(status=Invoice.Status.SENT)),
-            paid_invoice_total=Sum("total", filter=Q(status=Invoice.Status.PAID)),
-            draft_invoice_total=Sum("total", filter=Q(status=Invoice.Status.DRAFT)),
+                outstanding_invoice_total=Sum("total", filter=Q(status=Invoice.Status.SENT)),
+                paid_invoice_total=Sum("total", filter=Q(status=Invoice.Status.PAID)),
+                draft_invoice_total=Sum("total", filter=Q(status=Invoice.Status.DRAFT)),
+            )
         )
-        context.update({key: value or Decimal("0.00") for key, value in totals.items()})
+        keys = (
+            "invoiced_this_month_total",
+            "outstanding_invoice_total",
+            "paid_invoice_total",
+            "draft_invoice_total",
+        )
+        context.update({key: Decimal("0.00") for key in keys})
+        other_currencies = []
+        for bucket in buckets.order_by("finance_currency"):
+            values = {key: bucket[key] or Decimal("0.00") for key in keys}
+            if bucket["finance_currency"] == business.currency:
+                context.update(values)
+            else:
+                money_business = copy(business)
+                money_business.currency = bucket["finance_currency"]
+                other_currencies.append(
+                    {
+                        **values,
+                        "currency": bucket["finance_currency"],
+                        "billing_business": money_business,
+                    }
+                )
+        context["other_currency_invoice_totals"] = other_currencies
     if parcels_enabled:
         parcels = parcels_for_business(business=business, actor=actor)
         status_counts = dict(

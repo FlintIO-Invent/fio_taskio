@@ -137,7 +137,12 @@ class LogisticsBillingTests(TestCase):
         service = self.saved_service()
         parcel = self.parcel()
         standard = self.charge(parcel=parcel, service=service, description="", unit_price=None)
-        override = self.charge(parcel=parcel, service=service, unit_price=Decimal("20"))
+        override = self.charge(
+            parcel=parcel,
+            service=service,
+            unit_price=Decimal("20"),
+            occurrence_reference="override-job",
+        )
         custom = self.charge(parcel=parcel)
         invoice = self.bill(standard, override, custom)
         self.assertEqual(invoice.lines.count(), 3)
@@ -322,7 +327,7 @@ class LogisticsBillingTests(TestCase):
         for role in ("staff", "accountant"):
             self.membership.role = role
             self.membership.save()
-            self.charge(parcel=parcel)
+            self.charge(parcel=parcel, occurrence_reference=role)
         self.membership.role = "viewer"
         self.membership.save()
         with self.assertRaises(PermissionDenied):

@@ -1,4 +1,5 @@
 import uuid
+from copy import copy
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -1178,6 +1179,22 @@ class LogisticsCharge(ParcelDomainModel):
         null=True,
         related_name="logistics_charges",
     )
+    # Nullable additions preserve ambiguous historical financial records.
+    logical_key = models.CharField(max_length=64, null=True, blank=True, editable=False)
+    occurrence_reference = models.CharField(max_length=80, blank=True)
+    currency_snapshot = models.CharField(max_length=3, null=True, blank=True, editable=False)
+    currency_is_legacy = models.BooleanField(default=False, editable=False)
+    coverage_recorded_at = models.DateTimeField(null=True, blank=True, editable=False)
+    voided_at = models.DateTimeField(null=True, blank=True, editable=False)
+    void_reason_reference = models.CharField(max_length=160, blank=True, editable=False)
+    supersedes = models.OneToOneField(
+        "self",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="replacement",
+        editable=False,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1195,9 +1212,20 @@ class LogisticsCharge(ParcelDomainModel):
                 name="logistics_charge_positive_amounts",
             ),
             models.UniqueConstraint(
+                fields=["business", "logical_key"],
+                condition=models.Q(voided_at__isnull=True, logical_key__isnull=False),
+                name="logistics_charge_active_logical_unique",
+            ),
+            models.UniqueConstraint(
                 fields=["business", "idempotency_key"], name="logistics_charge_retry_unique"
             ),
         ]
+
+    @property
+    def billing_business(self):
+        business = copy(self.business)
+        business.currency = self.currency_snapshot or self.business.currency
+        return business
 
     @property
     def total(self):
@@ -1223,6 +1251,28 @@ class LogisticsCharge(ParcelDomainModel):
 
             if shipment_billing_client(self.shipment).pk != self.client_id:
                 raise ValidationError({"client": "Shipment must belong to the charge client."})
+        if self.supersedes_id:
+            old = self.supersedes
+            if (old.business_id, old.client_id, old.parcel_id, old.shipment_id) != (
+                self.business_id,
+                self.client_id,
+                self.parcel_id,
+                self.shipment_id,
+            ) or not old.voided_at:
+                raise ValidationError(
+                    "Corrections must replace a voided charge for the same billing target."
+                )
+        if (
+            self.voided_at
+            and self.pk
+            and (
+                (self.invoice_line_id and self.invoice_line.invoice.status != "CANCELLED")
+                or self.invoice_lines.exclude(invoice__status="CANCELLED").exists()
+            )
+        ):
+            raise ValidationError("Cancel active Invoice bindings before voiding a charge.")
+        if self.voided_at and not self.void_reason_reference:
+            raise ValidationError("Voiding a charge requires a reason reference.")
         if self.invoice_line_id:
             line = self.invoice_line
             if (
@@ -1265,11 +1315,68 @@ class LogisticsCharge(ParcelDomainModel):
                 "unit_price",
                 "idempotency_key",
                 "created_by_id",
+                "logical_key",
+                "occurrence_reference",
+                "currency_snapshot",
+                "supersedes_id",
             )
+            if (
+                previous.coverage_recorded_at
+                and previous.coverage_recorded_at != self.coverage_recorded_at
+            ):
+                raise ValidationError("Recorded charge coverage is immutable.")
+            if previous.voided_at and (self.voided_at, self.void_reason_reference) != (
+                previous.voided_at,
+                previous.void_reason_reference,
+            ):
+                raise ValidationError("Voided charge history is immutable.")
             if any(getattr(self, field) != getattr(previous, field) for field in fields) or (
                 previous.invoice_line_id and previous.invoice_line_id != self.invoice_line_id
             ):
                 raise ValidationError("Saved charge snapshots and invoice links are immutable.")
+
+
+class LogisticsChargeParcel(ParcelDomainModel):
+    """Frozen applicability of one charge; not an allocation of Shipment freight."""
+
+    charge = models.ForeignKey(
+        LogisticsCharge, on_delete=models.CASCADE, related_name="parcel_coverage"
+    )
+    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT, related_name="financial_coverage")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["charge", "parcel"], name="logistics_charge_parcel_unique"
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.charge_id and self.parcel_id:
+            from .financial_coverage import validate_location_integrity
+
+            validate_location_integrity(self.parcel)
+            if (self.charge.business_id, self.charge.client_id) != (
+                self.parcel.business_id,
+                self.parcel.client_id,
+            ):
+                raise ValidationError(
+                    "Charge coverage must belong to the same business and client."
+                )
+            if self.charge.parcel_id and self.charge.parcel_id != self.parcel_id:
+                raise ValidationError("Direct charges cover only their saved Parcel.")
+            if (
+                self._state.adding
+                and LogisticsCharge.objects.filter(
+                    pk=self.charge_id, coverage_recorded_at__isnull=False
+                ).exists()
+            ):
+                raise ValidationError("Recorded charge coverage cannot be expanded.")
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            if (self.charge_id, self.parcel_id) != (previous.charge_id, previous.parcel_id):
+                raise ValidationError("Recorded charge coverage is immutable.")
 
 
 class LogisticsLocationAssignment(models.Model):

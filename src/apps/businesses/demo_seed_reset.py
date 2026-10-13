@@ -9,6 +9,7 @@ from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, Lead, ServiceCategory
 from apps.logistics.models import (
     LogisticsCharge,
+    LogisticsChargeParcel,
     LogisticsHandlingSite,
     Parcel,
     ParcelEvent,
@@ -213,7 +214,17 @@ def _validate_related_tenant_ids(*, obj: models.Model, business_id: int) -> None
                 related_business_ids.append(relation.business_id)
         if obj.invoice_line_id:
             related_business_ids.append(obj.invoice_line.invoice.business_id)
+        for coverage in obj.parcel_coverage.select_related("parcel"):
+            related_business_ids.append(coverage.parcel.business_id)
+            if coverage.parcel.client_id != obj.client_id:
+                raise DemoSeedResetError(
+                    "Reset aborted: charge coverage has a cross-client relationship."
+                )
+        if obj.supersedes_id:
+            related_business_ids.append(obj.supersedes.business_id)
     elif isinstance(obj, InvoiceLine):
+        if obj.charge_source_id:
+            related_business_ids.append(obj.charge_source.business_id)
         for name in ("parcel", "shipment"):
             relation = getattr(obj, name)
             if relation is not None:
@@ -295,6 +306,8 @@ def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -
         (LogisticsCharge, "invoice_line", InvoiceLine),
         (InvoiceLine, "parcel", Parcel),
         (InvoiceLine, "shipment", Shipment),
+        (InvoiceLine, "charge_source", LogisticsCharge),
+        (LogisticsCharge, "supersedes", LogisticsCharge),
     ):
         _append_unowned_blocker(
             blockers,
@@ -309,10 +322,23 @@ def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -
             ("client", Client),
             ("service", BusinessService),
             ("invoice_line", InvoiceLine),
+            ("supersedes", LogisticsCharge),
         ):
             value = getattr(charge, f"{name}_id")
             if value is not None and value not in owned[model._meta.label]:
                 blockers.append(f"seeded charge -> genuine {name}")
+    if (
+        LogisticsChargeParcel.objects.filter(charge_id__in=owned[LogisticsCharge._meta.label])
+        .exclude(parcel_id__in=owned[Parcel._meta.label])
+        .exists()
+    ):
+        blockers.append("seeded charge coverage -> genuine parcel")
+    if (
+        LogisticsChargeParcel.objects.filter(parcel_id__in=owned[Parcel._meta.label])
+        .exclude(charge_id__in=owned[LogisticsCharge._meta.label])
+        .exists()
+    ):
+        blockers.append("genuine charge coverage -> seeded parcel")
     if (
         ParcelEvent.objects.filter(pk__in=owned[ParcelEvent._meta.label])
         .exclude(parcel_id__in=owned[Parcel._meta.label])

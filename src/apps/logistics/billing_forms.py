@@ -33,6 +33,11 @@ class LogisticsChargeForm(forms.Form):
         label="Unit price",
         help_text="Leave blank to use the saved Service price. You may enter today's agreed price.",
     )
+    occurrence_reference = forms.CharField(
+        max_length=80,
+        required=False,
+        help_text="Use a stable job/leg/occurrence reference only for a separate charge occurrence. A new retry token never creates a new obligation.",
+    )
     idempotency_key = forms.UUIDField(widget=forms.HiddenInput)
 
     def __init__(self, *args, business, **kwargs):
@@ -86,7 +91,14 @@ class ChargeInvoiceForm(forms.Form):
     def __init__(self, *args, business, target, client, actor, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["charges"].queryset = target.charges.filter(
-            business=business, client=client, invoice_line__isnull=True
+            business=business, client=client, voided_at__isnull=True
+        )
+        self.fields["charges"].queryset = self.fields["charges"].queryset.exclude(
+            invoice_lines__invoice__status__in=[
+                Invoice.Status.DRAFT,
+                Invoice.Status.SENT,
+                Invoice.Status.PAID,
+            ]
         )
         from .financial_access import scope_invoices
 
@@ -97,5 +109,5 @@ class ChargeInvoiceForm(forms.Form):
             write=True,
         )
         self.fields["charges"].label_from_instance = (
-            lambda obj: f"{obj.description} — {format_money_for_business(obj.total, business)}"
+            lambda obj: f"{obj.description} — {format_money_for_business(obj.total, obj.billing_business)}"
         )
