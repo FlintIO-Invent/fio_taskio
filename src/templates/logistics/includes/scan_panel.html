@@ -14,6 +14,7 @@
       <p class="fw-semibold mb-2">{{ parcel.client }}</p>
       <p class="mb-2">{{ parcel.origin }} → {{ parcel.destination }}</p>
       <p class="mb-3">Shipment: {% if shipment %}<a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a> · {{ shipment.get_status_display }}{% else %}No accessible shipment{% endif %}</p>
+      {% include 'logistics/includes/workflow_summary.html' %}
       {% if scan_actions %}
       <form method="post" action="{% url 'logistics_parcel_scan_action' parcel.pk %}" data-scan-action data-cancel-confirmation="Cancel this parcel?">
         {% csrf_token %}

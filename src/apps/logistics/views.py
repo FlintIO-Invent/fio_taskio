@@ -5,6 +5,7 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -12,7 +13,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_safe
 
-from apps.businesses.models import BusinessUser
+from apps.businesses.models import Business, BusinessUser
 from apps.businesses.stripe_checkout import StripeCheckoutAlreadyCompleted, StripeCheckoutError
 from apps.businesses.stripe_config import StripeConfigurationError
 from apps.businesses.utils import (
@@ -35,7 +36,7 @@ from .forms import (
     ParcelMetadataForm,
     ParcelRegistrationForm,
 )
-from .location_access import can_operate_record
+from .location_access import can_operate_record, lock_actor_membership
 from .models import LogisticsApplication, ParcelEvent
 from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 from .parcel_services import edit_parcel, parcels_for_business, record_parcel_event, register_parcel
@@ -224,11 +225,23 @@ def parcel_list(request):
         parcels = parcels.none()
     pagination_query = request.GET.copy()
     pagination_query.pop("page", None)
+    from .workflow_summary import resolve_parcel_workflows
+
+    page = Paginator(parcels, 50).get_page(request.GET.get("page"))
+    parcels_on_page = list(page.object_list)
+    summaries = resolve_parcel_workflows(
+        business=request.current_business,
+        actor=request.user,
+        parcel_ids=[parcel.pk for parcel in parcels_on_page],
+        include_history=False,
+    ).by_parcel_id
+    for parcel in parcels_on_page:
+        parcel.workflow_summary = summaries[parcel.pk]
     return render(
         request,
         "logistics/parcel_list.html",
         {
-            "page_obj": Paginator(parcels, 50).get_page(request.GET.get("page")),
+            "page_obj": page,
             "filter_form": filters,
             "visible_shipment_ids": _visible_shipment_ids(request),
             "filters_active": any(request.GET.get(key) for key in ("q", "status", "client")),
@@ -255,6 +268,11 @@ def parcel_detail(request, parcel_id):
     )
     from .billing_views import billing_context
     from .shipment_services import shipments_for_business
+    from .workflow_summary import resolve_parcel_workflow
+
+    workflow = resolve_parcel_workflow(
+        business=request.current_business, actor=request.user, parcel=parcel
+    )
 
     metadata_form = ParcelMetadataForm(
         instance=parcel, business=request.current_business, actor=request.user
@@ -285,7 +303,12 @@ def parcel_detail(request, parcel_id):
         request,
         "logistics/parcel_detail.html",
         {
-            **billing_context(request, parcel),
+            **(
+                billing_context(request, parcel)
+                if workflow.financial["visibility"] == "DETAILED"
+                else {}
+            ),
+            "workflow_summary": workflow,
             "parcel": parcel,
             "can_operate_parcel": can_operate_record(
                 parcel, business=request.current_business, actor=request.user
@@ -410,12 +433,35 @@ def parcel_update(request, parcel_id):
     )
     if request.method == "POST" and form.is_valid():
         try:
-            record_parcel_event(
-                business=request.current_business,
-                parcel=parcel,
-                actor=request.user,
-                **{**form.cleaned_data, "status": form.cleaned_data["status"] or None},
-            )
+            with transaction.atomic():
+                current = Business.objects.select_for_update().get(pk=request.current_business.pk)
+                lock_actor_membership(current, request.user)
+                status = form.cleaned_data["status"] or None
+                replay = ParcelEvent.objects.filter(
+                    business=current, idempotency_key=form.cleaned_data["idempotency_key"]
+                ).exists()
+                if status in ("IN_TRANSIT", "DELIVERED") and not replay:
+                    from .workflow_summary import resolve_parcel_workflow
+
+                    workflow = resolve_parcel_workflow(
+                        business=current, actor=request.user, parcel=parcel
+                    )
+                    # The event service validates the submitted site/role and any
+                    # explicit audited route override. Summary capabilities use
+                    # the default route; an override never relaxes clearance.
+                    if not (
+                        workflow.financial["clearance"]["cleared"]
+                        and workflow.operational["evidence_complete"]
+                    ):
+                        raise ValidationError(
+                            "Current workflow evidence, financial clearance or site access does not permit this action."
+                        )
+                record_parcel_event(
+                    business=current,
+                    parcel=parcel,
+                    actor=request.user,
+                    **{**form.cleaned_data, "status": status},
+                )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:

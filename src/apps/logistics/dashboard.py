@@ -207,4 +207,19 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
         context["active_shipments"] = shipments.exclude(
             status__in=(Shipment.Status.COMPLETED, Shipment.Status.CANCELLED)
         ).order_by("-updated_at", "-pk")[:5]
+    if parcels_enabled:
+        from .workflow_summary import resolve_parcel_workflows
+
+        attention = list(context["parcels_requiring_attention"])
+        deliveries = list(context["recent_deliveries"])
+        summaries = resolve_parcel_workflows(
+            business=business,
+            actor=actor,
+            parcel_ids=[item.pk for item in (*attention, *deliveries)],
+            include_history=False,
+        ).by_parcel_id
+        for parcel in (*attention, *deliveries):
+            parcel.workflow_summary = summaries[parcel.pk]
+        context["parcels_requiring_attention"] = attention
+        context["recent_deliveries"] = deliveries
     return context

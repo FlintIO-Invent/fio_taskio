@@ -65,9 +65,19 @@ def validate_location_integrity(record):
         location = getattr(record, name)
         if location is not None and location.business_id != record.business_id:
             raise ValidationError("Financial targets have cross-tenant operating locations.")
-    if record.handling_sites.exclude(
-        business_id=record.business_id, location__business_id=record.business_id
-    ).exists():
+    sites = getattr(record, "_prefetched_objects_cache", {}).get("handling_sites")
+    invalid_sites = (
+        any(
+            site.business_id != record.business_id
+            or site.location.business_id != record.business_id
+            for site in sites
+        )
+        if sites is not None
+        else record.handling_sites.exclude(
+            business_id=record.business_id, location__business_id=record.business_id
+        ).exists()
+    )
+    if invalid_sites:
         raise ValidationError("Financial targets have inconsistent handling-site relationships.")
     if isinstance(record, Parcel) and record.shipment_id:
         if record.shipment.business_id != record.business_id:
@@ -78,7 +88,12 @@ def validate_location_integrity(record):
 def validate_invoice_money(invoice):
     from apps.billings.services import calculate_tax_amount
 
-    subtotal = invoice.lines.aggregate(value=Sum("line_total"))["value"] or Decimal("0.00")
+    lines = getattr(invoice, "_prefetched_objects_cache", {}).get("lines")
+    subtotal = (
+        sum((line.line_total for line in lines), Decimal("0.00"))
+        if lines is not None
+        else invoice.lines.aggregate(value=Sum("line_total"))["value"] or Decimal("0.00")
+    )
     if (
         subtotal != invoice.subtotal
         or invoice.total != invoice.subtotal + invoice.tax
@@ -93,7 +108,11 @@ def validate_charge_coverage(charge):
         reference = getattr(charge, name)
         if reference is not None and reference.business_id != charge.business_id:
             raise ValidationError("Charge has a cross-tenant financial reference.")
-    entries = list(charge.parcel_coverage.select_related("parcel"))
+    entries = list(
+        charge.parcel_coverage.all()
+        if "parcel_coverage" in getattr(charge, "_prefetched_objects_cache", {})
+        else charge.parcel_coverage.select_related("parcel")
+    )
     if not charge.coverage_recorded_at or not entries:
         raise ValidationError(
             "Historical Shipment charge membership requires explicit accounting review."
@@ -109,7 +128,12 @@ def validate_charge_coverage(charge):
         raise ValidationError("Charge coverage has an invalid tenant/client relationship.")
     if charge.parcel_id and {item.pk for item in parcels} != {charge.parcel_id}:
         raise ValidationError("Direct charge membership does not match its Parcel.")
-    for line in charge.invoice_lines.select_related("invoice"):
+    lines = list(
+        charge.invoice_lines.all()
+        if "invoice_lines" in getattr(charge, "_prefetched_objects_cache", {})
+        else charge.invoice_lines.select_related("invoice")
+    )
+    for line in lines:
         if (
             line.invoice.business_id,
             line.invoice.client_id,
@@ -138,10 +162,7 @@ def validate_charge_coverage(charge):
             raise ValidationError("Issued Invoice lacks its monetary snapshot seal.")
         if line.invoice.currency_code != charge.currency_snapshot:
             raise ValidationError("Invoice and charge currencies do not match.")
-    if (
-        charge.invoice_line_id
-        and not charge.invoice_lines.filter(pk=charge.invoice_line_id).exists()
-    ):
+    if charge.invoice_line_id and not any(line.pk == charge.invoice_line_id for line in lines):
         raise ValidationError("The original charge binding requires accounting review.")
     return parcels
 

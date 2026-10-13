@@ -39,6 +39,19 @@ def operation_location(business, actor):
 
 
 def _associations(record, kind):
+    cached = getattr(record, "_prefetched_objects_cache", {}).get("handling_sites")
+    if cached is not None:
+        return [
+            site.location_id
+            for site in cached
+            if site.business_id == record.business_id
+            and site.location.business_id == record.business_id
+            and (kind is None or site.kind == kind)
+        ]
+    if kind is None:
+        return record.handling_sites.filter(
+            business_id=record.business_id, location__business_id=record.business_id
+        ).values_list("location_id", flat=True)
     return record.handling_sites.filter(
         business_id=record.business_id,
         location__business_id=record.business_id,
@@ -48,6 +61,15 @@ def _associations(record, kind):
 
 def _history(record):
     if isinstance(record, Parcel):
+        cached = getattr(record, "_prefetched_objects_cache", {}).get("events")
+        if cached is not None:
+            return [
+                (event.status, event.operational_location_id)
+                for event in sorted(cached, key=lambda event: (event.timestamp, event.pk))
+                if event.business_id == record.business_id
+                and event.operational_location_id
+                and event.event_type == "STATUS"
+            ]
         return list(
             record.events.filter(
                 business_id=record.business_id,
@@ -98,11 +120,23 @@ def next_site(record):
 
 
 def validate_transition_location(
-    record, *, business, actor, status=None, override_reason="", shipment_context=None
+    record,
+    *,
+    business,
+    actor,
+    status=None,
+    override_reason="",
+    shipment_context=None,
+    _read_context=None,
 ):
-    site = operation_location(business, actor)
+    site = (
+        operation_location(business, actor)
+        if _read_context is None
+        else _read_context.work_location
+    )
+    wide = has_wide_access(business, actor) if _read_context is None else _read_context.wide_access
     reason = (override_reason or "").strip()
-    if reason and (len(reason) > 1000 or not has_wide_access(business, actor)):
+    if reason and (len(reason) > 1000 or not wide):
         raise PermissionDenied("Only owners and administrators can approve a site override.")
     if reason and site is None:
         raise PermissionDenied("A site override requires a selected work location.")
@@ -110,7 +144,10 @@ def validate_transition_location(
         return None  # Explicit pre-rollout compatibility; workers never take this path.
     if reason:
         return site  # Tenant, role, active site, subscription and lifecycle still apply.
-    if not operations_enabled(business):
+    enabled = (
+        operations_enabled(business) if _read_context is None else _read_context.operations_enabled
+    )
+    if not enabled:
         return site  # Preserve existing route rules until the explicit rollout review.
     source = current_site(record)
     if status == "HOLD":
@@ -151,11 +188,7 @@ def validate_transition_location(
                 )
     else:
         approved = {record.origin_location_id, record.destination_location_id, source}
-        approved |= set(
-            record.handling_sites.filter(
-                business=business, location__business=business
-            ).values_list("location_id", flat=True)
-        )
+        approved |= set(_associations(record, None))
         if site.pk not in approved:
             raise PermissionDenied("Handling requires an approved operational site.")
     return site

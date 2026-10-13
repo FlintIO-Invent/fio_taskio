@@ -94,7 +94,7 @@ class LogisticsFinancialAccessTests(TestCase):
         self.assertEqual(dashboard.context["draft_invoice_total"], self.ia.total)
         parcel = self.client.get(reverse("logistics_parcel_detail", args=[self.pa.pk]))
         self.assertNotContains(parcel, self.mixed.invoice_number)
-        self.assertContains(parcel, "Invoiced (restricted)")
+        self.assertContains(parcel, "Financial details restricted")
 
     def test_normal_ui_issues_protected_draft_without_modifying_lines(self):
         before = list(self.ia.lines.values())

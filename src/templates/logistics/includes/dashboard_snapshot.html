@@ -187,6 +187,7 @@
                   {% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}
                 </div>
                 <p class="text-body-tertiary fs-9 mb-0">{{ parcel.client }}</p>
+                <p class="fs-9 mb-0">{% if parcel.workflow_summary.financial.visibility == 'DETAILED' %}{{ parcel.workflow_summary.financial.state_label }}{% elif parcel.workflow_summary.financial.clearance.cleared %}Accounting clearance confirmed{% else %}Accounting clearance pending{% endif %}</p>
               </li>
             {% empty %}
               <li class="list-group-item text-center py-5">
