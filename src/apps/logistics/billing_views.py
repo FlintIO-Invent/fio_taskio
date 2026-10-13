@@ -125,6 +125,7 @@ def charge_create(request, parcel_id=None, shipment_id=None):
     require_financial_target(
         business=request.current_business, actor=request.user, target=target, write=True
     )
+    guided = kind == "parcel" and request.GET.get("registration") == "1"
     form = LogisticsChargeForm(
         request.POST if request.method == "POST" else None,
         business=request.current_business,
@@ -140,6 +141,8 @@ def charge_create(request, parcel_id=None, shipment_id=None):
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
+            if guided:
+                return redirect("logistics_parcel_registration", parcel_id=pk)
             return redirect(f"logistics_{kind}_detail", **{f"{kind}_id": pk})
     prices = {
         str(service.pk): format_decimal_for_business(service.unit_price, request.current_business)
@@ -155,7 +158,10 @@ def charge_create(request, parcel_id=None, shipment_id=None):
             "title": "Add charge",
             "prices": prices,
             "charge_currency": request.current_business.currency,
-            "back_url": reverse(f"logistics_{kind}_detail", args=[pk]),
+            "back_url": reverse(
+                "logistics_parcel_registration" if guided else f"logistics_{kind}_detail", args=[pk]
+            ),
+            "registration": guided,
         },
     )
 
@@ -184,6 +190,7 @@ def charge_invoice(request, parcel_id=None, shipment_id=None):
     require_financial_target(
         business=request.current_business, actor=request.user, target=target, write=True
     )
+    guided = kind == "parcel" and request.GET.get("registration") == "1"
     try:
         client = target.client if kind == "parcel" else shipment_billing_client(target)
     except ValidationError:
@@ -194,6 +201,7 @@ def charge_invoice(request, parcel_id=None, shipment_id=None):
         target=target,
         client=client,
         actor=request.user,
+        registration=guided,
         initial={
             "charges": list(
                 target.charges.filter(voided_at__isnull=True)
@@ -213,6 +221,8 @@ def charge_invoice(request, parcel_id=None, shipment_id=None):
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
+            if guided:
+                return redirect("logistics_parcel_registration", parcel_id=pk)
             return redirect("invoice_detail", invoice_id=invoice.pk)
     return render(
         request,
@@ -222,6 +232,9 @@ def charge_invoice(request, parcel_id=None, shipment_id=None):
             "target": target,
             "kind": kind,
             "title": "Create invoice / Add to existing invoice",
-            "back_url": reverse(f"logistics_{kind}_detail", args=[pk]),
+            "back_url": reverse(
+                "logistics_parcel_registration" if guided else f"logistics_{kind}_detail", args=[pk]
+            ),
+            "registration": guided,
         },
     )

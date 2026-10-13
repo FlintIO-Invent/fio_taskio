@@ -27,6 +27,7 @@
     {% endif %}
   </div>
   <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+    <a class="btn btn-primary" href="{% url 'logistics_parcel_registration' parcel.pk %}">Continue Registration</a>
     {% include 'logistics/includes/copy_tracking.html' with tracking_code=parcel.tracking_code %}
     <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipping_label' parcel.pk %}">Preview Shipping Label</a>
     <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipping_label' parcel.pk %}?print=1" target="_blank" rel="noopener">Print Shipping Label</a>

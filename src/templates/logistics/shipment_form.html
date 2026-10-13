@@ -10,6 +10,7 @@
   </nav>
   <div class="mb-4">
     <h2 class="mb-2 text-body-emphasis">{{ title|title }}</h2>
+    {% if registration_url %}<p><a href="{{ registration_url }}">Continue Registration</a> · The registered Parcel is preselected.</p>{% endif %}
     <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
   </div>
   <form method="post" class="mb-5" data-logistics-shipment-form>
@@ -81,7 +82,7 @@
         {% endif %}
         <div class="d-flex flex-wrap gap-2 mobile-form-actions">
           <button class="btn btn-primary" type="submit">Save Shipment</button>
-          <a class="btn btn-phoenix-secondary" href="{% if form.instance.pk %}{% url 'logistics_shipment_detail' form.instance.pk %}{% else %}{% url 'logistics_shipment_list' %}{% endif %}">Cancel</a>
+          <a class="btn btn-phoenix-secondary" href="{% if registration_url %}{{ registration_url }}{% elif form.instance.pk %}{% url 'logistics_shipment_detail' form.instance.pk %}{% else %}{% url 'logistics_shipment_list' %}{% endif %}">Cancel</a>
         </div>
       </div>
     </div>

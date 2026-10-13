@@ -9,6 +9,7 @@ from . import (
     shipment_views,
 )
 from .public_tracking_views import public_tracking
+from .registration_views import parcel_registration
 from .views import (
     application_checkout,
     application_create,
@@ -23,6 +24,11 @@ from .views import (
 )
 
 urlpatterns = [
+    path(
+        "parcels/<int:parcel_id>/registration/",
+        parcel_registration,
+        name="logistics_parcel_registration",
+    ),
     path(
         "locations/access/",
         location_access_views.location_access_settings,
