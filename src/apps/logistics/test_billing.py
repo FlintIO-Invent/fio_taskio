@@ -129,7 +129,7 @@ class LogisticsBillingTests(TestCase):
         self.assertEqual(line.parcel_id, parcel.pk)
         self.assertEqual(line.service_id, service.pk)
         self.assertIn("MM-P-00124", line.description)
-        self.assertIn("MM-P-00124", render_invoice_pdf_html(invoice))
+        self.assertIn("MM-P-00124", render_invoice_pdf_html(invoice, actor=self.user))
         with self.assertRaises(ProtectedError):
             service.delete()
 
@@ -388,7 +388,9 @@ class LogisticsBillingTests(TestCase):
         )
         self.assertEqual(
             list(
-                ChargeInvoiceForm(business=self.business, target=parcel, client=self.customer)
+                ChargeInvoiceForm(
+                    business=self.business, target=parcel, client=self.customer, actor=self.user
+                )
                 .fields["invoice"]
                 .queryset
             ),

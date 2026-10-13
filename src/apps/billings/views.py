@@ -29,11 +29,17 @@ from apps.businesses.utils import (
 from apps.crm.forms import QuickClientForm
 from apps.crm.models import ActivityLog, BusinessService, Client, ServiceCategory
 from apps.crm.services import log_activity
+from apps.logistics.financial_access import (
+    financial_write_required,
+    invoice_ui_permissions,
+    scope_invoices,
+)
 from apps.notifications.emails import send_invoice_email
 
 from .models import Invoice, InvoiceLine
 from .pdf import invoice_pdf_filename, render_invoice_pdf
 from .services import (
+    change_invoice_status,
     create_invoice_for_client,
     generate_invoice_number,
     recalculate_invoice_totals,
@@ -41,12 +47,6 @@ from .services import (
 
 logger = logging.getLogger(__name__)
 
-STATUS_TRANSITIONS: dict[str, set[str]] = {
-    Invoice.Status.DRAFT: {Invoice.Status.SENT, Invoice.Status.CANCELLED},
-    Invoice.Status.SENT: {Invoice.Status.PAID, Invoice.Status.CANCELLED},
-    Invoice.Status.PAID: set(),
-    Invoice.Status.CANCELLED: set(),
-}
 INVOICE_LINE_DESCRIPTION_MAX_LENGTH = InvoiceLine._meta.get_field("description").max_length
 BUSINESS_SERVICE_NAME_MAX_LENGTH = BusinessService._meta.get_field("name").max_length
 SERVICE_CATEGORY_NAME_MAX_LENGTH = ServiceCategory._meta.get_field("name").max_length
@@ -68,8 +68,8 @@ def _parse_optional_decimal(value: str | None) -> Decimal | None:
         return None
 
 
-def _recalculate_invoice_totals(invoice: Invoice) -> None:
-    recalculate_invoice_totals(invoice)
+def _recalculate_invoice_totals(invoice: Invoice, actor=None) -> None:
+    recalculate_invoice_totals(invoice, actor=actor)
 
 
 def _client_queryset_for_business(business: Business):
@@ -84,8 +84,11 @@ def _service_category_queryset_for_business(business: Business):
     return ServiceCategory.for_business(business)
 
 
-def _invoice_queryset_for_business(business: Business):
-    return Invoice.objects.filter(business=business).select_related(
+def _invoice_queryset_for_business(business: Business, actor=None):
+    queryset = Invoice.objects.filter(business=business)
+    if actor is not None:
+        queryset = scope_invoices(queryset, business=business, actor=actor)
+    return queryset.select_related(
         "appointment",
         "client",
         "business",
@@ -614,7 +617,7 @@ def _invoice_create_response(
                     )
 
                 if cleaned_line_rows:
-                    _recalculate_invoice_totals(invoice)
+                    _recalculate_invoice_totals(invoice, actor=request.user)
 
             return redirect("invoice_detail", invoice_id=invoice.id)
 
@@ -642,6 +645,7 @@ def _invoice_create_response(
 )
 @business_module_required("invoicing")
 @require_http_methods(["GET", "POST"])
+@financial_write_required(accounting=True)
 def invoice_create(request: HttpRequest) -> HttpResponse:
     return _invoice_create_response(request)
 
@@ -654,6 +658,7 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
 )
 @business_module_required("invoicing")
 @require_http_methods(["POST"])
+@financial_write_required(accounting=True)
 def invoice_quick_create_client(request: HttpRequest) -> JsonResponse:
     current_business = request.current_business
     if business_limit_reached(current_business, "clients"):
@@ -701,6 +706,7 @@ def invoice_quick_create_client(request: HttpRequest) -> JsonResponse:
 )
 @business_module_required("invoicing")
 @require_http_methods(["GET", "POST"])
+@financial_write_required(accounting=True)
 def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResponse:
     current_business = request.current_business
     client = get_object_or_404(_client_queryset_for_business(current_business), pk=client_id)
@@ -715,6 +721,7 @@ def invoice_create_from_client(request: HttpRequest, client_id: int) -> HttpResp
 )
 @business_module_required("invoicing")
 @require_http_methods(["GET", "POST"])
+@financial_write_required(accounting=True)
 def invoice_create_from_appointment(request: HttpRequest, appointment_id: int) -> HttpResponse:
     current_business = request.current_business
     appointment = get_object_or_404(
@@ -760,7 +767,7 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
     """
     current_business = request.current_business
     invoice = get_object_or_404(
-        _invoice_queryset_for_business(current_business).prefetch_related("lines"),
+        _invoice_queryset_for_business(current_business, request.user).prefetch_related("lines"),
         pk=invoice_id,
     )
 
@@ -769,6 +776,7 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
         "whatsapp_share_url": _invoice_whatsapp_share_url(invoice),
         "has_logistics_charges": invoice.lines.filter(logistics_charge__isnull=False).exists(),
         **_operational_invoice_links(request, invoice),
+        **invoice_ui_permissions(business=current_business, actor=request.user, invoice=invoice),
     }
     return render(request, "billings/invoice_detail.html", context)
 
@@ -784,13 +792,15 @@ def invoice_detail(request: HttpRequest, invoice_id: int) -> HttpResponse:
 def invoice_pdf_download(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
     invoice = get_object_or_404(
-        _invoice_queryset_for_business(current_business).prefetch_related("lines"),
+        _invoice_queryset_for_business(current_business, request.user).prefetch_related("lines"),
         pk=invoice_id,
     )
 
     _operational_invoice_links(request, invoice)
     try:
-        pdf_bytes = render_invoice_pdf(invoice, current_business=current_business)
+        pdf_bytes = render_invoice_pdf(
+            invoice, current_business=current_business, actor=request.user
+        )
     except Exception:
         logger.exception("Failed to generate invoice PDF for invoice_id=%s", invoice.id)
         messages.error(request, "Invoice PDF could not be generated. Please try again.")
@@ -810,10 +820,11 @@ def invoice_pdf_download(request: HttpRequest, invoice_id: int) -> HttpResponse:
 )
 @business_module_required("invoicing")
 @require_http_methods(["POST"])
+@financial_write_required(accounting=True)
 def invoice_email_send(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
     invoice = get_object_or_404(
-        _invoice_queryset_for_business(current_business).prefetch_related("lines"),
+        _invoice_queryset_for_business(current_business, request.user).prefetch_related("lines"),
         pk=invoice_id,
     )
     recipient = (invoice.client.email or "").strip()
@@ -833,6 +844,7 @@ def invoice_email_send(request: HttpRequest, invoice_id: int) -> HttpResponse:
             invoice,
             current_business=current_business,
             include_notes=False,
+            actor=request.user,
         )
     except Exception:
         logger.exception("Failed to generate invoice email PDF for invoice_id=%s", invoice.id)
@@ -840,7 +852,7 @@ def invoice_email_send(request: HttpRequest, invoice_id: int) -> HttpResponse:
         return redirect("invoice_detail", invoice_id=invoice.id)
 
     filename = invoice_pdf_filename(invoice)
-    if not send_invoice_email(invoice, pdf_bytes=pdf_bytes, filename=filename):
+    if not send_invoice_email(invoice, pdf_bytes=pdf_bytes, filename=filename, actor=request.user):
         messages.error(
             request,
             "Invoice email could not be sent. Check email settings and try again.",
@@ -888,7 +900,9 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
         Rendered invoice list page.
     """
     current_business = request.current_business
-    invoices = _invoice_queryset_for_business(current_business).order_by("-created_at")
+    invoices = _invoice_queryset_for_business(current_business, request.user).order_by(
+        "-created_at"
+    )
 
     # Filter by status if provided
     status_filter = request.GET.get("status")
@@ -912,12 +926,13 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
 @business_module_required("invoicing")
 @require_http_methods(["GET", "POST"])
 @transaction.atomic
+@financial_write_required(accounting=True)
 def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
     if request.method == "POST":
         current_business = Business.objects.select_for_update().get(pk=current_business.pk)
     invoice = get_object_or_404(
-        _invoice_queryset_for_business(current_business).prefetch_related("lines"),
+        _invoice_queryset_for_business(current_business, request.user).prefetch_related("lines"),
         pk=invoice_id,
     )
     available_services = (
@@ -1007,7 +1022,7 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
                         unit_price=line_row["unit_price"],
                     )
 
-                _recalculate_invoice_totals(invoice)
+                _recalculate_invoice_totals(invoice, actor=request.user)
 
             return redirect("invoice_detail", invoice_id=invoice.id)
 
@@ -1032,11 +1047,14 @@ def invoice_edit(request: HttpRequest, invoice_id: int) -> HttpResponse:
 @business_module_required("invoicing")
 @require_http_methods(["POST"])
 @transaction.atomic
+@financial_write_required(accounting=True)
 def invoice_delete(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
     if request.method == "POST":
         current_business = Business.objects.select_for_update().get(pk=current_business.pk)
-    invoice = get_object_or_404(_invoice_queryset_for_business(current_business), pk=invoice_id)
+    invoice = get_object_or_404(
+        _invoice_queryset_for_business(current_business, request.user), pk=invoice_id
+    )
     invoice_number = invoice.invoice_number
     if invoice.lines.filter(logistics_charge__isnull=False).exists():
         messages.error(
@@ -1058,79 +1076,26 @@ def invoice_delete(request: HttpRequest, invoice_id: int) -> HttpResponse:
 @business_module_required("invoicing")
 @require_http_methods(["POST"])
 @transaction.atomic
+@financial_write_required(accounting=False)
 def invoice_change_status(request: HttpRequest, invoice_id: int) -> HttpResponse:
     current_business = request.current_business
     if request.method == "POST":
         current_business = Business.objects.select_for_update().get(pk=current_business.pk)
-    invoice = get_object_or_404(_invoice_queryset_for_business(current_business), pk=invoice_id)
-    next_status = request.POST.get("status", "")
-    allowed_statuses = STATUS_TRANSITIONS.get(invoice.status, set())
-
-    if next_status not in allowed_statuses:
-        return redirect("invoice_detail", invoice_id=invoice.id)
-
-    previous_status = invoice.status
-    invoice.status = next_status
-    invoice.save()
-
-    log_activity(
-        actor=request.user,
-        action_type=ActivityLog.ActionType.STATUS_CHANGED,
-        business=invoice.business,
-        client=invoice.client,
-        summary=(
-            f"Invoice {invoice.invoice_number} status changed from "
-            f"{Invoice.Status(previous_status).label} to {Invoice.Status(next_status).label}"
-        ),
-        payload={
-            "invoice_id": invoice.id,
-            "invoice_number": invoice.invoice_number,
-            "from_status": previous_status,
-            "to_status": next_status,
-        },
+    invoice = get_object_or_404(
+        _invoice_queryset_for_business(current_business, request.user), pk=invoice_id
     )
-
+    change_invoice_status(
+        business=current_business,
+        actor=request.user,
+        invoice=invoice,
+        status=request.POST.get("status", ""),
+    )
     return redirect("invoice_detail", invoice_id=invoice.id)
 
 
 def _operational_invoice_links(request, invoice):
-    """Redact operational references in this response; never change saved billing rows."""
-    from apps.logistics.location_access import scope_records
-    from apps.logistics.models import Parcel, Shipment
+    from apps.logistics.financial_access import project_invoice_references
 
-    if request.current_business.vertical != Business.Vertical.LOGISTICS:
-        return {}
-    business = request.current_business
-    visibility = {
-        "visible_parcel_ids": set(
-            scope_records(
-                Parcel.objects.filter(
-                    business=business,
-                    client__business=business,
-                    pk__in=invoice.lines.values("parcel_id"),
-                ),
-                business=business,
-                actor=request.user,
-            ).values_list("pk", flat=True)
-        ),
-        "visible_shipment_ids": set(
-            scope_records(
-                Shipment.objects.filter(
-                    business=business, pk__in=invoice.lines.values("shipment_id")
-                ),
-                business=business,
-                actor=request.user,
-            ).values_list("pk", flat=True)
-        ),
-    }
-    for line in invoice.lines.all():
-        if (
-            line.parcel_id
-            and line.parcel_id not in visibility["visible_parcel_ids"]
-            or line.shipment_id
-            and line.shipment_id not in visibility["visible_shipment_ids"]
-        ):
-            # Charge snapshots include the anonymous public tracking code. Shared
-            # finance access must not disclose a restricted operational identifier.
-            line.description = "Logistics charge (operational reference restricted)"
-    return visibility
+    return project_invoice_references(
+        business=request.current_business, actor=request.user, invoice=invoice
+    )

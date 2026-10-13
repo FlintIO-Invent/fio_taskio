@@ -530,6 +530,8 @@ class LocationAccessTests(TestCase):
         line = InvoiceLine.objects.get(invoice=invoice)
         original = line.description
         self.assertIn(self.pc.tracking_code, original)
+        self.member.role = BusinessUser.Role.ACCOUNTANT
+        self.member.save(update_fields=["role"])
         self.login_worker()
         response = self.client.get(reverse("invoice_detail", args=[invoice.pk]))
         self.assertEqual(response.status_code, 200)

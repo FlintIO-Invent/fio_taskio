@@ -8,28 +8,20 @@ from django.db import transaction
 
 from apps.billings.models import Invoice, InvoiceLine
 from apps.billings.services import create_invoice_for_client, recalculate_invoice_totals
-from apps.businesses.models import Business, BusinessSubscription, BusinessUser
-from apps.businesses.utils import BILLING_MANAGE_ROLES, BILLING_VIEW_ROLES
+from apps.businesses.models import Business, BusinessSubscription
 from apps.crm.models import BusinessService, Client
 
+from .financial_access import (
+    require_financial_access,
+    require_financial_target,
+    require_invoice_access,
+)
+from .location_access import lock_actor_membership
 from .models import LogisticsCharge, Parcel, Shipment
 
 
 def require_billing_access(*, business, actor, write=False, target_kind="parcel"):
-    current = Business.objects.filter(
-        pk=getattr(business, "pk", None), is_active=True, vertical="LOGISTICS"
-    ).first()
-    if (
-        current is None
-        or not BusinessUser.objects.filter(
-            business=current,
-            user_id=getattr(actor, "pk", None),
-            is_active=True,
-            user__is_active=True,
-            role__in=BILLING_MANAGE_ROLES if write else BILLING_VIEW_ROLES,
-        ).exists()
-    ):
-        raise PermissionDenied("Your workspace role does not permit Logistics billing.")
+    current = require_financial_access(business=business, actor=actor, write=write)
     subscription = (
         BusinessSubscription.objects.select_related("business", "plan")
         .filter(business=current)
@@ -67,15 +59,13 @@ def _target(business, parcel=None, shipment=None, *, lock=False, actor=None):
         raise ValidationError("Select exactly one parcel or shipment.")
     model, value = (Parcel, parcel) if parcel is not None else (Shipment, shipment)
     qs = model.objects.filter(business=business, pk=getattr(value, "pk", value))
-    if actor is not None:
-        from .location_access import scope_records
-
-        qs = scope_records(qs, business=business, actor=actor)
     if lock:
         qs = qs.select_for_update()
     target = qs.first()
     if target is None:
         raise ValidationError("Billing target is unavailable in this workspace.")
+    if actor is not None:
+        require_financial_target(business=business, actor=actor, target=target, write=lock)
     client = target.client if model is Parcel else shipment_billing_client(target)
     if client.business_id != business.pk:
         raise ValidationError("Billing client must belong to this workspace.")
@@ -96,6 +86,7 @@ def add_charge(
     idempotency_key,
 ):
     current = Business.objects.select_for_update().get(pk=business.pk)
+    lock_actor_membership(current, actor)
     kind = "parcel" if parcel is not None else "shipment"
     current = require_billing_access(business=current, actor=actor, write=True, target_kind=kind)
     target, client = _target(current, parcel, shipment, lock=True, actor=actor)
@@ -148,6 +139,8 @@ def add_charge(
 @transaction.atomic
 def invoice_charges(*, business, actor, charge_ids, invoice=None):
     current = Business.objects.select_for_update().get(pk=business.pk)
+    lock_actor_membership(current, actor)
+    require_financial_access(business=current, actor=actor, write=True)
     ids = set(charge_ids)
     if not ids:
         raise ValidationError("Select at least one uninvoiced charge.")
@@ -176,6 +169,7 @@ def invoice_charges(*, business, actor, charge_ids, invoice=None):
         if all(linked) and len({charge.invoice_line.invoice_id for charge in charges}) == 1:
             previous = charges[0].invoice_line.invoice
             if invoice is None or previous.pk == getattr(invoice, "pk", invoice):
+                require_invoice_access(business=current, actor=actor, invoice=previous, write=True)
                 return previous  # Exact submission replay cannot create a second invoice.
         raise ValidationError("A selected charge has already been invoiced.")
     if invoice is not None:
@@ -191,8 +185,13 @@ def invoice_charges(*, business, actor, charge_ids, invoice=None):
         )
         if selected is None:
             raise ValidationError("Choose a draft invoice for this workspace and client.")
+        require_invoice_access(business=current, actor=actor, invoice=selected, write=True)
     else:
-        selected = create_invoice_for_client(actor=actor, client=charges[0].client)
+        selected = create_invoice_for_client(
+            actor=actor,
+            client=charges[0].client,
+            logistics_target=charges[0].parcel or charges[0].shipment,
+        )
     for charge in charges:
         line = InvoiceLine.objects.create(
             invoice=selected,
@@ -205,5 +204,5 @@ def invoice_charges(*, business, actor, charge_ids, invoice=None):
         )
         charge.invoice_line = line
         charge._domain_save(update_fields=["invoice_line"])
-    recalculate_invoice_totals(selected)
+    recalculate_invoice_totals(selected, actor=actor)
     return selected

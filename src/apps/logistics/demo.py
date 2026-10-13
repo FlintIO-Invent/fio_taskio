@@ -165,20 +165,18 @@ def parcel_demo_fields(*, index, client, route, today):
         "destination": destination,
         "package_description": description,
         "internal_reference": f"DEMO-{index + 1:03d}",
-        "sender_name": "[DEMO] Mainland Supply"
-        if origin.startswith("Miami")
-        else "[DEMO] Island Distribution",
+        "sender_name": (
+            "[DEMO] Mainland Supply" if origin.startswith("Miami") else "[DEMO] Island Distribution"
+        ),
         "sender_contact": "dispatch@example.test",
         "sender_address_line_1": f"{100 + index} Demo Cargo Road",
         "sender_address_line_2": f"Demo dispatch unit {index + 1}",
         "sender_city": origin.split()[0],
         "sender_region": "Demo dispatch district",
         "sender_postal_code": f"DEMO-{100 + index}",
-        "sender_country_code": "US"
-        if origin.startswith("Miami")
-        else "DM"
-        if origin.startswith("Roseau")
-        else "SX",
+        "sender_country_code": (
+            "US" if origin.startswith("Miami") else "DM" if origin.startswith("Roseau") else "SX"
+        ),
         "recipient_name": f"[DEMO] {client.first_name} {client.last_name}",
         "recipient_contact": client.email if index % 2 == 0 else client.phone,
         "recipient_address_line_1": client.street_address,
@@ -306,9 +304,14 @@ def logistics_demo_routes(profile_plan):
 
 def demo_actor(*, business, actor_id=None):
     require_logistics_business(business)
+    from .financial_access import ACCOUNTING_ROLES, require_financial_access
+
     members = (
         BusinessUser.objects.filter(
-            business=business, is_active=True, user__is_active=True, role__in=PARCEL_MANAGE_ROLES
+            business=business,
+            is_active=True,
+            user__is_active=True,
+            role__in=set(PARCEL_MANAGE_ROLES) & set(ACCOUNTING_ROLES),
         )
         .select_related("user")
         .order_by("user_id")
@@ -317,7 +320,10 @@ def demo_actor(*, business, actor_id=None):
         members = members.filter(user_id=actor_id)
     member = members.first()
     if member is None:
-        raise ValidationError("Seeding requires an existing active Logistics operator membership.")
+        raise ValidationError(
+            "Financial demo seeding requires an active Logistics owner or administrator."
+        )
+    require_financial_access(business=business, actor=member.user, write=True, accounting=True)
     require_parcel_access(business=business, actor=member.user, write=True)
     require_shipment_access(business=business, actor=member.user, write=True)
     return member.user

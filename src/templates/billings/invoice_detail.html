@@ -275,7 +275,7 @@
                 <span class="fa-brands fa-whatsapp me-2"></span>Share on WhatsApp
               </a>
             {% endif %}
-            {% if role_access.can_manage_invoices and workspace_can_modify %}
+            {% if invoice_can_account %}
               {% if invoice.client.email %}
                 <form method="post" action="{% url 'invoice_email_send' invoice.pk %}" class="d-inline">
                   {% csrf_token %}
@@ -304,12 +304,14 @@
             {% endif %}
           </div>
 
-          {% if role_access.can_manage_invoices and workspace_can_modify %}
+          {% if invoice_can_clear %}
             <div class="d-grid gap-2">
-              {% if invoice.status == 'DRAFT' and not has_logistics_charges %}
+              {% if invoice.status == 'DRAFT' %}
+              {% if invoice_can_account and not has_logistics_charges %}
               <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-phoenix-warning">
                 <span class="fa-solid fa-edit me-2"></span>Edit Invoice
               </a>
+              {% endif %}
               <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
                 {% csrf_token %}
                 <input type="hidden" name="status" value="SENT">
@@ -329,7 +331,7 @@
               </form>
               {% endif %}
 
-              {% if invoice.status != 'CANCELLED' %}
+              {% if invoice.status != 'CANCELLED' and invoice_can_account %}
               <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
                 {% csrf_token %}
                 <input type="hidden" name="status" value="CANCELLED">

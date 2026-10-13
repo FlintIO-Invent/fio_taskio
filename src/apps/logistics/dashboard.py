@@ -9,6 +9,7 @@ from django.db.models import Count, Q, Sum
 from apps.billings.models import Invoice
 from apps.businesses.utils import BILLING_VIEW_ROLES, can_view_module, membership_has_any_role
 
+from .financial_access import scope_invoices
 from .models import Parcel, ParcelEvent, Shipment
 from .parcel_policy import PARCEL_VIEW_ROLES
 from .parcel_services import parcels_for_business
@@ -45,7 +46,11 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
         )
     if invoices_enabled:
         # Status totals describe invoice value, not payment receipts: invoices have no paid_at.
-        invoices = Invoice.objects.filter(business=business, client__business=business)
+        invoices = scope_invoices(
+            Invoice.objects.filter(business=business, client__business=business),
+            business=business,
+            actor=actor,
+        )
         totals = invoices.aggregate(
             invoiced_this_month_total=Sum(
                 "total",
@@ -69,7 +74,10 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             .values_list("current_status", "total")
         )
         events = ParcelEvent.objects.filter(
-            business=business, parcel__in=parcels, parcel__business=business, parcel__client__business=business
+            business=business,
+            parcel__in=parcels,
+            parcel__business=business,
+            parcel__client__business=business,
         )
         delivered = (
             events.filter(

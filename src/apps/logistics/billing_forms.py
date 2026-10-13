@@ -83,13 +83,18 @@ class ChargeInvoiceForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
     )
 
-    def __init__(self, *args, business, target, client, **kwargs):
+    def __init__(self, *args, business, target, client, actor, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["charges"].queryset = target.charges.filter(
             business=business, client=client, invoice_line__isnull=True
         )
-        self.fields["invoice"].queryset = Invoice.objects.filter(
-            business=business, client=client, status=Invoice.Status.DRAFT
+        from .financial_access import scope_invoices
+
+        self.fields["invoice"].queryset = scope_invoices(
+            Invoice.objects.filter(business=business, client=client, status=Invoice.Status.DRAFT),
+            business=business,
+            actor=actor,
+            write=True,
         )
         self.fields["charges"].label_from_instance = (
             lambda obj: f"{obj.description} — {format_money_for_business(obj.total, business)}"

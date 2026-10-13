@@ -79,6 +79,13 @@ def current_business(request):
         "can_import_data": membership_has_any_role(membership, CLIENT_MANAGE_ROLES),
     }
 
+    if business and business.vertical == "LOGISTICS" and membership and membership.role == "staff":
+        from apps.logistics.location_access import assignments_for
+
+        role_access["can_view_invoices"] &= assignments_for(business, request.user).exists()
+        # Generic Invoice creation/editing is accounting; Parcel clearance uses its own controls.
+        role_access["can_manage_invoices"] = False
+
     logistics_context = {}
     if (
         business

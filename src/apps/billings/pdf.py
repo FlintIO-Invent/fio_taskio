@@ -78,8 +78,17 @@ def render_invoice_pdf_html(
     *,
     current_business=None,
     include_notes: bool = True,
+    actor=None,
 ) -> str:
     _ensure_invoice_business(invoice, current_business)
+    if invoice.business.vertical == "LOGISTICS":
+        from apps.logistics.financial_access import (
+            project_invoice_references,
+            require_invoice_access,
+        )
+
+        require_invoice_access(business=invoice.business, actor=actor, invoice=invoice)
+        project_invoice_references(business=invoice.business, actor=actor, invoice=invoice)
     return render_to_string(
         "billings/invoice_pdf.html",
         _invoice_context(invoice, include_notes=include_notes),
@@ -96,8 +105,17 @@ def render_invoice_pdf(
     *,
     current_business=None,
     include_notes: bool = True,
+    actor=None,
 ) -> bytes:
     _ensure_invoice_business(invoice, current_business)
+    if invoice.business.vertical == "LOGISTICS":
+        from apps.logistics.financial_access import (
+            project_invoice_references,
+            require_invoice_access,
+        )
+
+        require_invoice_access(business=invoice.business, actor=actor, invoice=invoice)
+        project_invoice_references(business=invoice.business, actor=actor, invoice=invoice)
     buffer = BytesIO()
     pdf = canvas.Canvas(
         buffer,
@@ -168,9 +186,13 @@ def _draw_invoice(pdf: canvas.Canvas, context: dict) -> None:
     meta_y = PAGE_HEIGHT - TOP_MARGIN - 30
     pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Invoice #: {invoice.invoice_number}")
     meta_y -= 12
-    pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Date: {context['issue_date']:%b %d, %Y}")
+    pdf.drawRightString(
+        PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Date: {context['issue_date']:%b %d, %Y}"
+    )
     meta_y -= 12
-    pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Status: {invoice.get_status_display()}")
+    pdf.drawRightString(
+        PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Status: {invoice.get_status_display()}"
+    )
 
     y = min(y, meta_y) - 24
     pdf.setStrokeColor(colors.HexColor("#D8DEE9"))

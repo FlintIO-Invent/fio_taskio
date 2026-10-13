@@ -22,7 +22,7 @@ from .billing_services import (
     require_billing_access,
     shipment_billing_client,
 )
-from .location_access import scope_records
+from .financial_access import require_financial_target, scope_financial_targets, scope_invoices
 from .models import Parcel, Shipment
 
 
@@ -32,6 +32,9 @@ def billing_context(request, target):
         require_billing_access(
             business=request.current_business, actor=request.user, target_kind=kind
         )
+        require_financial_target(
+            business=request.current_business, actor=request.user, target=target
+        )
     except PermissionDenied:
         return {}
     charges = list(
@@ -39,6 +42,23 @@ def billing_context(request, target):
             "service", "client", "invoice_line__invoice"
         )
     )
+    from apps.billings.models import Invoice
+
+    accessible_invoices = set(
+        scope_invoices(
+            Invoice.objects.filter(
+                pk__in=[
+                    charge.invoice_line.invoice_id for charge in charges if charge.invoice_line_id
+                ]
+            ),
+            business=request.current_business,
+            actor=request.user,
+        ).values_list("pk", flat=True)
+    )
+    for charge in charges:
+        charge.invoice_accessible = bool(
+            charge.invoice_line_id and charge.invoice_line.invoice_id in accessible_invoices
+        )
     try:
         client = target.client if kind == "parcel" else shipment_billing_client(target)
         error = ""
@@ -47,6 +67,9 @@ def billing_context(request, target):
     try:
         require_billing_access(
             business=request.current_business, actor=request.user, target_kind=kind, write=True
+        )
+        require_financial_target(
+            business=request.current_business, actor=request.user, target=target, write=True
         )
         writable = client is not None
     except PermissionDenied:
@@ -80,12 +103,15 @@ def charge_create(request, parcel_id=None, shipment_id=None):
         business=request.current_business, actor=request.user, write=True, target_kind=kind
     )
     target = get_object_or_404(
-        scope_records(
+        scope_financial_targets(
             model.objects.filter(business=request.current_business),
             business=request.current_business,
             actor=request.user,
         ),
         pk=pk,
+    )
+    require_financial_target(
+        business=request.current_business, actor=request.user, target=target, write=True
     )
     form = LogisticsChargeForm(
         request.POST if request.method == "POST" else None,
@@ -135,12 +161,15 @@ def charge_invoice(request, parcel_id=None, shipment_id=None):
         business=request.current_business, actor=request.user, write=True, target_kind=kind
     )
     target = get_object_or_404(
-        scope_records(
+        scope_financial_targets(
             model.objects.filter(business=request.current_business),
             business=request.current_business,
             actor=request.user,
         ),
         pk=pk,
+    )
+    require_financial_target(
+        business=request.current_business, actor=request.user, target=target, write=True
     )
     try:
         client = target.client if kind == "parcel" else shipment_billing_client(target)
@@ -151,6 +180,7 @@ def charge_invoice(request, parcel_id=None, shipment_id=None):
         business=request.current_business,
         target=target,
         client=client,
+        actor=request.user,
         initial={
             "charges": list(
                 target.charges.filter(invoice_line__isnull=True).values_list("pk", flat=True)

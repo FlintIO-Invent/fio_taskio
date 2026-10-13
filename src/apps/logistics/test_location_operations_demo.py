@@ -187,7 +187,7 @@ class VerifiedDemoOperationsTests(TestCase):
                     stdout=StringIO(),
                 )
 
-    def test_single_site_worker_can_seed_local_or_return_scenarios(self):
+    def test_single_site_worker_cannot_seed_business_wide_financial_scenarios(self):
         for site in (self.b, self.stop):
             set_location_assignment(
                 business=self.business,
@@ -196,22 +196,26 @@ class VerifiedDemoOperationsTests(TestCase):
                 location=site,
                 revoke=True,
             )
-        call_command(
-            "seed_logistics_demo_data",
-            business_id=self.business.pk,
-            actor_id=self.staff.pk,
-            origin_location_id=self.a.pk,
-            destination_location_id=self.a.pk,
-            execute=True,
-            stdout=StringIO(),
-        )
-        self.assertEqual(Parcel.objects.exclude(pk=self.item.pk).count(), 20)
-        self.assertEqual(ParcelEvent.objects.exclude(parcel=self.item).count(), 83)
-        self.assertFalse(
-            ParcelEvent.objects.exclude(parcel=self.item)
-            .exclude(operational_location=self.a)
-            .exists()
-        )
+        for execute in (False, True):
+            with (
+                self.subTest(execute=execute),
+                self.assertRaisesMessage(CommandError, "owner or administrator"),
+            ):
+                call_command(
+                    "seed_logistics_demo_data",
+                    business_id=self.business.pk,
+                    actor_id=self.staff.pk,
+                    origin_location_id=self.a.pk,
+                    destination_location_id=self.a.pk,
+                    execute=execute,
+                    stdout=StringIO(),
+                )
+        self.assertEqual(Parcel.objects.count(), 1)
+        self.assertEqual(ParcelEvent.objects.count(), 1)
+        self.assertFalse(Invoice.objects.exists())
+        self.assertFalse(InvoiceLine.objects.exists())
+        self.assertFalse(Shipment.objects.exists())
+        self.assertFalse(DemoSeedRun.objects.exists())
 
     def test_general_command_forwards_verified_sites_and_preserves_reset(self):
         output = StringIO()

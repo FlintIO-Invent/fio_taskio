@@ -13,7 +13,7 @@
     <tbody>{% for charge in billing.charges %}<tr>
       <td>{{ charge.description }}</td><td>{{ charge.service.name|default:'Custom charge' }}{% if charge.service and not charge.service.is_active %} <span class="badge badge-phoenix badge-phoenix-secondary">Archived</span>{% endif %}</td>
       <td>{{ charge.quantity }}</td><td>{{ charge.unit_price|money:current_business }}</td><td>{{ charge.total|money:current_business }}</td>
-      <td>{% if charge.invoice_line %}<a href="{% url 'invoice_detail' charge.invoice_line.invoice_id %}">{{ charge.invoice_line.invoice.invoice_number }}</a> · {{ charge.invoice_line.invoice.get_status_display }}{% else %}<span class="badge badge-phoenix badge-phoenix-warning">Not invoiced</span>{% endif %}</td>
+      <td>{% if charge.invoice_line %}{% if charge.invoice_accessible %}<a href="{% url 'invoice_detail' charge.invoice_line.invoice_id %}">{{ charge.invoice_line.invoice.invoice_number }}</a> · {{ charge.invoice_line.invoice.get_status_display }}{% else %}Invoiced (restricted){% endif %}{% else %}<span class="badge badge-phoenix badge-phoenix-warning">Not invoiced</span>{% endif %}</td>
     </tr>{% empty %}<tr><td colspan="6">No charges yet.</td></tr>{% endfor %}</tbody>
   </table></div>{% else %}<p class="text-body-secondary">No charges yet.</p>{% endif %}
   <p class="fw-semibold">Total {{ billing.kind }} charges (before tax): {{ billing.total|money:current_business }}</p>
