@@ -291,6 +291,9 @@ class LocationAccessTests(TestCase):
         )
 
     def test_shipment_cargo_expected_at_authorized_site_and_existing_lifecycle(self):
+        from .financial_test_support import clear_test_parcel
+
+        clear_test_parcel(business=self.business, actor=self.user, parcel=self.pc)
         assign_parcel(business=self.business, actor=self.user, shipment=self.sa, parcel=self.pc)
         self.assertIn(self.pc, self.parcels())
         change_parcel_status(

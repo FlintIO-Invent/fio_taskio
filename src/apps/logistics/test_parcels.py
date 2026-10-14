@@ -118,6 +118,10 @@ class ParcelTests(TestCase):
         )
 
     def change(self, parcel, status, **kwargs):
+        if status in ("IN_TRANSIT", "DELIVERED"):
+            from .financial_test_support import clear_test_parcel
+
+            clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         return change_parcel_status(
             business=self.business, parcel=parcel, actor=self.user, status=status, **kwargs
         )

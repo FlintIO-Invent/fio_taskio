@@ -102,7 +102,8 @@ class LogisticsOperationConcurrencyTests(TransactionTestCase):
             slug="logistics", defaults={"name": "Logistics", "family": "LOGISTICS"}
         )
         plan.is_active = True
-        plan.save(update_fields=["is_active"])
+        plan.allow_invoicing = True
+        plan.save(update_fields=["is_active", "allow_invoicing"])
         self.business = Business.objects.create(
             name="Courier", slug="concurrent-courier", vertical="LOGISTICS"
         )
@@ -274,6 +275,9 @@ class LogisticsOperationConcurrencyTests(TransactionTestCase):
 
     def test_competing_departures_append_only_one_transition_per_parcel(self):
         parcel, shipment = self.parcel(), self.shipment()
+        from .financial_test_support import clear_test_parcel
+
+        clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         change_parcel_status(
             business=self.business, actor=self.user, parcel=parcel, status="RECEIVED"
         )
@@ -300,6 +304,10 @@ class LogisticsOperationConcurrencyTests(TransactionTestCase):
 
     def test_assignment_vs_departure_preserves_consistent_membership_and_status(self):
         first, second, shipment = self.parcel(), self.parcel(), self.shipment()
+        from .financial_test_support import clear_test_parcel
+
+        for item in (first, second):
+            clear_test_parcel(business=self.business, actor=self.user, parcel=item)
         for parcel in (first, second):
             change_parcel_status(
                 business=self.business, actor=self.user, parcel=parcel, status="RECEIVED"

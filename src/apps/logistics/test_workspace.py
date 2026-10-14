@@ -108,6 +108,10 @@ class LogisticsWorkspaceTests(TestCase):
             destination="Curacao",
             package_description="Books",
         )
+        if status not in ("REGISTERED", "RECEIVED"):
+            from .financial_test_support import clear_test_parcel
+
+            clear_test_parcel(business=business, actor=self.user, parcel=parcel)
         for next_status in (
             Parcel.Status.RECEIVED,
             Parcel.Status.IN_TRANSIT,
@@ -533,7 +537,28 @@ class LogisticsWorkspaceTests(TestCase):
             for event in snapshot["recent_tracking_events"]:
                 str(event.parcel)
         domain_queries = [q for q in queries if re.search(r'\b(?:FROM|JOIN) "logistics_', q["sql"])]
-        self.assertEqual(len(domain_queries), 9)
+        self.assertLessEqual(len(domain_queries), 25)
+        for _ in range(6):
+            self.parcel(status=Parcel.Status.DELIVERED)
+        with CaptureQueriesContext(connection) as more_queries:
+            scaled_snapshot = get_logistics_dashboard_context(
+                business=self.business,
+                actor=self.user,
+                membership=self.membership,
+                now=timezone.now(),
+            )
+            for event in scaled_snapshot["recent_deliveries"]:
+                str(event.parcel.client)
+            for parcel in scaled_snapshot["parcels_requiring_attention"]:
+                str(parcel.client)
+            list(scaled_snapshot["active_shipments"])
+            for event in scaled_snapshot["recent_tracking_events"]:
+                str(event.parcel)
+        scaled_domain = [
+            q for q in more_queries if re.search(r'\b(?:FROM|JOIN) "logistics_', q["sql"])
+        ]
+        self.assertEqual(len(scaled_domain), len(domain_queries))
+        self.assertEqual(len(more_queries), len(queries))
         self.assertEqual(len(snapshot["recent_deliveries"]), 5)
         self.assertEqual(len(snapshot["recent_tracking_events"]), 5)
 

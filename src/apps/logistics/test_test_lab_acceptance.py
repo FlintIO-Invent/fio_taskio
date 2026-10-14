@@ -19,6 +19,8 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.billings.payment_services import record_invoice_payment
+from apps.billings.services import change_invoice_status
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 from apps.crm.models import Client
 
@@ -533,6 +535,38 @@ class TestLabAcceptanceTests(TestCase):
         )
         shipment.refresh_from_db()
         stale_revision = shipment.revision
+        charge = add_charge(
+            business=self.business,
+            actor=owner,
+            shipment=shipment,
+            description="Acceptance freight",
+            quantity="2",
+            unit_price="25.00",
+            idempotency_key=uuid4(),
+        )
+        invoice = invoice_charges(business=self.business, actor=owner, charge_ids=[charge.pk])
+        self.assertEqual(invoice.status, "DRAFT")
+        # Departure needs authoritative financial evidence for both members;
+        # Shipment READY alone supplies no payment or credit authorization.
+        with self.assertRaisesMessage(ValidationError, "Verified settlement"):
+            change_shipment_status(
+                business=self.business,
+                actor=port,
+                shipment=shipment,
+                status="IN_TRANSIT",
+                expected_revision=stale_revision,
+            )
+        change_invoice_status(business=self.business, actor=owner, invoice=invoice, status="SENT")
+        record_invoice_payment(
+            business=self.business,
+            actor=owner,
+            invoice=invoice,
+            amount=invoice.total,
+            currency=invoice.currency_code,
+            method="CASH",
+            reference="DISPOSABLE-ACCEPTANCE-FREIGHT",
+            idempotency_key=uuid4(),
+        )
         change_shipment_status(
             business=self.business,
             actor=port,
@@ -565,19 +599,11 @@ class TestLabAcceptanceTests(TestCase):
         )
         manifest = generate_manifest(business=self.business, actor=owner, shipment=shipment)
         self.assertEqual(len(manifest["parcels"]), 2)
-        charge = add_charge(
-            business=self.business,
-            actor=owner,
-            shipment=shipment,
-            description="Acceptance freight",
-            quantity="2",
-            unit_price="25.00",
-            idempotency_key=uuid4(),
-        )
-        invoice = invoice_charges(business=self.business, actor=owner, charge_ids=[charge.pk])
         self.assertEqual(str(invoice.total), "50.00")
         self.assertEqual(invoice.lines.count(), 1)
-        self.assertEqual(invoice.status, "DRAFT")
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, "SENT")
+        self.assertEqual(invoice.payments.count(), 1)
         for parcel in parcels:
             self.assertEqual(
                 self.http("sxm-warehouse")

@@ -37,7 +37,15 @@ from apps.crm.models import ActivityLog, BusinessService, Client
 
 from .demo import LOGISTICS_DEMO_COUNTS
 from .inventory import application_inventory
-from .models import LogisticsApplication, LogisticsCharge, Parcel, ParcelEvent, Shipment
+from .models import (
+    LogisticsApplication,
+    LogisticsCharge,
+    LogisticsCreditApproval,
+    LogisticsCreditRevocation,
+    Parcel,
+    ParcelEvent,
+    Shipment,
+)
 from .parcel_services import parcels_for_business, record_parcel_event, register_parcel
 from .policy import LogisticsEligibilityPolicy, LogisticsUsageReviewPolicy
 from .public_tracking import lookup_public_tracking
@@ -136,6 +144,12 @@ class LogisticsOperationsTests(TestCase):
             "invoices": Invoice.objects.filter(business=self.business).count(),
             "invoice_lines": InvoiceLine.objects.filter(invoice__business=self.business).count(),
             "activity_logs": ActivityLog.objects.filter(business=self.business).count(),
+            "logistics_credit_approvals": LogisticsCreditApproval.objects.filter(
+                business=self.business
+            ).count(),
+            "logistics_credit_revocations": LogisticsCreditRevocation.objects.filter(
+                business=self.business
+            ).count(),
         }
         self.assertEqual(counts, LOGISTICS_DEMO_COUNTS)
         self.assertEqual(seed.owned_records.count(), sum(counts.values()))

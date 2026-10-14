@@ -719,11 +719,13 @@ class LogisticsTestLabTests(TestCase):
             business=self.business, first_name="Retained", last_name="Client"
         )
         invoice = Invoice.objects.create(
-            business=self.business, client=client, invoice_number="RETAINED-001", status="PAID"
+            business=self.business, client=client, invoice_number="RETAINED-001", status="DRAFT"
         )
         line = InvoiceLine.objects.create(
             invoice=invoice, description="Retained financial line", quantity=1, unit_price=50
         )
+        invoice.status = "PAID"
+        invoice.save(update_fields=["status"])
         with self.assertRaises(CommandError):
             self.cleanup(execute=True)
         self.assertTrue(Invoice.objects.filter(pk=invoice.pk, status="PAID").exists())

@@ -16,6 +16,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.billings.models import Invoice, InvoiceLine
+from apps.billings.services import change_invoice_status
 from apps.businesses.demo_seed_reset import _validate_tenant_ownership
 from apps.businesses.models import DemoSeedRecord
 from apps.crm.models import ActivityLog, Client
@@ -27,6 +28,8 @@ from .location_access_services import select_work_location, set_handling_site
 from .models import (
     LogisticsCharge,
     LogisticsChargeParcel,
+    LogisticsCreditApproval,
+    LogisticsCreditRevocation,
     LogisticsHandlingSite,
     LogisticsLocationAssignment,
     Parcel,
@@ -71,6 +74,8 @@ RESET_ORDER = (
     ActivityLog,
     LogisticsHandlingSite,
     ParcelEvent,
+    LogisticsCreditRevocation,
+    LogisticsCreditApproval,
     Parcel,
     Shipment,
     Client,
@@ -86,6 +91,8 @@ COUNT_NAMES = dict(
             "activity_logs",
             "handling_sites",
             "parcel_events",
+            "credit_revocations",
+            "credit_approvals",
             "parcels",
             "shipments",
             "clients",
@@ -98,6 +105,10 @@ COUNT_NAMES = dict(
 def digest(obj):
     """Refuse to erase fixture records subsequently edited by an operator."""
     data = {field.attname: getattr(obj, field.attname) for field in obj._meta.concrete_fields}
+    if isinstance(obj, ParcelEvent) and obj.credit_approval_id is None:
+        # Nullable-first migration must not make unchanged older manifest rows
+        # appear edited; no credit is inferred for those historical events.
+        data.pop("credit_approval_id", None)
     if isinstance(obj, LogisticsCharge):
         data["covered_parcel_ids"] = list(
             obj.parcel_coverage.order_by("parcel_id").values_list("parcel_id", flat=True)
@@ -243,15 +254,62 @@ def reset_plan(business, seed, *, lock=False):
             .exists()
         ):
             raise CommandError("Another seed claims dataset records.")
+    metadata = seed.planned_counts["dataset"]
+    issued_rows = metadata.get("fixture_issued_invoice_ids", [])
+    if not isinstance(issued_rows, list) or any(
+        type(pk) is not int or pk <= 0 for pk in issued_rows
+    ):
+        raise CommandError("Financial fixture issuance ownership is invalid; reset refused.")
+    issued_ids = set(issued_rows)
+    if issued_ids and (
+        metadata.get("financial_reset_policy") != "owned-undispatched-credit-fixtures-v1"
+        or not issued_ids <= owned[Invoice]
+    ):
+        raise CommandError("Financial fixture issuance ownership is invalid; reset refused.")
+    # Credit snapshots have JSON references in addition to protected FKs. They
+    # must never smuggle retained/unowned obligations into a fixture reset.
+    from .credit_services import fingerprint
+
+    for approval in objects[LogisticsCreditApproval]:
+        snapshot = approval.obligations_snapshot
+        try:
+            valid = (
+                fingerprint(snapshot) == approval.obligation_fingerprint
+                and snapshot["parcel_id"] == approval.parcel_id
+                and snapshot["client_id"] == approval.client_id
+                and bool(snapshot["charges"])
+                and bool(snapshot["invoices"])
+                and all(
+                    row["id"] in owned[LogisticsCharge]
+                    and row["invoice_id"] in issued_ids
+                    and row["line_id"] in owned[InvoiceLine]
+                    and set(row["parcel_ids"]) <= owned[Parcel]
+                    for row in snapshot["charges"]
+                )
+                and all(
+                    row["id"] in issued_ids
+                    and all(line[0] in owned[InvoiceLine] for line in row["lines"])
+                    for row in snapshot["invoices"]
+                )
+            )
+        except (KeyError, TypeError, IndexError):
+            valid = False
+        if not valid:
+            raise CommandError(
+                "Credit snapshot references unowned financial evidence; reset refused."
+            )
     for invoice in objects[Invoice]:
         if (
-            invoice.status != Invoice.Status.DRAFT
+            not (
+                invoice.status == Invoice.Status.DRAFT
+                or (invoice.status == Invoice.Status.SENT and invoice.pk in issued_ids)
+            )
             or invoice.emailed_at
             or invoice.emailed_to
             or invoice.email_send_count
         ):
             raise CommandError(
-                "Financial retention: only unchanged, undispatched fixture drafts can reset."
+                "Financial retention: only unchanged, undispatched owned financial fixtures can reset."
             )
     return objects
 
@@ -394,6 +452,8 @@ def _seed(business, seed, users, sites, modes):
     records = {}
 
     def remember(key, obj):
+        if records.get(key) == {"model": obj._meta.label, "pk": obj.pk}:
+            return obj
         own(seed, obj)
         records[key] = {"model": obj._meta.label, "pk": obj.pk}
         if isinstance(obj, LogisticsCharge):
@@ -427,6 +487,7 @@ def _seed(business, seed, users, sites, modes):
     now = timezone.now()
     all_parcels = []
     billed = []
+    operations = []
 
     def route(source, destination):
         return dict(
@@ -480,6 +541,12 @@ def _seed(business, seed, users, sites, modes):
         return remember(f"parcel/{key}", obj)
 
     def event(obj, state, site, worker=None, message=None):
+        operations.append(("parcel", obj, state, site, worker, message))
+
+    def queue_shipment(*, business, shipment, actor, status):
+        operations.append(("shipment", shipment, status, None, actor, None))
+
+    def apply_event(obj, state, site, worker=None, message=None):
         actor = users[worker or SITE_WORKERS[site.code]]
         with work_at(business, actor, site):
             return change_parcel_status(
@@ -541,7 +608,7 @@ def _seed(business, seed, users, sites, modes):
                 assign_parcel(business=business, shipment=shipment, parcel=obj, actor=owner)
         if target == "CANCELLED":
             with work_at(business, users["miami"], source):
-                change_shipment_status(
+                queue_shipment(
                     business=business, shipment=shipment, actor=users["miami"], status=target
                 )
         elif target != "DRAFT":
@@ -549,7 +616,7 @@ def _seed(business, seed, users, sites, modes):
                 site = destination if state == "ARRIVED" else source
                 worker = "regional" if key == "miami-sea-moving" else SITE_WORKERS[site.code]
                 with work_at(business, users[worker], site):
-                    change_shipment_status(
+                    queue_shipment(
                         business=business, shipment=shipment, actor=users[worker], status=state
                     )
                 if state == target:
@@ -559,7 +626,7 @@ def _seed(business, seed, users, sites, modes):
                     event(obj, "READY", destination)
                     event(obj, "DELIVERED", destination)
                 with work_at(business, users[SITE_WORKERS[destination.code]], destination):
-                    change_shipment_status(
+                    queue_shipment(
                         business=business,
                         shipment=shipment,
                         actor=users[SITE_WORKERS[destination.code]],
@@ -635,14 +702,81 @@ def _seed(business, seed, users, sites, modes):
                 business=business, actor=owner, charge_ids=[charge.pk for charge in charges]
             ),
         )
-        invoice.notes = f"[LAB] {key}. Draft only; no email, payment or invoice dispatch."
+        invoice.notes = f"[LAB] {key}. Fictional billing; no email or customer receipt. Issuance only for simulated movement credit."
         invoice.save(update_fields=["notes", "updated_at"])
         for j, line in enumerate(invoice.lines.order_by("pk"), 1):
             remember(f"invoice-line/{key}/{j}", line)
         activity = ActivityLog.objects.get(
-            business=business, payload__invoice_number=invoice.invoice_number
+            business=business,
+            action_type="INVOICE_CREATED",
+            payload__invoice_number=invoice.invoice_number,
         )
         remember(f"activity/{key}/invoice-created", activity)
+
+    # New demo histories obey the live financial gate. No receipts are invented.
+    from .credit_services import approve_credit, credit_review, fingerprint
+
+    credit_expiry = now + timedelta(days=14)
+    parcel_keys = {obj.pk: key for key, obj in all_parcels}
+    invoice_keys = {
+        entry["pk"]: key for key, entry in records.items() if entry["model"] == Invoice._meta.label
+    }
+    issued_ids = set()
+
+    for kind, obj, movement, site, worker, message in operations:
+        if movement in ("IN_TRANSIT", "DELIVERED"):
+            affected = [obj] if kind == "parcel" else list(obj.parcels.all())
+            for item in affected:
+                for invoice in Invoice.objects.filter(
+                    business=business, lines__charge_source__parcel_coverage__parcel=item
+                ).distinct():
+                    if invoice.status == "DRAFT":
+                        change_invoice_status(
+                            business=business, actor=owner, invoice=invoice, status="SENT"
+                        )
+                        issued_ids.add(invoice.pk)
+                        for log in ActivityLog.objects.filter(
+                            business=business,
+                            action_type="STATUS_CHANGED",
+                            payload__invoice_id=invoice.pk,
+                        ):
+                            remember(f"activity/{invoice_keys[invoice.pk]}/issued", log)
+                snapshot = credit_review(business=business, actor=owner, parcel=item)
+                approval = remember(
+                    f"credit/{parcel_keys[item.pk]}/{movement}",
+                    approve_credit(
+                        business=business,
+                        actor=owner,
+                        parcel=item,
+                        status=movement,
+                        expires_at=credit_expiry,
+                        reason_reference=f"[LAB] Fictional movement credit {parcel_keys[item.pk]}/{movement}",
+                        obligation_fingerprint=fingerprint(snapshot),
+                        idempotency_key=uuid5(
+                            NAMESPACE_URL, f"{VERSION}/credit/{parcel_keys[item.pk]}/{movement}"
+                        ),
+                    ),
+                )
+                for log in ActivityLog.objects.filter(
+                    business=business, payload__credit_approval_id=approval.pk
+                ):
+                    remember(f"activity/credit/{parcel_keys[item.pk]}/{movement}", log)
+        if kind == "parcel":
+            apply_event(obj, movement, site, worker, message)
+        else:
+            site_id = (
+                obj.destination_location_id
+                if movement in ("ARRIVED", "COMPLETED")
+                else obj.origin_location_id
+            )
+            with work_at(
+                business,
+                worker,
+                sites[next(code for code, value in sites.items() if value.pk == site_id)],
+            ):
+                change_shipment_status(
+                    business=business, shipment=obj, actor=worker, status=movement
+                )
 
     for key, obj in all_parcels:
         for j, evt in enumerate(obj.events.order_by("timestamp", "pk"), 1):
@@ -658,6 +792,8 @@ def _seed(business, seed, users, sites, modes):
         "records": records,
         "air_supported": "AIR" in modes,
         "expected_counts": EXPECTED_COUNTS,
+        "financial_reset_policy": "owned-undispatched-credit-fixtures-v1",
+        "fixture_issued_invoice_ids": sorted(issued_ids),
     }
     seed.save(update_fields=["planned_counts", "updated_at"])
     objects = dataset_objects(business, seed, verify=True)
@@ -691,12 +827,19 @@ def execute_dataset(
         objects = reset_plan(business, seed, lock=True)
         if not confirm_test_financial_data:
             raise CommandError(
-                "Dataset draft invoices require --confirm-test-financial-data for reset."
+                "Dataset financial history requires --confirm-test-financial-data for reset."
             )
         for model in RESET_ORDER:
             pks = [obj.pk for obj in objects[model]]
             qs = model.objects.filter(pk__in=pks)
-            if model in (LogisticsCharge, ParcelEvent, Parcel, Shipment):
+            if model in (
+                LogisticsCharge,
+                LogisticsCreditApproval,
+                LogisticsCreditRevocation,
+                ParcelEvent,
+                Parcel,
+                Shipment,
+            ):
                 qs._purge_delete()
             else:
                 qs.delete()

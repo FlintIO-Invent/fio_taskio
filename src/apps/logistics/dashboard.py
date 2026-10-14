@@ -215,11 +215,13 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
         summaries = resolve_parcel_workflows(
             business=business,
             actor=actor,
-            parcel_ids=[item.pk for item in (*attention, *deliveries)],
+            parcel_ids=[item.pk for item in attention] + [event.parcel_id for event in deliveries],
             include_history=False,
         ).by_parcel_id
-        for parcel in (*attention, *deliveries):
+        for parcel in attention:
             parcel.workflow_summary = summaries[parcel.pk]
+        for event in deliveries:
+            event.parcel.workflow_summary = summaries[event.parcel_id]
         context["parcels_requiring_attention"] = attention
         context["recent_deliveries"] = deliveries
     return context

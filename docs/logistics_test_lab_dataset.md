@@ -150,14 +150,22 @@ python src/manage.py seed_logistics_test_lab --environment local --business-id L
   --reason-reference CHANGE_REFERENCE --confirm-test-financial-data
 ```
 
-Reset deletes only manifest-owned cargo, charges, draft invoices, lines, activity logs,
+Reset deletes only manifest-owned cargo, charges, unchanged undispatched fixture
+invoices, lines, credit approvals/revocations, events, activity logs,
 and intermediate handling associations, retaining the business, nine users, passwords,
 memberships, sites, assignments, subscription, profile and original seed run.
 Unrelated existing clients, invoices and normal login/billing metadata are also
 preserved; they need not be adopted into fixture ownership. It validates
 the entire ownership graph, tenant relationships, other seed claims and all incoming
 foreign keys. Missing or edited fixture rows, real operator events, unowned dependents,
-sent/paid/dispatched invoices, malformed metadata and cross-tenant links cause safe refusal.
+paid/dispatched invoices, malformed metadata and cross-tenant links cause safe refusal.
+New credit fixtures explicitly record the IDs of invoices issued by the seed for
+simulated movement, under `owned-undispatched-credit-fixtures-v1`. Only those
+unchanged SENT invoices may reset, with no email history, payments or unowned
+dependents. Credit snapshot invoice/charge/line/parcel references must also be owned.
+SENT invoices without this provenance remain blocked; older runs are never adopted.
+An edited, paid or dispatched dataset requires a separate disposable fixture workspace
+for reseeding; there is no destructive override.
 Cargo preflight also preserves additional administrator work contexts created by normal
 work-site selection. These must reference this lab's owned active membership and location,
 belong to an owner/administrator, have `is_work_context=True` and `can_operate=False`,
@@ -170,7 +178,7 @@ the fixture's first assigned site selected (regional: MIA-HUB); preview refuses 
 selection. Sint Maarten transshipment arrival uses the existing port operator, avoiding
 a temporary switch of regional staff. Administrator work contexts are temporarily selected
 through the existing service and restored, including additional preexisting contexts.
-Reset of invoice drafts requires explicit financial confirmation. It does not bypass
+Reset of financial fixtures requires explicit financial confirmation. It does not bypass
 `purge_business` or enable financial deletion on a customer business. Full lab cleanup
 still hits the existing invoice deletion gate; reset the dataset first.
 

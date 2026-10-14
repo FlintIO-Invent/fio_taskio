@@ -83,8 +83,8 @@ class VerifiedDemoOperationsTests(TestCase):
             ParcelEvent.objects.exclude(parcel=self.item).count(),
             LOGISTICS_DEMO_COUNTS["parcel_events"],
         )
-        self.assertEqual(Invoice.objects.count(), 4)
-        self.assertEqual(InvoiceLine.objects.count(), 13)
+        self.assertEqual(Invoice.objects.count(), 5)
+        self.assertEqual(InvoiceLine.objects.count(), 14)
         self.assertFalse(
             ParcelEvent.objects.exclude(parcel=self.item)
             .filter(operational_location__isnull=True)

@@ -19,6 +19,8 @@ from apps.logistics.models import (
     LogisticsApplicationDecision,
     LogisticsCharge,
     LogisticsChargeParcel,
+    LogisticsCreditApproval,
+    LogisticsCreditRevocation,
     LogisticsEnrollmentToken,
     LogisticsHandlingSite,
     LogisticsLocationAssignment,
@@ -254,6 +256,24 @@ class BusinessDataInventory:
 
 
 DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
+    InventoryRegistration(
+        "logistics_credit_approvals",
+        "logistics.LogisticsCreditApproval",
+        "business",
+        "Business.logistics_credit_approvals",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        True,
+    ),
+    InventoryRegistration(
+        "logistics_credit_revocations",
+        "logistics.LogisticsCreditRevocation",
+        "business",
+        "Business.logistics_credit_revocations",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        True,
+    ),
     InventoryRegistration(
         "logistics_charges",
         "logistics.LogisticsCharge",
@@ -1036,6 +1056,8 @@ def _cross_business_user_references(
         (Shipment, "created_by_id", "business_id", "shipments"),
         (LogisticsCharge, "created_by_id", "business_id", "logistics_charges"),
         (ParcelEvent, "actor_id", "business_id", "parcel_events"),
+        (LogisticsCreditApproval, "approved_by_id", "business_id", "credit_approvals"),
+        (LogisticsCreditRevocation, "revoked_by_id", "business_id", "credit_revocations"),
         (UserOnboardingState, "user_id", "business_id", "onboarding_states"),
         (
             SubscriptionNotification,
@@ -1405,6 +1427,11 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
     for model, owner, field, related_owner in (
         (InvoicePayment, "business_id", "invoice", "business_id"),
         (InvoicePayment, "business_id", "original", "business_id"),
+        (LogisticsCreditApproval, "business_id", "parcel", "business_id"),
+        (LogisticsCreditApproval, "business_id", "client", "business_id"),
+        (LogisticsCreditApproval, "business_id", "location", "business_id"),
+        (LogisticsCreditRevocation, "business_id", "approval", "business_id"),
+        (ParcelEvent, "business_id", "credit_approval", "business_id"),
         (Parcel, "business_id", "origin_location", "business_id"),
         (Parcel, "business_id", "destination_location", "business_id"),
         (Shipment, "business_id", "origin_location", "business_id"),

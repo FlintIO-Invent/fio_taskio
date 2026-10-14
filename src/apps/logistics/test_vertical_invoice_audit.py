@@ -46,10 +46,10 @@ class VerticalInvoiceAuditTests(TestCase):
     def test_seed_database_ownership_and_ui_counts_match_exactly(self):
         output = self.command(execute=True)
         planned = json.loads(output.splitlines()[0])["planned_counts"]
-        self.assertEqual((planned["invoices"], planned["invoice_lines"]), (4, 13))
+        self.assertEqual((planned["invoices"], planned["invoice_lines"]), (5, 14))
         invoices = Invoice.objects.filter(business=self.business)
         lines = InvoiceLine.objects.filter(invoice__business=self.business)
-        self.assertEqual((invoices.count(), lines.count()), (4, 13))
+        self.assertEqual((invoices.count(), lines.count()), (5, 14))
         self.assertFalse(invoices.exclude(client__business=self.business).exists())
         self.assertFalse(invoices.filter(appointment__isnull=False).exists())
         self.assertFalse(lines.filter(service__isnull=False).exists())
@@ -72,9 +72,14 @@ class VerticalInvoiceAuditTests(TestCase):
                 self.client.get(reverse("invoice_detail", args=[invoice.pk])),
                 invoice.invoice_number,
             )
-        for status, count in (("DRAFT", 1), ("SENT", 2), ("PAID", 1), ("CANCELLED", 0)):
+        # Arriving freight now has its own issued, explicitly credited Invoice.
+        for status, count in (("DRAFT", 1), ("SENT", 3), ("PAID", 1), ("CANCELLED", 0)):
             filtered = self.client.get(reverse("invoice_list"), {"status": status})
             self.assertEqual(filtered.context["invoices"].count(), count)
+            self.assertEqual(
+                set(filtered.context["invoices"].values_list("pk", flat=True)),
+                set(invoices.filter(status=status).values_list("pk", flat=True)),
+            )
 
     def test_legacy_pre_invoice_seed_requires_safe_reset_before_refresh(self):
         old_client = Client.objects.create(
@@ -106,9 +111,9 @@ class VerticalInvoiceAuditTests(TestCase):
         self.assertTrue(Invoice.objects.filter(pk=genuine.pk).exists())
         self.command(execute=True)
         demo = Invoice.objects.filter(business=self.business).exclude(pk=genuine.pk)
-        self.assertEqual(demo.count(), 4)
-        self.assertEqual(InvoiceLine.objects.filter(invoice__in=demo).count(), 13)
-        self.assertEqual(self.client.get(reverse("invoice_list")).context["invoices"].count(), 5)
+        self.assertEqual(demo.count(), 5)
+        self.assertEqual(InvoiceLine.objects.filter(invoice__in=demo).count(), 14)
+        self.assertEqual(self.client.get(reverse("invoice_list")).context["invoices"].count(), 6)
 
     def test_shared_manual_invoice_creation_works_without_service_or_appointment(self):
         for business in (self.business, self.service):
@@ -240,7 +245,7 @@ class VerticalInvoiceAuditTests(TestCase):
         logistics_seed = DemoSeedRun.objects.get(business=self.business)
         self.assertEqual(Invoice.objects.filter(business=self.service).count(), 5)
         self.assertEqual(InvoiceLine.objects.filter(invoice__business=self.service).count(), 10)
-        self.assertEqual(Invoice.objects.filter(business=self.business).count(), 4)
+        self.assertEqual(Invoice.objects.filter(business=self.business).count(), 5)
         self.assertFalse(Parcel.objects.filter(business=self.service).exists())
         self.assertFalse(BusinessService.objects.filter(business=self.business).exists())
         for options in ({"execute": True}, {"reset_demo": True, "execute": True}):
@@ -252,8 +257,8 @@ class VerticalInvoiceAuditTests(TestCase):
         self.assertEqual(Invoice.objects.filter(business=self.service).count(), 5)
         self.command(execute=True)
         self.command("seed_demo_data", business=self.service, reset_demo=True, execute=True)
-        self.assertEqual(Invoice.objects.filter(business=self.business).count(), 4)
-        self.assertEqual(InvoiceLine.objects.filter(invoice__business=self.business).count(), 13)
+        self.assertEqual(Invoice.objects.filter(business=self.business).count(), 5)
+        self.assertEqual(InvoiceLine.objects.filter(invoice__business=self.business).count(), 14)
         self.assertTrue(Client.objects.filter(pk=self.customer.pk).exists())
 
     def test_forged_cross_vertical_invoice_ownership_aborts_reset(self):

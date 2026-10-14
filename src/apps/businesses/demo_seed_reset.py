@@ -10,6 +10,8 @@ from apps.crm.models import ActivityLog, BusinessService, Client, Lead, ServiceC
 from apps.logistics.models import (
     LogisticsCharge,
     LogisticsChargeParcel,
+    LogisticsCreditApproval,
+    LogisticsCreditRevocation,
     LogisticsHandlingSite,
     Parcel,
     ParcelEvent,
@@ -162,7 +164,14 @@ def execute_demo_seed_reset(
         pks = plan.object_pks[label]
         deleted_counts[label] = model._default_manager.filter(pk__in=pks).count()
         queryset = model._default_manager.filter(pk__in=pks)
-        if model in (LogisticsCharge, ParcelEvent, Parcel, Shipment):
+        if model in (
+            LogisticsCharge,
+            LogisticsCreditApproval,
+            LogisticsCreditRevocation,
+            ParcelEvent,
+            Parcel,
+            Shipment,
+        ):
             queryset._purge_delete()
         else:
             queryset.delete()
@@ -269,6 +278,8 @@ def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -
         for model in (
             *RESET_MODEL_ORDER,
             LogisticsCharge,
+            LogisticsCreditApproval,
+            LogisticsCreditRevocation,
             ParcelEvent,
             Parcel,
             Shipment,
@@ -308,6 +319,10 @@ def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -
         (InvoiceLine, "shipment", Shipment),
         (InvoiceLine, "charge_source", LogisticsCharge),
         (LogisticsCharge, "supersedes", LogisticsCharge),
+        (LogisticsCreditApproval, "parcel", Parcel),
+        (LogisticsCreditApproval, "client", Client),
+        (LogisticsCreditRevocation, "approval", LogisticsCreditApproval),
+        (ParcelEvent, "credit_approval", LogisticsCreditApproval),
     ):
         _append_unowned_blocker(
             blockers,

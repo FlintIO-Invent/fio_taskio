@@ -160,7 +160,8 @@ class ScanWorkflowTests(TestCase):
             response = self.lookup(parcel.tracking_code)
             self.assertEqual(
                 {value for value, _ in response.context["scan_actions"]},
-                ALLOWED_TRANSITIONS[state] - {"IN_TRANSIT", "DELIVERED"},
+                ALLOWED_TRANSITIONS[state]
+                - ({"IN_TRANSIT", "DELIVERED"} if state in ("REGISTERED", "RECEIVED") else set()),
             )
 
     def test_action_creates_one_event_and_returns_next_scan(self):

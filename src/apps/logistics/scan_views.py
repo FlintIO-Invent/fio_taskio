@@ -19,12 +19,19 @@ from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 from .parcel_services import parcels_for_business, record_parcel_event, require_parcel_access
 from .scan import ScanActionForm, ScanLookupForm, resolve_scanned_parcel
 from .shipment_services import shipments_for_business
-from .workflow_summary import resolve_parcel_workflow
+from .workflow_summary import _read_snapshot, resolve_parcel_workflow
 
 NOT_FOUND = "Parcel not found in this workspace. Check the tracking code and try again."
 
 
-def _render(request, *, lookup_form=None, parcel=None, error="", confirmation="", status=200):
+def _context(request, *, lookup_form=None, parcel=None, error="", confirmation=""):
+    if parcel is not None:
+        parcel = get_object_or_404(
+            parcels_for_business(
+                business=request.current_business, actor=request.user
+            ).select_related("client"),
+            pk=parcel.pk,
+        )
     context = {
         "lookup_form": lookup_form if lookup_form is not None else ScanLookupForm(),
         "parcel": parcel,
@@ -40,6 +47,7 @@ def _render(request, *, lookup_form=None, parcel=None, error="", confirmation=""
         context["workflow_summary"] = workflow
         context["recent_event"] = (
             ParcelEvent.objects.filter(business=request.current_business, parcel=parcel)
+            .select_related("actor", "operational_location")
             .order_by("-timestamp", "-pk")
             .first()
         )
@@ -87,6 +95,12 @@ def _render(request, *, lookup_form=None, parcel=None, error="", confirmation=""
             context["scan_actions"] = [
                 (value, label) for value, label in context["scan_actions"] if value in executable
             ]
+    return context
+
+
+def _render(request, *, status=200, **kwargs):
+    with _read_snapshot():
+        context = _context(request, **kwargs)
     template = (
         "logistics/includes/scan_panel.html"
         if request.headers.get("X-Requested-With") == "XMLHttpRequest"

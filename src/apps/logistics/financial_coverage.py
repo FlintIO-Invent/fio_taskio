@@ -287,7 +287,16 @@ def _parcels(*, business, actor, parcel_ids):
     queryset = Parcel.objects.filter(business=business, client__business=business, pk__in=ids)
     if membership_for(business, actor).role == BusinessUser.Role.STAFF:
         queryset = financial_parcels(business=business, actor=actor).filter(pk__in=ids)
-    parcels = list(queryset.order_by("pk"))
+    parcels = list(
+        queryset.select_related(
+            "origin_location",
+            "destination_location",
+            "shipment__origin_location",
+            "shipment__destination_location",
+        )
+        .prefetch_related("handling_sites__location", "shipment__handling_sites__location")
+        .order_by("pk")
+    )
     if len(parcels) != len(ids):
         raise PermissionDenied("Financial coverage requires accessible workspace Parcels.")
     for parcel in parcels:

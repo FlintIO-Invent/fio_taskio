@@ -1,0 +1,26 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}<div class="content">
+  <h2>Scoped credit · {{ parcel.tracking_code }}</h2>
+  <p>Approve one movement against the listed issued Invoice obligations. This does not record payment or authorize location access.</p>
+  <a class="btn btn-phoenix-secondary mb-3" href="{% url 'logistics_parcel_registration' parcel.pk %}">Continue Registration</a>
+  {% if credit_error %}<div class="alert alert-warning">{{ credit_error }}</div>{% endif %}
+  {% if snapshot %}<section class="card mb-3"><div class="card-body"><h3 class="fs-7">Affected obligations</h3>
+    {% for charge in snapshot.charges %}<p>Charge {{ charge.id }} · {{ charge.currency }} {{ charge.total }} · Invoice {{ charge.invoice_id }}</p>{% endfor %}
+    <h4 class="fs-8">Full Invoice balance limits</h4>{% for invoice in snapshot.invoices %}<p>Invoice {{ invoice.id }} · {{ invoice.currency }} {{ invoice.outstanding_limit }}</p>{% endfor %}
+    <p class="text-body-secondary">A shared Invoice's full balance is covered for this Parcel's movement only. Changes to charges or Invoice bindings require a new approval.</p>
+  </div></section>{% endif %}
+  {% if form %}<form method="post" class="card mb-3"><div class="card-body">{% csrf_token %}
+    {% include 'logistics/includes/form_errors.html' %}
+    {% for field in form %}{% if field.is_hidden %}{{ field }}{{ field.errors }}{% else %}<div class="mb-3"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endif %}{% endfor %}
+    <button type="submit" class="btn btn-primary">Approve scoped credit</button>
+  </div></form>{% endif %}
+  <h3>Credit audit</h3>{% for approval in approvals %}<article class="card mb-3"><div class="card-body">
+    <p>{{ approval.get_status_display }} · {{ approval.approved_at }} · {{ approval.approved_by }} · Expires {{ approval.expires_at }}</p>
+    <p class="text-break">{{ approval.reason_reference }}</p>
+    {% if approval.revocation %}<p>Revoked {{ approval.revocation.revoked_at }} by {{ approval.revocation.revoked_by }} · {{ approval.revocation.reason_reference }}</p>
+    {% else %}<form method="post">{% csrf_token %}<input type="hidden" name="revoke" value="{{ approval.pk }}"><input type="hidden" name="idempotency_key" value="{{ approval.revocation_nonce }}">
+      <label class="form-label" for="credit-reason-{{ approval.pk }}">Revocation reason / reference</label><input class="form-control mb-2" id="credit-reason-{{ approval.pk }}" name="reason_reference" maxlength="1000" required>
+      <button type="submit" class="btn btn-phoenix-danger">Revoke credit</button>
+    </form>{% endif %}
+  </div></article>{% empty %}<p>No credit approvals.</p>{% endfor %}
+</div>{% endblock %}

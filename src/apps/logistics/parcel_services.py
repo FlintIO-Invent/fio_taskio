@@ -372,6 +372,11 @@ def record_parcel_event(
     if status:
         if status not in ALLOWED_TRANSITIONS[locked.current_status]:
             raise ValidationError({"status": "This status transition is not allowed."})
+        from .credit_services import require_movement_clearance
+
+        event.credit_approval_id = require_movement_clearance(
+            business=current, actor=actor, parcel=locked, status=status
+        )
         locked.current_status = status
         locked._domain_save(update_fields=["current_status", "updated_at"])
     elif not (public_message.strip() or internal_note.strip()):

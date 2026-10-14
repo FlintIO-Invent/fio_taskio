@@ -151,6 +151,9 @@ class LogisticsReadinessFlowTests(LogisticsCheckoutFixture, TestCase):
             transport_mode="ROAD",
         )
         assign_parcel(business=self.business, shipment=shipment, parcel=parcel, actor=self.user)
+        from .financial_test_support import clear_test_parcel
+
+        clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         for state in ("READY", "IN_TRANSIT", "ARRIVED"):
             change_shipment_status(
                 business=self.business, shipment=shipment, actor=self.user, status=state

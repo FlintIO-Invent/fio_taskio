@@ -328,6 +328,9 @@ class PublicTrackingTests(TestCase):
         self.assertContains(self.lookup(), NOT_FOUND_MESSAGE, status_code=404)
 
     def test_delivered_parcel_stays_trackable_with_eligible_business(self):
+        from .financial_test_support import clear_test_parcel
+
+        clear_test_parcel(business=self.business, actor=self.user, parcel=self.parcel)
         for status in ("RECEIVED", "IN_TRANSIT", "ARRIVED", "READY", "DELIVERED"):
             change_parcel_status(
                 business=self.business,

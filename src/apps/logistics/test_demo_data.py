@@ -222,7 +222,7 @@ class LogisticsDemoDataTests(TestCase):
             200,
         )
         self.assertIn("RESET PREVIEW ONLY", self.command(reset_demo=True))
-        self.assertEqual(Invoice.objects.count(), 4)
+        self.assertEqual(Invoice.objects.count(), 5)
         self.command(reset_demo=True, execute=True)
         self.assertFalse(DemoSeedRun.objects.exists())
         self.assertFalse(Invoice.objects.exists())
@@ -389,12 +389,12 @@ class LogisticsDemoDataTests(TestCase):
         self.assertEqual(
             Counter(Invoice.objects.values_list("status", flat=True)),
             {
-                "SENT": 2,
+                "SENT": 3,
                 "PAID": 1,
                 "DRAFT": 1,
             },
         )
-        self.assertEqual(InvoiceLine.objects.count(), 13)
+        self.assertEqual(InvoiceLine.objects.count(), 14)
         self.assertFalse(BusinessService.objects.filter(business=self.business).exists())
         self.assertFalse(Appointment.objects.filter(business=self.business).exists())
         self.assertFalse(Lead.objects.filter(business=self.business).exists())
@@ -413,7 +413,7 @@ class LogisticsDemoDataTests(TestCase):
             (d, "SENT", 3, "43.00"),
             (e, "DRAFT", 3, "190.00"),
         ):
-            invoice = Invoice.objects.get(client=client)
+            invoice = Invoice.objects.get(client=client, status=state)
             invoice.full_clean()
             self.assertEqual(invoice.status, state)
             self.assertEqual(invoice.lines.count(), count)
@@ -561,7 +561,7 @@ class LogisticsDemoDataTests(TestCase):
 
     def test_invoice_failure_rolls_back_the_entire_connected_seed(self):
         def fail_after_paid_scenario(**kwargs):
-            if Invoice.objects.filter(status="PAID").exists():
+            if Invoice.objects.count() >= 2:
                 raise ValidationError("Demo invoice failure")
             return invoice_charges(**kwargs)
 

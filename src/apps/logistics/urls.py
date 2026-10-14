@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import (
     billing_views,
+    credit_views,
     label_views,
     location_access_views,
     location_views,
@@ -24,6 +25,11 @@ from .views import (
 )
 
 urlpatterns = [
+    path(
+        "parcels/<int:parcel_id>/credit/",
+        credit_views.parcel_credit,
+        name="logistics_parcel_credit",
+    ),
     path(
         "parcels/<int:parcel_id>/registration/",
         parcel_registration,

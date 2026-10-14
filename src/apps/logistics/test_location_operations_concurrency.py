@@ -69,6 +69,9 @@ class VerifiedOperationConcurrencyTests(TransactionTestCase):
         )
 
     def ship(self):
+        from .financial_test_support import clear_test_parcel
+
+        clear_test_parcel(business=self.business, actor=self.user, parcel=self.item)
         item = create_shipment(
             business=self.business,
             actor=self.user,

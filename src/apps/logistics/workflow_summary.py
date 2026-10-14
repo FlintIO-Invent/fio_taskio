@@ -42,6 +42,7 @@ from .location_operations import (
 from .models import (
     LogisticsCharge,
     LogisticsChargeParcel,
+    LogisticsCreditApproval,
     LogisticsLocation,
     Parcel,
     ParcelEvent,
@@ -178,6 +179,7 @@ class _Graph:
         if len(self.parcels) != len(ids):
             raise PermissionDenied("Workflow summaries require accessible workspace Parcels.")
         self.member = membership_for(business, actor)
+        self.credit_approvals, self.credit_references = {}, {}
         self.private_finance = False
         try:
             require_financial_access(business=business, actor=actor)
@@ -185,6 +187,13 @@ class _Graph:
             self.private_finance = self.member.role != BusinessUser.Role.STAFF
         except PermissionDenied:
             self.finance_available = False
+        if self.finance_available:
+            for approval in (
+                LogisticsCreditApproval.objects.filter(business=business, parcel_id__in=ids)
+                .select_related("approved_by", "location", "revocation__revoked_by")
+                .order_by("-approved_at", "-pk")
+            ):
+                self.credit_approvals.setdefault(approval.parcel_id, []).append(approval)
         self.finance_write = False
         if self.private_finance:
             try:
@@ -653,8 +662,6 @@ class _Graph:
         active_rows = [row for row in rows if not row["voided"]]
         if not active_rows:
             issues.append("No proven active financial obligations; clearance cannot be inferred.")
-        if require_credit_evidence:
-            issues.append("Required authoritative credit approval evidence is unavailable.")
         states = {row["state"] for row in active_rows}
         state = (
             FinancialState.UNKNOWN
@@ -674,7 +681,32 @@ class _Graph:
             )
         )
         complete = not issues
-        cleared = complete and state == FinancialState.PAID
+        from .credit_services import CREDIT_MOVEMENTS, obligation_snapshot, valid_approvals
+
+        approved = (
+            valid_approvals(self, parcel, obligation_snapshot(self, parcel), at=timezone.now())
+            if complete
+            else {}
+        )
+        relevant_movement = (
+            "IN_TRANSIT"
+            if parcel.current_status in ("REGISTERED", "RECEIVED", "HOLD")
+            else "DELIVERED"
+        )
+        if require_credit_evidence and relevant_movement not in approved:
+            issues.append("Required authoritative credit approval evidence is unavailable.")
+            complete, state = False, FinancialState.UNKNOWN
+        settled = complete and state == FinancialState.PAID
+        movements = {
+            status: complete and (settled or status in approved) for status in CREDIT_MOVEMENTS
+        }
+        self.credit_references[parcel.pk] = (
+            {status: approval.pk for status, approval in approved.items()} if not settled else {}
+        )
+        cleared = movements[relevant_movement]
+        settlement_state = state
+        if cleared and not settled:
+            state = FinancialState.CREDIT_APPROVED
         detailed = visibility == "DETAILED"
         safe_issues = (
             tuple(dict.fromkeys(issues))
@@ -696,7 +728,28 @@ class _Graph:
                 if detailed
                 else None
             ),
-            "clearance": {"complete": complete, "cleared": cleared, "issues": safe_issues},
+            "clearance": {
+                "complete": complete,
+                "cleared": cleared,
+                "issues": safe_issues,
+                "movements": movements,
+                "via_credit": cleared and not settled,
+            },
+            "settlement_state": settlement_state.value if detailed else None,
+            "credit": (
+                tuple(
+                    {
+                        "id": approval.pk,
+                        "status": approval.status,
+                        "approved_by": _actor(approval.approved_by),
+                        "reason_reference": approval.reason_reference,
+                        "expires_at": approval.expires_at,
+                    }
+                    for approval in approved.values()
+                )
+                if detailed
+                else ()
+            ),
             "charges": tuple(rows) if detailed else (),
             "invoices": tuple(invoices.values()) if detailed else (),
             "totals_by_currency": _totals(rows, invoices.values()) if detailed else {},
@@ -902,9 +955,32 @@ def _history(graph, parcel, financial):
                 "billings.InvoiceLine",
                 "billings.InvoicePayment",
                 "crm.ActivityLog",
+                "logistics.LogisticsCreditApproval",
+                "logistics.LogisticsCreditRevocation",
             )
         )
     }
+    if graph.private_finance:
+        for approval in graph.credit_approvals.get(parcel.pk, ()):
+            add(
+                approval.approved_at,
+                "CREDIT_APPROVED",
+                "logistics.LogisticsCreditApproval",
+                approval.pk,
+                "Scoped credit approved",
+                _actor(approval.approved_by),
+                _location(approval.location, graph.business.pk),
+            )
+            if hasattr(approval, "revocation"):
+                revoked = approval.revocation
+                add(
+                    revoked.revoked_at,
+                    "CREDIT_REVOKED",
+                    "logistics.LogisticsCreditRevocation",
+                    revoked.pk,
+                    "Scoped credit revoked",
+                    _actor(revoked.revoked_by),
+                )
     return (
         tuple(
             sorted(
@@ -1045,8 +1121,16 @@ def _summary(graph, parcel, as_of, require_credit_evidence):
         steps.append(
             {
                 "code": "FINANCIALLY_CLEARED",
-                "label": "Financially settled",
-                "source": "billings.InvoicePayment/Invoice",
+                "label": (
+                    "Credit clearance approved"
+                    if financial["clearance"]["via_credit"]
+                    else "Financially settled"
+                ),
+                "source": (
+                    "logistics.LogisticsCreditApproval"
+                    if financial["clearance"]["via_credit"]
+                    else "billings.InvoicePayment/Invoice"
+                ),
                 "source_id": None,
                 "timestamp": None,
             }
@@ -1097,7 +1181,10 @@ def _summary(graph, parcel, as_of, require_credit_evidence):
         }
         candidates.append(action)
         allowed = parcel.pk in graph.operable and complete and not history_issues
-        if action["requires_financial_clearance"] and not financial["clearance"]["cleared"]:
+        if (
+            action["requires_financial_clearance"]
+            and not financial["clearance"]["movements"][status]
+        ):
             allowed = False
         if allowed:
             try:

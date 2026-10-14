@@ -25,6 +25,8 @@ from .location_operations import operation_location, operations_enabled
 from .location_reference import country_choices, exact_country_code
 from .models import (
     LogisticsCharge,
+    LogisticsCreditApproval,
+    LogisticsCreditRevocation,
     LogisticsLocation,
     LogisticsProfile,
     Parcel,
@@ -53,6 +55,8 @@ LOGISTICS_RESET_ORDER = (
     Invoice,
     ActivityLog,
     ParcelEvent,
+    LogisticsCreditRevocation,
+    LogisticsCreditApproval,
     Parcel,
     Shipment,
     Client,
@@ -64,10 +68,12 @@ LOGISTICS_DEMO_COUNTS = {
     "parcel_events": 83,
     "shipments": 6,
     "services": 0,
-    "logistics_charges": 16,
-    "invoices": 4,
-    "invoice_lines": 13,
-    "activity_logs": 4,
+    "logistics_credit_approvals": 12,
+    "logistics_credit_revocations": 0,
+    "logistics_charges": 17,
+    "invoices": 5,
+    "invoice_lines": 14,
+    "activity_logs": 17,
 }
 PARCEL_STATUS_COUNTS = {
     "REGISTERED": 3,
@@ -466,7 +472,17 @@ def seed_logistics_demo(
         for index in range(LOGISTICS_DEMO_COUNTS["shipments"])
     ]
 
+    operations = []
+    final_invoice_states = []
+
     def status(parcel, value):
+        operations.append(("parcel", parcel, value, None))
+
+    def queue_shipment(*, business, shipment, actor, status):
+        site = operation_location(business, actor)
+        operations.append(("shipment", shipment, status, site.pk if site else None))
+
+    def apply_status(parcel, value):
         if location_plan:
             select_work_location(
                 business=business,
@@ -524,20 +540,20 @@ def seed_logistics_demo(
                         else origin_location_id
                     ),
                 )
-            change_shipment_status(business=business, shipment=shipment, actor=actor, status=value)
+            queue_shipment(business=business, shipment=shipment, actor=actor, status=value)
             if value == target:
                 break
         if target == Shipment.Status.COMPLETED:
             for parcel in members:
                 status(parcel, Parcel.Status.READY)
                 status(parcel, Parcel.Status.DELIVERED)
-            change_shipment_status(
+            queue_shipment(
                 business=business, shipment=shipment, actor=actor, status=Shipment.Status.COMPLETED
             )
     status(parcels[10], Parcel.Status.RECEIVED)
     for parcel in parcels[10:12]:
         assign_parcel(business=business, shipment=shipments[4], parcel=parcel, actor=actor)
-    change_shipment_status(
+    queue_shipment(
         business=business, shipment=shipments[5], actor=actor, status=Shipment.Status.CANCELLED
     )
     status(parcels[13], Parcel.Status.RECEIVED)
@@ -554,6 +570,150 @@ def seed_logistics_demo(
     status(parcels[17], Parcel.Status.CANCELLED)
     status(parcels[18], Parcel.Status.RECEIVED)
     status(parcels[18], Parcel.Status.CANCELLED)
+
+    # Build exact obligations before any simulated departure/delivery. These are
+    # fictional demo approvals, never customer receipts or real-client exceptions.
+    # Demo charge snapshots need no SERVICE catalogue or appointment objects.
+    rates = (
+        ("Small Parcel Delivery", "15"),
+        ("Medium Parcel Delivery", "25"),
+        ("Large Parcel Delivery", "40"),
+        ("Standard Handling", "5"),
+        ("Fragile Handling", "12"),
+        ("Storage", "8"),
+        ("Freight", "150"),
+        ("Customs Processing", "35"),
+    )
+
+    def charge(target, rate_index, *, quantity=1, price=None, description=""):
+        if rate_index is not None:
+            name, standard_price = rates[rate_index]
+            description = description or f"[DEMO] {name}"
+            if price is None:
+                price = Decimal(standard_price)
+        return own(
+            add_charge(
+                business=business,
+                actor=actor,
+                **({"parcel": target} if isinstance(target, Parcel) else {"shipment": target}),
+                quantity=Decimal(quantity),
+                unit_price=price,
+                description=description,
+                idempotency_key=uuid4(),
+            )
+        )
+
+    # Each shipment billed here has one client. Mixed-client shipment billing is
+    # deliberately not bypassed. Paid/Sent are fictional local invoice snapshots;
+    # no email, payment, Stripe or subscription action is performed.
+    invoice_scenarios = (
+        (
+            Invoice.Status.SENT,
+            "F: Arrived freight under explicit demonstration credit",
+            [charge(shipments[2], 6)],
+        ),
+        (
+            Invoice.Status.SENT,
+            f"A: Books moving from {shipments[1].origin} to {shipments[1].destination}",
+            [
+                charge(shipments[1], 6),
+                charge(parcels[3], 3, quantity=2),
+                charge(parcels[4], 7),
+            ],
+        ),
+        (
+            Invoice.Status.PAID,
+            f"C: Shop supplies delivered from {shipments[0].origin} to {shipments[0].destination}",
+            [
+                charge(shipments[0], 6),
+                charge(parcels[0], 2, price=Decimal("35.00"), description="Negotiated delivery"),
+                charge(parcels[1], 3),
+                charge(
+                    parcels[2], None, price=Decimal("37.50"), description="Oversized cargo handling"
+                ),
+            ],
+        ),
+        (
+            Invoice.Status.SENT,
+            "D: Tableware ready, awaiting onward local delivery",
+            [
+                charge(parcels[14], 0),
+                charge(parcels[14], 4),
+                charge(parcels[14], 5, quantity=2),
+            ],
+        ),
+        (
+            Invoice.Status.DRAFT,
+            "E: Display materials booked for "
+            f"{TransportationMode(shipments[4].transport_mode).label.lower()} dispatch",
+            [
+                charge(shipments[4], 6),
+                charge(parcels[10], 7),
+                charge(parcels[11], 3),
+            ],
+        ),
+    )
+    for state, story, group in invoice_scenarios:
+        invoice = own(
+            invoice_charges(
+                business=business, actor=actor, charge_ids=[charge.pk for charge in group]
+            )
+        )
+        invoice.status = Invoice.Status.SENT if state == Invoice.Status.PAID else state
+        final_invoice_states.append((invoice, state))
+        invoice.notes = (
+            f"[DEMO] {story}. Simulated {state.lower()} status; no email or payment processed."
+        )
+        invoice.save(update_fields=["status", "notes", "updated_at"])
+        for line in invoice.lines.all():
+            own(line)
+        for activity in ActivityLog.objects.filter(
+            business=business,
+            client=invoice.client,
+            payload__invoice_number=invoice.invoice_number,
+        ):
+            own(activity)
+
+    from .credit_services import approve_credit, credit_review, fingerprint
+
+    credit_expiry = now + timedelta(days=14)
+
+    def credit_for(item, movement):
+        snapshot = credit_review(business=business, actor=actor, parcel=item)
+        approval = own(
+            approve_credit(
+                business=business,
+                actor=actor,
+                parcel=item,
+                status=movement,
+                expires_at=credit_expiry,
+                reason_reference=f"[DEMO] Fictional movement credit {item.internal_reference}/{movement}",
+                obligation_fingerprint=fingerprint(snapshot),
+                idempotency_key=uuid4(),
+            )
+        )
+        for log in ActivityLog.objects.filter(
+            business=business, payload__credit_approval_id=approval.pk
+        ):
+            own(log)
+
+    for kind, obj, movement, site_id in operations:
+        if movement in ("IN_TRANSIT", "DELIVERED"):
+            affected = [obj] if kind == "parcel" else list(obj.parcels.all())
+            for item in affected:
+                credit_for(item, movement)
+        if kind == "parcel":
+            apply_status(obj, movement)
+        else:
+            if site_id:
+                select_work_location(business=business, actor=actor, location=site_id)
+            change_shipment_status(business=business, shipment=obj, actor=actor, status=movement)
+    # Preserve the existing manually marked PAID demonstration as unverified legacy
+    # status. No receipt is invented to support it.
+    for invoice, state in final_invoice_states:
+        if invoice.status != state:
+            invoice.status = state
+            invoice.save(update_fields=["status", "updated_at"])
 
     for parcel in parcels:
         parcel.refresh_from_db()
@@ -604,100 +764,6 @@ def seed_logistics_demo(
     events = ParcelEvent.objects.filter(business=business, parcel__in=parcels).order_by("pk")
     for event in events:
         own(event)
-    # Demo charge snapshots need no SERVICE catalogue or appointment objects.
-    rates = (
-        ("Small Parcel Delivery", "15"),
-        ("Medium Parcel Delivery", "25"),
-        ("Large Parcel Delivery", "40"),
-        ("Standard Handling", "5"),
-        ("Fragile Handling", "12"),
-        ("Storage", "8"),
-        ("Freight", "150"),
-        ("Customs Processing", "35"),
-    )
-
-    def charge(target, rate_index, *, quantity=1, price=None, description=""):
-        if rate_index is not None:
-            name, standard_price = rates[rate_index]
-            description = description or f"[DEMO] {name}"
-            if price is None:
-                price = Decimal(standard_price)
-        return own(
-            add_charge(
-                business=business,
-                actor=actor,
-                **({"parcel": target} if isinstance(target, Parcel) else {"shipment": target}),
-                quantity=Decimal(quantity),
-                unit_price=price,
-                description=description,
-                idempotency_key=uuid4(),
-            )
-        )
-
-    # Each shipment billed here has one client. Mixed-client shipment billing is
-    # deliberately not bypassed. Paid/Sent are fictional local invoice snapshots;
-    # no email, payment, Stripe or subscription action is performed.
-    invoice_scenarios = (
-        (
-            Invoice.Status.SENT,
-            f"A: Books moving from {shipments[1].origin} to {shipments[1].destination}",
-            [
-                charge(shipments[1], 6),
-                charge(parcels[3], 3, quantity=2),
-                charge(parcels[4], 7),
-            ],
-        ),
-        (
-            Invoice.Status.PAID,
-            f"C: Shop supplies delivered from {shipments[0].origin} to {shipments[0].destination}",
-            [
-                charge(shipments[0], 6),
-                charge(parcels[0], 2, price=Decimal("35.00"), description="Negotiated delivery"),
-                charge(parcels[1], 3),
-                charge(
-                    parcels[2], None, price=Decimal("37.50"), description="Oversized cargo handling"
-                ),
-            ],
-        ),
-        (
-            Invoice.Status.SENT,
-            "D: Tableware ready, awaiting onward local delivery",
-            [
-                charge(parcels[14], 0),
-                charge(parcels[14], 4),
-                charge(parcels[14], 5, quantity=2),
-            ],
-        ),
-        (
-            Invoice.Status.DRAFT,
-            "E: Display materials booked for "
-            f"{TransportationMode(shipments[4].transport_mode).label.lower()} dispatch",
-            [
-                charge(shipments[4], 6),
-                charge(parcels[10], 7),
-                charge(parcels[11], 3),
-            ],
-        ),
-    )
-    for state, story, group in invoice_scenarios:
-        invoice = own(
-            invoice_charges(
-                business=business, actor=actor, charge_ids=[charge.pk for charge in group]
-            )
-        )
-        invoice.status = state
-        invoice.notes = (
-            f"[DEMO] {story}. Simulated {state.lower()} status; no email or payment processed."
-        )
-        invoice.save(update_fields=["status", "notes", "updated_at"])
-        for line in invoice.lines.all():
-            own(line)
-        for activity in ActivityLog.objects.filter(
-            business=business,
-            client=invoice.client,
-            payload__invoice_number=invoice.invoice_number,
-        ):
-            own(activity)
     # Unbilled estimates demonstrate the existing charge-to-invoice workflow too.
     charge(parcels[16], 5, quantity=3)
     charge(parcels[16], 3)

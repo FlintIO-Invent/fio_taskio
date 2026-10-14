@@ -6,7 +6,7 @@
   {% if workflow_summary.financial.visibility == 'DETAILED' %}
     <p>Financial state: <strong>{{ workflow_summary.financial.state_label }}</strong></p>
     {% for issue in workflow_summary.financial.clearance.issues %}<p class="text-body-secondary">{{ issue }}</p>{% endfor %}
-    {% if workflow_summary.financial.charges %}<div class="table-responsive"><table class="table align-middle">
+    {% if workflow_summary.financial.charges %}<div class="table-responsive"><table class="table align-middle" style="min-width: 34rem">
       <thead><tr><th>Applicable charge</th><th>Amount before tax</th><th>Billing coverage</th></tr></thead>
       <tbody>{% for charge in workflow_summary.financial.charges %}<tr>
         <td>{{ charge.description }}{% if charge.target_kind == 'SHIPMENT' %} · Shipment freight{% endif %}{% if charge.shared %} · Shared obligation{% endif %}</td>
@@ -14,7 +14,7 @@
         <td>{% if charge.voided %}Voided; history retained{% elif charge.billed %}Invoiced{% else %}Not invoiced{% endif %}</td>
       </tr>{% endfor %}</tbody>
     </table></div>{% endif %}
-    {% if workflow_summary.financial.invoices %}<div class="table-responsive"><table class="table align-middle">
+    {% if workflow_summary.financial.invoices %}<div class="table-responsive"><table class="table align-middle" style="min-width: 34rem">
       <thead><tr><th>Invoice</th><th>Recorded net payment</th><th>Outstanding</th><th>Scope</th></tr></thead>
       <tbody>{% for invoice in workflow_summary.financial.invoices %}<tr>
         <td><a href="{% url 'invoice_detail' invoice.id %}">{{ invoice.number }}</a> · {{ invoice.lifecycle_status }}</td>
@@ -30,6 +30,8 @@
     <ul>{% for action in workflow_summary.candidate_actions %}<li>{{ action.label }}</li>{% empty %}<li>No further operational transitions</li>{% endfor %}</ul>
   </details>
   {% for action in workflow_summary.executable_actions %}{% if action.url %}<a class="btn btn-sm btn-phoenix-primary me-2 mb-2" href="{{ action.url }}">{{ action.label }}</a>{% endif %}{% endfor %}
+  {% if role_access.can_manage_business_settings and module_write_access.invoicing %}<a class="btn btn-sm btn-phoenix-secondary me-2 mb-2" href="{% url 'logistics_parcel_credit' workflow_summary.parcel_id %}">Review scoped credit</a>{% endif %}
+  {% if workflow_summary.financial.credit %}<p>Scoped credit: {% for approval in workflow_summary.financial.credit %}{{ approval.status }} · Expires {{ approval.expires_at }}{% if not forloop.last %}; {% endif %}{% endfor %}. Payment remains outstanding.</p>{% endif %}
   {% if workflow_summary.history %}<details><summary>Recorded journey history</summary><ol class="mt-3">{% for item in workflow_summary.history %}<li class="mb-2">{{ item.timestamp }} · {{ item.label }} · {{ item.actor.label }}{% if item.location %} · {{ item.location.code }}{% endif %}</li>{% endfor %}</ol></details>{% endif %}
   <p class="text-body-tertiary fs-9 mb-0">Summary as of {{ workflow_summary.as_of }}. Permissions and evidence are checked again when an action is submitted.</p>
 </div></section>
