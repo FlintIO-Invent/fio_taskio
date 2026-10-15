@@ -8,7 +8,7 @@ import stripe
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
-from .billing_policy import BILLABLE_PLAN_SLUGS, billing_offering, offering_allows_interval
+from .billing_policy import BILLABLE_PLAN_SLUGS, offering_allows_interval
 from .plan_catalog import (
     PUBLIC_BILLING_INTERVALS,
     PUBLIC_PAID_PLAN_SLUGS,
@@ -173,7 +173,7 @@ def _normalize_price_dimensions(
     if normalized_plan == _BETA_PLAN_SLUG:
         raise StripeConfigurationError("Beta is not a public Stripe subscription plan.")
 
-    if billing_offering(normalized_plan) is None:
+    if normalized_plan not in BILLABLE_PLAN_SLUGS:
         raise StripeConfigurationError(
             "Unsupported Motionmate public plan for Stripe Price mapping."
         )

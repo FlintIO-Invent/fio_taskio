@@ -17,6 +17,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from .location_reference import country_choices, exact_country_code
+from .monitoring import observe_document
 from .tracking_codes import TRACKING_CODE_PREFIX
 
 LABEL_WIDTH = 288  # 4 inches, PDF points (72 per inch).
@@ -195,6 +196,7 @@ def shipping_label_drawing(parcel, *, shipment=None):
     return drawing
 
 
+@observe_document("shipping_label_pdf")
 def render_shipping_label_pdf(parcel, *, current_business, shipment=None):
     _validate_context(parcel, current_business, shipment)
     drawing = shipping_label_drawing(parcel, shipment=shipment)

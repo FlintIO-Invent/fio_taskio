@@ -12,6 +12,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
+from apps.logistics.monitoring import observe_document
+
 from .models import Invoice
 
 logger = logging.getLogger(__name__)
@@ -100,6 +102,7 @@ def invoice_pdf_filename(invoice: Invoice) -> str:
     return f"invoice-{safe_number or invoice.pk}.pdf"
 
 
+@observe_document("invoice_pdf")
 def render_invoice_pdf(
     invoice: Invoice,
     *,

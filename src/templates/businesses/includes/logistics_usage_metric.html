@@ -1,0 +1,14 @@
+<div class="border rounded-3 p-3 h-100" data-usage-metric="{{ row.name }}">
+  <h5 class="fs-9 mb-2">{{ row.label }}</h5>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <span class="fw-semibold">{{ row.used_display }} / {{ row.allowance_display }}</span>
+    <span class="badge badge-phoenix {% if row.state == 'full' %}badge-phoenix-danger{% elif row.state == 'approaching' %}badge-phoenix-warning{% else %}badge-phoenix-secondary{% endif %}">{{ row.percent_display }}</span>
+  </div>
+  {% if row.percent != None %}
+    <div class="progress mb-2" style="height: 6px" role="progressbar" aria-label="{{ row.label }} utilization" aria-valuenow="{{ row.bar_percent }}" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-bar {% if row.state == 'full' %}bg-danger{% elif row.state == 'approaching' %}bg-warning{% else %}bg-primary{% endif %}" style="width: {{ row.bar_percent }}%"></div>
+    </div>
+  {% endif %}
+  {% if row.monthly %}<p class="fs-10 text-body-tertiary mb-1">UTC month · resets {{ logistics_usage.reset_display }}</p>{% endif %}
+  {% if row.note %}<p class="fs-10 text-body-tertiary mb-0">{{ row.note }}</p>{% endif %}
+</div>

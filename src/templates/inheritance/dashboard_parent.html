@@ -114,7 +114,7 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Data Import</span></div>
                                                 </a>
                                             {% endif %}
-                                            {% if role_access.can_manage_subscription %}
+                                            {% if role_access.can_manage_subscription or role_access.can_view_logistics_usage %}
                                                 <a class="nav-link" href="{% url 'business_subscription' %}">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Subscription</span></div>
                                                 </a>
@@ -420,7 +420,7 @@
                                           <span data-feather="settings" style="width: 16px; height: 16px;"></span>Business Settings
                                       </a>
                                     {% endif %}
-                                    {% if role_access.can_manage_subscription %}
+                                    {% if role_access.can_manage_subscription or role_access.can_view_logistics_usage %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_subscription' %}">
                                           <span data-feather="layers" style="width: 16px; height: 16px;"></span>Subscription
                                       </a>

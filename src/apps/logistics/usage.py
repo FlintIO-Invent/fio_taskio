@@ -1,7 +1,8 @@
 """Internal, read-only resource visibility, independent of any presentation client.
 
-Approval thresholds are review signals, never commercial quotas. Locations are
-application estimates; there is no operational location model yet.
+Approval thresholds are review signals, never commercial quotas. This internal
+report retains business-local months and application location estimates. Commercial
+UTC counters and actual active locations are reported by subscription_usage.
 """
 
 from datetime import datetime

@@ -4,7 +4,12 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
-from .plan_catalog import PUBLIC_PAID_PLAN_SLUGS, STANDARD_TRIAL_DAYS, normalize_plan_slug
+from .plan_catalog import (
+    LOGISTICS_TIER_SLUGS,
+    PUBLIC_PAID_PLAN_SLUGS,
+    STANDARD_TRIAL_DAYS,
+    normalize_plan_slug,
+)
 
 
 @dataclass(frozen=True)
@@ -12,6 +17,7 @@ class BillingOffering:
     family: str
     intervals: tuple[str, ...]
     trial_days: int
+    checkout_enabled: bool = True
 
 
 BILLING_OFFERINGS = {
@@ -20,8 +26,14 @@ BILLING_OFFERINGS = {
         for slug in PUBLIC_PAID_PLAN_SLUGS
     },
     "logistics": BillingOffering("LOGISTICS", ("yearly",), 0),
+    **{
+        slug: BillingOffering("LOGISTICS", ("yearly",), 0, checkout_enabled=False)
+        for slug in LOGISTICS_TIER_SLUGS
+    },
 }
-BILLABLE_PLAN_SLUGS = tuple(BILLING_OFFERINGS)
+BILLABLE_PLAN_SLUGS = tuple(
+    slug for slug, offering in BILLING_OFFERINGS.items() if offering.checkout_enabled
+)
 
 
 def logistics_local_billing_bypass_enabled() -> bool:
@@ -48,7 +60,7 @@ def plan_matches_business(business, plan) -> bool:
 
 def is_stripe_billable_plan(plan) -> bool:
     offering = billing_offering(plan.slug) if plan is not None else None
-    return offering is not None and offering.family == plan.family
+    return bool(offering and offering.checkout_enabled and offering.family == plan.family)
 
 
 def offering_allows_interval(plan_slug: object, interval: object) -> bool:

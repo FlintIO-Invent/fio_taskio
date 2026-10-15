@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.businesses.models import Business, BusinessUser
+from apps.businesses.usage_limits import QuotaError
 from apps.businesses.utils import SERVICE_MANAGEMENT_ROLES
 from apps.crm.models import BusinessService, ImportJob, ServiceCategory
 
@@ -25,6 +26,7 @@ class ServiceImportExecutionCode(StrEnum):
     EXPIRED = "expired"
     NOT_READY = "not_ready"
     STATE_CHANGED = "state_changed"
+    CAPACITY_CHANGED = "capacity_changed"
     PREVIEW_INVALID = "preview_invalid"
     FAILED = "failed"
 
@@ -56,9 +58,7 @@ TRUSTED_SERVICE_FIELD_NAMES = frozenset(
         "requires_manual_confirmation",
     }
 )
-TRUSTED_CATEGORY_FIELD_NAMES = frozenset(
-    {"label", "existing_id", "will_create", "key", "display"}
-)
+TRUSTED_CATEGORY_FIELD_NAMES = frozenset({"label", "existing_id", "will_create", "key", "display"})
 
 
 class InvalidStoredServicePreview(ValueError):
@@ -268,7 +268,9 @@ def _recheck_targets(rows: tuple[TrustedServiceRow, ...], *, business) -> None:
             raise ServiceStateChanged("Service category changed after preview.")
 
 
-def _create_categories(rows: tuple[TrustedServiceRow, ...], *, business) -> dict[str, ServiceCategory]:
+def _create_categories(
+    rows: tuple[TrustedServiceRow, ...], *, business
+) -> dict[str, ServiceCategory]:
     categories: dict[str, ServiceCategory] = {}
     for row in rows:
         if not row.category_will_create or row.category_key in categories:
@@ -414,6 +416,12 @@ def execute_service_import(
                 ServiceImportExecutionCode.STATE_CHANGED,
                 "Service matches or categories changed after preview. Create a new preview.",
             )
+        except QuotaError as exc:
+            return _fail_ready_job(
+                job,
+                ServiceImportExecutionCode.CAPACITY_CHANGED,
+                " ".join(exc.messages) + " No Services or categories were changed.",
+            )
         except Exception:
             return _fail_ready_job(
                 job,
@@ -434,9 +442,7 @@ def execute_service_import(
         job.rows_created = result.services_created
         job.rows_updated = result.services_updated
         job.rows_skipped = result.rows_skipped
-        job.save(
-            update_fields=["rows_created", "rows_updated", "rows_skipped", "updated_at"]
-        )
+        job.save(update_fields=["rows_created", "rows_updated", "rows_skipped", "updated_at"])
         _record_execution_result(job, result)
         job.transition_to(ImportJob.Status.COMPLETED)
         return result

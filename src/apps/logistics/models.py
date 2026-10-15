@@ -9,6 +9,8 @@ from django.core.validators import MaxLengthValidator, MinValueValidator, RegexV
 from django.db import models, transaction
 from django.utils import timezone
 
+from apps.businesses.usage_limits import CapacityQuerySet, capacity_guard
+
 from .classification import (
     ClassificationHelpers,
     TransportationMode,
@@ -513,6 +515,7 @@ class ParcelDomainModel(models.Model):
         ):
             raise ValidationError({field_name: "Actor must belong to this workspace."})
 
+    @capacity_guard
     def _domain_save(self, **kwargs):
         self.full_clean()
         return super().save(**kwargs)
@@ -520,6 +523,8 @@ class ParcelDomainModel(models.Model):
 
 class LogisticsLocation(models.Model):
     """A company's facility, distinct from geography and public port references."""
+
+    objects = CapacityQuerySet.as_manager()
 
     class Type(models.TextChoices):
         PORT = "PORT", "Port"
@@ -626,6 +631,7 @@ class LogisticsLocation(models.Model):
                 {"reference_code": "Select a reference matching this location's country and type."}
             )
 
+    @capacity_guard
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
@@ -830,7 +836,10 @@ class Parcel(ParcelDomainModel, LogisticsRouteFields):
 
     class Meta:
         ordering = ["-created_at", "-pk"]
-        indexes = [models.Index(fields=["business", "current_status", "created_at"])]
+        indexes = [
+            models.Index(fields=["business", "current_status", "created_at"]),
+            models.Index(fields=["business", "created_at"], name="logistics_parcel_usage_idx"),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(quantity__gte=1), name="parcel_quantity_positive"
@@ -967,7 +976,10 @@ class ParcelEvent(ParcelDomainModel):
 
     class Meta:
         ordering = ["timestamp", "pk"]
-        indexes = [models.Index(fields=["business", "parcel", "timestamp"])]
+        indexes = [
+            models.Index(fields=["business", "parcel", "timestamp"]),
+            models.Index(fields=["business", "timestamp"], name="logistics_event_usage_idx"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["business", "idempotency_key"], name="parcel_event_retry_unique"
@@ -1087,7 +1099,10 @@ class Shipment(ParcelDomainModel, LogisticsRouteFields):
 
     class Meta:
         ordering = ["-created_at", "-pk"]
-        indexes = [models.Index(fields=["business", "status", "created_at"])]
+        indexes = [
+            models.Index(fields=["business", "status", "created_at"]),
+            models.Index(fields=["business", "created_at"], name="logistics_shipment_usage_idx"),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(

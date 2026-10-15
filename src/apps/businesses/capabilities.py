@@ -23,6 +23,14 @@ MODULE_CAPABILITY_ALIASES = {
     "public_booking_requests": "public_booking",
     "public_request_form": "public_booking",
     "public_request": "public_booking",
+    "public_tracking": "tracking",
+    "scanning": "tracking",
+    "qr_scanning": "tracking",
+    "barcode_scanning": "tracking",
+    "invoice_pdfs": "invoicing",
+    "multi_location": "parcels",
+    "location_permissions": "parcels",
+    "parcel_history": "parcels",
 }
 
 
@@ -46,6 +54,7 @@ def vertical_has_capability(vertical: str, module_name: str) -> bool:
 def plan_module_name(module_name: str) -> str:
     """Keep the existing plan entitlement for newly separated core workflows."""
     normalized_name = normalize_module_name(module_name)
+    normalized_name = MODULE_CAPABILITY_ALIASES.get(normalized_name, normalized_name)
     return {"team": "workspace", "services": "crm", "booking_availability": "crm"}.get(
         normalized_name, normalized_name
     )

@@ -27,6 +27,7 @@ from .location_access import (
 from .location_operations import operation_location, validate_transition_location
 from .location_reference import ROUTE_LOCATION_FIELDS
 from .models import LogisticsLocation, Parcel, Shipment
+from .monitoring import observe_document
 from .parcel_services import _key, change_parcel_status, require_parcel_access
 from .shipment_policy import (
     ALLOWED_TRANSITIONS,
@@ -547,6 +548,7 @@ def change_shipment_status(
 
 
 @transaction.atomic
+@observe_document("shipment_manifest")
 def generate_manifest(*, business, shipment, actor):
     """Current operational snapshot; explicit allowlist excludes client contact/private data."""
     current = _locked_business(business, actor, write=False, manifest=True)

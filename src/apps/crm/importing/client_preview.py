@@ -8,10 +8,10 @@ from typing import Any
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 
+from apps.businesses.models import Business
 from apps.businesses.utils import (
-    get_business_plan_limit,
-    get_business_subscription,
     get_business_usage_count,
+    resolve_business_plan_limit,
 )
 from apps.crm.models import Client, ImportJob
 
@@ -227,10 +227,14 @@ def classify_validated_client_rows(
 
 def project_client_capacity(*, business, new_importable_clients: int) -> ClientCapacityProjection:
     current_active_clients = get_business_usage_count(business, "clients")
-    subscription = get_business_subscription(business)
-    plan_limit = get_business_plan_limit(business, "clients")
+    entitlement = resolve_business_plan_limit(business, "clients")
+    plan_limit = entitlement.limit
 
-    if subscription is None or not subscription.has_access or plan_limit is None:
+    # Preserve SERVICE import policy. Only a valid Logistics entitlement may
+    # interpret a null plan limit as the legacy unlimited allowance.
+    if not entitlement.available or (
+        plan_limit is None and business.vertical != Business.Vertical.LOGISTICS
+    ):
         decision = check_import_capacity(
             business=business,
             import_type=ImportType.CLIENTS,
@@ -252,11 +256,11 @@ def project_client_capacity(*, business, new_importable_clients: int) -> ClientC
             new_importable_clients=new_importable_clients,
         )
 
-    remaining_capacity = max(plan_limit - current_active_clients, 0)
+    remaining_capacity = None if plan_limit is None else max(plan_limit - current_active_clients, 0)
 
     def capacity_checker(*, business, requested_rows):
         del business
-        if requested_rows <= remaining_capacity:
+        if remaining_capacity is None or requested_rows <= remaining_capacity:
             return ImportAccessDecision(True, "within_client_capacity")
         return ImportAccessDecision(
             False,
@@ -332,9 +336,7 @@ def build_client_preview(
             )
             + file_warnings
         ),
-        error_count=(
-            sum(row.status == ClientPreviewStatus.ERROR for row in rows) + file_errors
-        ),
+        error_count=(sum(row.status == ClientPreviewStatus.ERROR for row in rows) + file_errors),
     )
     capacity = project_client_capacity(
         business=business,
@@ -416,10 +418,14 @@ def persist_client_preview(
         if locked_job.file_digest != validation.parsed_file.file_digest:
             raise ValidationError("Import job file digest does not match the uploaded CSV.")
         locked_job.assert_usable()
-        if locked_job.status not in {
-            ImportJob.Status.UPLOADED,
-            ImportJob.Status.VALIDATED,
-        } or locked_job.preview_payload:
+        if (
+            locked_job.status
+            not in {
+                ImportJob.Status.UPLOADED,
+                ImportJob.Status.VALIDATED,
+            }
+            or locked_job.preview_payload
+        ):
             raise ValidationError("This import job has already been previewed.")
 
         preview = build_client_preview(validation, business=business)

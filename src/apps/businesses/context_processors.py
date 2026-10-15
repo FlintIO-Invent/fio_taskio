@@ -57,6 +57,11 @@ def current_business(request):
         "public_request_form": can_use_module(business, "public_booking"),
     }
     role_access = {
+        "can_view_logistics_usage": bool(
+            business
+            and business.vertical == "LOGISTICS"
+            and membership_has_any_role(membership, OWNER_ADMIN_ROLES)
+        ),
         "can_manage_business_settings": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_manage_team": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_remove_team_members": membership_has_any_role(membership, OWNER_ADMIN_ROLES),

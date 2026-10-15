@@ -4,6 +4,20 @@ PUBLIC_PAID_PLAN_SLUGS: tuple[str, ...] = ("starter", "pro", "business")
 PUBLIC_PAID_PLAN_ORDERING: tuple[str, ...] = PUBLIC_PAID_PLAN_SLUGS
 PUBLIC_PAID_PLAN_SLUG_SET = frozenset(PUBLIC_PAID_PLAN_SLUGS)
 DEFAULT_PUBLIC_PAID_PLAN_SLUG = "pro"
+# Staged capacity tiers. The legacy "logistics" offering remains independent.
+LOGISTICS_TIER_SLUGS = ("logistics-core", "logistics-growth", "logistics-scale")
+LOGISTICS_TIER_CAPACITY_FIELDS = (
+    "max_users",
+    "max_locations",
+    "max_clients",
+    "max_parcels_per_month",
+    "max_shipments_per_month",
+    "max_invoices_per_month",
+    "max_services",
+    "parcel_events_per_month_budget",
+    "transactional_emails_per_month_budget",
+    "storage_planning_gb",
+)
 STANDARD_TRIAL_DAYS = 14
 PUBLIC_BILLING_INTERVALS: tuple[str, ...] = ("monthly", "yearly")
 PUBLIC_BILLING_INTERVAL_LABELS: dict[str, str] = {

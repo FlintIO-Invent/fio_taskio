@@ -14,6 +14,7 @@ from django.views.decorators.debug import sensitive_variables
 from apps.businesses.models import Business, BusinessSubscription
 
 from .models import Parcel, ParcelEvent
+from .monitoring import observe_tracking
 from .tracking_codes import TRACKING_CODE_PATTERN
 
 LOOKUP_LIMIT = 30
@@ -81,6 +82,7 @@ def allow_tracking_lookup(remote_address):
 
 
 @sensitive_variables()
+@observe_tracking
 def lookup_public_tracking(tracking_code):
     """Return only JSON-compatible public values, or None for every unavailable case.
 

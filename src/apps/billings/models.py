@@ -10,10 +10,11 @@ from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 
+from apps.businesses.usage_limits import CapacityQuerySet, capacity_guard
 from apps.crm.models import Client, TimeStampedModel
 
 
-class InvoiceQuerySet(models.QuerySet):
+class InvoiceQuerySet(CapacityQuerySet):
     def delete(self):
         if self.filter(payments__isnull=False).exists():
             raise ProtectedError("Customer payment history must be retained.", list(self))
@@ -70,6 +71,9 @@ class Invoice(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["business", "created_at"], name="billings_invoice_usage_idx")
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["business", "invoice_number"],
@@ -207,6 +211,7 @@ class Invoice(TimeStampedModel):
         if errors:
             raise ValidationError(errors)
 
+    @capacity_guard
     def save(self, *args, **kwargs):
         if self.business_id and self.business.vertical == "LOGISTICS":
             from django.utils import timezone
