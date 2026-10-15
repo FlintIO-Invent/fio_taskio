@@ -15,6 +15,7 @@ from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY, business_can_acc
 from .enrollment import enroll_application, enroll_new_pilot_application, issue_enrollment_link
 from .forms import LogisticsApplicationForm, LogisticsSignupForm
 from .models import LogisticsApplication, LogisticsApplicationDecision, LogisticsEnrollmentToken
+from .registration_test_support import activate_logistics_tiers
 from .services import review_application
 from .test_enrollment import PASSWORD
 from .tests import PILOT_POLICY, application_data
@@ -22,6 +23,10 @@ from .tests import PILOT_POLICY, application_data
 
 @override_settings(LOGISTICS_AUTO_APPROVE_ALL=True, LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY)
 class DirectSignupTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        activate_logistics_tiers()
+
     def payload(self, **changes):
         return {**application_data(), "password1": PASSWORD, "password2": PASSWORD, **changes}
 
@@ -130,7 +135,7 @@ class DirectSignupTests(TestCase):
 
     def test_pending_owner_dashboard_remains_available_when_offering_activated(self):
         self.submit()
-        plan = ClarivoPlan.objects.get(slug="logistics")
+        plan = ClarivoPlan.objects.get(slug="logistics-core")
         plan.is_active = True
         plan.save(update_fields=["is_active"])
         response = self.client.get(reverse("agent_dashboard"))
@@ -139,7 +144,7 @@ class DirectSignupTests(TestCase):
 
     def test_unpaid_read_write_and_dashboard_post_remain_guarded(self):
         self.submit()
-        plan = ClarivoPlan.objects.get(slug="logistics")
+        plan = ClarivoPlan.objects.get(slug="logistics-core")
         plan.is_active = True
         plan.save(update_fields=["is_active"])
         business = Business.objects.get()
@@ -329,9 +334,13 @@ class DirectSignupTests(TestCase):
     def test_pending_non_owner_cannot_reach_payment_dashboard(self):
         self.submit()
         member = TaskIOUser.objects.create_user(email="staff@example.com", password=PASSWORD)
+        # Arrange a pre-existing member while capacity is available, then suspend
+        # access. Pending tiers correctly disallow adding new staff.
+        BusinessSubscription.objects.update(status="active", payment_provider="local")
         BusinessUser.objects.create(
             user=member, business=Business.objects.get(), role=BusinessUser.Role.STAFF
         )
+        BusinessSubscription.objects.update(status="pending_checkout", payment_provider="stripe")
         self.client.force_login(member)
         self.assertEqual(self.client.get(reverse("agent_dashboard")).status_code, 403)
 

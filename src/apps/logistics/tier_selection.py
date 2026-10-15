@@ -9,6 +9,13 @@ from apps.businesses.plan_catalog import LOGISTICS_TIER_SLUGS
 LEGACY_PLAN_SLUG = "logistics"
 
 
+def admission_plan(slug, *, lock=False):
+    """New applications and conversions require an explicit current annual tier."""
+    if slug not in LOGISTICS_TIER_SLUGS:
+        raise ValidationError({"selected_plan_slug": "Select Core, Growth or Scale."})
+    return selected_plan(slug, lock=lock)
+
+
 def selected_plan(slug, *, lock=False):
     if slug not in (LEGACY_PLAN_SLUG, *LOGISTICS_TIER_SLUGS):
         raise ValidationError({"selected_plan_slug": "Select a valid Logistics annual tier."})

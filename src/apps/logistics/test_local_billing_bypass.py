@@ -463,6 +463,9 @@ class LocalLogisticsAccessTests(TestCase):
         self.assertEqual(response.context["delivered_this_month_count"], 1)
 
     def test_direct_signup_uses_the_normal_operational_dashboard_with_truthful_pending_state(self):
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
         response = self.client.post(
             reverse("logistics_application_create"),
             {**application_data(), "password1": PASSWORD, "password2": PASSWORD},

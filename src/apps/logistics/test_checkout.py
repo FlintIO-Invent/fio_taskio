@@ -65,14 +65,26 @@ def annual_price(price_id):
 
 
 class LogisticsCheckoutFixture:
+    legacy_billing_fixture = True
+
     def create_application(self):
         return LogisticsApplication.objects.create(**application_data())
 
     def setUp(self):
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
         self.actor = reviewer()
         self.application = self.create_application()
         token = issue_enrollment_link(self.application.pk, actor=self.actor, expected_revision=1)
         result = enroll_application(token, password=PASSWORD)
+        # This fixture exercises already-converted legacy billing, not admission.
+        if self.legacy_billing_fixture:
+            from .registration_test_support import restore_legacy_fixture
+
+            self.application.refresh_from_db()
+            restore_legacy_fixture(self.application)
+            result.subscription.refresh_from_db()
         self.user, self.business, self.subscription = (
             result.user,
             result.business,

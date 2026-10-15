@@ -27,6 +27,12 @@ class PilotConfigurationTests(SimpleTestCase):
 
 @override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY, LOGISTICS_AUTO_APPROVE_ALL=True)
 class PilotApprovalTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
+
     def submit(self, **changes):
         response = self.client.post(
             reverse("logistics_application_create"),

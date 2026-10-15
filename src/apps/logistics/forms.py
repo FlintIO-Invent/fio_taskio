@@ -22,12 +22,13 @@ class ClassificationFormMixin:
             )
             self.fields["selected_plan_slug"] = forms.ChoiceField(
                 label="Annual Logistics tier",
-                required=False,
-                choices=[("logistics", "Logistics (legacy)")]
+                required=True,
+                initial="",
+                choices=[("", "Select an annual tier")]
                 + [
                     (plan.slug, plan.name) for plan in tiers if plan.has_complete_logistics_capacity
                 ],
-                help_text="Annual enrollment only. Tier checkout is not yet available.",
+                help_text="Select an available annual Logistics tier.",
             )
         if "country" in self.fields:
             self.fields["country"] = geographic_country_field(
@@ -60,8 +61,11 @@ class ClassificationFormMixin:
                 self.fields[name].is_classification = True
 
     def clean_selected_plan_slug(self):
-        # Omitted field preserves existing legacy signup clients.
-        return self.cleaned_data.get("selected_plan_slug") or "logistics"
+        from .tier_selection import admission_plan
+
+        slug = self.cleaned_data["selected_plan_slug"]
+        admission_plan(slug)
+        return slug
 
 
 class LogisticsApplicationAdminForm(ClassificationFormMixin, forms.ModelForm):

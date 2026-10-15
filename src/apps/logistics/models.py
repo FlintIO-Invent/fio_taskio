@@ -84,7 +84,14 @@ class LogisticsProfile(ClassificationHelpers, models.Model):
         return super().save(*args, **kwargs)
 
 
+class LogisticsApplicationQuerySet(models.QuerySet):
+    def bulk_create(self, objs, **kwargs):
+        raise ValidationError("Create applications individually through the review workflow.")
+
+
 class LogisticsApplication(ClassificationHelpers, models.Model):
+    objects = LogisticsApplicationQuerySet.as_manager()
+
     class Status(models.TextChoices):
         SUBMITTED = "SUBMITTED", "Submitted"
         APPROVED = "APPROVED", "Approved"
@@ -298,10 +305,17 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
 
     def clean(self):
         super().clean()
-        from .tier_selection import selected_plan
+        from .tier_selection import admission_plan
 
-        if self.selected_plan_slug != "logistics":
-            selected_plan(self.selected_plan_slug)
+        # Retain historical rows, including converted retry evidence. New legacy
+        # rows and changes back to legacy are never admitted.
+        historical_legacy = (
+            self.selected_plan_slug == "logistics"
+            and not self._state.adding
+            and type(self).objects.filter(pk=self.pk, selected_plan_slug="logistics").exists()
+        )
+        if not historical_legacy:
+            admission_plan(self.selected_plan_slug)
         for name in self.MATERIAL_FIELDS:
             value = getattr(self, name)
             if isinstance(value, str):

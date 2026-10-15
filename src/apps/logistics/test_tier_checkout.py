@@ -37,6 +37,8 @@ from .tests import PILOT_POLICY, application_data
 
 
 class TierCheckoutFixture(LogisticsCheckoutFixture):
+    legacy_billing_fixture = False
+
     def create_application(self):
         seed = import_module("apps.businesses.migrations.0029_logistics_capacity_plans")
         for slug, name, amount, capacity in seed.TIERS:

@@ -25,11 +25,16 @@ from .classification import OperatingArea, TransportationMode
 from .enrollment import enroll_application, issue_enrollment_link
 from .forms import LogisticsApplicationForm
 from .models import LogisticsApplication, LogisticsProfile
+from .registration_test_support import activate_logistics_tiers
 from .test_enrollment import PASSWORD, reviewer
 from .tests import PILOT_POLICY, application_data
 
 
 class ClassificationValidationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        activate_logistics_tiers()
+
     def test_application_requires_areas_and_transportation_modes(self):
         for changes, field in (
             ({"operating_areas": []}, "operating_areas"),
@@ -148,6 +153,7 @@ class ClassificationValidationTests(TestCase):
 @override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY)
 class ClassificationProvisioningTests(TestCase):
     def setUp(self):
+        activate_logistics_tiers()
         self.actor = reviewer()
         self.application = LogisticsApplication.objects.create(
             **application_data(
@@ -274,7 +280,7 @@ class ClassificationMigrationTests(TransactionTestCase):
                 **{
                     k: v
                     for k, v in application_data().items()
-                    if k not in {"operating_areas", "transportation_modes"}
+                    if k not in {"operating_areas", "transportation_modes", "selected_plan_slug"}
                 }
             )
             MigrationExecutor(connection).migrate(new)

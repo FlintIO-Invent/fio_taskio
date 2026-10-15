@@ -49,6 +49,7 @@ from .models import (
 from .parcel_services import parcels_for_business, record_parcel_event, register_parcel
 from .policy import LogisticsEligibilityPolicy, LogisticsUsageReviewPolicy
 from .public_tracking import lookup_public_tracking
+from .registration_test_support import activate_logistics_tiers
 from .shipment_services import assign_parcel, create_shipment, shipments_for_business
 from .tests import application_data
 from .usage import logistics_operational_summary, logistics_threshold_summary, logistics_usage
@@ -56,6 +57,7 @@ from .usage import logistics_operational_summary, logistics_threshold_summary, l
 
 class LogisticsOperationsTests(TestCase):
     def setUp(self):
+        activate_logistics_tiers()
         self.business = Business.objects.create(
             name="Demo courier", slug="ops-courier", vertical="LOGISTICS"
         )

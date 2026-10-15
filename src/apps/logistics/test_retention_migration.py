@@ -27,7 +27,7 @@ class ApplicationRetentionMigrationTests(TransactionTestCase):
                 **{
                     key: value
                     for key, value in application_data().items()
-                    if key not in {"operating_areas", "transportation_modes"}
+                    if key not in {"operating_areas", "transportation_modes", "selected_plan_slug"}
                 },
                 business_id=business.pk,
                 enrolled_user_id=user.pk,

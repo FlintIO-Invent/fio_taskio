@@ -20,7 +20,7 @@ from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 
 from .models import LogisticsApplication, LogisticsEnrollmentToken
 from .services import _require_reviewer
-from .tier_selection import selected_plan
+from .tier_selection import admission_plan
 
 TOKEN_LIFETIME = timedelta(days=7)
 INVALID_LINK = "This enrollment link is unavailable. Contact Motionmate for a new link."
@@ -40,6 +40,8 @@ def _require_approved(application, revision):
         or application.evaluated_revision != revision
     ):
         raise ValidationError(INVALID_LINK)
+    if application.converted_at is None:
+        admission_plan(application.selected_plan_slug)
     decision = application.decisions.order_by("-pk").first()
     if (
         decision is None
@@ -57,10 +59,9 @@ def issue_enrollment_link(application_id, *, actor, expected_revision):
     _require_reviewer(actor)
     application = LogisticsApplication.objects.select_for_update().get(pk=application_id)
     _require_approved(application, expected_revision)
-    if application.selected_plan_slug != "logistics":
-        selected_plan(application.selected_plan_slug, lock=True)
     if application.converted_at is not None:
         raise ValidationError("This application has already been enrolled.")
+    admission_plan(application.selected_plan_slug, lock=True)
     now = timezone.now()
     application.enrollment_tokens.filter(revoked_at__isnull=True).update(revoked_at=now)
     secret = secrets.token_urlsafe(32)
@@ -182,7 +183,7 @@ def enroll_new_pilot_application(application_id, *, password):
 @sensitive_variables("password")
 def _provision_approved_application(application, *, verified, password):
     """Shared conversion routine; callers hold the application lock and authorization."""
-    plan = selected_plan(application.selected_plan_slug, lock=True)
+    plan = admission_plan(application.selected_plan_slug, lock=True)
     User = get_user_model()
     matches = list(User.objects.select_for_update().filter(email__iexact=application.email))
     if len(matches) > 1 or (matches and (verified is None or matches[0].pk != verified.pk)):
