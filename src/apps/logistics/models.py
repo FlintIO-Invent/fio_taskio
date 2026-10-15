@@ -110,6 +110,7 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
         EUR = "EUR", "Euro (EUR)"
 
     MATERIAL_FIELDS = (
+        "selected_plan_slug",
         "business_name",
         "trading_name",
         "contact_first_name",
@@ -160,6 +161,9 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
         "converted_revision",
     )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    selected_plan_slug = models.SlugField(
+        "Annual Logistics tier", max_length=150, default="logistics"
+    )
     business_name = models.CharField("Legal / business name", max_length=120)
     trading_name = models.CharField(max_length=120, blank=True)
     contact_first_name = models.CharField(max_length=100)
@@ -294,6 +298,10 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
 
     def clean(self):
         super().clean()
+        from .tier_selection import selected_plan
+
+        if self.selected_plan_slug != "logistics":
+            selected_plan(self.selected_plan_slug)
         for name in self.MATERIAL_FIELDS:
             value = getattr(self, name)
             if isinstance(value, str):
@@ -364,6 +372,12 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
                 for name in self.MATERIAL_FIELDS:
                     if name not in update_fields:
                         setattr(self, name, getattr(previous, name))
+            if (
+                previous is not None
+                and previous.converted_at is not None
+                and self.selected_plan_slug != previous.selected_plan_slug
+            ):
+                raise ValidationError("An enrolled application tier cannot be changed.")
             self.clean()
             self.normalized_email = self.email.casefold()
             self.normalized_business_name = normalized_identity(self.business_name)
@@ -446,6 +460,7 @@ class LogisticsEnrollmentToken(models.Model):
     )
     token_digest = models.CharField(max_length=64, unique=True, editable=False)
     application_revision = models.PositiveIntegerField(editable=False)
+    selected_plan_slug = models.SlugField(max_length=150, default="logistics", editable=False)
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
     revoked_at = models.DateTimeField(null=True, blank=True)

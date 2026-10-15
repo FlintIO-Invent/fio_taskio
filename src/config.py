@@ -224,6 +224,9 @@ class Settings(BaseSettings):
     stripe_price_business_yearly_eur: str = Field(default="")
     stripe_price_logistics_yearly_usd: str = Field(default="")
     stripe_price_logistics_yearly_eur: str = Field(default="")
+    stripe_price_logistics_core_yearly_eur: str = Field(default="")
+    stripe_price_logistics_growth_yearly_eur: str = Field(default="")
+    stripe_price_logistics_scale_yearly_eur: str = Field(default="")
     logistics_local_billing_bypass: bool = Field(
         default=False,
         description="Allow pending Logistics operations only with ENV=local and DEBUG=True.",
@@ -341,6 +344,9 @@ class Settings(BaseSettings):
         "stripe_price_business_yearly_eur",
         "stripe_price_logistics_yearly_usd",
         "stripe_price_logistics_yearly_eur",
+        "stripe_price_logistics_core_yearly_eur",
+        "stripe_price_logistics_growth_yearly_eur",
+        "stripe_price_logistics_scale_yearly_eur",
         mode="before",
     )
     @classmethod

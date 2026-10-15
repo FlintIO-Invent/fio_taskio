@@ -16,10 +16,11 @@ from django.utils.text import slugify
 from django.views.decorators.debug import sensitive_variables
 
 from apps.accounts.models import SaaSUserProfile
-from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
+from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 
 from .models import LogisticsApplication, LogisticsEnrollmentToken
 from .services import _require_reviewer
+from .tier_selection import selected_plan
 
 TOKEN_LIFETIME = timedelta(days=7)
 INVALID_LINK = "This enrollment link is unavailable. Contact Motionmate for a new link."
@@ -39,6 +40,15 @@ def _require_approved(application, revision):
         or application.evaluated_revision != revision
     ):
         raise ValidationError(INVALID_LINK)
+    decision = application.decisions.order_by("-pk").first()
+    if (
+        decision is None
+        or decision.result != LogisticsApplication.Status.APPROVED
+        or decision.application_revision != revision
+        or decision.evaluated_inputs.get("selected_plan_slug", "logistics")
+        != application.selected_plan_slug
+    ):
+        raise ValidationError(INVALID_LINK)
 
 
 @transaction.atomic
@@ -47,6 +57,8 @@ def issue_enrollment_link(application_id, *, actor, expected_revision):
     _require_reviewer(actor)
     application = LogisticsApplication.objects.select_for_update().get(pk=application_id)
     _require_approved(application, expected_revision)
+    if application.selected_plan_slug != "logistics":
+        selected_plan(application.selected_plan_slug, lock=True)
     if application.converted_at is not None:
         raise ValidationError("This application has already been enrolled.")
     now = timezone.now()
@@ -56,6 +68,7 @@ def issue_enrollment_link(application_id, *, actor, expected_revision):
         application=application,
         token_digest=_digest(secret),
         application_revision=application.revision,
+        selected_plan_slug=application.selected_plan_slug,
         expires_at=now + TOKEN_LIFETIME,
         issued_by=actor,
     )
@@ -89,6 +102,8 @@ def _load(secret, *, lock=False):
     if grant.revoked_at is not None or grant.expires_at <= timezone.now():
         raise ValidationError(INVALID_LINK)
     _require_approved(application, grant.application_revision)
+    if grant.selected_plan_slug != application.selected_plan_slug:
+        raise ValidationError(INVALID_LINK)
     return application, grant
 
 
@@ -125,9 +140,16 @@ def enroll_application(secret, *, authenticated_user=None, password=None):
         # its authenticated owner can receive the previous result on a retry.
         if not grant.used_at or not verified or verified.pk != application.enrolled_user_id:
             raise PermissionDenied("Authenticate as the enrolled account to continue.")
-        return EnrollmentResult(
-            verified, application.business, application.business.subscription, True
-        )
+        subscription = application.business.subscription
+        if (
+            subscription.plan.slug != grant.selected_plan_slug
+            or subscription.plan.family != Business.Vertical.LOGISTICS
+            or subscription.business.vertical != Business.Vertical.LOGISTICS
+            or subscription.billing_interval != BusinessSubscription.BillingInterval.YEARLY
+            or subscription.billing_currency != application.preferred_currency.lower()
+        ):
+            raise ValidationError(INVALID_LINK)
+        return EnrollmentResult(verified, application.business, subscription, True)
     if grant.used_at is not None:
         raise ValidationError(INVALID_LINK)
 
@@ -160,6 +182,7 @@ def enroll_new_pilot_application(application_id, *, password):
 @sensitive_variables("password")
 def _provision_approved_application(application, *, verified, password):
     """Shared conversion routine; callers hold the application lock and authorization."""
+    plan = selected_plan(application.selected_plan_slug, lock=True)
     User = get_user_model()
     matches = list(User.objects.select_for_update().filter(email__iexact=application.email))
     if len(matches) > 1 or (matches and (verified is None or matches[0].pk != verified.pk)):
@@ -197,11 +220,8 @@ def _provision_approved_application(application, *, verified, password):
             "This account already has an active workspace. Contact Motionmate for review."
         )
 
-    plan = ClarivoPlan.objects.filter(slug="logistics", family=ClarivoPlan.Family.LOGISTICS).first()
-    if plan is None:
-        raise ValidationError("The Logistics offering is unavailable. Contact Motionmate.")
-    # Inactive/unpriced offerings may be staged here. Checkout must enforce Block 2
-    # activation and Price configuration before any payment or operational access.
+    # Legacy offerings may be inactive; new tiers require active capacity config.
+    # Checkout independently enforces payment configuration and tier enablement.
     business = Business.objects.create(
         name=application.business_name,
         slug=f"{slugify(application.business_name)[:100] or 'logistics'}-{uuid.uuid4().hex}",

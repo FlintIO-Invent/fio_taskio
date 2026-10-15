@@ -18,6 +18,7 @@ class BillingOffering:
     intervals: tuple[str, ...]
     trial_days: int
     checkout_enabled: bool = True
+    test_checkout_enabled: bool = False
 
 
 BILLING_OFFERINGS = {
@@ -27,7 +28,9 @@ BILLING_OFFERINGS = {
     },
     "logistics": BillingOffering("LOGISTICS", ("yearly",), 0),
     **{
-        slug: BillingOffering("LOGISTICS", ("yearly",), 0, checkout_enabled=False)
+        slug: BillingOffering(
+            "LOGISTICS", ("yearly",), 0, checkout_enabled=False, test_checkout_enabled=True
+        )
         for slug in LOGISTICS_TIER_SLUGS
     },
 }
@@ -60,7 +63,11 @@ def plan_matches_business(business, plan) -> bool:
 
 def is_stripe_billable_plan(plan) -> bool:
     offering = billing_offering(plan.slug) if plan is not None else None
-    return bool(offering and offering.checkout_enabled and offering.family == plan.family)
+    return bool(
+        offering
+        and (offering.checkout_enabled or offering.test_checkout_enabled)
+        and offering.family == plan.family
+    )
 
 
 def offering_allows_interval(plan_slug: object, interval: object) -> bool:

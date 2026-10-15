@@ -252,17 +252,17 @@ class LogisticsCapacityPlanTests(TestCase):
         self.assertFalse(resolve_business_plan_limit(self.business, "parcels_per_month").available)
         self.assertTrue(subscription.can_use_module("appointments"))
 
-    def test_checkout_and_price_maps_stay_disabled_even_if_plan_is_activated(self):
+    def test_tier_checkout_requires_approved_enrollment_and_test_configuration(self):
         subscription = self.subscribe()
-        self.assertFalse(subscription.is_stripe_billable)
-        self.assertFalse(is_stripe_billable_plan(subscription.plan))
+        self.assertTrue(subscription.is_stripe_billable)
+        self.assertTrue(is_stripe_billable_plan(subscription.plan))
         self.assertEqual(BILLABLE_PLAN_SLUGS, ("starter", "pro", "business", "logistics"))
         self.assertEqual({key[0] for key in settings.STRIPE_PRICE_ID_MAP}, set(BILLABLE_PLAN_SLUGS))
         with (
             override_settings(STRIPE_ENABLED=True),
             patch("apps.businesses.stripe_checkout.configure_stripe_sdk") as provider,
         ):
-            with self.assertRaises(StripeCheckoutError):
+            with self.assertRaises((StripeCheckoutError, StripeConfigurationError)):
                 ensure_pending_checkout_subscription(
                     business=self.business,
                     plan=subscription.plan,

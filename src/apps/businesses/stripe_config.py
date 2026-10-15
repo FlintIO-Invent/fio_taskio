@@ -10,6 +10,7 @@ from django.core.exceptions import ImproperlyConfigured
 
 from .billing_policy import BILLABLE_PLAN_SLUGS, offering_allows_interval
 from .plan_catalog import (
+    LOGISTICS_TIER_SLUGS,
     PUBLIC_BILLING_INTERVALS,
     PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
@@ -240,6 +241,16 @@ def get_stripe_price_id(
     billing_interval: object,
     currency: object,
 ) -> str:
+    if normalize_plan_slug(plan_slug) in LOGISTICS_TIER_SLUGS:
+        from apps.logistics.stripe_prices import configured_tier_prices, require_tier_test_mode
+
+        require_tier_test_mode()
+        if (
+            _normalize_interval(billing_interval) != "yearly"
+            or _normalize_currency(currency) != "eur"
+        ):
+            raise StripeConfigurationError("Logistics tiers support annual EUR billing only.")
+        return configured_tier_prices()[(normalize_plan_slug(plan_slug), "yearly", "eur")]
     price_key = _normalize_price_dimensions(
         plan_slug=plan_slug,
         billing_interval=billing_interval,
@@ -270,6 +281,16 @@ def resolve_stripe_price_id(price_id: object) -> StripePriceMetadata:
         if configured_price_id == normalized_price_id
     ]
     if not matches:
+        staged = getattr(settings, "STRIPE_LOGISTICS_TIER_PRICE_ID_MAP", {})
+        if isinstance(staged, Mapping) and normalized_price_id in map(
+            _clean_setting, staged.values()
+        ):
+            from apps.logistics.stripe_prices import configured_tier_prices, require_tier_test_mode
+
+            require_tier_test_mode()
+            for key, configured_id in configured_tier_prices().items():
+                if configured_id == normalized_price_id:
+                    return StripePriceMetadata(normalized_price_id, *key)
         raise StripeConfigurationError("Stripe Price ID is not configured for Motionmate.")
     if len(matches) > 1:
         raise StripeConfigurationError("Stripe Price ID maps to more than one Motionmate plan.")

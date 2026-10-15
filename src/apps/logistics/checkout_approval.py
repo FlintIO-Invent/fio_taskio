@@ -23,6 +23,7 @@ def current_checkout_application(subscription):
         or application.converted_at is None
         or application.business_id_snapshot != subscription.business_id
         or application.enrolled_user_id is None
+        or subscription.plan.slug != application.selected_plan_slug
         or subscription.billing_currency != application.preferred_currency.lower()
         or not BusinessUser.objects.filter(
             user_id=application.enrolled_user_id,
@@ -45,13 +46,18 @@ def approval_metadata(application):
         decision is None
         or decision.result != LogisticsApplication.Status.APPROVED
         or decision.application_revision != application.revision
+        or decision.evaluated_inputs.get("selected_plan_slug", "logistics")
+        != application.selected_plan_slug
     ):
         return None
-    return {
+    metadata = {
         "logistics_application_id": str(application.pk),
         "logistics_application_revision": str(application.revision),
         "logistics_approval_decision_id": str(decision.pk),
     }
+    if application.selected_plan_slug != "logistics":
+        metadata["logistics_plan_slug"] = application.selected_plan_slug
+    return metadata
 
 
 def matches_current_approval(subscription, metadata):
@@ -62,6 +68,27 @@ def matches_current_approval(subscription, metadata):
     return bool(expected) and all(
         str(_stripe_value(metadata, key) or "") == value for key, value in expected.items()
     )
+
+
+def tier_checkout_metadata(subscription):
+    """Authoritative tier binding for session creation, retries and signed events."""
+    from .billing import configured_annual_price
+
+    application = current_checkout_application(subscription)
+    approval = approval_metadata(application) if application else None
+    if approval is None:
+        return None
+    price_id, _ = configured_annual_price(subscription.plan, subscription.billing_currency)
+    return {
+        **approval,
+        "motionmate_business_id": str(subscription.business_id),
+        "motionmate_subscription_id": str(subscription.pk),
+        "motionmate_user_id": str(application.enrolled_user_id),
+        "plan_slug": subscription.plan.slug,
+        "billing_interval": "yearly",
+        "billing_currency": "eur",
+        "logistics_price_id": price_id,
+    }
 
 
 def invalidate_checkout(application):
