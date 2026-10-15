@@ -20,6 +20,7 @@ except ImportError:
 
 from apps.businesses.billing_policy import BILLING_OFFERINGS
 from apps.businesses.plan_catalog import (
+    LOGISTICS_TIER_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
 )
 from apps.logistics.policy import LogisticsEligibilityPolicy, LogisticsUsageReviewPolicy
@@ -74,6 +75,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "apps.businesses.quota_middleware.QuotaErrorMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -211,8 +213,14 @@ STRIPE_PRICE_ID_MAP = {
         f"stripe_price_{plan_slug}_{billing_interval}_{currency}",
     )
     for plan_slug, offering in BILLING_OFFERINGS.items()
+    if offering.checkout_enabled
     for billing_interval in offering.intervals
     for currency in PUBLIC_PRICING_CURRENCIES
+}
+# Staged validation only: never included in checkout/webhook price resolution.
+STRIPE_LOGISTICS_TIER_PRICE_ID_MAP = {
+    (slug, "yearly", "eur"): getattr(settings, f"stripe_price_{slug.replace('-', '_')}_yearly_eur")
+    for slug in LOGISTICS_TIER_SLUGS
 }
 
 LOGISTICS_AUTO_APPROVE_ALL = settings.logistics_auto_approve_all

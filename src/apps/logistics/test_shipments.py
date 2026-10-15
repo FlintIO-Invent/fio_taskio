@@ -115,11 +115,20 @@ class ShipmentTests(TestCase):
         )
 
     def parcel_status(self, parcel, status):
+        if status in ("IN_TRANSIT", "DELIVERED"):
+            from .financial_test_support import clear_test_parcel
+
+            clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         return change_parcel_status(
             business=self.business, parcel=parcel, actor=self.user, status=status
         )
 
     def status(self, shipment, status, **kwargs):
+        if status == "IN_TRANSIT":
+            from .financial_test_support import clear_test_parcel
+
+            for parcel in shipment.parcels.all():
+                clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         return change_shipment_status(
             business=self.business, shipment=shipment, actor=self.user, status=status, **kwargs
         )
@@ -191,6 +200,10 @@ class ShipmentTests(TestCase):
             self.parcel_status(parcel, "RECEIVED")
             self.assign(shipment, parcel)
         self.status(shipment, "READY")
+        from .financial_test_support import clear_test_parcel
+
+        for parcel in parcels:
+            clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         return shipment, parcels
 
     def write_post(self, route, data=None, *, shipment=None, parcel=None):

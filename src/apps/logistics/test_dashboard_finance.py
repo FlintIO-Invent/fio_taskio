@@ -55,7 +55,9 @@ class LogisticsDashboardFinanceTests(TestCase):
             Invoice.objects.filter(pk=invoice.pk).update(created_at=created_at)
         return invoice
 
-    def test_totals_use_invoice_status_and_business_month_boundaries(self):
+    def test_totals_use_receipts_and_business_month_boundaries_without_fabricating_legacy_payments(
+        self,
+    ):
         # October in Curacao starts at 04:00 UTC; the end is exclusive.
         start = datetime(2026, 10, 1, 4, tzinfo=UTC)
         end = datetime(2026, 11, 1, 4, tzinfo=UTC)
@@ -69,8 +71,8 @@ class LogisticsDashboardFinanceTests(TestCase):
             response = self.client.get(reverse("agent_dashboard"))
         for key, expected in {
             "invoiced_this_month_total": "180.75",
-            "outstanding_invoice_total": "110.00",
-            "paid_invoice_total": "100.60",
+            "outstanding_invoice_total": "210.60",
+            "paid_invoice_total": "0.00",
             "draft_invoice_total": "30.00",
         }.items():
             self.assertEqual(response.context[key], Decimal(expected), key)
@@ -78,6 +80,7 @@ class LogisticsDashboardFinanceTests(TestCase):
                 response, format_money_for_business(Decimal(expected), self.business)
             )
         self.assertContains(response, "Finance overview")
+        self.assertEqual(response.context["payment_review_invoice_count"], 2)
         self.assertContains(response, "Monthly totals use America/Curacao.")
         self.assertContains(response, f'href="{reverse("invoice_list")}"')
 

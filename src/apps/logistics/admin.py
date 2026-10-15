@@ -53,6 +53,7 @@ class DecisionHistoryInline(admin.TabularInline):
 class EnrollmentHistoryInline(DecisionHistoryInline):
     model = LogisticsEnrollmentToken
     fields = (
+        "selected_plan_slug",
         "application_revision",
         "created_at",
         "expires_at",
@@ -134,6 +135,8 @@ class LogisticsApplicationAdmin(ClassificationDisplayMixin, admin.ModelAdmin):
         fields = super().get_readonly_fields(request, obj)
         if obj is not None and obj.status == LogisticsApplication.Status.WITHDRAWN:
             return fields + LogisticsApplication.MATERIAL_FIELDS
+        if obj is not None and obj.converted_at is not None:
+            return fields + ("selected_plan_slug",)
         return fields
 
     def get_urls(self):

@@ -1,0 +1,8 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<div class="content">
+  <h2 class="mb-2">Subscription usage</h2>
+  <p class="text-body-tertiary mb-4">Review your workspace capacity. The workspace owner manages billing.</p>
+  {% include 'businesses/includes/logistics_usage.html' %}
+</div>
+{% endblock %}

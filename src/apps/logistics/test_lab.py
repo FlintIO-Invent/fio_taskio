@@ -290,6 +290,13 @@ def owned_objects(
             object_pk__in=[str(pk) for pk in preserved_contexts],
         ).exists():
             raise CommandError("Another seed claims preserved lab work contexts.")
+    if dataset:
+        from .models import LogisticsChargeParcel
+        from .test_lab_dataset import dataset_coverage_objects
+
+        owned[LogisticsChargeParcel] = {
+            row.pk for row in dataset_coverage_objects(dataset, seed.planned_counts["dataset"])
+        }
     for model in apps.get_models():
         if model in (DemoSeedRun, DemoSeedRecord):
             continue

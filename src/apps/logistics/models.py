@@ -1,4 +1,5 @@
 import uuid
+from copy import copy
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -7,6 +8,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxLengthValidator, MinValueValidator, RegexValidator
 from django.db import models, transaction
 from django.utils import timezone
+
+from apps.businesses.usage_limits import CapacityQuerySet, capacity_guard
 
 from .classification import (
     ClassificationHelpers,
@@ -107,6 +110,7 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
         EUR = "EUR", "Euro (EUR)"
 
     MATERIAL_FIELDS = (
+        "selected_plan_slug",
         "business_name",
         "trading_name",
         "contact_first_name",
@@ -157,6 +161,9 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
         "converted_revision",
     )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    selected_plan_slug = models.SlugField(
+        "Annual Logistics tier", max_length=150, default="logistics"
+    )
     business_name = models.CharField("Legal / business name", max_length=120)
     trading_name = models.CharField(max_length=120, blank=True)
     contact_first_name = models.CharField(max_length=100)
@@ -291,6 +298,10 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
 
     def clean(self):
         super().clean()
+        from .tier_selection import selected_plan
+
+        if self.selected_plan_slug != "logistics":
+            selected_plan(self.selected_plan_slug)
         for name in self.MATERIAL_FIELDS:
             value = getattr(self, name)
             if isinstance(value, str):
@@ -361,6 +372,12 @@ class LogisticsApplication(ClassificationHelpers, models.Model):
                 for name in self.MATERIAL_FIELDS:
                     if name not in update_fields:
                         setattr(self, name, getattr(previous, name))
+            if (
+                previous is not None
+                and previous.converted_at is not None
+                and self.selected_plan_slug != previous.selected_plan_slug
+            ):
+                raise ValidationError("An enrolled application tier cannot be changed.")
             self.clean()
             self.normalized_email = self.email.casefold()
             self.normalized_business_name = normalized_identity(self.business_name)
@@ -443,6 +460,7 @@ class LogisticsEnrollmentToken(models.Model):
     )
     token_digest = models.CharField(max_length=64, unique=True, editable=False)
     application_revision = models.PositiveIntegerField(editable=False)
+    selected_plan_slug = models.SlugField(max_length=150, default="logistics", editable=False)
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
@@ -512,6 +530,7 @@ class ParcelDomainModel(models.Model):
         ):
             raise ValidationError({field_name: "Actor must belong to this workspace."})
 
+    @capacity_guard
     def _domain_save(self, **kwargs):
         self.full_clean()
         return super().save(**kwargs)
@@ -519,6 +538,8 @@ class ParcelDomainModel(models.Model):
 
 class LogisticsLocation(models.Model):
     """A company's facility, distinct from geography and public port references."""
+
+    objects = CapacityQuerySet.as_manager()
 
     class Type(models.TextChoices):
         PORT = "PORT", "Port"
@@ -625,6 +646,7 @@ class LogisticsLocation(models.Model):
                 {"reference_code": "Select a reference matching this location's country and type."}
             )
 
+    @capacity_guard
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
@@ -829,7 +851,10 @@ class Parcel(ParcelDomainModel, LogisticsRouteFields):
 
     class Meta:
         ordering = ["-created_at", "-pk"]
-        indexes = [models.Index(fields=["business", "current_status", "created_at"])]
+        indexes = [
+            models.Index(fields=["business", "current_status", "created_at"]),
+            models.Index(fields=["business", "created_at"], name="logistics_parcel_usage_idx"),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(quantity__gte=1), name="parcel_quantity_positive"
@@ -952,13 +977,24 @@ class ParcelEvent(ParcelDomainModel):
         max_length=20, choices=Parcel.Status.choices, null=True, blank=True, editable=False
     )
     location_override_reason = models.CharField(max_length=1000, blank=True, editable=False)
+    credit_approval = models.ForeignKey(
+        "LogisticsCreditApproval",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="movement_events",
+        editable=False,
+    )
     public_message = models.CharField(max_length=1000, blank=True)
     internal_note = models.CharField(max_length=2000, blank=True)
     idempotency_key = models.UUIDField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["timestamp", "pk"]
-        indexes = [models.Index(fields=["business", "parcel", "timestamp"])]
+        indexes = [
+            models.Index(fields=["business", "parcel", "timestamp"]),
+            models.Index(fields=["business", "timestamp"], name="logistics_event_usage_idx"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["business", "idempotency_key"], name="parcel_event_retry_unique"
@@ -992,6 +1028,12 @@ class ParcelEvent(ParcelDomainModel):
         if not Parcel.objects.filter(pk=self.parcel_id, business_id=self.business_id).exists():
             raise ValidationError({"parcel": "Select a parcel owned by this workspace."})
         self._validate_actor("actor")
+        if self.credit_approval_id and (
+            self.credit_approval.business_id,
+            self.credit_approval.parcel_id,
+            self.credit_approval.status,
+        ) != (self.business_id, self.parcel_id, self.status):
+            raise ValidationError("Movement credit authority must match tenant, Parcel and action.")
         if (
             self.operational_location_id
             and not LogisticsLocation.objects.filter(
@@ -1072,7 +1114,10 @@ class Shipment(ParcelDomainModel, LogisticsRouteFields):
 
     class Meta:
         ordering = ["-created_at", "-pk"]
-        indexes = [models.Index(fields=["business", "status", "created_at"])]
+        indexes = [
+            models.Index(fields=["business", "status", "created_at"]),
+            models.Index(fields=["business", "created_at"], name="logistics_shipment_usage_idx"),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(
@@ -1178,6 +1223,22 @@ class LogisticsCharge(ParcelDomainModel):
         null=True,
         related_name="logistics_charges",
     )
+    # Nullable additions preserve ambiguous historical financial records.
+    logical_key = models.CharField(max_length=64, null=True, blank=True, editable=False)
+    occurrence_reference = models.CharField(max_length=80, blank=True)
+    currency_snapshot = models.CharField(max_length=3, null=True, blank=True, editable=False)
+    currency_is_legacy = models.BooleanField(default=False, editable=False)
+    coverage_recorded_at = models.DateTimeField(null=True, blank=True, editable=False)
+    voided_at = models.DateTimeField(null=True, blank=True, editable=False)
+    void_reason_reference = models.CharField(max_length=160, blank=True, editable=False)
+    supersedes = models.OneToOneField(
+        "self",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="replacement",
+        editable=False,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1195,9 +1256,20 @@ class LogisticsCharge(ParcelDomainModel):
                 name="logistics_charge_positive_amounts",
             ),
             models.UniqueConstraint(
+                fields=["business", "logical_key"],
+                condition=models.Q(voided_at__isnull=True, logical_key__isnull=False),
+                name="logistics_charge_active_logical_unique",
+            ),
+            models.UniqueConstraint(
                 fields=["business", "idempotency_key"], name="logistics_charge_retry_unique"
             ),
         ]
+
+    @property
+    def billing_business(self):
+        business = copy(self.business)
+        business.currency = self.currency_snapshot or self.business.currency
+        return business
 
     @property
     def total(self):
@@ -1223,6 +1295,28 @@ class LogisticsCharge(ParcelDomainModel):
 
             if shipment_billing_client(self.shipment).pk != self.client_id:
                 raise ValidationError({"client": "Shipment must belong to the charge client."})
+        if self.supersedes_id:
+            old = self.supersedes
+            if (old.business_id, old.client_id, old.parcel_id, old.shipment_id) != (
+                self.business_id,
+                self.client_id,
+                self.parcel_id,
+                self.shipment_id,
+            ) or not old.voided_at:
+                raise ValidationError(
+                    "Corrections must replace a voided charge for the same billing target."
+                )
+        if (
+            self.voided_at
+            and self.pk
+            and (
+                (self.invoice_line_id and self.invoice_line.invoice.status != "CANCELLED")
+                or self.invoice_lines.exclude(invoice__status="CANCELLED").exists()
+            )
+        ):
+            raise ValidationError("Cancel active Invoice bindings before voiding a charge.")
+        if self.voided_at and not self.void_reason_reference:
+            raise ValidationError("Voiding a charge requires a reason reference.")
         if self.invoice_line_id:
             line = self.invoice_line
             if (
@@ -1265,11 +1359,179 @@ class LogisticsCharge(ParcelDomainModel):
                 "unit_price",
                 "idempotency_key",
                 "created_by_id",
+                "logical_key",
+                "occurrence_reference",
+                "currency_snapshot",
+                "supersedes_id",
             )
+            if (
+                previous.coverage_recorded_at
+                and previous.coverage_recorded_at != self.coverage_recorded_at
+            ):
+                raise ValidationError("Recorded charge coverage is immutable.")
+            if previous.voided_at and (self.voided_at, self.void_reason_reference) != (
+                previous.voided_at,
+                previous.void_reason_reference,
+            ):
+                raise ValidationError("Voided charge history is immutable.")
             if any(getattr(self, field) != getattr(previous, field) for field in fields) or (
                 previous.invoice_line_id and previous.invoice_line_id != self.invoice_line_id
             ):
                 raise ValidationError("Saved charge snapshots and invoice links are immutable.")
+
+
+class LogisticsChargeParcel(ParcelDomainModel):
+    """Frozen applicability of one charge; not an allocation of Shipment freight."""
+
+    charge = models.ForeignKey(
+        LogisticsCharge, on_delete=models.CASCADE, related_name="parcel_coverage"
+    )
+    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT, related_name="financial_coverage")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["charge", "parcel"], name="logistics_charge_parcel_unique"
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.charge_id and self.parcel_id:
+            from .financial_coverage import validate_location_integrity
+
+            validate_location_integrity(self.parcel)
+            if (self.charge.business_id, self.charge.client_id) != (
+                self.parcel.business_id,
+                self.parcel.client_id,
+            ):
+                raise ValidationError(
+                    "Charge coverage must belong to the same business and client."
+                )
+            if self.charge.parcel_id and self.charge.parcel_id != self.parcel_id:
+                raise ValidationError("Direct charges cover only their saved Parcel.")
+            if (
+                self._state.adding
+                and LogisticsCharge.objects.filter(
+                    pk=self.charge_id, coverage_recorded_at__isnull=False
+                ).exists()
+            ):
+                raise ValidationError("Recorded charge coverage cannot be expanded.")
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            if (self.charge_id, self.parcel_id) != (previous.charge_id, previous.parcel_id):
+                raise ValidationError("Recorded charge coverage is immutable.")
+
+
+class LogisticsCreditApproval(ParcelDomainModel):
+    """Immutable authority for one movement against exact shared billing evidence."""
+
+    business = models.ForeignKey(
+        "businesses.Business", on_delete=models.PROTECT, related_name="logistics_credit_approvals"
+    )
+    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT, related_name="credit_approvals")
+    client = models.ForeignKey(
+        "crm.Client", on_delete=models.PROTECT, related_name="logistics_credit_approvals"
+    )
+    status = models.CharField(
+        max_length=20, choices=[("IN_TRANSIT", "Departure"), ("DELIVERED", "Delivery")]
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="logistics_credit_approvals",
+    )
+    approved_role = models.CharField(max_length=20, editable=False)
+    approved_at = models.DateTimeField(default=timezone.now, editable=False)
+    expires_at = models.DateTimeField()
+    reason_reference = models.CharField(max_length=1000)
+    obligations_snapshot = models.JSONField(editable=False)
+    obligation_fingerprint = models.CharField(max_length=64, editable=False)
+    location = models.ForeignKey(
+        LogisticsLocation,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="credit_approvals",
+    )
+    idempotency_key = models.UUIDField(editable=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "idempotency_key"], name="logistics_credit_approval_nonce"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(expires_at__gt=models.F("approved_at")),
+                name="logistics_credit_future_expiry",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status__in=["IN_TRANSIT", "DELIVERED"]),
+                name="logistics_credit_movement_scope",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Credit approval history is immutable; revoke and reapprove.")
+        if self.business.vertical != "LOGISTICS" or (
+            self.parcel.business_id,
+            self.parcel.client_id,
+            self.client.business_id,
+        ) != (self.business_id, self.client_id, self.business_id):
+            raise ValidationError("Credit approval requires same-tenant Parcel and Client.")
+        self._validate_actor("approved_by")
+        if self.approved_role not in ("owner", "admin"):
+            raise ValidationError("Only owner/admin credit authority may be recorded.")
+        from apps.businesses.models import BusinessUser
+
+        if not BusinessUser.objects.filter(
+            business_id=self.business_id,
+            user_id=self.approved_by_id,
+            role=self.approved_role,
+            is_active=True,
+            user__is_active=True,
+        ).exists():
+            raise ValidationError("The approving actor must have active owner/admin authority.")
+        if not self.reason_reference.strip() or not isinstance(self.obligations_snapshot, dict):
+            raise ValidationError("Reason and exact obligation evidence are required.")
+        if self.location_id and self.location.business_id != self.business_id:
+            raise ValidationError("Credit approval location must belong to the workspace.")
+
+
+class LogisticsCreditRevocation(ParcelDomainModel):
+    """Append-only revocation; approval and its movement history remain intact."""
+
+    business = models.ForeignKey(
+        "businesses.Business", on_delete=models.PROTECT, related_name="logistics_credit_revocations"
+    )
+    approval = models.OneToOneField(
+        LogisticsCreditApproval, on_delete=models.PROTECT, related_name="revocation"
+    )
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="logistics_credit_revocations",
+    )
+    revoked_at = models.DateTimeField(default=timezone.now, editable=False)
+    reason_reference = models.CharField(max_length=1000)
+    idempotency_key = models.UUIDField(editable=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "idempotency_key"], name="logistics_credit_revocation_nonce"
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Credit revocation history is immutable.")
+        if self.approval.business_id != self.business_id or not self.reason_reference.strip():
+            raise ValidationError("Revocation requires a same-tenant approval and reason.")
+        self._validate_actor("revoked_by")
 
 
 class LogisticsLocationAssignment(models.Model):

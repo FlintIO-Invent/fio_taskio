@@ -59,6 +59,8 @@ EXPECTED_COUNTS = {
     "invoices": 12,
     "invoice_lines": 24,
     "logistics_charges": 24,
-    "activity_logs": 12,
+    "activity_logs": 51,
+    "credit_approvals": 31,
+    "credit_revocations": 0,
     "handling_sites": 2,
 }

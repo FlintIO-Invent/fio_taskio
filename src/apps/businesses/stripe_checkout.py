@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
@@ -59,6 +61,8 @@ def ensure_pending_checkout_subscription(
         billing_interval=billing_interval,
         currency=currency,
     )
+    if plan.is_logistics_capacity_tier:
+        raise StripeCheckoutError("Use the approved Logistics enrollment for tier provisioning.")
     subscription, created = BusinessSubscription.objects.get_or_create(
         business=business,
         defaults={
@@ -74,6 +78,8 @@ def ensure_pending_checkout_subscription(
 
     if subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT:
         raise StripeCheckoutError("This workspace subscription is not pending checkout.")
+    if subscription.plan.is_logistics_capacity_tier:
+        raise StripeCheckoutError("Logistics tier switching is unavailable.")
 
     update_fields: list[str] = []
     desired_values = {
@@ -206,6 +212,10 @@ def resume_trial_checkout_session(
 
             metadata = _stripe_value(session, "metadata") or {}
             approval_matches = matches_current_approval(subscription, metadata)
+            if subscription.plan.is_logistics_capacity_tier:
+                approval_matches = (
+                    approval_matches and _stripe_value(metadata, "logistics_price_id") == price_id
+                )
         session_status = str(_stripe_value(session, "status") or "").strip().lower()
         session_url = _stripe_value(session, "url")
         expires_at = _stripe_timestamp_to_datetime(_stripe_value(session, "expires_at"))
@@ -292,6 +302,8 @@ def _create_checkout_session(
 
         application = require_checkout_enrollment(subscription, user)
         metadata.update(approval_metadata(application))
+        if plan.is_logistics_capacity_tier:
+            metadata["logistics_price_id"] = price_id
     stripe_client = configure_stripe_sdk()
     if _is_logistics_subscription(subscription):
         from apps.logistics.billing import validate_annual_stripe_price
@@ -313,6 +325,7 @@ def _create_checkout_session(
             subscription=subscription,
             replacing_session_id=replacing_session_id,
             approval_decision_id=metadata.get("logistics_approval_decision_id", ""),
+            tier_binding=metadata if plan.is_logistics_capacity_tier else None,
         ),
     )
     checkout_url = _stripe_value(checkout_session, "url")
@@ -370,6 +383,10 @@ def _validated_checkout_dimensions(
     normalized_currency = str(currency or "").strip().lower()
     if normalized_currency not in PUBLIC_PRICING_CURRENCIES:
         raise StripeCheckoutError("Select a supported checkout currency.")
+    if plan.is_logistics_capacity_tier:
+        from apps.logistics.billing import configured_annual_price
+
+        configured_annual_price(plan, normalized_currency)
 
     return plan_slug, normalized_interval, normalized_currency
 
@@ -460,6 +477,12 @@ def _validate_session_belongs_to_subscription(
 
     if client_reference_id and client_reference_id != _client_reference_id(subscription):
         raise StripeCheckoutError("Stored Checkout Session does not match this workspace.")
+    if subscription.plan.is_logistics_capacity_tier and (
+        client_reference_id != _client_reference_id(subscription)
+        or _stripe_value(session, "livemode") is not False
+        or _stripe_value(session, "currency") != "eur"
+    ):
+        raise StripeCheckoutError("Stored tier Checkout Session is not bound to TEST EUR billing.")
 
 
 def _is_logistics_subscription(subscription):
@@ -508,7 +531,13 @@ def _checkout_idempotency_key(
     subscription: BusinessSubscription,
     replacing_session_id: str,
     approval_decision_id: str = "",
+    tier_binding: dict | None = None,
 ) -> str:
+    if tier_binding is not None:
+        digest = hashlib.sha256(
+            json.dumps([tier_binding, replacing_session_id], sort_keys=True).encode()
+        ).hexdigest()
+        return f"motionmate-tier-checkout-{subscription.pk}-{digest}"
     approval_binding = f"-approval-{approval_decision_id}" if approval_decision_id else ""
     return (
         f"motionmate-checkout-{subscription.pk}-"

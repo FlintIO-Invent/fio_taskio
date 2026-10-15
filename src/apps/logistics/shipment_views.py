@@ -174,7 +174,14 @@ def shipment_detail(request, shipment_id):
 @business_role_required(*SHIPMENT_MANAGE_ROLES)
 @require_http_methods(["GET", "POST"])
 def shipment_create(request):
+    from .registration_views import registration_parcel, registration_url
+
+    continuation = registration_parcel(request)
+    if continuation and request.method == "GET" and continuation.shipment_id:
+        return redirect(registration_url(continuation))
     parcel = _initial_parcel(request)
+    if continuation and request.method == "GET":
+        parcel = continuation
     initial = (
         {"parcel": parcel, "origin": parcel.origin, "destination": parcel.destination}
         if parcel
@@ -188,6 +195,9 @@ def shipment_create(request):
         allow_assignment=_can_assign_parcels(request),
         initial=request.POST.dict() if refresh_fields else initial,
     )
+    if request.method == "POST" and not refresh_fields and form.is_valid():
+        if continuation and getattr(form.cleaned_data.get("parcel"), "pk", None) != continuation.pk:
+            form.add_error("parcel", "Keep the registered Parcel selected for this guided step.")
     if request.method == "POST" and not refresh_fields and form.is_valid():
         try:
             shipment = create_shipment(
@@ -205,6 +215,8 @@ def shipment_create(request):
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
+            if continuation:
+                return redirect(registration_url(continuation))
             return redirect("logistics_shipment_detail", shipment_id=shipment.pk)
     return render(
         request,
@@ -212,6 +224,7 @@ def shipment_create(request):
         {
             "form": form,
             "title": "Create shipment",
+            "registration_url": registration_url(continuation) if continuation else None,
             "has_eligible_parcels": (
                 form.fields["parcel"].queryset.exists() if "parcel" in form.fields else False
             ),

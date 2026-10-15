@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from django.db import connection
-
-from apps.businesses.models import Business, BusinessSubscription
+from apps.businesses.models import Business
+from apps.businesses.usage_limits import lock_capacity_scope
 
 
 def lock_client_capacity_scope(business: Business) -> Business:
@@ -12,16 +11,4 @@ def lock_client_capacity_scope(business: Business) -> Business:
     Client writers lock Business first and its optional subscription second.
     """
 
-    if not connection.in_atomic_block:
-        raise RuntimeError("Client capacity locks require transaction.atomic().")
-
-    locked_business = Business.objects.select_for_update().get(pk=business.pk)
-    subscription = (
-        BusinessSubscription.objects.select_for_update()
-        .select_related("plan")
-        .filter(business=locked_business)
-        .first()
-    )
-    if subscription is not None:
-        locked_business._state.fields_cache["subscription"] = subscription
-    return locked_business
+    return lock_capacity_scope(business.pk, using=business._state.db or "default")[0]

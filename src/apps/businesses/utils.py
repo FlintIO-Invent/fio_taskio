@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import timedelta
 from functools import wraps
 from typing import Any, TypeVar
@@ -330,12 +331,38 @@ PLAN_LIMIT_FIELDS = {
     "appointments_per_month": "max_appointments_per_month",
     "public_bookings_per_month": "max_public_bookings_per_month",
 }
+# Usage display stays on already-metered metrics until Blocks C/D implement
+# consistent counters. A configured allowance must not imply measured zero use.
+PLAN_USAGE_LIMIT_NAMES = tuple(PLAN_LIMIT_FIELDS)
+LOGISTICS_PLAN_LIMIT_FIELDS = {
+    "locations": "max_locations",
+    "services": "max_services",
+    "parcels_per_month": "max_parcels_per_month",
+    "shipments_per_month": "max_shipments_per_month",
+    "parcel_events_per_month": "parcel_events_per_month_budget",
+    "transactional_emails_per_month": "transactional_emails_per_month_budget",
+    "storage_gb": "storage_planning_gb",
+}
+PLAN_LIMIT_FIELDS.update(LOGISTICS_PLAN_LIMIT_FIELDS)
+MONITORING_PLAN_LIMITS = frozenset({"parcel_events_per_month", "transactional_emails_per_month"})
+PLAN_LIMIT_KINDS = {
+    name: "monthly_creations" if name.endswith("_per_month") else "active_records"
+    for name in PLAN_LIMIT_FIELDS
+}
+PLAN_LIMIT_KINDS.update({name: "monitoring_budget" for name in MONITORING_PLAN_LIMITS})
+PLAN_LIMIT_KINDS.update(
+    {"storage_gb": "storage_planning", "appointments_per_month": "monthly_scheduled"}
+)
 PLAN_LIMIT_LABELS = {
     "users": "total users/seats",
     "clients": "active clients",
     "invoices_per_month": "invoices this month",
     "appointments_per_month": "appointments this month",
     "public_bookings_per_month": "online bookings this month",
+    "locations": "active operating locations",
+    "services": "active Logistics Services",
+    "parcels_per_month": "new Parcels this UTC month",
+    "shipments_per_month": "new Shipments this UTC month",
 }
 PLAN_CHANGE_MODULES = (
     "invoicing",
@@ -348,23 +375,68 @@ def _normalize_plan_limit_name(limit_name: str) -> str:
     return limit_name.strip().lower().replace("-", "_")
 
 
-def get_business_plan_limit(business: Business | None, limit_name: str) -> int | None:
+@dataclass(frozen=True)
+class BusinessPlanLimit:
+    """A resolved null limit is unlimited; an unavailable entitlement is distinct."""
+
+    available: bool
+    limit: int | None = None
+    kind: str = "active_records"
+    period: str | None = None
+
+    @property
+    def unlimited(self) -> bool:
+        return (
+            self.available
+            and self.limit is None
+            and self.kind
+            not in {
+                "monitoring_budget",
+                "storage_planning",
+            }
+        )
+
+
+def resolve_business_plan_limit(business: Business | None, limit_name: str) -> BusinessPlanLimit:
     normalized_name = _normalize_plan_limit_name(limit_name)
     field_name = PLAN_LIMIT_FIELDS.get(normalized_name)
     if field_name is None:
-        return None
+        return BusinessPlanLimit(available=False)
 
     subscription = get_business_subscription(business)
     if subscription is None or not subscription.has_access:
-        return None
+        return BusinessPlanLimit(available=False)
 
-    return getattr(subscription.plan, field_name, None)
+    if (
+        normalized_name in LOGISTICS_PLAN_LIMIT_FIELDS
+        and business.vertical != Business.Vertical.LOGISTICS
+    ):
+        return BusinessPlanLimit(available=False)
+
+    kind = PLAN_LIMIT_KINDS[normalized_name]
+    limit = getattr(subscription.plan, field_name)
+    return BusinessPlanLimit(
+        available=limit is not None or kind not in {"monitoring_budget", "storage_planning"},
+        limit=limit,
+        kind=kind,
+        period="calendar_month_utc" if normalized_name.endswith("_per_month") else None,
+    )
+
+
+def get_business_plan_limit(business: Business | None, limit_name: str) -> int | None:
+    # Preserve the existing scalar API for manual forms and other quota callers.
+    return resolve_business_plan_limit(business, limit_name).limit
 
 
 def get_plan_limit(plan: ClarivoPlan | None, limit_name: str) -> int | None:
     normalized_name = _normalize_plan_limit_name(limit_name)
     field_name = PLAN_LIMIT_FIELDS.get(normalized_name)
     if field_name is None or plan is None:
+        return None
+    if (
+        normalized_name in LOGISTICS_PLAN_LIMIT_FIELDS
+        and plan.family != ClarivoPlan.Family.LOGISTICS
+    ):
         return None
 
     return getattr(plan, field_name, None)
@@ -396,6 +468,32 @@ def get_business_usage_count(
         return 0
 
     normalized_name = _normalize_plan_limit_name(limit_name)
+    if business.vertical == Business.Vertical.LOGISTICS:
+        from .usage_limits import MONTHLY_MODELS, is_capacity_tier, monthly_usage, seat_usage
+
+        subscription = get_business_subscription(business)
+        if is_capacity_tier(business, subscription):
+            if normalized_name in MONTHLY_MODELS:
+                return monthly_usage(
+                    business, subscription, normalized_name, using=business._state.db or "default"
+                )
+            if normalized_name == "users" and include_pending_invitations:
+                return seat_usage(business, using=business._state.db or "default")
+        if normalized_name == "locations":
+            return business.logistics_locations.filter(is_active=True).count()
+        if normalized_name == "services":
+            return business.business_services.filter(is_active=True).count()
+        if normalized_name in {"parcels_per_month", "shipments_per_month"}:
+            from django.apps import apps
+
+            from .usage_limits import utc_month_bounds
+
+            start, end = utc_month_bounds()
+            return (
+                apps.get_model(MONTHLY_MODELS[normalized_name])
+                .objects.filter(business=business, created_at__gte=start, created_at__lt=end)
+                .count()
+            )
     if normalized_name == "users":
         user_count = business.memberships.filter(is_active=True).count()
         if include_pending_invitations:
@@ -451,7 +549,7 @@ def get_business_plan_usage_summary(
     include_pending_invitations: bool = True,
 ) -> list[dict[str, Any]]:
     usage_summary = []
-    for limit_name in PLAN_LIMIT_FIELDS:
+    for limit_name in PLAN_USAGE_LIMIT_NAMES:
         limit = get_plan_limit(plan, limit_name)
         usage_count = get_business_usage_count(
             business,
@@ -515,6 +613,8 @@ def business_limit_reached(
     *,
     include_pending_invitations: bool = False,
 ) -> bool:
+    if _normalize_plan_limit_name(limit_name) in MONITORING_PLAN_LIMITS | {"storage_gb"}:
+        return False
     limit = get_business_plan_limit(business, limit_name)
     if limit is None:
         return False
@@ -1020,6 +1120,7 @@ def expire_business_invitation_if_needed(invitation: BusinessInvitation) -> bool
     return invitation.status == BusinessInvitation.Status.EXPIRED
 
 
+@transaction.atomic
 def create_or_refresh_business_invitation(
     *,
     business: Business,
@@ -1029,6 +1130,10 @@ def create_or_refresh_business_invitation(
     expiry_days: int = 7,
 ) -> tuple[BusinessInvitation, bool]:
     normalized_email = email.strip().lower()
+    if business.vertical == Business.Vertical.LOGISTICS:
+        from .usage_limits import lock_capacity_scope
+
+        lock_capacity_scope(business.pk)
     expires_at = timezone.now() + timedelta(days=expiry_days)
     invitation = (
         BusinessInvitation.objects.filter(
@@ -1067,6 +1172,13 @@ def accept_business_invitation_for_user(
     invitation: BusinessInvitation,
     user,
 ) -> tuple[BusinessUser, bool, bool]:
+    if invitation.business.vertical == Business.Vertical.LOGISTICS:
+        from .usage_limits import lock_capacity_scope
+
+        business, _ = lock_capacity_scope(invitation.business_id)
+        BusinessInvitation.objects.select_for_update().get(pk=invitation.pk)
+        invitation.refresh_from_db()
+        invitation.business = business
     if not invitation.business.is_active:
         raise ValueError("This invitation is no longer available.")
 

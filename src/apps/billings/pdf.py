@@ -12,6 +12,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
+from apps.logistics.monitoring import observe_document
+
 from .models import Invoice
 
 logger = logging.getLogger(__name__)
@@ -54,7 +56,7 @@ def _client_address_lines(invoice: Invoice) -> list[str]:
 
 
 def _invoice_context(invoice: Invoice, *, include_notes: bool = True) -> dict:
-    business = invoice.business
+    business = invoice.billing_business
     return {
         "invoice": invoice,
         "business": business,
@@ -78,8 +80,17 @@ def render_invoice_pdf_html(
     *,
     current_business=None,
     include_notes: bool = True,
+    actor=None,
 ) -> str:
     _ensure_invoice_business(invoice, current_business)
+    if invoice.business.vertical == "LOGISTICS":
+        from apps.logistics.financial_access import (
+            project_invoice_references,
+            require_invoice_access,
+        )
+
+        require_invoice_access(business=invoice.business, actor=actor, invoice=invoice)
+        project_invoice_references(business=invoice.business, actor=actor, invoice=invoice)
     return render_to_string(
         "billings/invoice_pdf.html",
         _invoice_context(invoice, include_notes=include_notes),
@@ -91,13 +102,23 @@ def invoice_pdf_filename(invoice: Invoice) -> str:
     return f"invoice-{safe_number or invoice.pk}.pdf"
 
 
+@observe_document("invoice_pdf")
 def render_invoice_pdf(
     invoice: Invoice,
     *,
     current_business=None,
     include_notes: bool = True,
+    actor=None,
 ) -> bytes:
     _ensure_invoice_business(invoice, current_business)
+    if invoice.business.vertical == "LOGISTICS":
+        from apps.logistics.financial_access import (
+            project_invoice_references,
+            require_invoice_access,
+        )
+
+        require_invoice_access(business=invoice.business, actor=actor, invoice=invoice)
+        project_invoice_references(business=invoice.business, actor=actor, invoice=invoice)
     buffer = BytesIO()
     pdf = canvas.Canvas(
         buffer,
@@ -168,9 +189,13 @@ def _draw_invoice(pdf: canvas.Canvas, context: dict) -> None:
     meta_y = PAGE_HEIGHT - TOP_MARGIN - 30
     pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Invoice #: {invoice.invoice_number}")
     meta_y -= 12
-    pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Date: {context['issue_date']:%b %d, %Y}")
+    pdf.drawRightString(
+        PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Date: {context['issue_date']:%b %d, %Y}"
+    )
     meta_y -= 12
-    pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Status: {invoice.get_status_display()}")
+    pdf.drawRightString(
+        PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Status: {invoice.get_status_display()}"
+    )
 
     y = min(y, meta_y) - 24
     pdf.setStrokeColor(colors.HexColor("#D8DEE9"))
@@ -264,7 +289,10 @@ def _draw_totals(pdf: canvas.Canvas, invoice: Invoice, y: int) -> int:
     pdf.drawRightString(value_x, y, _money(invoice, invoice.subtotal))
     y -= 16
     if invoice.tax:
-        pdf.drawRightString(label_x, y, f"Tax ({invoice.tax_rate_percentage}%):")
+        tax_label = f"Tax ({invoice.tax_rate_percentage}%):"
+        if invoice.snapshot_is_legacy:
+            tax_label = f"Tax (legacy effective rate {invoice.tax_rate_percentage}%):"
+        pdf.drawRightString(label_x, y, tax_label)
         pdf.drawRightString(value_x, y, _money(invoice, invoice.tax))
         y -= 16
     pdf.setFont("Helvetica-Bold", 12)

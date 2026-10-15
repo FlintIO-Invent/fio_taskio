@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Invoice, InvoiceLine
+from .models import Invoice, InvoiceLine, InvoicePayment
 
 
 class InvoiceLineInline(admin.TabularInline):
@@ -28,3 +28,27 @@ class InvoiceAdmin(admin.ModelAdmin):
         "client__email",
     )
     inlines = [InvoiceLineInline]
+
+
+@admin.register(InvoicePayment)
+class InvoicePaymentAdmin(admin.ModelAdmin):
+    list_display = (
+        "invoice",
+        "kind",
+        "amount",
+        "currency",
+        "method",
+        "reference",
+        "recorded_by",
+        "recorded_at",
+    )
+    list_filter = ("kind", "currency", "method")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

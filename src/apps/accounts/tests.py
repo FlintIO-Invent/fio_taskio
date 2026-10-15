@@ -1965,17 +1965,21 @@ class OnboardingScopeGuardTests(TestCase):
         self.assertFalse(model_names & forbidden_models)
 
         apps_dir = Path(__file__).resolve().parents[1]
-        migration_names = {
-            path.name.lower()
+        migration_paths = {
+            path.relative_to(apps_dir).as_posix().lower()
             for path in apps_dir.glob("*/migrations/*.py")
             if path.name != "__init__.py"
         }
+        # The existing shared Invoice receipt ledger is customer accounting,
+        # within billings. Keep every other payment/Stripe/SaaS scope guard.
+        customer_receipt_migration = "billings/migrations/0012_customer_invoice_payments.py"
         forbidden_terms = ("customer_portal", "membership", "payment", "saas_billing", "stripe")
         self.assertFalse(
             [
-                migration_name
-                for migration_name in migration_names
-                if any(term in migration_name for term in forbidden_terms)
+                migration_path
+                for migration_path in migration_paths
+                if migration_path != customer_receipt_migration
+                and any(term in migration_path for term in forbidden_terms)
             ]
         )
 

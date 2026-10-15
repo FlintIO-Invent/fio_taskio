@@ -13,6 +13,22 @@ from .models import LogisticsApplication
 class ClassificationFormMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if "selected_plan_slug" in self.fields:
+            from apps.businesses.models import ClarivoPlan
+            from apps.businesses.plan_catalog import LOGISTICS_TIER_SLUGS
+
+            tiers = ClarivoPlan.objects.filter(
+                slug__in=LOGISTICS_TIER_SLUGS, family="LOGISTICS", is_active=True
+            )
+            self.fields["selected_plan_slug"] = forms.ChoiceField(
+                label="Annual Logistics tier",
+                required=False,
+                choices=[("logistics", "Logistics (legacy)")]
+                + [
+                    (plan.slug, plan.name) for plan in tiers if plan.has_complete_logistics_capacity
+                ],
+                help_text="Annual enrollment only. Tier checkout is not yet available.",
+            )
         if "country" in self.fields:
             self.fields["country"] = geographic_country_field(
                 value=self.instance.country, required=True
@@ -42,6 +58,10 @@ class ClassificationFormMixin:
                     widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
                 )
                 self.fields[name].is_classification = True
+
+    def clean_selected_plan_slug(self):
+        # Omitted field preserves existing legacy signup clients.
+        return self.cleaned_data.get("selected_plan_slug") or "logistics"
 
 
 class LogisticsApplicationAdminForm(ClassificationFormMixin, forms.ModelForm):
@@ -74,6 +94,7 @@ class LogisticsApplicationForm(ClassificationFormMixin, forms.ModelForm):
             "fa-building",
             "Tell us about your business and where you operate.",
             (
+                "selected_plan_slug",
                 "business_name",
                 "trading_name",
                 "registration_number",
@@ -152,18 +173,16 @@ class LogisticsApplicationForm(ClassificationFormMixin, forms.ModelForm):
             field.widget.attrs["class"] = (
                 "form-check-input"
                 if isinstance(field.widget, forms.CheckboxInput)
-                else "form-select"
-                if isinstance(field.widget, forms.Select)
-                else "form-control"
+                else "form-select" if isinstance(field.widget, forms.Select) else "form-control"
             )
             if isinstance(field.widget, forms.Textarea):
                 field.widget.attrs["rows"] = 3
-        self.fields[
-            "timezone"
-        ].help_text = "IANA timezone, for example America/Curacao or Europe/Amsterdam."
-        self.fields[
-            "registration_number"
-        ].help_text = "Optional at submission; further registration details may be requested."
+        self.fields["timezone"].help_text = (
+            "IANA timezone, for example America/Curacao or Europe/Amsterdam."
+        )
+        self.fields["registration_number"].help_text = (
+            "Optional at submission; further registration details may be requested."
+        )
         for name, autocomplete in {
             "business_name": "organization",
             "contact_first_name": "given-name",
@@ -455,9 +474,9 @@ class ParcelMetadataForm(forms.ModelForm):
         self.instance.business = business
         self.fields["declared_value"].label = f"Declared value ({business.currency})"
         self.fields["weight_kg"].label = "Weight (kg)"
-        self.fields[
-            "recipient_name"
-        ].help_text = "Optional delivery contact when different from the linked client."
+        self.fields["recipient_name"].help_text = (
+            "Optional delivery contact when different from the linked client."
+        )
         self.fields["internal_notes"].help_text = "Workspace only. Never shown on public tracking."
         for side in ("sender", "recipient"):
             name = f"{side}_country_code"
@@ -472,9 +491,7 @@ class ParcelMetadataForm(forms.ModelForm):
             self.fields[f"{side}_name"].label = f"{side.title()} person / company"
             self.fields[f"{side}_contact"].label = f"{side.title()} phone / contact"
             self.fields[f"{side}_address"].label = f"{side.title()} legacy address"
-            self.fields[
-                f"{side}_address"
-            ].help_text = (
+            self.fields[f"{side}_address"].help_text = (
                 "Saved free-text address. Labels use structured address fields when supplied."
             )
         # Older API/form payloads must not erase additive shipping fields on edits.
@@ -504,9 +521,9 @@ class ParcelMetadataForm(forms.ModelForm):
         self.fields["volume_m3"].widget.attrs["min"] = "0"
         self.fields["origin"].widget.attrs["placeholder"] = "e.g. Miami"
         self.fields["destination"].widget.attrs["placeholder"] = "e.g. Curaçao"
-        self.fields["package_description"].widget.attrs["placeholder"] = (
-            "Briefly describe the parcel"
-        )
+        self.fields["package_description"].widget.attrs[
+            "placeholder"
+        ] = "Briefly describe the parcel"
 
     @property
     def route_location_fields(self):

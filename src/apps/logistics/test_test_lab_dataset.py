@@ -1,7 +1,9 @@
 import io
 import json
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
+from uuid import uuid4
 
 import pypdfium2 as pdfium
 import zxingcpp
@@ -15,6 +17,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.billings.models import Invoice
+from apps.billings.payment_services import record_invoice_payment
 from apps.billings.services import calculate_tax_amount
 from apps.businesses.models import Business, DemoSeedRecord, DemoSeedRun, SubscriptionNotification
 from apps.crm.models import Client
@@ -23,6 +26,7 @@ from . import test_test_lab as foundation_tests
 from .location_access import locations_for
 from .location_access_services import select_work_location
 from .models import (
+    LogisticsCreditApproval,
     LogisticsLocationAssignment,
     LogisticsTestLabAudit,
     Parcel,
@@ -332,7 +336,7 @@ class LogisticsTestLabDatasetTests(TestCase):
                 codes,
             )
         for invoice in self.records(Invoice):
-            self.assertEqual(invoice.status, "DRAFT")
+            self.assertIn(invoice.status, ("DRAFT", "SENT"))
             self.assertEqual(invoice.email_send_count, 0)
             lines = list(invoice.lines.all())
             self.assertEqual(len(lines), 2)
@@ -471,6 +475,81 @@ class LogisticsTestLabDatasetTests(TestCase):
         invoice.save()
         with self.assertRaisesMessage(CommandError, "Fixture changed"):
             self.seed_data(reset=True, confirm_test_financial_data=True)
+        self.assertEqual(Parcel.objects.count(), 40)
+
+    def test_issued_fixture_without_provenance_cannot_reset(self):
+        self.provision()
+        self.seed_data()
+        self.seed.refresh_from_db()
+        del self.seed.planned_counts["dataset"]["fixture_issued_invoice_ids"]
+        self.seed.save(update_fields=["planned_counts"])
+        with self.assertRaisesMessage(CommandError, "unowned financial evidence"):
+            self.seed_data(reset=True, confirm_test_financial_data=True)
+        self.assertEqual((Parcel.objects.count(), Invoice.objects.count()), (40, 12))
+
+    def test_dispatched_fixture_is_retained_even_with_matching_manifest_digest(self):
+        self.provision()
+        self.seed_data()
+        self.seed.refresh_from_db()
+        invoice = Invoice.objects.filter(status="SENT").first()
+        invoice.emailed_at = timezone.now()
+        invoice.emailed_to = "fictional@example.test"
+        invoice.email_send_count = 1
+        invoice.save()
+        # Exercise the independent dispatch guard even if the manifest were
+        # resnapshotted. Normal dispatch is already rejected as a changed row.
+        for entry in self.seed.planned_counts["dataset"]["records"].values():
+            if entry["model"] == Invoice._meta.label and entry["pk"] == invoice.pk:
+                entry["digest"] = digest(invoice)
+        self.seed.save(update_fields=["planned_counts"])
+        with self.assertRaisesMessage(CommandError, "Financial retention"):
+            self.seed_data(reset=True, confirm_test_financial_data=True)
+        self.assertTrue(Invoice.objects.filter(pk=invoice.pk).exists())
+        self.assertEqual(Parcel.objects.count(), 40)
+
+    def test_genuine_unowned_credit_blocks_fixture_reset(self):
+        self.provision()
+        self.seed_data()
+        existing = LogisticsCreditApproval.objects.first()
+        fields = {
+            field.attname: getattr(existing, field.attname)
+            for field in existing._meta.concrete_fields
+            if not field.primary_key
+        }
+        fields.update(
+            idempotency_key=uuid4(),
+            reason_reference="Retain operator-approved credit",
+            expires_at=existing.expires_at + timedelta(days=1),
+        )
+        approval = LogisticsCreditApproval(**fields)
+        approval._domain_save(force_insert=True)
+        with self.assertRaisesMessage(CommandError, "Unowned logistics.LogisticsCreditApproval"):
+            self.seed_data(reset=True, confirm_test_financial_data=True)
+        self.assertTrue(LogisticsCreditApproval.objects.filter(pk=approval.pk).exists())
+        self.assertEqual(Parcel.objects.count(), 40)
+
+    def test_real_receipt_dependency_blocks_fixture_reset(self):
+        self.provision()
+        self.seed_data()
+        invoice = Invoice.objects.filter(status="SENT").first()
+        receipt = record_invoice_payment(
+            business=self.business,
+            actor=self.users["owner"],
+            invoice=invoice,
+            amount="1.00",
+            currency=invoice.currency_code,
+            method="CASH",
+            reference="RETAIN-OPERATOR-RECEIPT",
+            idempotency_key=uuid4(),
+        )
+        # Both the receipt and its audit entry are retained dependencies; the
+        # model registry may encounter either one first.
+        with self.assertRaisesRegex(
+            CommandError,
+            r"Unowned (crm.ActivityLog|billings.InvoicePayment) depends on dataset; reset refused\.",
+        ):
+            self.seed_data(reset=True, confirm_test_financial_data=True)
+        self.assertTrue(invoice.payments.filter(pk=receipt.pk).exists())
         self.assertEqual(Parcel.objects.count(), 40)
 
     def test_unowned_events_block_reset_and_whole_lab_cleanup(self):

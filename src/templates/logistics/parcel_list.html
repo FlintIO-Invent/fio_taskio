@@ -32,6 +32,7 @@
         <article class="card mb-3 position-relative">
           <div class="card-body text-break">
             {% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}
+            <p class="mb-2">{% include 'logistics/includes/financial_clearance_badge.html' %}</p>
             <h4 class="mb-1"><a class="mobile-record-link stretched-link font-monospace" href="{% url 'logistics_parcel_detail' parcel.pk %}">{{ parcel.tracking_code }}</a></h4>
             <p class="fw-semibold mb-2">{{ parcel.client }}</p>
             <p class="mb-2 text-body-secondary">{{ parcel.origin }} → {{ parcel.destination }}</p>
@@ -52,7 +53,7 @@
                 <td><a class="fw-bold text-decoration-none font-monospace" href="{% url 'logistics_parcel_detail' parcel.pk %}">{{ parcel.tracking_code }}</a></td>
                 <td><a href="{% url 'staff_client_detail' parcel.client_id %}">{{ parcel.client }}</a></td>
                 <td>{{ parcel.origin }} → {{ parcel.destination }}</td>
-                <td>{% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}</td>
+                <td>{% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}<br>{% include 'logistics/includes/financial_clearance_badge.html' %}</td>
                 <td>{{ parcel.created_at }}</td>
                 <td><div class="d-flex gap-2"><a class="btn btn-sm btn-phoenix-primary" href="{% url 'logistics_parcel_detail' parcel.pk %}">View</a>{% include 'logistics/includes/copy_tracking.html' with tracking_code=parcel.tracking_code %}</div></td>
               </tr>

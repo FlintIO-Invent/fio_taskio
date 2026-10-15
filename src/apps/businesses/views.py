@@ -370,13 +370,23 @@ def business_settings(request: HttpRequest) -> HttpResponse:
 
         context["logistics_profile"] = LogisticsProfile.objects.filter(business=business).first()
     if business.has_capability("services"):
-        context.update({
-            "service_category_count": business.service_categories.count(),
-            "active_service_category_count": business.service_categories.filter(is_active=True).count(),
-            "business_service_count": business.business_services.count(),
-            "active_business_service_count": business.business_services.filter(is_active=True).count(),
-            **(get_public_booking_share_context(request, business) if business.has_capability("public_booking") else {}),
-        })
+        context.update(
+            {
+                "service_category_count": business.service_categories.count(),
+                "active_service_category_count": business.service_categories.filter(
+                    is_active=True
+                ).count(),
+                "business_service_count": business.business_services.count(),
+                "active_business_service_count": business.business_services.filter(
+                    is_active=True
+                ).count(),
+                **(
+                    get_public_booking_share_context(request, business)
+                    if business.has_capability("public_booking")
+                    else {}
+                ),
+            }
+        )
     return render(request, "businesses/settings.html", context)
 
 
@@ -564,11 +574,27 @@ def business_weekly_availability_deactivate(
     return redirect("business_booking_settings")
 
 
-@business_role_required(BusinessUser.Role.OWNER)
+@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
 @require_http_methods(["GET", "POST"])
 def business_subscription(request: HttpRequest) -> HttpResponse:
     business = request.current_business
     membership = request.current_business_membership
+    logistics_usage = None
+    if business.vertical == Business.Vertical.LOGISTICS:
+        from apps.logistics.subscription_usage import logistics_subscription_usage
+
+        logistics_usage = logistics_subscription_usage(business=business)
+    if membership.role != BusinessUser.Role.OWNER:
+        if logistics_usage is None or request.method != "GET":
+            raise PermissionDenied("Subscription changes require the workspace owner.")
+        return render(
+            request,
+            "businesses/logistics_usage.html",
+            {
+                "business": business,
+                "logistics_usage": logistics_usage,
+            },
+        )
     subscription = get_business_subscription(business)
     available_plan_queryset = ClarivoPlan.motionmate_plans()
     if business.vertical != Business.Vertical.SERVICE:
@@ -666,7 +692,7 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
         user=request.user,
         subscription=subscription,
     )
-    if subscription is not None:
+    if subscription is not None and logistics_usage is None:
         current_usage_summary = get_business_plan_usage_summary(
             business,
             subscription.plan,
@@ -710,6 +736,7 @@ def business_subscription(request: HttpRequest) -> HttpResponse:
         "pending_plan_change": pending_plan_change,
         "current_usage_summary": current_usage_summary,
         "staff_capacity": staff_capacity,
+        "logistics_usage": logistics_usage,
     }
     return render(request, "businesses/subscription.html", context)
 

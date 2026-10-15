@@ -119,12 +119,13 @@ def begin_stripe_webhook_event(
 
     try:
         with transaction.atomic():
-            event_record, _created = (
-                BillingProviderWebhookEvent.objects.select_for_update().get_or_create(
-                    provider=BillingProviderWebhookEvent.Provider.STRIPE,
-                    event_id=event_id,
-                    defaults=defaults,
-                )
+            (
+                event_record,
+                _created,
+            ) = BillingProviderWebhookEvent.objects.select_for_update().get_or_create(
+                provider=BillingProviderWebhookEvent.Provider.STRIPE,
+                event_id=event_id,
+                defaults=defaults,
             )
             if event_record.status in (
                 BillingProviderWebhookEvent.Status.PROCESSED,
@@ -248,6 +249,7 @@ def process_stripe_webhook_event(
             session=event_object,
             provider_event_at=provider_event_at,
             source_provider_event_id=event_record.event_id,
+            event_livemode=_stripe_value(event, "livemode"),
         )
 
     if event_type in SUBSCRIPTION_EVENT_TYPES:
@@ -256,6 +258,8 @@ def process_stripe_webhook_event(
             provider_event_at=provider_event_at,
             source=event_type,
             source_provider_event_id=event_record.event_id,
+            event_livemode=_stripe_value(event, "livemode"),
+            event_object=event_object,
         )
 
     if event_type == "invoice.paid":
@@ -265,6 +269,7 @@ def process_stripe_webhook_event(
             source=event_type,
             payment_failed=False,
             source_provider_event_id=event_record.event_id,
+            event_livemode=_stripe_value(event, "livemode"),
         )
 
     if event_type == "invoice.payment_failed":
@@ -274,6 +279,7 @@ def process_stripe_webhook_event(
             source=event_type,
             payment_failed=True,
             source_provider_event_id=event_record.event_id,
+            event_livemode=_stripe_value(event, "livemode"),
         )
 
     raise StripeWebhookIgnored("Stripe event type ignored.")
@@ -284,6 +290,7 @@ def _process_checkout_session_completed(
     session: Any,
     provider_event_at: datetime,
     source_provider_event_id: str,
+    event_livemode=None,
 ) -> StripeWebhookProcessResult:
     session_id = _required_string(
         _stripe_value(session, "id"),
@@ -317,6 +324,8 @@ def _process_checkout_session_completed(
         client_reference_id=str(_stripe_value(session, "client_reference_id") or ""),
         source_provider_event_id=source_provider_event_id,
         checkout_metadata=metadata,
+        event_livemode=event_livemode,
+        event_object=session,
     )
 
 
@@ -327,6 +336,7 @@ def _process_invoice_event(
     source: str,
     payment_failed: bool,
     source_provider_event_id: str,
+    event_livemode=None,
 ) -> StripeWebhookProcessResult:
     provider_subscription_id = _invoice_subscription_id(invoice)
     if not provider_subscription_id:
@@ -346,6 +356,8 @@ def _process_invoice_event(
         source=source,
         failure_context=failure_context,
         source_provider_event_id=source_provider_event_id,
+        event_livemode=event_livemode,
+        event_object=invoice,
     )
 
 
@@ -361,6 +373,9 @@ def _sync_subscription_object(
     failure_context: dict[str, Any] | None = None,
     source_provider_event_id: str = "",
     checkout_metadata: dict[str, str] | None = None,
+    event_livemode=None,
+    event_object=None,
+    _tier_reconciled: bool = False,
 ) -> StripeWebhookProcessResult:
     provider_subscription_id = _required_string(
         _stripe_value(provider_subscription, "id"),
@@ -384,6 +399,25 @@ def _sync_subscription_object(
         )
         if local_subscription is None:
             raise StripeWebhookIgnored("Stripe subscription is not known locally.")
+
+        tier_event = None
+        if local_subscription.plan.is_logistics_capacity_tier and source_provider_event_id:
+            # begin() releases its lock before synchronization. Recheck under the
+            # application/subscription locks; completion below commits atomically
+            # with state and notifications, including concurrent delivery retries.
+            tier_event = (
+                BillingProviderWebhookEvent.objects.select_for_update()
+                .filter(
+                    provider=BillingProviderWebhookEvent.Provider.STRIPE,
+                    event_id=source_provider_event_id,
+                )
+                .first()
+            )
+            if tier_event and tier_event.status in (
+                BillingProviderWebhookEvent.Status.PROCESSED,
+                BillingProviderWebhookEvent.Status.IGNORED,
+            ):
+                return StripeWebhookProcessResult(f"{source}: duplicate tier event ignored.")
 
         _validate_public_local_subscription(local_subscription)
         _validate_local_subscription_matches_metadata(
@@ -421,6 +455,46 @@ def _sync_subscription_object(
             provider_subscription_id=provider_subscription_id,
             provider_customer_id=provider_customer_id,
         )
+        if local_subscription.plan.is_logistics_capacity_tier:
+            _validate_tier_event(
+                subscription=local_subscription,
+                provider_subscription=provider_subscription,
+                metadata=subscription_metadata,
+                checkout_metadata=checkout_metadata,
+                event_livemode=event_livemode,
+                event_object=event_object,
+                source=source,
+                session_id=session_id,
+                price_id=price_metadata.price_id,
+            )
+            if (
+                local_subscription.provider_updated_at is not None
+                and provider_event_at < local_subscription.provider_updated_at
+            ):
+                return _complete_tier_sync(tier_event, f"{source}: stale tier event ignored.")
+            if not _tier_reconciled and provider_event_at == local_subscription.provider_updated_at:
+                # Event IDs deduplicate deliveries; second-resolution timestamps
+                # cannot order distinct events. Read current provider state while
+                # holding the same locks, then repeat every identity/Price/approval
+                # check before applying it. A failed read remains retryable.
+                current = _retrieve_stripe_subscription(provider_subscription_id)
+                if _stripe_value(current, "id") != provider_subscription_id:
+                    raise StripeWebhookProcessingError("Retrieved Stripe subscription ID mismatch.")
+                return _sync_subscription_object(
+                    provider_subscription=current,
+                    provider_event_at=provider_event_at,
+                    source=source,
+                    local_metadata=local_metadata,
+                    session_id=session_id,
+                    customer_id=customer_id,
+                    client_reference_id=client_reference_id,
+                    failure_context=failure_context,
+                    source_provider_event_id=source_provider_event_id,
+                    checkout_metadata=checkout_metadata,
+                    event_livemode=event_livemode,
+                    event_object=event_object,
+                    _tier_reconciled=True,
+                )
         from .stripe_checkout import _is_logistics_subscription
 
         logistics_review = False
@@ -512,8 +586,17 @@ def _sync_subscription_object(
             provider_event_at=provider_event_at,
             source_provider_event_id=source_provider_event_id,
         )
+        if tier_event is not None:
+            return _complete_tier_sync(tier_event, f"{source} synchronized local subscription.")
 
     return StripeWebhookProcessResult(f"{source} synchronized local subscription.")
+
+
+def _complete_tier_sync(event_record, message):
+    result = StripeWebhookProcessResult(message)
+    if event_record is not None:
+        mark_stripe_webhook_processed(event_record, result)
+    return result
 
 
 def _retrieve_stripe_subscription(provider_subscription_id: str) -> Any:
@@ -926,6 +1009,16 @@ def _validated_subscription_price_metadata(provider_subscription: Any) -> Stripe
     except StripeConfigurationError as exc:
         raise StripeWebhookProcessingError(str(exc), retryable=True) from exc
 
+    from apps.businesses.plan_catalog import LOGISTICS_TIER_SLUGS
+
+    if price_metadata.plan_slug in LOGISTICS_TIER_SLUGS:
+        from apps.logistics.stripe_prices import validate_tier_price_data
+
+        try:
+            validate_tier_price_data(plan_slug=price_metadata.plan_slug, price=price)
+        except StripeConfigurationError as exc:
+            raise StripeWebhookProcessingError(str(exc)) from exc
+
     price_currency = _stripe_value(price, "currency")
     if price_currency and str(price_currency).strip().lower() != price_metadata.currency:
         raise StripeWebhookProcessingError("Stripe Price currency does not match configuration.")
@@ -940,6 +1033,73 @@ def _validated_subscription_price_metadata(provider_subscription: Any) -> Stripe
             )
 
     return price_metadata
+
+
+def _validate_tier_event(
+    *,
+    subscription,
+    provider_subscription,
+    metadata,
+    checkout_metadata,
+    event_livemode,
+    event_object,
+    source,
+    session_id,
+    price_id,
+):
+    from apps.logistics.checkout_approval import tier_checkout_metadata
+
+    try:
+        expected = tier_checkout_metadata(subscription)
+    except StripeConfigurationError as exc:
+        raise StripeWebhookProcessingError(str(exc), retryable=True) from exc
+    if (
+        expected is None
+        or subscription.logistics_approval_review_required
+        or not subscription.provider_checkout_session_id
+        or subscription.provider_price_id != price_id
+        or event_livemode is not False
+        or _stripe_value(event_object, "livemode") is not False
+        or _stripe_value(provider_subscription, "livemode") is not False
+        or _stripe_value(provider_subscription, "currency") != "eur"
+        or any(metadata.get(key) != value for key, value in expected.items())
+        or (
+            checkout_metadata is not None
+            and any(checkout_metadata.get(key) != value for key, value in expected.items())
+        )
+    ):
+        raise StripeWebhookProcessingError(
+            "Tier event does not match current TEST enrollment/approval."
+        )
+    provider_id = _stripe_value(provider_subscription, "id")
+    customer_id = _stripe_value(provider_subscription, "customer")
+    if source == "checkout.session.completed" and (
+        session_id != subscription.provider_checkout_session_id
+        or _stripe_value(event_object, "subscription") != provider_id
+        or _stripe_value(event_object, "customer") != customer_id
+        or _stripe_value(event_object, "currency") != "eur"
+        or _stripe_value(event_object, "status") != "complete"
+        or _stripe_value(event_object, "payment_status") != "paid"
+        or _stripe_value(event_object, "client_reference_id")
+        != f"business:{subscription.business_id}:subscription:{subscription.pk}"
+    ):
+        raise StripeWebhookProcessingError("Tier Checkout completion identity/payment is invalid.")
+    if source.startswith("invoice.") and (
+        _invoice_subscription_id(event_object) != provider_id
+        or _stripe_value(event_object, "customer") != customer_id
+        or _stripe_value(event_object, "currency") != "eur"
+    ):
+        raise StripeWebhookProcessingError("Tier invoice identity/currency is invalid.")
+    items = _stripe_value(_stripe_value(provider_subscription, "items"), "data") or []
+    if len(items) != 1 or _stripe_value(items[0], "quantity") != 1:
+        raise StripeWebhookProcessingError("Tier subscriptions require exactly one licensed unit.")
+    dates = _subscription_date_values(provider_subscription)
+    if (
+        dates["current_period_start"] is None
+        or dates["current_period_end"] is None
+        or dates["current_period_start"] >= dates["current_period_end"]
+    ):
+        raise StripeWebhookProcessingError("Tier subscription billing period is invalid.")
 
 
 def _single_subscription_price(provider_subscription: Any) -> Any:

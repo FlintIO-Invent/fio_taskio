@@ -291,6 +291,9 @@ class LocationAccessTests(TestCase):
         )
 
     def test_shipment_cargo_expected_at_authorized_site_and_existing_lifecycle(self):
+        from .financial_test_support import clear_test_parcel
+
+        clear_test_parcel(business=self.business, actor=self.user, parcel=self.pc)
         assign_parcel(business=self.business, actor=self.user, shipment=self.sa, parcel=self.pc)
         self.assertIn(self.pc, self.parcels())
         change_parcel_status(
@@ -530,6 +533,8 @@ class LocationAccessTests(TestCase):
         line = InvoiceLine.objects.get(invoice=invoice)
         original = line.description
         self.assertIn(self.pc.tracking_code, original)
+        self.member.role = BusinessUser.Role.ACCOUNTANT
+        self.member.save(update_fields=["role"])
         self.login_worker()
         response = self.client.get(reverse("invoice_detail", args=[invoice.pk]))
         self.assertEqual(response.status_code, 200)

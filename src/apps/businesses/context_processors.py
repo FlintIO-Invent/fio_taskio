@@ -57,6 +57,11 @@ def current_business(request):
         "public_request_form": can_use_module(business, "public_booking"),
     }
     role_access = {
+        "can_view_logistics_usage": bool(
+            business
+            and business.vertical == "LOGISTICS"
+            and membership_has_any_role(membership, OWNER_ADMIN_ROLES)
+        ),
         "can_manage_business_settings": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_manage_team": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_remove_team_members": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
@@ -78,6 +83,13 @@ def current_business(request):
         "can_manage_services": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_import_data": membership_has_any_role(membership, CLIENT_MANAGE_ROLES),
     }
+
+    if business and business.vertical == "LOGISTICS" and membership and membership.role == "staff":
+        from apps.logistics.location_access import assignments_for
+
+        role_access["can_view_invoices"] &= assignments_for(business, request.user).exists()
+        # Generic Invoice creation/editing is accounting; Parcel clearance uses its own controls.
+        role_access["can_manage_invoices"] = False
 
     logistics_context = {}
     if (

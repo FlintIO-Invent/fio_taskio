@@ -11,6 +11,7 @@
   <div class="row g-3 flex-between-end mb-5">
     <div class="col-auto">
       <h2 class="mb-2 text-body-emphasis">{{ title|title }}</h2>
+      {% if quick_client_form %}<p class="text-body-secondary">Find or add a Client, save the Parcel, then continue to charges, Invoice, optional payment and Shipment.</p>{% endif %}
       {% if parcel %}<p class="mb-2 text-body-secondary text-break">{{ parcel.tracking_code }} · {{ parcel.get_current_status_display }}</p>{% endif %}
       <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
     </div>
@@ -102,7 +103,8 @@
     </div>
     <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4 mobile-form-actions">
       <a class="btn btn-outline-secondary" href="{% if parcel %}{% url 'logistics_parcel_detail' parcel.pk %}{% else %}{% url 'logistics_parcel_list' %}{% endif %}">Cancel</a>
-      <button class="btn btn-primary" type="submit">{% if editing_metadata %}Save Parcel{% elif parcel %}Save Update{% else %}Register Parcel{% endif %}</button>
+      {% if quick_client_form %}<button class="btn btn-primary" type="submit" name="continue_registration" value="1">Register &amp; continue</button>{% endif %}
+      <button class="btn {% if quick_client_form %}btn-phoenix-secondary{% else %}btn-primary{% endif %}" type="submit">{% if editing_metadata %}Save Parcel{% elif parcel %}Save Update{% else %}Register Parcel{% endif %}</button>
     </div>
   </form>
   {% if quick_client_form and can_add_client and role_access.can_manage_clients and workspace_can_modify %}

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Case, When
 from django.utils import timezone
 
 from apps.businesses.models import SubscriptionNotification
@@ -46,7 +47,17 @@ class Command(BaseCommand):
             status__in=statuses,
             available_at__lte=now,
             business__is_active=True,
-        ).order_by("available_at", "pk")
+        ).order_by(
+            Case(
+                When(
+                    notification_type=SubscriptionNotification.NotificationType.LOGISTICS_CAPACITY_WARNING,
+                    then=1,
+                ),
+                default=0,
+            ),
+            "available_at",
+            "pk",
+        )
         total_eligible = eligible.count()
         notifications = list(eligible[:limit])
         counts: Counter[str] = Counter()
@@ -69,9 +80,7 @@ class Command(BaseCommand):
                 )
                 counts[result.status] += 1
                 if result.status == "failed":
-                    self.stderr.write(
-                        f"Notification #{notification.pk} failed: {result.message}"
-                    )
+                    self.stderr.write(f"Notification #{notification.pk} failed: {result.message}")
 
         processed_count = len(notifications)
         remaining = total_eligible if dry_run else eligible.count()

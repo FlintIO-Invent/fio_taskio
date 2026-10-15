@@ -424,7 +424,26 @@ def send_invoice_email(
     *,
     pdf_bytes: bytes,
     filename: str,
+    actor=None,
 ) -> bool:
+    if invoice.business.vertical == "LOGISTICS":
+        from django.db import transaction
+
+        from apps.businesses.models import Business
+        from apps.logistics.financial_access import require_invoice_access
+        from apps.logistics.location_access import lock_actor_membership
+
+        with transaction.atomic():
+            business = Business.objects.select_for_update().get(pk=invoice.business_id)
+            lock_actor_membership(business, actor)
+            require_invoice_access(
+                business=business, actor=actor, invoice=invoice, write=True, accounting=True
+            )
+            return _deliver_invoice_email(invoice, pdf_bytes=pdf_bytes, filename=filename)
+    return _deliver_invoice_email(invoice, pdf_bytes=pdf_bytes, filename=filename)
+
+
+def _deliver_invoice_email(invoice, *, pdf_bytes: bytes, filename: str) -> bool:
     invoice_title = f"Invoice {invoice.invoice_number} from {invoice.business.name}"
     context = {
         "invoice": invoice,

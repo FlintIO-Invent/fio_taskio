@@ -79,7 +79,7 @@
                         data-tax-rate="{{ service.tax_rate }}"
                         {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
                       >
-                        {{ service.name }} - {{ service.unit_price|money:invoice.business }}
+                        {{ service.name }} - {{ service.unit_price|money:invoice.billing_business }}
                       </option>
                       {% endfor %}
                     </select>
@@ -98,7 +98,7 @@
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Line Total</label>
-                  <input type="text" class="form-control line-total-display" value="{{ 0|money:invoice.business }}" readonly>
+                  <input type="text" class="form-control line-total-display" value="{{ 0|money:invoice.billing_business }}" readonly>
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
                   <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
@@ -135,7 +135,7 @@
                         data-tax-rate="{{ service.tax_rate }}"
                         {% if line.service_id|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}
                       >
-                        {{ service.name }} - {{ service.unit_price|money:invoice.business }}
+                        {{ service.name }} - {{ service.unit_price|money:invoice.billing_business }}
                       </option>
                       {% endfor %}
                     </select>
@@ -154,7 +154,7 @@
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Line Total</label>
-                  <input type="text" class="form-control line-total-display" value="{{ 0|money:invoice.business }}" readonly>
+                  <input type="text" class="form-control line-total-display" value="{{ 0|money:invoice.billing_business }}" readonly>
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
                   <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
@@ -190,7 +190,7 @@
                       data-unit-price="{{ service.unit_price }}"
                       data-tax-rate="{{ service.tax_rate }}"
                     >
-                      {{ service.name }} - {{ service.unit_price|money:invoice.business }}
+                      {{ service.name }} - {{ service.unit_price|money:invoice.billing_business }}
                     </option>
                     {% endfor %}
                   </select>
@@ -209,7 +209,7 @@
               </div>
               <div class="col-md-2">
                 <label class="form-label">Line Total</label>
-                <input type="text" class="form-control line-total-display" value="{{ 0|money:invoice.business }}" readonly disabled>
+                <input type="text" class="form-control line-total-display" value="{{ 0|money:invoice.billing_business }}" readonly disabled>
               </div>
               <div class="col-md-1 d-flex align-items-end">
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
@@ -264,15 +264,15 @@
 
             <div class="d-flex justify-content-between mb-2">
               <span>Subtotal:</span>
-              <span id="subtotal-display">{{ invoice.subtotal|money:invoice.business }}</span>
+              <span id="subtotal-display">{{ invoice.subtotal|money:invoice.billing_business }}</span>
             </div>
             <div class="d-flex justify-content-between mb-2">
               <span>Tax ({{ invoice.tax_rate_percentage }}%):</span>
-              <span id="tax-display">{{ invoice.tax|money:invoice.business }}</span>
+              <span id="tax-display">{{ invoice.tax|money:invoice.billing_business }}</span>
             </div>
             <div class="d-flex justify-content-between fw-bold">
               <span>Total:</span>
-              <span id="total-display">{{ invoice.total|money:invoice.business }}</span>
+              <span id="total-display">{{ invoice.total|money:invoice.billing_business }}</span>
             </div>
           </div>
         </div>

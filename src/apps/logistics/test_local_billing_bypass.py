@@ -121,6 +121,10 @@ class LocalLogisticsAccessTests(TestCase):
         )
 
     def move(self, parcel, status):
+        from .financial_test_support import clear_test_parcel
+
+        if status not in ("REGISTERED", "RECEIVED"):
+            clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         for next_status in ("RECEIVED", "IN_TRANSIT", "ARRIVED", "READY", "DELIVERED"):
             if parcel.current_status == status:
                 break

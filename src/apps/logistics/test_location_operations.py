@@ -81,6 +81,10 @@ class LocationOperationsTests(TestCase):
         )
 
     def act(self, status, *, item=None, actor=None, **kwargs):
+        if status in ("IN_TRANSIT", "DELIVERED"):
+            from .financial_test_support import clear_test_parcel
+
+            clear_test_parcel(business=self.business, actor=self.user, parcel=item or self.item)
         return change_parcel_status(
             business=self.business,
             parcel=item or self.item,
@@ -107,6 +111,11 @@ class LocationOperationsTests(TestCase):
         )
 
     def ship_act(self, shipment, status, *, actor=None, **kwargs):
+        if status == "IN_TRANSIT":
+            from .financial_test_support import clear_test_parcel
+
+            for parcel in shipment.parcels.all():
+                clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         return change_shipment_status(
             business=self.business,
             actor=actor or self.staff,

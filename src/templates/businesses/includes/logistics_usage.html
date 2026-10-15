@@ -1,0 +1,39 @@
+<div role="region" class="card mb-4" aria-labelledby="logistics-usage-title">
+  <div class="card-body p-4">
+    <div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
+      <div>
+        <h3 class="h4 mb-1" id="logistics-usage-title">Logistics usage</h3>
+        <p class="mb-1">{{ logistics_usage.plan_name }}{% if logistics_usage.price %} · {{ logistics_usage.price.yearly_display }} / year · {{ logistics_usage.price.currency }}{% endif %}</p>
+        <p class="text-body-tertiary mb-0">Monthly reporting: {{ logistics_usage.period }} UTC. Next reset: {{ logistics_usage.reset_display }}.</p>
+      </div>
+      <span class="align-self-start badge badge-phoenix badge-phoenix-info">Annual subscription</span>
+    </div>
+    {% if logistics_usage.warnings %}
+      <div class="alert alert-warning" role="alert">
+        <p class="fw-semibold mb-1">Review workspace capacity</p>
+        <ul class="mb-1">
+          {% for row in logistics_usage.warnings %}
+            <li>{{ row.label }}: {{ row.used_display }} / {{ row.allowance_display }} · {% if row.state == 'full' %}100% threshold reached{% else %}80% threshold reached{% endif %}.</li>
+          {% endfor %}
+        </ul>
+        <p class="mb-0">New records need available capacity. Existing records remain accessible under your current permissions; essential Parcel and Shipment updates can continue.</p>
+      </div>
+    {% endif %}
+    <div class="row g-3">
+      {% for row in logistics_usage.hard %}
+        <div class="col-12 col-md-6 col-xl-4">
+          {% include 'businesses/includes/logistics_usage_metric.html' %}
+        </div>
+      {% endfor %}
+    </div>
+    <h4 class="mt-4 mb-2">Monitoring and planning</h4>
+    <p class="text-body-tertiary">These indicators do not block arrivals, deliveries, cancellations or essential emails.</p>
+    <div class="row g-3">
+      {% for row in logistics_usage.monitoring %}
+        <div class="col-12 col-md-6 col-xl-4">
+          {% include 'businesses/includes/logistics_usage_metric.html' %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>

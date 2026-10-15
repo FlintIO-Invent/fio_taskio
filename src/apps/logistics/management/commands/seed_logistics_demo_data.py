@@ -28,7 +28,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--actor-id",
             type=int,
-            help="Existing operator (otherwise first eligible member by ID).",
+            help="Existing owner/admin (otherwise first eligible member by ID).",
         )
         parser.add_argument("--execute", action="store_true")
         parser.add_argument("--origin-location-id", type=int)

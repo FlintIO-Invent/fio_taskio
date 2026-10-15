@@ -393,6 +393,9 @@ class ShipmentWriteSafetyConcurrencyTests(TransactionTestCase):
 
     def test_keyed_departure_race_records_one_event_per_parcel(self):
         shipment, parcel = self.shipment(), self.parcel()
+        from .financial_test_support import clear_test_parcel
+
+        clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         change_parcel_status(
             business=self.business, actor=self.user, parcel=parcel, status="RECEIVED"
         )
