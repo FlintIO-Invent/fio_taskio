@@ -53,10 +53,12 @@ class LocationMigrationTests(TransactionTestCase):
                 public_message="Historical registered",
                 location="Legacy location",
             )
-            exact = Application.objects.create(**application_data(country="Anguilla"))
-            ambiguous = Application.objects.create(
-                **application_data(country="St Martin", email="ambiguous@example.com")
-            )
+            data = application_data(country="Anguilla")
+            data.pop("selected_plan_slug")
+            exact = Application.objects.create(**data)
+            data = application_data(country="St Martin", email="ambiguous@example.com")
+            data.pop("selected_plan_slug")
+            ambiguous = Application.objects.create(**data)
             executor = MigrationExecutor(connection)
             executor.migrate(latest)
             new = executor.loader.project_state(latest).apps

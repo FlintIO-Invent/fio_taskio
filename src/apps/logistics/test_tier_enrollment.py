@@ -240,15 +240,15 @@ class TierEnrollmentTests(TestCase):
         result.subscription.refresh_from_db()
         self.assertIsNone(current_checkout_application(result.subscription))
 
-    def test_omitted_selection_preserves_inactive_unlimited_legacy(self):
+    def test_omitted_selection_rejects_without_changing_unlimited_legacy(self):
         legacy = ClarivoPlan.objects.get(slug="logistics")
         before = {field.name: getattr(legacy, field.name) for field in legacy._meta.fields}
-        form = LogisticsApplicationForm(application_data())
-        self.assertTrue(form.is_valid(), form.errors)
-        application = form.save()
-        self.assertEqual(application.selected_plan_slug, "logistics")
-        result = enroll_application(self.grant(application), password=PASSWORD)
-        self.assertEqual(result.subscription.plan_id, legacy.pk)
+        data = application_data()
+        data.pop("selected_plan_slug")
+        form = LogisticsApplicationForm(data)
+        self.assertFalse(form.is_valid())
+        self.assertIn("selected_plan_slug", form.errors)
+        self.assertFalse(BusinessSubscription.objects.exists())
         legacy.refresh_from_db()
         self.assertEqual(
             before, {field.name: getattr(legacy, field.name) for field in legacy._meta.fields}

@@ -250,7 +250,8 @@ def get_stripe_price_id(
             or _normalize_currency(currency) != "eur"
         ):
             raise StripeConfigurationError("Logistics tiers support annual EUR billing only.")
-        return configured_tier_prices()[(normalize_plan_slug(plan_slug), "yearly", "eur")]
+        slug = normalize_plan_slug(plan_slug)
+        return configured_tier_prices(plan_slug=slug)[(slug, "yearly", "eur")]
     price_key = _normalize_price_dimensions(
         plan_slug=plan_slug,
         billing_interval=billing_interval,
@@ -280,17 +281,27 @@ def resolve_stripe_price_id(price_id: object) -> StripePriceMetadata:
         for price_key, configured_price_id in _configured_price_lookup().items()
         if configured_price_id == normalized_price_id
     ]
-    if not matches:
-        staged = getattr(settings, "STRIPE_LOGISTICS_TIER_PRICE_ID_MAP", {})
-        if isinstance(staged, Mapping) and normalized_price_id in map(
-            _clean_setting, staged.values()
-        ):
-            from apps.logistics.stripe_prices import configured_tier_prices, require_tier_test_mode
+    staged = getattr(settings, "STRIPE_LOGISTICS_TIER_PRICE_ID_MAP", {})
+    tier_matches = (
+        [key for key, value in staged.items() if _clean_setting(value) == normalized_price_id]
+        if isinstance(staged, Mapping)
+        else []
+    )
+    if tier_matches:
+        if matches or len(tier_matches) > 1:
+            raise StripeConfigurationError(
+                "Stripe Price ID maps to more than one Motionmate offering.",
+                code="logistics_tier_price_duplicate",
+            )
+        from apps.logistics.stripe_prices import configured_tier_prices, require_tier_test_mode
 
-            require_tier_test_mode()
-            for key, configured_id in configured_tier_prices().items():
-                if configured_id == normalized_price_id:
-                    return StripePriceMetadata(normalized_price_id, *key)
+        require_tier_test_mode()
+        key = _coerce_price_key(tier_matches[0])
+        slug = key[0] if key else None
+        prices = configured_tier_prices(plan_slug=slug)
+        if key in prices and prices[key] == normalized_price_id:
+            return StripePriceMetadata(normalized_price_id, *key)
+    if not matches:
         raise StripeConfigurationError("Stripe Price ID is not configured for Motionmate.")
     if len(matches) > 1:
         raise StripeConfigurationError("Stripe Price ID maps to more than one Motionmate plan.")

@@ -14,25 +14,33 @@ TIER_YEARLY_EUR_CENTS = {
 }
 
 
-def configured_tier_prices() -> dict[tuple[str, str, str], str]:
-    """Opt-in complete configuration check, independent of legacy billing readiness."""
+def configured_tier_prices(*, plan_slug=None) -> dict[tuple[str, str, str], str]:
+    """Check all tiers for the audit command, or one tier for a billing operation."""
     configured = getattr(settings, "STRIPE_LOGISTICS_TIER_PRICE_ID_MAP", {})
     expected_keys = {(slug, "yearly", "eur") for slug in TIER_YEARLY_EUR_CENTS}
-    if not isinstance(configured, Mapping) or set(configured) != expected_keys:
+    if (
+        not isinstance(configured, Mapping)
+        or not set(configured).issubset(expected_keys)
+        or (plan_slug is None and set(configured) != expected_keys)
+        or (plan_slug is not None and plan_slug not in TIER_YEARLY_EUR_CENTS)
+    ):
         raise StripeConfigurationError("Configure exactly the three Logistics annual EUR Prices.")
+    selected_keys = expected_keys if plan_slug is None else {(plan_slug, "yearly", "eur")}
     prices = {}
     legacy = getattr(settings, "STRIPE_PRICE_ID_MAP", {})
     if not isinstance(legacy, Mapping):
         raise StripeConfigurationError("The existing Stripe Price mapping is invalid.")
     used = {str(value).strip() for value in legacy.values() if value}
-    for key, value in configured.items():
+    tier_ids = [value.strip() for value in configured.values() if isinstance(value, str)]
+    for key in sorted(selected_keys):
+        value = configured.get(key)
         price_id = value.strip() if isinstance(value, str) else ""
         if not price_id.startswith("price_") or len(price_id) <= len("price_"):
             raise StripeConfigurationError(
                 f"Configure a price_ ID for {key[0]} yearly EUR.",
                 code="logistics_tier_price_missing",
             )
-        if price_id in used:
+        if price_id in used or tier_ids.count(price_id) > 1:
             raise StripeConfigurationError(
                 "Each Logistics tier requires a distinct Stripe Price, unused by other offerings.",
                 code="logistics_tier_price_duplicate",
@@ -48,7 +56,7 @@ def validate_tier_stripe_price(
     """Retrieve only; prove tier identity, mode and exact commercial dimensions."""
     if plan_slug not in TIER_YEARLY_EUR_CENTS or currency != "eur" or billing_interval != "yearly":
         raise StripeConfigurationError("Only Core/Growth/Scale annual EUR Prices are supported.")
-    price_id = configured_tier_prices()[(plan_slug, billing_interval, currency)]
+    price_id = configured_tier_prices(plan_slug=plan_slug)[(plan_slug, billing_interval, currency)]
     mode = get_stripe_mode()
     if mode == "disabled":
         raise StripeConfigurationError("Stripe is disabled.", code="stripe_disabled")
@@ -80,7 +88,7 @@ def require_tier_test_mode():
 
 
 def validate_tier_price_data(*, plan_slug, price, mode="test"):
-    price_id = configured_tier_prices()[(plan_slug, "yearly", "eur")]
+    price_id = configured_tier_prices(plan_slug=plan_slug)[(plan_slug, "yearly", "eur")]
     if hasattr(price, "to_dict_recursive"):
         price = price.to_dict_recursive()
     elif hasattr(price, "to_dict"):

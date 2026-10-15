@@ -28,7 +28,12 @@ from .tests import application_data
 
 
 class LocationTests(TestCase):
-    setUp = test_parcels.ParcelTests.setUp
+    def setUp(self):
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
+        test_parcels.ParcelTests.setUp(self)
+
     switch = test_parcels.ParcelTests.switch
     register = test_parcels.ParcelTests.register
 

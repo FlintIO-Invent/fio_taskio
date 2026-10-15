@@ -46,10 +46,9 @@ def race(actions):
 @override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY)
 class EnrollmentIdentityConcurrencyTests(TransactionTestCase):
     def setUp(self):
-        ClarivoPlan.objects.get_or_create(
-            slug="logistics",
-            defaults={"name": "Logistics", "family": "LOGISTICS", "is_active": False},
-        )
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
         self.actor = reviewer()
 
     def grant(self, name):

@@ -26,6 +26,7 @@ PILOT_POLICY = LogisticsEligibilityPolicy(supported_territories=("Netherlands",)
 
 def application_data(**changes):
     values = {
+        "selected_plan_slug": "logistics-core",
         "business_name": "Pilot Parcel Company",
         "trading_name": "",
         "contact_first_name": "Jane",
@@ -174,6 +175,9 @@ class EligibilityTests(SimpleTestCase):
 class ApplicationLifecycleTests(TestCase):
     @classmethod
     def setUpTestData(cls):
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
         cls.reviewer = TaskIOUser.objects.create_user(
             email="reviewer@example.com", password="testpass123", is_staff=True
         )
@@ -446,6 +450,12 @@ class ApplicationLifecycleTests(TestCase):
 
 @override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY, LOGISTICS_AUTO_APPROVE_ALL=False)
 class PublicAndAdminTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
+
     def test_public_page_is_anonymous_and_includes_csrf(self):
         response = self.client.get(reverse("logistics_application_create"))
         self.assertEqual(response.status_code, 200)

@@ -1,10 +1,12 @@
 import json
+from copy import copy
 
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
+from django.forms.models import construct_instance
 
 from .models import (
     BillingProviderWebhookEvent,
@@ -18,6 +20,7 @@ from .models import (
     UserOnboardingState,
     WeeklyAvailability,
 )
+from .plan_catalog import LOGISTICS_TIER_SLUGS
 
 admin.site.site_header = "Motionmate Administration"
 admin.site.site_title = "Motionmate Admin"
@@ -143,16 +146,18 @@ class CommercialPlanAdminForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("family") == ClarivoPlan.Family.LOGISTICS and cleaned.get("is_active"):
+        if cleaned.get("is_active") and (
+            cleaned.get("family") == ClarivoPlan.Family.LOGISTICS
+            or cleaned.get("slug") in LOGISTICS_TIER_SLUGS
+        ):
             from apps.logistics.billing import validate_offering_activation
 
             from .stripe_config import StripeConfigurationError
 
-            candidate = ClarivoPlan(
-                family=cleaned["family"],
-                slug=cleaned.get("slug"),
-                price_yearly=cleaned.get("price_yearly"),
-                regional_prices=cleaned.get("regional_prices"),
+            # clean() runs before ModelForm constructs the instance. Include all
+            # submitted capacities while preserving fields excluded by the form.
+            candidate = construct_instance(
+                self, copy(self.instance), self._meta.fields, self._meta.exclude
             )
             try:
                 validate_offering_activation(candidate)

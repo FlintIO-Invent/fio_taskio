@@ -91,6 +91,9 @@ def stripe_settings(*, logistics=True):
 
 class LogisticsOfferingTests(TestCase):
     def setUp(self):
+        from apps.logistics.registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
         self.logistics_plan = ClarivoPlan.objects.get(slug="logistics")
         self.logistics_plan.is_active = True
         self.logistics_plan.save(update_fields=["is_active"])
@@ -170,6 +173,7 @@ class LogisticsOfferingTests(TestCase):
     def approved_enrollment(self):
         from apps.logistics.checkout_approval import approval_metadata
         from apps.logistics.models import LogisticsApplication
+        from apps.logistics.registration_test_support import restore_legacy_fixture
         from apps.logistics.services import review_application
         from apps.logistics.tests import application_data
 
@@ -191,6 +195,7 @@ class LogisticsOfferingTests(TestCase):
             converted_revision=1,
             converted_at=self.now,
         )
+        restore_legacy_fixture(application)
         application.refresh_from_db()
         return approval_metadata(application)
 
@@ -381,6 +386,7 @@ class LogisticsOfferingTests(TestCase):
     @override_settings(**stripe_settings())
     def test_stripe_yearly_checkout_omits_trial_and_preserves_metadata(self):
         from apps.logistics.models import LogisticsApplication
+        from apps.logistics.registration_test_support import restore_legacy_fixture
         from apps.logistics.services import review_application
         from apps.logistics.tests import application_data
 
@@ -403,6 +409,7 @@ class LogisticsOfferingTests(TestCase):
             converted_revision=1,
             converted_at=self.now,
         )
+        restore_legacy_fixture(application)
         self.logistics_plan.regional_prices = {"usd": {"currency": "USD", "yearly": "100.00"}}
         self.logistics_plan.save(update_fields=["regional_prices"])
         subscription = self.pending()
