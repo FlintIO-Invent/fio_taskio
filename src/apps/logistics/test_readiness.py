@@ -356,6 +356,17 @@ class LogisticsDeploymentChecksTests(TestCase):
             for currency in ("usd", "eur")
         }
         plan.save(update_fields=["is_active", "regional_prices"])
+        business = Business.objects.create(
+            name="Legacy billing check fixture", slug="legacy-billing-check", vertical="LOGISTICS"
+        )
+        BusinessSubscription.objects.create(
+            business=business,
+            plan=plan,
+            status="pending_checkout",
+            payment_provider="stripe",
+            billing_interval="yearly",
+            billing_currency="eur",
+        )
 
     def checks(self):
         # Availability of the optional client dependency is tested separately;

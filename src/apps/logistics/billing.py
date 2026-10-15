@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.db import transaction
 
+from apps.businesses.billing_policy import billing_offering
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.businesses.stripe_checkout import StripeCheckoutError, resume_trial_checkout_session
 from apps.businesses.stripe_config import (
@@ -78,9 +79,20 @@ def require_checkout_enrollment(subscription, user):
 
 def configured_annual_price(plan, currency):
     """No zero or fallback commercial price; use the existing regional pricing pattern."""
-    if plan.is_logistics_capacity_tier:
+    if plan.slug in TIER_YEARLY_EUR_CENTS:
         require_tier_test_mode()
-        if not plan.is_active or not plan.has_complete_logistics_capacity or currency != "eur":
+        offering = billing_offering(plan.slug)
+        if (
+            plan.family != ClarivoPlan.Family.LOGISTICS
+            or not plan.is_active
+            or not plan.has_complete_logistics_capacity
+            or currency != "eur"
+            or offering is None
+            or offering.family != ClarivoPlan.Family.LOGISTICS
+            or offering.intervals != ("yearly",)
+            or not offering.test_checkout_enabled
+            or offering.checkout_enabled
+        ):
             raise StripeConfigurationError(
                 "Select an active, fully configured annual EUR Logistics tier."
             )
@@ -184,7 +196,13 @@ def validate_annual_stripe_price(*, plan, currency, stripe_client):
 
 
 def validate_offering_activation(plan):
-    """Admin activation requires at least one completely configured annual currency."""
+    """Tier activation is independent EUR TEST; legacy retains its currency checks."""
+    if plan.slug in TIER_YEARLY_EUR_CENTS:
+        configured_annual_price(plan, "eur")
+        validate_annual_stripe_price(
+            plan=plan, currency="eur", stripe_client=configure_stripe_sdk()
+        )
+        return
     currencies = []
     for currency in ("usd", "eur"):
         try:
