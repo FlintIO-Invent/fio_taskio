@@ -38,7 +38,7 @@ def provider_price(slug="logistics-core", **changes):
         "billing_scheme": "per_unit",
         "unit_amount": TIER_YEARLY_EUR_CENTS[slug],
         "recurring": {"interval": "year", "interval_count": 1, "usage_type": "licensed"},
-        "metadata": {"motionmate_plan_slug": slug},
+        "metadata": {},
     }
     price.update(changes)
     return price
@@ -91,6 +91,17 @@ class TierPriceTests(SimpleTestCase):
             "price_logistics-core",
         )
 
+    def test_all_tiers_ignore_absent_or_conflicting_price_metadata(self):
+        for slug in TIER_YEARLY_EUR_CENTS:
+            for metadata in ({}, None, {"motionmate_plan_slug": "logistics"}):
+                with self.subTest(slug=slug, metadata=metadata):
+                    self.assertEqual(
+                        self.verify(provider_price(slug, metadata=metadata), slug), f"price_{slug}"
+                    )
+            price = provider_price(slug)
+            price.pop("metadata")
+            self.assertEqual(self.verify(price, slug), f"price_{slug}")
+
     def test_missing_invalid_duplicate_and_foreign_dimension_maps_reject(self):
         core = ("logistics-core", "yearly", "eur")
         cases = [None, {}, {core: "price_one"}]
@@ -126,9 +137,6 @@ class TierPriceTests(SimpleTestCase):
             {"currency": "usd"},
             {"type": "one_time"},
             {"billing_scheme": "tiered"},
-            {"metadata": {}},
-            {"metadata": {"motionmate_plan_slug": "logistics-growth"}},
-            {"metadata": None},
             {"recurring": None},
         ]
         for field, value in (

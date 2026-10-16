@@ -880,6 +880,8 @@ class BusinessSubscription(TimeStampedModel):
 
     def effective_access_state_at(self, at_time) -> SubscriptionAccessState:
         at_time = self._normalize_evaluation_time(at_time)
+        offering = billing_offering(self.plan.slug)
+        historical_only = bool(offering and offering.historical_only)
 
         if (
             self.business.vertical == Business.Vertical.LOGISTICS
@@ -921,7 +923,7 @@ class BusinessSubscription(TimeStampedModel):
                 self.AccessCode.LOCAL_LOGISTICS_BILLING_BYPASS,
                 has_access=True,
                 billing_attention_required=False,
-                can_resume_checkout=True,
+                can_resume_checkout=not historical_only,
             )
 
         if not self.plan.is_active:
@@ -937,7 +939,7 @@ class BusinessSubscription(TimeStampedModel):
                 self.AccessCode.PENDING_CHECKOUT,
                 has_access=False,
                 billing_attention_required=True,
-                can_resume_checkout=True,
+                can_resume_checkout=not historical_only,
             )
 
         if self.status == self.Status.TRIALING:

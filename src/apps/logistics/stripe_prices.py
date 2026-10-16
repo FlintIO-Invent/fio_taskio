@@ -96,7 +96,6 @@ def validate_tier_price_data(*, plan_slug, price, mode="test"):
     if not isinstance(price, Mapping):
         raise StripeConfigurationError("The Logistics tier Stripe Price is invalid.")
     recurring = price.get("recurring")
-    metadata = price.get("metadata")
     if (
         price.get("id") != price_id
         or price.get("active") is not True
@@ -111,10 +110,8 @@ def validate_tier_price_data(*, plan_slug, price, mode="test"):
         or type(recurring.get("interval_count")) is not int
         or recurring.get("interval_count") != 1
         or recurring.get("usage_type") != "licensed"
-        or not isinstance(metadata, Mapping)
-        or metadata.get("motionmate_plan_slug") != plan_slug
     ):
         raise StripeConfigurationError(
-            "Logistics tier Price must match its tier metadata, active mode, annual EUR amount and licensed per-unit billing.",
+            "Logistics tier Price must match its configured ID, active mode, annual EUR amount and licensed per-unit billing.",
             code="logistics_tier_price_invalid",
         )

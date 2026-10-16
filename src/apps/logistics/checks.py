@@ -6,7 +6,6 @@ from importlib.util import find_spec
 from django.conf import settings
 from django.core.checks import Error, Tags, Warning, register
 from django.db import connections
-from django.db.models import Q
 from django.db.utils import DatabaseError
 
 from apps.businesses.billing_policy import logistics_local_billing_bypass_enabled
@@ -168,36 +167,9 @@ def check_logistics_plan(app_configs, **kwargs):
                         id="logistics.E010",
                     )
                 )
-            # Local/Test Lab entitlements do not require Stripe Prices. Retain
-            # every currency used by legacy Stripe contracts, including late
-            # events/recovery for cancelled contracts and older blank-provider rows.
-            currencies = (
-                legacy_subscriptions.filter(
-                    Q(payment_provider=BusinessSubscription.PaymentProvider.STRIPE)
-                    | (
-                        Q(payment_provider="")
-                        & (~Q(provider_subscription_id="") | ~Q(provider_checkout_session_id=""))
-                    )
-                )
-                .values_list("billing_currency", flat=True)
-                .distinct()
-            )
-            for currency in currencies:
-                if plan is None:
-                    continue
-                try:
-                    configured_annual_price(plan, currency)
-                except StripeConfigurationError as exc:
-                    issues.append(
-                        Error(
-                            f"Legacy Stripe billing requires a valid annual {currency.upper()} price and mapping.",
-                            id=(
-                                "logistics.E011"
-                                if exc.code == "motionmate_stripe.E008"
-                                else "logistics.E012"
-                            ),
-                        )
-                    )
+            # Retired contracts retain their plan and stored provider identity.
+            # Optional legacy mappings are only used when handling old events;
+            # they are never a prerequisite for startup or current tier billing.
             for tier in ClarivoPlan.objects.using(alias).filter(
                 slug__in=LOGISTICS_TIER_SLUGS, is_active=True
             ):

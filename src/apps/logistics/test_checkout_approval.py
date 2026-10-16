@@ -155,7 +155,7 @@ class LogisticsCheckoutApprovalTests(LogisticsCheckoutFixture, TestCase):
         self.assertEqual(self.sessions.create.call_count, 1)
 
     def test_late_success_is_acknowledged_deduplicated_and_held_for_manual_review(self):
-        self.checkout()
+        self.historical_approval_checkout()
         self.review("DECLINED")
         for _ in range(2):
             self.assertEqual(self.webhook().status_code, 200)
@@ -179,7 +179,7 @@ class LogisticsCheckoutApprovalTests(LogisticsCheckoutFixture, TestCase):
         self.assertEqual(self.subscription.status, "suspended")
 
     def test_late_payment_after_material_change_cannot_activate_even_with_local_bypass(self):
-        self.checkout()
+        self.historical_approval_checkout()
         self.application.phone = "+31 20 000 3333"
         self.application.save()
         with override_settings(
@@ -190,7 +190,7 @@ class LogisticsCheckoutApprovalTests(LogisticsCheckoutFixture, TestCase):
         self.assertFalse(SubscriptionNotification.objects.exists())
 
     def test_session_and_subscription_must_both_carry_current_approval_binding(self):
-        self.checkout()
+        self.historical_approval_checkout()
         session = self.remote_session(status="complete")
         session["metadata"]["logistics_application_revision"] = "0"
         with mock.patch.object(self, "remote_session", return_value=session):
@@ -198,7 +198,7 @@ class LogisticsCheckoutApprovalTests(LogisticsCheckoutFixture, TestCase):
         self.assert_held()
 
     def test_approval_revocation_after_activation_denies_access_and_future_paid_events(self):
-        self.checkout()
+        self.historical_approval_checkout()
         self.assertEqual(self.webhook().status_code, 200)
         self.subscription.refresh_from_db()
         self.assertTrue(self.subscription.has_access)
@@ -214,21 +214,21 @@ class LogisticsCheckoutApprovalTests(LogisticsCheckoutFixture, TestCase):
         self.assertEqual(self.subscription.status, BusinessSubscription.Status.SUSPENDED)
 
     def test_old_approval_payment_after_reapproval_is_still_held(self):
-        self.checkout()
+        self.historical_approval_checkout()
         self.review("DECLINED")
         self.review("APPROVED")
         self.assertEqual(self.webhook().status_code, 200)
         self.assert_held()
 
     def test_withdrawn_enrollment_late_success_is_held(self):
-        self.checkout()
+        self.historical_approval_checkout()
         self.review("WITHDRAWN")
         self.assertEqual(self.webhook().status_code, 200)
         self.assert_held()
         self.assertFalse(SubscriptionNotification.objects.exists())
 
     def test_legacy_paid_subscription_without_binding_requires_manual_review(self):
-        self.checkout()
+        self.historical_approval_checkout()
         remote = self.remote_subscription()
         remote["metadata"] = {
             key: value
@@ -351,7 +351,7 @@ class LogisticsCheckoutApprovalConcurrencyTests(LogisticsCheckoutFixture, Transa
     def test_webhook_activation_serializes_with_revocation_and_finishes_suspended(self):
         from apps.businesses import stripe_webhooks
 
-        self.checkout()
+        self.historical_approval_checkout()
         remote = self.remote_subscription()
         webhook_entered, webhook_release, review_started, review_finished = (
             Event(),

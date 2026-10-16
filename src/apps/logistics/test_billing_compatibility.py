@@ -17,6 +17,7 @@ from apps.businesses.models import (
     ClarivoPlan,
     SubscriptionNotification,
 )
+from apps.businesses.stripe_checkout import StripeCheckoutError
 from apps.businesses.stripe_config import (
     StripeConfigurationError,
     get_stripe_price_id,
@@ -186,10 +187,10 @@ class ConditionalLegacyChecksTests(TestCase):
         ClarivoPlan.objects.filter(slug="logistics").update(is_active=False)
         self.assertIn("logistics.E010", self.checks())
 
-    def test_actual_legacy_stripe_currency_remains_required_including_late_events(self):
+    def test_retired_stripe_contracts_do_not_require_legacy_prices_at_startup(self):
         subscription = self.legacy_subscription()
         before = BusinessSubscription.objects.values().get(pk=subscription.pk)
-        self.assertIn("logistics.E011", self.checks())
+        self.assertEqual(self.checks(), set())
         mapping = {
             **stripe_settings(logistics=False)["STRIPE_PRICE_ID_MAP"],
             ("logistics", "yearly", "usd"): "price_legacy_usd",
@@ -197,12 +198,12 @@ class ConditionalLegacyChecksTests(TestCase):
         with override_settings(STRIPE_PRICE_ID_MAP=mapping):
             self.assertEqual(self.checks(), set())
             ClarivoPlan.objects.filter(slug="logistics").update(regional_prices={})
-            self.assertIn("logistics.E012", self.checks())
+            self.assertEqual(self.checks(), set())
         self.assertEqual(BusinessSubscription.objects.values().get(pk=subscription.pk), before)
         BusinessSubscription.objects.filter(pk=subscription.pk).update(
             status="cancelled", payment_provider="", provider_subscription_id="sub_historical"
         )
-        self.assertIn("logistics.E011", self.checks())
+        self.assertEqual(self.checks(), set())
 
     def test_active_tier_checks_its_own_configuration_without_legacy_or_sibling_prices(self):
         ClarivoPlan.objects.filter(slug="logistics-core").update(is_active=True)
@@ -217,14 +218,17 @@ class ConditionalLegacyChecksTests(TestCase):
 
 @override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY, **stripe_settings())
 class LegacyMappingCompatibilityTests(LogisticsCheckoutFixture, TestCase):
-    def test_missing_mapping_blocks_recovery_and_signed_event_then_retries_after_repair(self):
-        self.checkout()
+    legacy_billing_fixture = True
+
+    def test_unbound_old_event_retries_after_mapping_repair_but_checkout_remains_retired(self):
+        self.historical_checkout()
         before = BusinessSubscription.objects.values().get(pk=self.subscription.pk)
         with override_settings(
             STRIPE_PRICE_ID_MAP=stripe_settings(logistics=False)["STRIPE_PRICE_ID_MAP"]
         ):
-            with self.assertRaises(StripeConfigurationError):
+            with self.assertRaises(StripeCheckoutError) as caught:
                 self.checkout()
+            self.assertEqual(caught.exception.code, "logistics_legacy_retired")
             self.assertEqual(self.webhook().status_code, 500)
         self.assertEqual(BusinessSubscription.objects.values().get(pk=self.subscription.pk), before)
         self.assertEqual(BillingProviderWebhookEvent.objects.get().status, "failed")
@@ -235,7 +239,7 @@ class LegacyMappingCompatibilityTests(LogisticsCheckoutFixture, TestCase):
         self.assertEqual(self.subscription.status, "active")
 
     def test_ambiguous_or_core_only_mapping_cannot_reclassify_legacy_subscription(self):
-        self.checkout()
+        self.historical_checkout()
         before = BusinessSubscription.objects.values().get(pk=self.subscription.pk)
         core = {("logistics-core", "yearly", "eur"): "price_logistics_yearly_eur"}
         for index, legacy in enumerate((True, False)):

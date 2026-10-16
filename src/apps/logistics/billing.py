@@ -28,6 +28,11 @@ from .stripe_prices import (
 
 
 def require_checkout_enrollment(subscription, user):
+    if subscription.plan.slug == "logistics":
+        raise StripeCheckoutError(
+            "Legacy Logistics is retired from Checkout. Select Core, Growth or Scale.",
+            code="logistics_legacy_retired",
+        )
     application = current_checkout_application(subscription)
     if application is None or approval_metadata(application) is None:
         raise StripeCheckoutError(
@@ -54,7 +59,7 @@ def require_checkout_enrollment(subscription, user):
     if (
         subscription.business.vertical != Business.Vertical.LOGISTICS
         or subscription.plan.family != ClarivoPlan.Family.LOGISTICS
-        or subscription.plan.slug not in ("logistics", *TIER_YEARLY_EUR_CENTS)
+        or subscription.plan.slug not in TIER_YEARLY_EUR_CENTS
         or subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT
         or subscription.payment_provider != BusinessSubscription.PaymentProvider.STRIPE
         or subscription.billing_interval != BusinessSubscription.BillingInterval.YEARLY

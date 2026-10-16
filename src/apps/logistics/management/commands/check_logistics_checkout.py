@@ -61,8 +61,9 @@ class Command(BaseCommand):
             require_checkout_enrollment(subscription, application.enrolled_user)
         except (StripeCheckoutError, StripeConfigurationError) as exc:
             failures.append((exc.code, str(exc)))
-        # Verify both requested currencies, independent of the enrolled currency.
-        for currency in ("eur", "usd"):
+        # Tier Checkout remains EUR-only; legacy Checkout is retired above.
+        currencies = ("eur",) if subscription.plan.is_logistics_capacity_tier else ()
+        for currency in currencies:
             try:
                 configured_annual_price(subscription.plan, currency)
             except StripeConfigurationError as exc:
@@ -70,7 +71,7 @@ class Command(BaseCommand):
         if not failures and options["verify_provider"]:
             try:
                 sdk = configure_stripe_sdk()
-                for currency in ("eur", "usd"):
+                for currency in currencies:
                     validate_annual_stripe_price(
                         plan=subscription.plan, currency=currency, stripe_client=sdk
                     )
@@ -84,7 +85,7 @@ class Command(BaseCommand):
             self.style.SUCCESS(
                 "Logistics checkout is ready"
                 + (
-                    " (both annual Stripe Prices verified)."
+                    " (annual Stripe Price verified)."
                     if options["verify_provider"]
                     else " (provider not contacted; use --verify-provider to verify Stripe Prices)."
                 )

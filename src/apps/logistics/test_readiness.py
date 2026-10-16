@@ -393,10 +393,6 @@ class LogisticsDeploymentChecksTests(TestCase):
         cases = (
             ({"STRIPE_ENABLED": False}, "logistics.E001"),
             ({"STRIPE_SECRET_KEY": ""}, "logistics.E002"),
-            (
-                {"STRIPE_PRICE_ID_MAP": stripe_settings(logistics=False)["STRIPE_PRICE_ID_MAP"]},
-                "logistics.E011",
-            ),
         )
         for settings_change, code in cases:
             with self.subTest(code=code), override_settings(**settings_change):
@@ -406,7 +402,7 @@ class LogisticsDeploymentChecksTests(TestCase):
 
     def test_unpriced_currency_and_pending_migrations_are_reported(self):
         ClarivoPlan.objects.filter(slug="logistics").update(regional_prices={})
-        self.assertIn("logistics.E012", {issue.id for issue in self.checks()})
+        self.assertNotIn("logistics.E012", {issue.id for issue in self.checks()})
         with patch(
             "django.db.migrations.executor.MigrationExecutor.migration_plan",
             return_value=[object()],
