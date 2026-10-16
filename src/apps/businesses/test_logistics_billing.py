@@ -111,11 +111,14 @@ class LogisticsOfferingTests(TestCase):
         self.now = timezone.now()
 
     def pending(self):
-        return ensure_pending_checkout_subscription(
+        # Stored pre-retirement history, not a new Checkout admission.
+        return BusinessSubscription.objects.create(
             business=self.business,
             plan=self.logistics_plan,
+            status="pending_checkout",
+            payment_provider="stripe",
             billing_interval="yearly",
-            currency="usd",
+            billing_currency="usd",
         )
 
     def active(self):
@@ -357,14 +360,20 @@ class LogisticsOfferingTests(TestCase):
         self.assertTrue(ClarivoPlan.objects.filter(pk=self.logistics_plan.pk).exists())
 
     @override_settings(**stripe_settings())
-    def test_yearly_pending_checkout_is_allowed_without_access_or_trial(self):
+    def test_new_legacy_pending_checkout_rejected_and_historical_pending_preserved(self):
+        with self.assertRaises(StripeCheckoutError):
+            ensure_pending_checkout_subscription(
+                business=self.business,
+                plan=self.logistics_plan,
+                billing_interval="yearly",
+                currency="usd",
+            )
+        self.assertFalse(BusinessSubscription.objects.exists())
         subscription = self.pending()
         self.assertEqual(subscription.status, "pending_checkout")
-        self.assertEqual(subscription.billing_interval, "yearly")
         self.assertIsNone(subscription.trial_start)
         self.assertIsNone(subscription.trial_end)
         self.assertFalse(subscription.has_access)
-        self.assertFalse(subscription.is_public_paid_plan)
         self.assertTrue(subscription.is_stripe_billable)
 
     @override_settings(**stripe_settings())
@@ -384,74 +393,17 @@ class LogisticsOfferingTests(TestCase):
         self.assertFalse(BusinessSubscription.objects.exists())
 
     @override_settings(**stripe_settings())
-    def test_stripe_yearly_checkout_omits_trial_and_preserves_metadata(self):
-        from apps.logistics.models import LogisticsApplication
-        from apps.logistics.registration_test_support import restore_legacy_fixture
-        from apps.logistics.services import review_application
-        from apps.logistics.tests import application_data
-
-        # Block 5 requires a current converted approval at the shared entry point.
-        application = LogisticsApplication.objects.create(
-            **application_data(email=self.user.email, preferred_currency="USD")
-        )
-        reviewer = TaskIOUser.objects.create_superuser(email="billing-reviewer@example.com")
-        review_application(
-            application.pk,
-            result="APPROVED",
-            actor=reviewer,
-            reason="Checkout fixture approved",
-            expected_revision=1,
-        )
-        LogisticsApplication.objects.filter(pk=application.pk).update(
-            business=self.business,
-            business_id_snapshot=self.business.pk,
-            enrolled_user=self.user,
-            converted_revision=1,
-            converted_at=self.now,
-        )
-        restore_legacy_fixture(application)
-        self.logistics_plan.regional_prices = {"usd": {"currency": "USD", "yearly": "100.00"}}
-        self.logistics_plan.save(update_fields=["regional_prices"])
+    def test_retired_legacy_checkout_rejected_without_provider_or_record_changes(self):
         subscription = self.pending()
-        session_create = mock.Mock(
-            return_value={"id": "cs_logistics", "url": "https://checkout.stripe.test/logistics"}
-        )
-        sdk = SimpleNamespace(
-            checkout=SimpleNamespace(Session=SimpleNamespace(create=session_create)),
-            Price=SimpleNamespace(
-                retrieve=mock.Mock(
-                    return_value={
-                        "id": "price_logistics_yearly_usd",
-                        "active": True,
-                        "livemode": False,
-                        "type": "recurring",
-                        "currency": "usd",
-                        "unit_amount": 10000,
-                        "billing_scheme": "per_unit",
-                        "recurring": {
-                            "interval": "year",
-                            "interval_count": 1,
-                            "usage_type": "licensed",
-                        },
-                    }
+        before = BusinessSubscription.objects.values().get(pk=subscription.pk)
+        with mock.patch("apps.businesses.stripe_checkout.configure_stripe_sdk") as configure:
+            with self.assertRaises(StripeCheckoutError) as raised:
+                create_trial_checkout_session(
+                    request=RequestFactory().post("/"), subscription=subscription, user=self.user
                 )
-            ),
-        )
-        with mock.patch("apps.businesses.stripe_checkout.configure_stripe_sdk", return_value=sdk):
-            url = create_trial_checkout_session(
-                request=RequestFactory().post("/", HTTP_HOST="localhost"),
-                subscription=subscription,
-                user=self.user,
-            )
-        self.assertEqual(url, "https://checkout.stripe.test/logistics")
-        params = session_create.call_args.kwargs
-        self.assertNotIn("trial_period_days", params["subscription_data"])
-        self.assertEqual(
-            params["line_items"], [{"price": "price_logistics_yearly_usd", "quantity": 1}]
-        )
-        self.assertEqual(params["metadata"]["plan_slug"], "logistics")
-        self.assertEqual(params["metadata"]["motionmate_business_id"], str(self.business.pk))
-        self.assertEqual(params["subscription_data"]["metadata"], params["metadata"])
+        self.assertEqual(raised.exception.code, "logistics_legacy_retired")
+        configure.assert_not_called()
+        self.assertEqual(BusinessSubscription.objects.values().get(pk=subscription.pk), before)
 
     @override_settings(**stripe_settings())
     def test_resume_revalidates_offering_before_reusing_a_session(self):

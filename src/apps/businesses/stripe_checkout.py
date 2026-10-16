@@ -368,6 +368,13 @@ def _validated_checkout_dimensions(
     if plan is None or not plan.is_active:
         raise StripeCheckoutError("Select an active Motionmate billing plan before checkout.")
 
+    offering = billing_offering(plan.slug)
+    if offering is not None and offering.historical_only:
+        raise StripeCheckoutError(
+            "Legacy Logistics is retired from Checkout. Select Core, Growth or Scale.",
+            code="logistics_legacy_retired",
+        )
+
     if not is_stripe_billable_plan(plan):
         raise StripeCheckoutError("This plan cannot use Stripe Checkout.")
     if not plan_matches_business(business, plan):

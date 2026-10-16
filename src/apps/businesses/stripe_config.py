@@ -302,7 +302,9 @@ def resolve_stripe_price_id(price_id: object) -> StripePriceMetadata:
         if key in prices and prices[key] == normalized_price_id:
             return StripePriceMetadata(normalized_price_id, *key)
     if not matches:
-        raise StripeConfigurationError("Stripe Price ID is not configured for Motionmate.")
+        raise StripeConfigurationError(
+            "Stripe Price ID is not configured for Motionmate.", code="stripe_price_unmapped"
+        )
     if len(matches) > 1:
         raise StripeConfigurationError("Stripe Price ID maps to more than one Motionmate plan.")
 

@@ -213,11 +213,11 @@ STRIPE_PRICE_ID_MAP = {
         f"stripe_price_{plan_slug}_{billing_interval}_{currency}",
     )
     for plan_slug, offering in BILLING_OFFERINGS.items()
-    if offering.checkout_enabled
+    if offering.checkout_enabled or offering.historical_only
     for billing_interval in offering.intervals
     for currency in PUBLIC_PRICING_CURRENCIES
 }
-# Staged validation only: never included in checkout/webhook price resolution.
+# Annual EUR TEST tier mappings; USD remains unsupported by tier Checkout.
 STRIPE_LOGISTICS_TIER_PRICE_ID_MAP = {
     (slug, "yearly", "eur"): getattr(settings, f"stripe_price_{slug.replace('-', '_')}_yearly_eur")
     for slug in LOGISTICS_TIER_SLUGS

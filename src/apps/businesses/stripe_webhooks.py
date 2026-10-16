@@ -436,7 +436,9 @@ def _sync_subscription_object(
             local_subscription=local_subscription,
             client_reference_id=client_reference_id,
         )
-        price_metadata = _validated_subscription_price_metadata(provider_subscription)
+        price_metadata = _validated_subscription_price_metadata(
+            provider_subscription, local_subscription=local_subscription
+        )
         local_status = _local_status_for_provider_subscription(provider_subscription)
         date_values = _subscription_date_values(provider_subscription)
         offering = billing_offering(local_subscription.plan.slug)
@@ -1000,14 +1002,45 @@ def _incoming_event_is_stale(
     )
 
 
-def _validated_subscription_price_metadata(provider_subscription: Any) -> StripePriceMetadata:
+def _historical_legacy_price_metadata(provider_subscription, local_subscription, price_id):
+    """Recover only an already-bound retired contract, never infer a new offering."""
+    if (
+        local_subscription is None
+        or local_subscription.plan.slug != "logistics"
+        or local_subscription.payment_provider not in ("", "stripe")
+        or local_subscription.billing_interval != "yearly"
+        or local_subscription.billing_currency not in ("eur", "usd")
+        or not price_id.startswith("price_")
+        or len(price_id) <= len("price_")
+        or price_id != local_subscription.provider_price_id
+        or not local_subscription.provider_subscription_id.startswith("sub_")
+        or not local_subscription.provider_customer_id.startswith("cus_")
+        or _stripe_value(provider_subscription, "id") != local_subscription.provider_subscription_id
+        or _stripe_value(provider_subscription, "customer")
+        != local_subscription.provider_customer_id
+    ):
+        return None
+    return StripePriceMetadata(price_id, "logistics", "yearly", local_subscription.billing_currency)
+
+
+def _validated_subscription_price_metadata(
+    provider_subscription: Any, *, local_subscription=None
+) -> StripePriceMetadata:
     price = _single_subscription_price(provider_subscription)
     price_id = _required_string(_stripe_value(price, "id"), "Stripe subscription Price ID missing.")
 
     try:
         price_metadata = resolve_stripe_price_id(price_id)
     except StripeConfigurationError as exc:
-        raise StripeWebhookProcessingError(str(exc), retryable=True) from exc
+        # Never fall back after an ambiguous mapping or reinterpret an event as
+        # a tier. Historical identity comes only from the locked local contract.
+        price_metadata = (
+            _historical_legacy_price_metadata(provider_subscription, local_subscription, price_id)
+            if exc.code == "stripe_price_unmapped"
+            else None
+        )
+        if price_metadata is None:
+            raise StripeWebhookProcessingError(str(exc), retryable=True) from exc
 
     from apps.businesses.plan_catalog import LOGISTICS_TIER_SLUGS
 

@@ -19,6 +19,7 @@ class BillingOffering:
     trial_days: int
     checkout_enabled: bool = True
     test_checkout_enabled: bool = False
+    historical_only: bool = False
 
 
 BILLING_OFFERINGS = {
@@ -26,7 +27,11 @@ BILLING_OFFERINGS = {
         slug: BillingOffering("SERVICE", ("monthly", "yearly"), STANDARD_TRIAL_DAYS)
         for slug in PUBLIC_PAID_PLAN_SLUGS
     },
-    "logistics": BillingOffering("LOGISTICS", ("yearly",), 0),
+    # Historical billing/entitlements only. Checkout rejects this retired slug;
+    # keep it recognized here for existing contracts, grace and old webhooks.
+    "logistics": BillingOffering(
+        "LOGISTICS", ("yearly",), 0, checkout_enabled=False, historical_only=True
+    ),
     **{
         slug: BillingOffering(
             "LOGISTICS", ("yearly",), 0, checkout_enabled=False, test_checkout_enabled=True
@@ -35,7 +40,9 @@ BILLING_OFFERINGS = {
     },
 }
 BILLABLE_PLAN_SLUGS = tuple(
-    slug for slug, offering in BILLING_OFFERINGS.items() if offering.checkout_enabled
+    slug
+    for slug, offering in BILLING_OFFERINGS.items()
+    if offering.checkout_enabled or offering.historical_only
 )
 
 
@@ -65,7 +72,9 @@ def is_stripe_billable_plan(plan) -> bool:
     offering = billing_offering(plan.slug) if plan is not None else None
     return bool(
         offering
-        and (offering.checkout_enabled or offering.test_checkout_enabled)
+        and (
+            offering.checkout_enabled or offering.test_checkout_enabled or offering.historical_only
+        )
         and offering.family == plan.family
     )
 
