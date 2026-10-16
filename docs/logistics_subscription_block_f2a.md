@@ -62,3 +62,38 @@ still need explicit reconciliation and distinct, verified mappings. F2A neither
 reassigns existing subscriptions nor invents replacement Prices. Fresh signed Core
 TEST delivery and separately approved tier activation remain external release
 gates. Current deployed configuration/provider state was not audited in this block.
+
+## F3A review and commit record (2026-10-15)
+
+F1 is already committed as `cfbd5cc9cd43eae010ab04332ef0ed3e10e76108`;
+F2A is already committed as `31b91d00109a1850fa4aa6201f8817ceb66cd187`.
+Both were present on `feature/mm-testing-phase` and its origin tracking ref before
+this review. Their combined change from `c9c2adc` contains 31 implementation,
+test and documentation files. This review preserves those commits.
+
+The reviewed admission paths reject missing, legacy and forged selections in
+public/admin forms, model creation, approval and new enrollment. Unconverted
+legacy applications require a current tier and a new evaluated revision;
+authenticated converted legacy retries retain their historical approval evidence.
+Legacy entitlements, recovery and grace behavior remain supported. Tier admin
+validation includes submitted capacities, family and Checkout eligibility, and
+verifies only the selected tier's annual EUR Price. Ambiguous mappings fail closed.
+SERVICE registration and billing retain their existing policy and mappings.
+
+The existing final test logs above were inspected: 28 F2A configuration tests
+passed with one PostgreSQL-only skip, 163 billing tests passed, nine PostgreSQL
+concurrency tests passed, and the strengthened identity test passed. F1 admission,
+compatibility, SERVICE registration and preservation logs also passed as recorded
+in the F1 document. No tests were rerun during F3A. A fresh comparison of Django
+model state against the migration graph found no drift, with database connections
+blocked. Diff whitespace and added-line secret checks passed; no migrations,
+configuration files, generated files or temporary artifacts are included.
+
+The separate F2C configuration procedure completed on Development v67; F1/F2A
+code has not been deployed there. Deployment requires separate approval, a fresh
+target/configuration and zero-pending-migration check before the existing release
+hook, and preservation checks for Business 166 and legacy/SERVICE subscriptions.
+The previously observed native GC crash remains a monitored runtime risk; this
+review does not establish that it is resolved. Tier activation remains separately
+approved work, followed by fresh fictional Core TEST Checkout and signed webhook
+verification. LIVE/USD tier Checkout remains disabled.
