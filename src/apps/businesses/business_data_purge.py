@@ -150,7 +150,8 @@ class BusinessPurgePlan:
         if self.has_stripe_references:
             blockers.append("stripe_references_present")
         if any(
-            record.key == "customer_payments" and record.total_count
+            (record.key == "customer_payments" or record.key.startswith("customer_cancellation_"))
+            and record.total_count
             for record in self.inventory.records
         ):
             blockers.append("customer_payment_history_protected")

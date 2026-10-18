@@ -247,6 +247,18 @@ class CustomerPaymentTests(TestCase):
         self.assertEqual(receipt.verification_reference, "BANK-PORTAL-1")
         self.assertTrue(self.balance().settled)
 
+    def test_service_receipts_keep_reference_and_online_evidence_requirements(self):
+        from .payment_forms import PaymentReceiptForm
+
+        form = PaymentReceiptForm(currency="USD", accounting=True)
+        self.assertTrue(form.fields["reference"].required)
+        self.assertIn("verification_reference", form.fields)
+        self.assertNotIn("ONLINE", dict(form.fields["method"].choices))
+        with self.assertRaises(ValidationError):
+            self.receipt(reference="")
+        with self.assertRaises(ValidationError):
+            self.receipt(method="ONLINE")
+
     def test_correction_of_partially_refunded_receipt_requires_reconciliation(self):
         receipt = self.receipt(100)
         self.adjustment(receipt, 25)

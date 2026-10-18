@@ -194,6 +194,10 @@ def recalculate_invoice_totals(invoice: Invoice, *, actor=None) -> None:
 
         lock_actor_membership(business, actor)
     persisted = Invoice.objects.select_for_update().get(pk=invoice.pk, business=business)
+    if persisted.lines.filter(obligation_shares__isnull=False).exists():
+        raise ValidationError(
+            "Cancellation allocations protect the original Invoice monetary basis."
+        )
     if persisted.payments.exists():
         raise ValidationError("Invoices with payment history retain their monetary basis.")
     if invoice.business.vertical == Business.Vertical.LOGISTICS:
@@ -238,6 +242,14 @@ def change_invoice_status(*, business, actor, invoice, status):
             write=True,
             accounting=status == Invoice.Status.CANCELLED,
         )
+    if current.vertical == Business.Vertical.LOGISTICS and status == Invoice.Status.CANCELLED:
+        if (
+            selected.status == Invoice.Status.PAID
+            or selected.lines.filter(obligation_shares__isnull=False).exists()
+        ):
+            raise ValidationError(
+                "Use parcel cancellation settlement credits and completed refunds; this Invoice's original lifecycle and allocations are retained."
+            )
     if status not in STATUS_TRANSITIONS.get(selected.status, set()):
         return selected
     if status == Invoice.Status.CANCELLED and selected.payments.exists():

@@ -20,6 +20,9 @@ session wizard. Shared SERVICE views and services are unchanged.
   search, inline **Add Client**, shipping prefill and all metadata fields remain.
 - Parcel detail: **Continue Registration** opens
   `/logistics/parcels/<parcel_id>/registration/`.
+- Parcel registration does not ask for a quantity. New Parcel records use the
+  operational default of 1; Add Charge holds the quantity used for price
+  calculation (`quantity × unit price`). Existing Parcel quantities are retained.
 - The continuation page reconstructs Client/Parcel, charge coverage, linked
   Invoices, settlement and assigned Shipment with `resolve_parcel_workflow`.
   Outstanding registration tasks and a suggested continuation link use persisted
@@ -66,8 +69,11 @@ STAFF summaries retain restricted finance. A worker with complete writable Invoi
 scope receives a generic **Parcel Invoice** review/issuance/payment entry link;
 the default continuation summary does not publish amounts, actual Invoice numbers or receipt
 history to workers. Selecting payment entry explicitly authorizes and displays
-that Invoice's existing balance/form. STAFF forms exclude externally verified
-online receipts. Accounting roles retain the existing external evidence method.
+that Invoice's existing balance/form. Logistics receipt forms offer cash, bank
+transfer and ordinary online receipts without verification evidence. The receipt
+reference is optional; a blank reference generates an ID from the retry token.
+Older open forms posting the externally verified method save an ordinary online
+receipt. The separate accounting service retains its external evidence method.
 
 Every Invoice action is restricted to a related Invoice and rechecks shared
 financial policy. Writes use Business then membership locking and existing

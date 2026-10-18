@@ -9,6 +9,7 @@ from . import (
     scan_views,
     shipment_views,
 )
+from .cancellation_views import parcel_cancellation_settlement
 from .public_tracking_views import public_tracking
 from .registration_views import parcel_registration
 from .views import (
@@ -25,6 +26,11 @@ from .views import (
 )
 
 urlpatterns = [
+    path(
+        "parcels/<int:parcel_id>/cancellation-settlement/",
+        parcel_cancellation_settlement,
+        name="logistics_parcel_cancellation_settlement",
+    ),
     path(
         "parcels/<int:parcel_id>/credit/",
         credit_views.parcel_credit,

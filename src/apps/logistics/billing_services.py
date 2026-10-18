@@ -98,6 +98,15 @@ def add_charge(
     current = Business.objects.select_for_update().get(pk=business.pk)
     lock_actor_membership(current, actor)
     kind = "parcel" if parcel is not None else "shipment"
+    if (
+        parcel is not None
+        and Parcel.objects.filter(
+            pk=getattr(parcel, "pk", parcel), business=current, current_status="CANCELLED"
+        ).exists()
+    ):
+        raise ValidationError(
+            "Cancelled Parcels cannot receive new charges; use cancellation settlement."
+        )
     current = require_billing_access(business=current, actor=actor, write=True, target_kind=kind)
     if _supersedes is not None or _coverage_parcels is not None or _currency_snapshot is not None:
         require_financial_access(business=current, actor=actor, write=True, accounting=True)
@@ -258,6 +267,10 @@ def invoice_charges(*, business, actor, charge_ids, invoice=None):
 
     for charge in charges:
         validate_charge_coverage(charge)
+        if charge.parcel_coverage.filter(parcel__current_status="CANCELLED").exists():
+            raise ValidationError(
+                "Charges covering cancelled Parcels cannot be invoiced or reissued; use cancellation settlement."
+            )
     active = {
         charge.pk: list(charge.invoice_lines.exclude(invoice__status=Invoice.Status.CANCELLED))
         for charge in charges

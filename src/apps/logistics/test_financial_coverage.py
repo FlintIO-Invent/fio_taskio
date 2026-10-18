@@ -399,7 +399,8 @@ class FinancialCoverageTests(TestCase):
         invoice = self.bill(charge)
         self.change(invoice, "SENT")
         self.change(invoice, "PAID")
-        self.assertEqual(self.change(invoice, "CANCELLED").status, "PAID")
+        with self.assertRaises(ValidationError):
+            self.change(invoice, "CANCELLED")
         with self.assertRaises(ValidationError):
             void_charge(
                 business=self.business, actor=self.user, charge=charge, reason_reference="CASE-1"

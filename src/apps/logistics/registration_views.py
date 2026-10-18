@@ -154,6 +154,8 @@ def _post(request, parcel, summary):
             )
             form = PaymentReceiptForm(
                 request.POST,
+                invoice=invoice,
+                manual_receipts=True,
                 currency=balance.currency,
                 accounting=membership_for(request.current_business, request.user).role
                 in ACCOUNTING_ROLES,
@@ -270,6 +272,8 @@ def parcel_registration(request, parcel_id):
             business=request.current_business, actor=request.user, invoice=payment_invoice
         )
         payment_form = PaymentReceiptForm(
+            invoice=payment_invoice,
+            manual_receipts=True,
             currency=balance.currency,
             accounting=membership_for(request.current_business, request.user).role
             in ACCOUNTING_ROLES,
@@ -321,6 +325,8 @@ def parcel_registration(request, parcel_id):
             "show_completion": request.GET.get("summary") == "1" or bool(parcel.shipment_id),
             "registration_tasks": tasks,
             "resume_step": resume_step,
+            "cancellation_can_manage": membership_for(request.current_business, request.user).role
+            in ("owner", "admin", "accountant"),
             "resume_label": resume_label,
         },
     )

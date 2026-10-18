@@ -99,6 +99,9 @@ class InvoiceSettlement:
     settled: bool
     legacy_paid_unverified: bool
     issues: tuple[str, ...]
+    credits: Decimal = Decimal("0.00")
+    adjusted_total: Decimal = Decimal("0.00")
+    refund_due: Decimal = Decimal("0.00")
 
     @property
     def state_label(self):
@@ -109,6 +112,7 @@ class InvoiceSettlement:
             "LEGACY_PAID_UNVERIFIED": "Legacy PAID — unverified",
             "REVIEW_REQUIRED": "Needs accounting review",
             "CANCELLED": "Cancelled",
+            "REFUND_DUE": "Refund due — money not yet recorded as returned",
         }[self.state]
 
 
@@ -173,13 +177,34 @@ def _invoice_settlement(invoice):
         issues.append("Invoice status conflicts with its active receipts.")
     legacy = invoice.status == Invoice.Status.PAID and not entries and not foreign_entries
     outstanding = max(total - net, Decimal("0.00"))
+    credits, adjusted_total, refund_due = Decimal("0.00"), total, Decimal("0.00")
+    invoice._cancellation_projection = None
+    if invoice.business.vertical == Business.Vertical.LOGISTICS:
+        from .cancellation_services import projection
+
+        try:
+            allocated = projection(invoice, entries)
+            if allocated:
+                invoice._cancellation_projection = allocated
+                credits = allocated["credit_total"]
+                adjusted_total = allocated["adjusted_total"]
+                outstanding = allocated["outstanding"]
+                refund_due = allocated["refund_due"]
+                if allocated["adjusted_total"] != total - credits:
+                    raise ValidationError("Cancellation credit totals require review.")
+        except ValidationError as exc:
+            issues.extend(exc.messages)
     if invoice.status == Invoice.Status.CANCELLED:
         outstanding = Decimal("0.00")
     settled = (
         not issues
         and not legacy
         and outstanding == 0
-        and invoice.status in (Invoice.Status.SENT, Invoice.Status.PAID)
+        and refund_due == 0
+        and (
+            invoice.status in (Invoice.Status.SENT, Invoice.Status.PAID)
+            or (credits and adjusted_total == 0)
+        )
     )
     state = (
         "REVIEW_REQUIRED"
@@ -192,6 +217,8 @@ def _invoice_settlement(invoice):
     )
     if invoice.status == Invoice.Status.CANCELLED and not issues:
         state = "CANCELLED"
+    elif refund_due and not issues:
+        state = "REFUND_DUE"
     return InvoiceSettlement(
         invoice.pk,
         currency,
@@ -204,6 +231,9 @@ def _invoice_settlement(invoice):
         settled,
         legacy,
         tuple(dict.fromkeys(issues)),
+        credits,
+        adjusted_total,
+        refund_due,
     )
 
 
@@ -282,9 +312,14 @@ def _record_receipt(
     key,
     original=None,
     reason_reference="",
+    receipt_allocations=None,
 ):
     if method not in InvoicePayment.Method.values:
         raise ValidationError("Choose a supported customer payment method.")
+    if method == InvoicePayment.Method.ONLINE and current.vertical != Business.Vertical.LOGISTICS:
+        raise ValidationError("Online payment entry is available only for Logistics receipts.")
+    if current.vertical == Business.Vertical.LOGISTICS and not _reference(reference):
+        reference = f"RECEIPT-{key}"
     if method == InvoicePayment.Method.VERIFIED_ONLINE:
         require_payment_access(
             business=current, actor=actor, invoice=selected, write=True, accounting=True
@@ -307,6 +342,14 @@ def _record_receipt(
     )
     previous = _replay(current, key, fields)
     if previous:
+        from .cancellation_services import allocate_new_receipt
+
+        # Recheck supplied allocations on exact retries without creating new shares.
+        if receipt_allocations is not None:
+            _invoice_settlement(selected)
+            allocate_new_receipt(
+                invoice=selected, receipt=previous, actor=actor, supplied=receipt_allocations
+            )
         return previous
     balance = _invoice_settlement(selected)
     if balance.issues:
@@ -339,7 +382,11 @@ def _record_receipt(
     if duplicates.exists():
         raise ValidationError("This receipt/transaction reference is already recorded.")
     fields["invoice_total_snapshot"] = balance.total
-    return _append(business=current, actor=actor, key=key, fields=fields)
+    entry = _append(business=current, actor=actor, key=key, fields=fields)
+    from .cancellation_services import allocate_new_receipt
+
+    allocate_new_receipt(invoice=selected, receipt=entry, actor=actor, supplied=receipt_allocations)
+    return entry
 
 
 @transaction.atomic
@@ -351,9 +398,10 @@ def record_invoice_payment(
     amount,
     currency,
     method,
-    reference,
     idempotency_key,
+    reference="",
     verification_reference="",
+    receipt_allocations=None,
 ):
     current, selected = _locked_invoice(business=business, actor=actor, invoice=invoice)
     return _record_receipt(
@@ -366,6 +414,7 @@ def record_invoice_payment(
         reference=reference,
         verification_reference=verification_reference,
         key=_key(idempotency_key),
+        receipt_allocations=receipt_allocations,
     )
 
 
@@ -422,7 +471,17 @@ def _reduce(*, current, selected, actor, original, kind, amount, reference, reas
 
 @transaction.atomic
 def adjust_invoice_payment(
-    *, business, actor, invoice, payment, kind, amount, reference, reason_reference, idempotency_key
+    *,
+    business,
+    actor,
+    invoice,
+    payment,
+    kind,
+    amount,
+    reference,
+    reason_reference,
+    idempotency_key,
+    cancellation_credit=None,
 ):
     if kind not in (InvoicePayment.Kind.REVERSAL, InvoicePayment.Kind.REFUND):
         raise ValidationError("Choose a reversal or refund adjustment.")
@@ -430,7 +489,26 @@ def adjust_invoice_payment(
         business=business, actor=actor, invoice=invoice, accounting=True
     )
     original = _receipt(business=current, invoice=selected, payment=payment)
-    return _reduce(
+    from .cancellation_services import check_refund
+    from .models import InvoiceCancellationCredit, InvoiceRefundAllocation
+
+    key = _key(idempotency_key)
+    credit = None
+    if InvoiceCancellationCredit.objects.filter(obligation__line__invoice=selected).exists():
+        if kind != InvoicePayment.Kind.REFUND:
+            raise ValidationError(
+                "Cancellation settlement permits allocated completed refunds; receipt reversals require reconciliation."
+            )
+        credit = check_refund(
+            invoice=selected,
+            original=original,
+            credit=cancellation_credit,
+            amount=money(amount, original.currency),
+            key=key,
+        )
+    elif cancellation_credit is not None:
+        raise ValidationError("This Invoice has no matching cancellation credit.")
+    entry = _reduce(
         current=current,
         selected=selected,
         actor=actor,
@@ -439,8 +517,13 @@ def adjust_invoice_payment(
         amount=amount,
         reference=reference,
         reason_reference=reason_reference,
-        key=_key(idempotency_key),
+        key=key,
     )
+    if credit and not InvoiceRefundAllocation.objects.filter(refund=entry).exists():
+        InvoiceRefundAllocation(
+            business=current, recorded_by=actor, refund=entry, credit=credit
+        )._append()
+    return entry
 
 
 @transaction.atomic
@@ -460,6 +543,10 @@ def correct_invoice_payment(
     current, selected = _locked_invoice(
         business=business, actor=actor, invoice=invoice, accounting=True
     )
+    if selected.lines.filter(obligation_shares__cancellation_credit__isnull=False).exists():
+        raise ValidationError(
+            "Receipts with cancellation allocations require reconciliation before correction."
+        )
     original = _receipt(business=current, invoice=selected, payment=payment)
     key = _key(idempotency_key)
     existing = InvoicePayment.objects.filter(original=original, kind="RECEIPT").first()

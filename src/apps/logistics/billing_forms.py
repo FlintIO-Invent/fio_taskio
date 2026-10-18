@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from django import forms
 from django.db.models import Q
 
@@ -26,8 +24,11 @@ class LogisticsChargeForm(forms.Form):
         required=False,
         help_text="Required for custom charges; optional description override for saved services.",
     )
-    quantity = forms.DecimalField(
-        max_digits=10, decimal_places=2, min_value=Decimal("0.01"), initial=1
+    quantity = forms.IntegerField(
+        min_value=1,
+        max_value=99999999,
+        initial=1,
+        widget=forms.NumberInput(attrs={"step": "1", "inputmode": "numeric"}),
     )
     unit_price = forms.CharField(
         required=False,

@@ -69,6 +69,7 @@ def obligation_snapshot(graph, parcel):
                 ]
             ),
             "outstanding_limit": str(balance.outstanding),
+            **({"cancellation_credits": str(balance.credits)} if balance.credits else {}),
         }
     if not charges:
         return None

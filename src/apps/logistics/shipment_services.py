@@ -42,7 +42,7 @@ from .shipment_references import (
     populated_transport_references,
     validate_shipment_references,
 )
-from .shipment_transport import validate_shipment_mode
+from .shipment_transport import validate_parcel_shipment_modes, validate_shipment_mode
 
 SHIPMENT_INPUT_FIELDS = (
     (
@@ -355,8 +355,14 @@ def update_shipment(
         previous=previous,
     )
     require_route_edit(locked, fields, business=current, actor=actor)
+    previous_mode = locked.transport_mode
     for name, value in fields.items():
         setattr(locked, name, value)
+    if locked.transport_mode != previous_mode:
+        for assigned in Parcel.objects.select_for_update().filter(
+            business=current, shipment=locked
+        ):
+            validate_parcel_shipment_modes(assigned, locked)
     _save_write(locked, fields=fields, key=key, fingerprint=fingerprint)
     if item:
         assign_parcel(business=current, shipment=locked, parcel=item, actor=actor)
@@ -388,6 +394,7 @@ def assign_parcel(
         raise ValidationError("Remove the parcel from its current shipment before reassigning it.")
     if locked.charges.exclude(client_id=item.client_id).exists():
         raise ValidationError("A shipment with saved charges must retain a single billing client.")
+    validate_parcel_shipment_modes(item, locked)
     item.shipment = locked
     item._domain_save(update_fields=["shipment", "updated_at"])
     _save_write(locked, fields=[], key=key, fingerprint=fingerprint, action="assign", parcel=item)

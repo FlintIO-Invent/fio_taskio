@@ -319,9 +319,11 @@ class ParcelRegistrationTests(TestCase):
         self.membership.save(update_fields=["role"])
         self.assertEqual(self.client.get(self.url(parcel)).status_code, 404)
 
-    def test_operating_staff_can_issue_and_record_cash_but_not_online_payment(self):
+    def test_operating_staff_can_issue_and_record_payment_without_references(self):
+        from apps.billings.payment_services import invoice_settlement, record_invoice_payment
+
         parcel = self.parcel()
-        invoice = self.bill(self.charge(parcel=parcel))
+        invoice = self.bill(self.charge(parcel=parcel, unit_price=100))
         before = list(invoice.lines.values())
         self.membership.role = "staff"
         self.membership.save(update_fields=["role"])
@@ -337,21 +339,53 @@ class ParcelRegistrationTests(TestCase):
         invoice.refresh_from_db()
         self.assertEqual(invoice.status, "SENT")
         self.assertEqual(list(invoice.lines.values()), before)
-        self.assertEqual(
-            self.pay(
-                parcel,
-                invoice,
-                amount="25",
-                method="VERIFIED_ONLINE",
-                verification_reference="FORGED",
-            ).status_code,
-            200,
-        )
-        self.assertEqual(InvoicePayment.objects.count(), 0)
         response = self.client.get(self.url(parcel), {"payment": invoice.pk})
-        self.assertNotContains(response, 'value="VERIFIED_ONLINE"')
-        self.assertRedirects(self.pay(parcel, invoice, amount="25"), self.url(parcel))
+        form = response.context["payment_form"]
+        self.assertFalse(form.fields["reference"].required)
+        self.assertNotIn("verification_reference", form.fields)
+        self.assertContains(response, 'value="ONLINE"')
+        key = uuid.uuid4()
+        payload = dict(amount="25", method="ONLINE", reference="", idempotency_key=key)
+        self.assertRedirects(self.pay(parcel, invoice, **payload), self.url(parcel))
+        receipt = InvoicePayment.objects.get()
+        self.assertEqual(receipt.method, "ONLINE")
+        self.assertEqual(receipt.verification_reference, "")
+        self.assertEqual(receipt.reference, f"RECEIPT-{str(key).upper()}")
+        self.assertEqual(receipt.recorded_by, self.user)
+        self.assertRedirects(self.pay(parcel, invoice, **payload), self.url(parcel))
         self.assertEqual(InvoicePayment.objects.count(), 1)
+        self.assertEqual(self.pay(parcel, invoice, **{**payload, "amount": "26"}).status_code, 200)
+        # Older open forms still work without evidence, and save the ordinary method.
+        self.assertRedirects(
+            self.pay(parcel, invoice, amount="75", method="VERIFIED_ONLINE", reference=""),
+            self.url(parcel),
+        )
+        balance = invoice_settlement(business=self.business, actor=self.user, invoice=invoice)
+        self.assertTrue(balance.settled)
+        self.assertEqual(balance.outstanding, 0)
+        self.assertEqual(set(invoice.payments.values_list("method", flat=True)), {"ONLINE"})
+        with self.assertRaises(ValidationError):
+            record_invoice_payment(
+                business=self.business,
+                actor=self.user,
+                invoice=invoice,
+                amount="1",
+                currency="USD",
+                method="CASH",
+                idempotency_key=uuid.uuid4(),
+            )
+        self.assertEqual(InvoicePayment.objects.count(), 2)
+
+    def test_invoice_payment_page_accepts_blank_reference_for_logistics(self):
+        parcel = self.parcel()
+        invoice = self.bill(self.charge(parcel=parcel, unit_price=100))
+        self.issue(invoice)
+        response = self.client.post(
+            reverse("invoice_payment_record", args=[invoice.pk]),
+            {"amount": "100", "method": "ONLINE", "idempotency_key": uuid.uuid4()},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(InvoicePayment.objects.get().verification_reference, "")
 
     def test_cross_location_combining_and_forged_issued_invoice_are_denied(self):
         from apps.accounts.models import TaskIOUser

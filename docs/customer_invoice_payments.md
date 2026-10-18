@@ -7,7 +7,7 @@ Customer accounting lives in `apps.billings`, using the existing Invoice, Invoic
 `InvoicePayment` is one append-only shared model for receipts, reversals and completed refunds. Every entry records:
 
 - Business and Invoice, positive Decimal amount and currency;
-- kind (`RECEIPT`, `REVERSAL`, `REFUND`), method (`CASH`, `BANK_TRANSFER`, `VERIFIED_ONLINE`), stable reference and optional external verification evidence;
+- kind (`RECEIPT`, `REVERSAL`, `REFUND`), method (`CASH`, `BANK_TRANSFER`, Logistics `ONLINE`, `VERIFIED_ONLINE`), stable reference and optional external verification evidence;
 - recording actor and server timestamp, idempotency UUID and Invoice total snapshot;
 - optional original receipt and a required adjustment/correction reason reference.
 
@@ -53,12 +53,20 @@ Authorized shared Invoice detail pages display settlement, net paid, outstanding
 | --- | --- | --- | --- |
 | OWNER / ADMIN / ACCOUNTANT | Authorized accounting Invoice scope, cash/bank and externally verified online | Same accounting scope, with reason/evidence | Existing financial read scope |
 | SERVICE STAFF | Existing authorized Invoice scope, cash/bank | Denied | Existing Invoice read scope |
-| Logistics STAFF | Only fully accessible Parcel-only Invoices at the active reviewed `can_operate` work location, cash/bank | Denied | Existing accessible Invoice scope; bounded accessible Parcel clearance |
+| Logistics STAFF | Only fully accessible Parcel-only Invoices at the active reviewed `can_operate` work location, cash/bank/online | Denied | Existing accessible Invoice scope; bounded accessible Parcel clearance |
 | Read-only assigned Logistics STAFF | Denied | Denied | Existing assigned read scope |
 | Unassigned/unreviewed Logistics STAFF | Denied | Denied | No Logistics finance access |
 | VIEWER | Denied | Denied | Existing read scope |
 
 Active tenant/user/membership and invoicing subscription/module checks apply to both UI and direct services. Logistics STAFF additionally retains Parcel module and complete-Invoice location checks. Accounting roles do not need operational work-site selection for accounting. Externally verified online entry requires an accounting role and an evidence reference checked outside Motionmate. It is an auditable manual attestation, not automated gateway verification. It cannot be selected by STAFF and uses no SaaS Stripe credentials or subscriptions.
+
+Logistics receipt forms offer Cash, Bank transfer and Online payment to authorized
+operators, including STAFF. Online payment records an ordinary receipt without
+external verification evidence. Receipt references are optional for Logistics;
+when omitted, the service generates `RECEIPT-<retry UUID>`, retaining retry and
+reference uniqueness. Older open Logistics forms posting `VERIFIED_ONLINE` save
+as `ONLINE`. SERVICE receipt requirements and accounting adjustment permissions
+remain unchanged. Full payment establishes settlement through the existing ledger.
 
 Cross-tenant Invoice/payment/adjustment relationships are rejected. If trusted maintenance creates inconsistent history, balance projections flag review and suppress unsafe receipt details rather than exposing another tenant's reference or using its amount as the Invoice basis. Trusted raw SQL/platform maintenance remains outside the ordinary domain-write boundary; database row-level security is not introduced.
 

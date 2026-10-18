@@ -23,18 +23,18 @@
           <div class="card-body">
             <h4 class="mb-3">Route</h4>
             <div class="row g-3">
-              {% include 'logistics/includes/form_field.html' with field=form.origin column_class='col-12 col-md-6' %}
-              {% include 'logistics/includes/form_field.html' with field=form.destination column_class='col-12 col-md-6' %}
+              {% include 'logistics/includes/form_field.html' with field=form.transport_mode column_class='col-12' %}
           {% include 'logistics/includes/route_location_fields.html' %}
             </div>
           </div>
         </div>
+        <details class="mb-4" data-additional-details><summary class="fw-semibold mb-3">Additional details</summary>
         <div class="card mb-4 mobile-shipment-transport">
           <div class="card-body">
-            <h4 class="mb-3">Transportation details</h4>
-            <p class="text-body-secondary fs-9">References are optional. Use the fields for the selected transportation mode.</p>
+            <h4 class="mb-3">Transport references</h4>
+
             <div class="row g-3">
-              {% include 'logistics/includes/form_field.html' with field=form.transport_mode column_class='col-12 col-md-6' %}
+              {% for field in form.route_reference_fields %}{% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}{% endfor %}
               {% include 'logistics/includes/form_field.html' with field=form.carrier_name column_class='col-12 col-md-6' %}
             </div>
             <noscript><p class="mt-3 mb-2 text-body-secondary fs-9">After changing the mode, update the fields before saving. Your entries will be kept.</p><button class="btn btn-phoenix-secondary" type="submit" name="refresh_transport_fields" value="1" formnovalidate>Update transportation fields</button></noscript>
@@ -65,6 +65,7 @@
             </div>
           </div>
         </div>
+        </details>
         {% if form.parcel %}
         <div class="card mb-4 mobile-shipment-assignment">
           <div class="card-body">

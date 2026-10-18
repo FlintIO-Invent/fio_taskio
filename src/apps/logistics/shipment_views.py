@@ -13,6 +13,7 @@ from apps.businesses.utils import business_module_required, business_role_requir
 
 from .billing_views import billing_context
 from .location_access import can_operate_record
+from .location_reference import ROUTE_LOCATION_FIELDS
 from .models import Shipment
 from .parcel_services import parcels_for_business
 from .shipment_forms import (
@@ -38,6 +39,7 @@ from .shipment_services import (
     shipments_for_business,
     update_shipment,
 )
+from .shipment_transport import parcel_mode
 
 
 def _get_shipment(request, shipment_id):
@@ -183,10 +185,17 @@ def shipment_create(request):
     if continuation and request.method == "GET":
         parcel = continuation
     initial = (
-        {"parcel": parcel, "origin": parcel.origin, "destination": parcel.destination}
+        {
+            "parcel": parcel,
+            "origin": parcel.origin,
+            "destination": parcel.destination,
+            **{name: getattr(parcel, name) for name in ROUTE_LOCATION_FIELDS},
+        }
         if parcel
         else None
     )
+    if parcel and parcel_mode(parcel.mode_of_transport):
+        initial["transport_mode"] = parcel_mode(parcel.mode_of_transport)
     refresh_fields = request.method == "POST" and "refresh_transport_fields" in request.POST
     form = ShipmentForm(
         request.POST if request.method == "POST" and not refresh_fields else None,

@@ -377,8 +377,12 @@ class ParcelTests(TestCase):
         self.assertEqual(Parcel.objects.count(), 0)
 
     def test_staff_ui_registration_detail_update_and_replay(self):
+        self.business.country = "SX"
+        self.business.save(update_fields=["country"])
         data = {
             **self.fields,
+            "origin_country_code": "SX",
+            "destination_country_code": "SX",
             "client": self.customer.pk,
             "idempotency_key": str(uuid.uuid4()),
             "business": self.other.pk,

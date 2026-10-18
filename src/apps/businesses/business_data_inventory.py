@@ -12,7 +12,16 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.appointments.models import Appointment
-from apps.billings.models import Invoice, InvoiceLine, InvoicePayment
+from apps.billings.models import (
+    Invoice,
+    InvoiceCancellationCredit,
+    InvoiceLine,
+    InvoiceObligationShare,
+    InvoicePayment,
+    InvoiceReceiptShare,
+    InvoiceRefundAllocation,
+    ParcelCancellationSettlement,
+)
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
 from apps.logistics.models import (
     LogisticsApplication,
@@ -537,6 +546,24 @@ DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
         InventoryClassification.PROTECT_BLOCKER,
         True,
         True,
+    ),
+    *(
+        InventoryRegistration(
+            f"customer_cancellation_{key}",
+            f"billings.{model}",
+            "business",
+            f"Business.{model}",
+            InventoryClassification.PROTECT_BLOCKER,
+            True,
+            True,
+        )
+        for key, model in (
+            ("obligations", "InvoiceObligationShare"),
+            ("receipts", "InvoiceReceiptShare"),
+            ("settlements", "ParcelCancellationSettlement"),
+            ("credits", "InvoiceCancellationCredit"),
+            ("refunds", "InvoiceRefundAllocation"),
+        )
     ),
 )
 
@@ -1425,6 +1452,15 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
         )
     )
     for model, owner, field, related_owner in (
+        (InvoiceObligationShare, "business_id", "line", "invoice__business_id"),
+        (InvoiceObligationShare, "business_id", "parcel", "business_id"),
+        (InvoiceReceiptShare, "business_id", "receipt", "business_id"),
+        (InvoiceReceiptShare, "business_id", "obligation", "business_id"),
+        (ParcelCancellationSettlement, "business_id", "parcel", "business_id"),
+        (InvoiceCancellationCredit, "business_id", "settlement", "business_id"),
+        (InvoiceCancellationCredit, "business_id", "obligation", "business_id"),
+        (InvoiceRefundAllocation, "business_id", "refund", "business_id"),
+        (InvoiceRefundAllocation, "business_id", "credit", "business_id"),
         (InvoicePayment, "business_id", "invoice", "business_id"),
         (InvoicePayment, "business_id", "original", "business_id"),
         (LogisticsCreditApproval, "business_id", "parcel", "business_id"),

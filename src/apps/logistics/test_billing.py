@@ -27,6 +27,22 @@ class LogisticsBillingTests(TestCase):
     parcel = fixtures.ShipmentTests.parcel
     shipment = fixtures.ShipmentTests.shipment
 
+    def test_charge_quantity_uses_whole_units(self):
+        data = {
+            "charge_type": "custom",
+            "description": "Handling",
+            "unit_price": "10",
+            "quantity": "1",
+            "idempotency_key": uuid.uuid4(),
+        }
+        form = LogisticsChargeForm(data, business=self.business)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.fields["quantity"].widget.attrs["step"], "1")
+        for quantity in ("0", "0.01", "1.5"):
+            form = LogisticsChargeForm({**data, "quantity": quantity}, business=self.business)
+            self.assertFalse(form.is_valid())
+            self.assertIn("quantity", form.errors)
+
     def saved_service(self, business=None, **fields):
         return BusinessService.objects.create(
             business=business or self.business,
