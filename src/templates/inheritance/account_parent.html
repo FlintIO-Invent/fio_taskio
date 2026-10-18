@@ -90,8 +90,8 @@
                                             <a class="nav-link" href="{% url 'agent_dashboard' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
-                                            <a class="nav-link" href="{% url 'saas_profile' %}">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text"> {{ request.user.first_name }}'s  Profile</span></div>
+                                            <a class="nav-link" href="{% url 'business_settings' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
@@ -706,7 +706,7 @@
                                 <div class="overflow-auto scrollbar" style="height: 10rem;">
                                     <ul class="nav d-flex flex-column mb-2 pb-1">
                                         <li class="nav-item">
-                                            <a class="nav-link px-3 d-block" href="#!"> <span class="me-2 text-body align-bottom" data-feather="user"></span><span>Profile</span></a>
+                                            <a class="nav-link px-3 d-block" href="{% url 'business_settings' %}#my-account"> <span class="me-2 text-body align-bottom" data-feather="user"></span><span>My account</span></a>
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link px-3 d-block" href="#!"><span class="me-2 text-body align-bottom" data-feather="pie-chart"></span>Dashboard</a>

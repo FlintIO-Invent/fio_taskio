@@ -589,6 +589,18 @@ class BusinessInvitationForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.business = business
         self.membership = membership
+        if business.vertical == Business.Vertical.LOGISTICS:
+            from apps.logistics.models import LogisticsLocation
+
+            self.fields["location"] = forms.ModelChoiceField(
+                queryset=LogisticsLocation.objects.filter(business=business, is_active=True),
+                required=False,
+                widget=forms.Select(attrs={"class": "form-select"}),
+                help_text=(
+                    "Optional location access. Operational writes require separate approval "
+                    "in Logistics location access. For admins this sets work context only."
+                ),
+            )
         self.assignable_roles = set(get_assignable_business_roles(membership)) & (
             _plan_allowed_invitation_roles(business)
         )

@@ -1461,6 +1461,13 @@ class BusinessInvitation(TimeStampedModel):
         related_name="invitations",
     )
     email = models.EmailField()
+    location = models.ForeignKey(
+        "logistics.LogisticsLocation",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="team_invitations",
+    )
     role = models.CharField(
         max_length=20,
         choices=BusinessUser.Role.choices,
@@ -1494,6 +1501,18 @@ class BusinessInvitation(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.email} -> {self.business} ({self.get_status_display()})"
+
+    def clean(self):
+        super().clean()
+        if self.location_id:
+            from apps.logistics.models import LogisticsLocation
+
+            if not LogisticsLocation.objects.filter(
+                pk=self.location_id,
+                business_id=self.business_id,
+                business__vertical=Business.Vertical.LOGISTICS,
+            ).exists():
+                raise ValidationError({"location": "Select a Logistics location in this workspace."})
 
     @capacity_guard
     def save(self, *args, **kwargs):

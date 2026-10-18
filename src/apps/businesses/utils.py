@@ -1120,6 +1120,19 @@ def expire_business_invitation_if_needed(invitation: BusinessInvitation) -> bool
     return invitation.status == BusinessInvitation.Status.EXPIRED
 
 
+def _validated_invitation_location(business, location):
+    if location is None:
+        return None
+    from apps.logistics.models import LogisticsLocation
+
+    site = LogisticsLocation.objects.select_for_update().filter(
+        pk=getattr(location, "pk", location), business=business, is_active=True
+    ).first()
+    if business.vertical != Business.Vertical.LOGISTICS or site is None:
+        raise ValueError("Select an active Logistics location in this workspace.")
+    return site
+
+
 @transaction.atomic
 def create_or_refresh_business_invitation(
     *,
@@ -1128,12 +1141,14 @@ def create_or_refresh_business_invitation(
     role: str,
     invited_by,
     expiry_days: int = 7,
+    location=None,
 ) -> tuple[BusinessInvitation, bool]:
     normalized_email = email.strip().lower()
     if business.vertical == Business.Vertical.LOGISTICS:
         from .usage_limits import lock_capacity_scope
 
         lock_capacity_scope(business.pk)
+    location = _validated_invitation_location(business, location)
     expires_at = timezone.now() + timedelta(days=expiry_days)
     invitation = (
         BusinessInvitation.objects.filter(
@@ -1152,7 +1167,8 @@ def create_or_refresh_business_invitation(
         invitation.role = role
         invitation.invited_by = invited_by
         invitation.expires_at = expires_at
-        invitation.save(update_fields=["role", "invited_by", "expires_at", "updated_at"])
+        invitation.location = location
+        invitation.save(update_fields=["role", "invited_by", "expires_at", "location", "updated_at"])
         return invitation, False
 
     invitation = BusinessInvitation.objects.create(
@@ -1163,6 +1179,7 @@ def create_or_refresh_business_invitation(
         invited_by=invited_by,
         status=BusinessInvitation.Status.PENDING,
         expires_at=expires_at,
+        location=location,
     )
     return invitation, True
 
@@ -1190,6 +1207,8 @@ def accept_business_invitation_for_user(
 
     if (getattr(user, "email", "") or "").strip().lower() != invitation.email.lower():
         raise ValueError("This invitation must be accepted with the invited email address.")
+
+    location = _validated_invitation_location(invitation.business, invitation.location_id)
 
     membership = BusinessUser.objects.filter(
         user=user,
@@ -1220,6 +1239,24 @@ def accept_business_invitation_for_user(
         membership.role = invitation.role
         membership.is_active = True
         membership.save(update_fields=["role", "is_active", "updated_at"])
+
+    if location is not None and not already_member:
+        from apps.logistics.location_access import WIDE_ROLES
+        from apps.logistics.models import LogisticsLocationAssignment
+
+        # Existing grants and current work locations are never overwritten by an invite.
+        LogisticsLocationAssignment.objects.get_or_create(
+            business=invitation.business,
+            membership=membership,
+            location=location,
+            defaults={
+                "can_operate": False,
+                "is_work_context": membership.role in WIDE_ROLES,
+                "is_current": not membership.logistics_location_assignments.filter(
+                    is_current=True
+                ).exists(),
+            },
+        )
 
     invitation.status = BusinessInvitation.Status.ACCEPTED
     invitation.accepted_at = timezone.now()

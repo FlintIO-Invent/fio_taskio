@@ -15,8 +15,10 @@
       <h2 class="mb-2 text-body-emphasis">Service Categories</h2>
       <p class="text-body-tertiary mb-0">These categories are available only to {{ business.name }} on staff and online booking forms.</p>
     </div>
-    <div class="col-auto d-flex gap-2">
+    <div class="col-auto d-flex flex-wrap gap-2">
       <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Back to settings</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Services &amp; Categories</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Upload categories and services</a>
       <a class="btn btn-primary" href="{% url 'business_service_category_create' %}">Create category</a>
     </div>
   </div>
