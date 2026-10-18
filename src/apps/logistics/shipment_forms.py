@@ -5,7 +5,7 @@ from django.db.models import Q
 
 from .classification import TransportationMode
 from .dashboard_forms import style_dashboard_fields
-from .location_forms import configure_route_fields
+from .location_forms import clean_route_fields, configure_route_fields
 from .location_reference import ROUTE_LOCATION_FIELDS
 from .models import Parcel, Shipment
 from .shipment_policy import ALLOWED_TRANSITIONS, ASSIGNABLE_PARCEL_STATUSES
@@ -131,47 +131,42 @@ class ShipmentForm(forms.ModelForm):
                 key = None
             self.mode_replay = str(key) in replay_shipment.write_receipts
         configured = configured_shipment_modes(business)
-        modes = (
-            TransportationMode.values
-            if self.mode_replay
-            else configured or TransportationMode.values
-        )
+        modes = TransportationMode.values if self.mode_replay else configured
         choices = [
             (value, label)
             for value, label in TransportationMode.choices
             if value in modes or value == self.previous_mode
         ]
         mode_field = self.fields["transport_mode"]
+        mode_field.label = "Transport mode"
         mode_field.required = bool(configured) and not (
             self.mode_replay
             or self.mode_existing
             and (self.previous_mode is None or self.is_bound and "transport_mode" not in self.data)
         )
         mode_field.choices = [
-            ("", "Select transportation mode" if mode_field.required else "Unknown")
+            ("", "Select transport mode" if mode_field.required else "Unknown")
         ] + choices
         if not self.mode_existing and len(configured) == 1:
             self.initial.setdefault("transport_mode", configured[0])
-        mode_field.help_text = (
-            "Choose a workspace transportation mode. Saved historical modes can be retained."
-            if configured
-            else "Optional. Workspace transportation modes are not configured; leave unknown if unsure."
-        )
+        mode_field.help_text = ""
         if allow_assignment:
             self.fields["parcel"].queryset = eligible_parcels(business, replay_shipment, actor)
             style_parcel_selection(self.fields["parcel"])
         else:
             self.fields.pop("parcel")
         configure_route_fields(self, business, actor)
-        self.fields["origin_location"].label = "Departure company facility"
-        self.fields["destination_location"].label = "Arrival company facility"
         style_dashboard_fields(self.fields)
         self.fields["origin"].widget.attrs.update({"placeholder": "e.g. Miami", "autofocus": True})
         self.fields["destination"].widget.attrs["placeholder"] = "e.g. Curaçao"
 
     @property
     def route_location_fields(self):
-        return [self[name] for name in ROUTE_LOCATION_FIELDS]
+        return [self[name] for name in ROUTE_LOCATION_FIELDS[:4]]
+
+    @property
+    def route_reference_fields(self):
+        return [self[name] for name in ROUTE_LOCATION_FIELDS[4:]]
 
     def clean_transport_mode(self):
         if self.mode_replay:
@@ -190,7 +185,7 @@ class ShipmentForm(forms.ModelForm):
             raise forms.ValidationError(exc.messages) from exc
 
     def clean(self):
-        data = super().clean()
+        data = clean_route_fields(self, super().clean())
         for name in SHIPMENT_REFERENCE_FIELDS:
             if name in data:
                 data[name] = normalize_reference(data[name])

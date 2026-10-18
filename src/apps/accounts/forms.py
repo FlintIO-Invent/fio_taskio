@@ -750,6 +750,28 @@ class SaaSBasicInfoForm(forms.ModelForm):
         return email
 
 
+class PersonalAccountForm(SaaSBasicInfoForm):
+    """Personal fields for the unified settings page; keep older values intact."""
+
+    class Meta(SaaSBasicInfoForm.Meta):
+        fields = ["first_name", "last_name", "email", "phone", "date_of_birth", "address"]
+        labels = {
+            "email": "Sign-in email",
+            "phone": "Personal phone",
+            "address": "Personal address",
+        }
+        widgets = {
+            **SaaSBasicInfoForm.Meta.widgets,
+            "address": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Your personal mailing address",
+                }
+            ),
+        }
+
+
 class SaaSWorkspaceSettingsForm(forms.ModelForm):
     class Meta:
         model = SaaSUserProfile

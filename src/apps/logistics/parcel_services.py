@@ -20,6 +20,7 @@ from .location_operations import operation_location, validate_transition_locatio
 from .location_reference import ROUTE_LOCATION_FIELDS, exact_country_code
 from .models import Parcel, ParcelEvent, Shipment, generate_tracking_code
 from .parcel_policy import ALLOWED_TRANSITIONS, PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
+from .shipment_transport import validate_parcel_transport
 
 PARCEL_INPUT_FIELDS = (
     "internal_reference",
@@ -205,6 +206,7 @@ def register_parcel(*, business, client, actor, idempotency_key=None, **fields):
             raise ValidationError("This retry key was already used for a different operation.")
         require_record_operation(previous, business=current, actor=actor)
         return previous
+    validate_parcel_transport(parcel)
     _insert_registered_parcel(parcel)
     ParcelEvent(
         business=current,
@@ -242,9 +244,11 @@ def edit_parcel(*, business, parcel, actor, expected_updated_at=None, **fields):
         raise ValidationError("Parcel client is unavailable in this workspace.")
     require_route_edit(locked, fields, business=current, actor=actor)
     previous = {name: getattr(locked, name) for name in fields}
+    previous_parcel = Parcel.objects.get(pk=locked.pk, business=current)
     for name, value in fields.items():
         setattr(locked, name, value)
     locked.full_clean()
+    validate_parcel_transport(locked, previous_parcel)
     changed = [name for name in fields if previous[name] != getattr(locked, name)]
     # An identical retry needs neither another write nor another history event.
     if not changed:

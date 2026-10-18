@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from apps.accounts.forms import PersonalAccountForm
 from apps.notifications.emails import send_business_invitation_email
 from helpers import build_public_url
 
@@ -59,6 +60,7 @@ from .utils import (
     MULTI_WORKSPACE_EMAIL_MESSAGE,
     SAME_WORKSPACE_EMAIL_MESSAGE,
     assign_business_subscription_plan,
+    business_can_modify_workspace,
     business_limit_reached,
     business_module_required,
     business_role_required,
@@ -73,6 +75,7 @@ from .utils import (
     get_business_subscription,
     get_business_usage_count,
     get_current_business,
+    get_current_business_membership,
     get_other_active_business_membership_for_email,
     get_public_booking_share_context,
     redirect_for_unavailable_business_module,
@@ -344,32 +347,56 @@ def business_setup(request: HttpRequest) -> HttpResponse:
     return render(request, "businesses/setup_required.html", {})
 
 
-@business_role_required(BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
-@business_workspace_access_required()
+@login_required(login_url="business_login")
 @require_http_methods(["GET", "POST"])
 def business_settings(request: HttpRequest) -> HttpResponse:
-    business = request.current_business
-    membership = request.current_business_membership
+    business = get_current_business(request)
+    membership = get_current_business_membership(request)
+    manages_business = bool(
+        membership and membership.role in (BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+    )
+    can_edit_business = manages_business and business_can_modify_workspace(business)
+    account_form = PersonalAccountForm(instance=request.user, prefix="account")
+    form = BusinessSettingsForm(instance=business) if can_edit_business else None
 
     if request.method == "POST":
-        form = BusinessSettingsForm(request.POST, instance=business)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Business settings updated.")
-            return redirect("business_settings")
-    else:
-        form = BusinessSettingsForm(instance=business)
+        section = request.POST.get("section", "business")
+        if section == "account":
+            account_form = PersonalAccountForm(
+                request.POST, instance=request.user, prefix="account"
+            )
+            if account_form.is_valid():
+                account_form.save()
+                messages.success(request, "Personal details updated.")
+                return redirect(f"{reverse('business_settings')}#my-account")
+        elif section == "business":
+            if not manages_business:
+                raise PermissionDenied("Only owners and admins can update business settings.")
+            if not can_edit_business:
+                return redirect_for_unavailable_workspace_access(request)
+            form = BusinessSettingsForm(request.POST, instance=business)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Business settings updated.")
+                return redirect("business_settings")
+        else:
+            return HttpResponse("Unknown settings section.", status=400)
 
     context = {
         "business": business,
         "membership": membership,
         "form": form,
+        "account_form": account_form,
+        "can_edit_business_settings": can_edit_business,
+        "booking_availability_allowed": bool(
+            business and business.has_capability("booking_availability")
+        ),
     }
-    if business.vertical == Business.Vertical.LOGISTICS:
+    if can_edit_business and business.vertical == Business.Vertical.LOGISTICS:
         from apps.logistics.models import LogisticsProfile
 
         context["logistics_profile"] = LogisticsProfile.objects.filter(business=business).first()
-    if business.has_capability("services"):
+    if can_edit_business and business.has_capability("services"):
         context.update(
             {
                 "service_category_count": business.service_categories.count(),
@@ -798,12 +825,17 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
                 messages.error(request, get_business_limit_reached_message(business, "users"))
                 return redirect("business_team_members")
 
-            invitation, created = create_or_refresh_business_invitation(
-                business=business,
-                email=invite_email,
-                role=invite_form.cleaned_data["role"],
-                invited_by=request.user,
-            )
+            try:
+                invitation, created = create_or_refresh_business_invitation(
+                    business=business,
+                    email=invite_email,
+                    role=invite_form.cleaned_data["role"],
+                    invited_by=request.user,
+                    location=invite_form.cleaned_data.get("location"),
+                )
+            except ValueError as exc:
+                messages.error(request, str(exc))
+                return redirect("business_team_members")
             accept_url = build_public_url(
                 reverse("accept_business_invitation", args=[invitation.token]),
                 request=request,
@@ -834,7 +866,7 @@ def business_team_members(request: HttpRequest) -> HttpResponse:
         invite_form = BusinessInvitationForm(business=business, membership=membership)
 
     pending_invitations = list(
-        business.invitations.select_related("invited_by").filter(
+        business.invitations.select_related("invited_by", "location").filter(
             status=BusinessInvitation.Status.PENDING,
         )
     )

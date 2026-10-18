@@ -99,11 +99,9 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Team Members</span></div>
                                                 </a>
                                             {% endif %}
-                                            {% if role_access.can_manage_business_settings and workspace_can_modify %}
                                                 <a class="nav-link" href="{% url 'business_settings' %}" data-onboarding-target="business-settings">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                                 </a>
-                                            {% endif %}
                                             {% if module_capabilities.services and role_access.can_manage_services %}
                                                 <a class="nav-link" href="{% url 'business_service_list' %}" data-onboarding-target="services">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Services</span></div>
@@ -415,11 +413,9 @@
                                     <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'agent_dashboard' %}">
                                         <span data-feather="grid" style="width: 16px; height: 16px;"></span>Dashboard
                                     </a>
-                                    {% if role_access.can_manage_business_settings and workspace_can_modify %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_settings' %}">
                                           <span data-feather="settings" style="width: 16px; height: 16px;"></span>Business Settings
                                       </a>
-                                    {% endif %}
                                     {% if role_access.can_manage_subscription or role_access.can_view_logistics_usage %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_subscription' %}">
                                           <span data-feather="layers" style="width: 16px; height: 16px;"></span>Subscription
@@ -435,7 +431,7 @@
                                           <span data-feather="users" style="width: 16px; height: 16px;"></span>Team
                                       </a>
                                     {% endif %}
-                                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'password_change' %}">
+                                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_settings' %}#security">
                                         <span data-feather="lock" style="width: 16px; height: 16px;"></span>Change Password
                                     </a>
                                 </div>

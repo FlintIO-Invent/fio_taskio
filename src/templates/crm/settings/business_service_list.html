@@ -20,13 +20,13 @@
       <h2 class="mb-2 text-body-emphasis">Services & Categories</h2>
       <p class="text-body-tertiary mb-0">Review priced services and the categories they use in one place for {{ business.name }}.</p>
     </div>
-    <div class="col-auto d-flex gap-2">
+    <div class="col-auto d-flex flex-wrap gap-2">
       {% if workspace_can_modify %}
         <a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Back to settings</a>
       {% endif %}
       <a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}">Sample CSV</a>
       {% if workspace_can_modify %}
-        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Import CSV</a>
+        <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Upload categories and services</a>
         <a class="btn btn-phoenix-secondary" href="{% url 'business_service_category_create' %}">Create category</a>
         <a class="btn btn-primary" href="{% url 'business_service_create' %}">Create service</a>
       {% endif %}

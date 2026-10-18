@@ -62,6 +62,7 @@ class FinancialState(StrEnum):
     UNPAID = "UNPAID"
     UNINVOICED = "UNINVOICED"
     CREDIT_APPROVED = "CREDIT_APPROVED"  # Reserved for an authoritative Block 06 approval.
+    REFUND_DUE = "REFUND_DUE"
     UNKNOWN = "UNKNOWN"
 
 
@@ -547,6 +548,9 @@ class _Graph:
             "total": balance.total,
             "net_paid": balance.net_paid,
             "outstanding": balance.outstanding,
+            "adjusted_total": balance.adjusted_total,
+            "credits": balance.credits,
+            "refund_due": balance.refund_due,
             "settled": balance.settled and not self.invoice_issues[invoice.pk],
             "evidence_verified": not self.invoice_issues[invoice.pk],
             "shared": any(item.shipment_id for item in invoice.lines.all())
@@ -624,9 +628,13 @@ class _Graph:
                     issues.extend(self.invoice_issues[invoice.pk])
                     state = FinancialState.UNKNOWN
                 else:
+                    from apps.billings.cancellation_services import parcel_invoice_settled
+
+                    own_settled = parcel_invoice_settled(invoice, parcel.pk)
+                    effective_settled = balance.settled if own_settled is None else own_settled
                     state = (
                         FinancialState.PAID
-                        if balance.settled
+                        if effective_settled
                         else (
                             FinancialState.PARTIAL
                             if balance.net_paid > 0
@@ -724,6 +732,7 @@ class _Graph:
                     "UNINVOICED": "Not invoiced",
                     "UNKNOWN": "Unknown — review required",
                     "CREDIT_APPROVED": "Approved credit",
+                    "REFUND_DUE": "Refund due",
                 }[state.value]
                 if detailed
                 else None

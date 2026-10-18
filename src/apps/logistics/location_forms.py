@@ -4,7 +4,15 @@ from django import forms
 from django.db.models import Q
 
 from .dashboard_forms import style_dashboard_fields
-from .location_reference import ROUTE_LOCATION_FIELDS, country_choices, exact_country_code
+from .location_reference import (
+    ROUTE_LOCATION_FIELDS,
+    country_choices,
+    exact_country_code,
+    location_references,
+    operating_country_codes,
+    reference_choices,
+    reference_matches,
+)
 from .models import LogisticsLocation, Parcel, ParcelEvent, Shipment
 
 
@@ -37,7 +45,7 @@ class GeographicCountryChoiceField(forms.ChoiceField):
 
 
 def configure_route_fields(form, business, actor=None):
-    from .location_access import has_wide_access, locations_for, scope_records
+    from .location_access import has_wide_access, scope_records
 
     previous = form.instance if form.instance.pk else None
     if previous is None and form.is_bound and "idempotency_key" in form.fields:
@@ -82,42 +90,114 @@ def configure_route_fields(form, business, actor=None):
                 value = getattr(form.instance, f"{name}_id" if name.endswith("_location") else name)
                 data[key] = value if value is not None else ""
         form.data = data
+    from .location_access import assignments_for
+    from .shipment_transport import parcel_mode
+
+    current = assignments_for(business, actor).filter(is_current=True).first() if actor else None
+    if current is None and actor is not None and has_wide_access(business, actor):
+        from .models import LogisticsLocationAssignment
+
+        current = (
+            LogisticsLocationAssignment.objects.filter(
+                business=business,
+                membership__user=actor,
+                membership__is_active=True,
+                is_current=True,
+                location__business=business,
+                location__is_active=True,
+            )
+            .select_related("location")
+            .first()
+        )
+    if previous is None and current:
+        form.initial.setdefault("origin_location", current.location_id)
+        form.initial.setdefault("origin_country_code", current.location.country_code)
+    mode_name = "transport_mode" if "transport_mode" in form.fields else "mode_of_transport"
+    mode = parcel_mode(form[mode_name].value())
+    countries = operating_country_codes(business)
+    form.route_options = {
+        "references": [
+            {"value": code, "label": label, **location_references()[code]}
+            for code, label in reference_choices()
+        ]
+    }
     for side in ("origin", "destination"):
-        searchable(form.fields[f"{side}_country_code"], "Search countries and territories")
-        searchable(form.fields[f"{side}_reference_code"], "Search verified ports and airports")
+        country_name = f"{side}_country_code"
         field = f"{side}_location"
         saved = getattr(previous, f"{field}_id", None)
-        form.fields[field].queryset = LogisticsLocation.objects.filter(
-            Q(is_active=True) | Q(pk=saved),
-            business=business,
+        saved_country = getattr(previous, country_name, None)
+        choices = [
+            (code, name)
+            for code, name in country_choices()
+            if code in countries or code == saved_country
+        ]
+        country_field = form.fields[country_name]
+        country_field.choices = [("", "Select country / territory"), *choices]
+        country_field.required = previous is None and bool(countries)
+        searchable(country_field, "Search operating territories")
+        country_field.widget.attrs["data-route-country"] = side
+        country = form[country_name].value()
+        queryset = LogisticsLocation.objects.filter(
+            Q(is_active=True) | Q(pk=saved), business=business
         )
-        if actor is not None and not has_wide_access(business, actor):
-            form.fields[field].queryset = locations_for(business, actor)
+        if side == "origin" and actor is not None and not has_wide_access(business, actor):
             if form.instance.pk:
                 form.fields[field].disabled = True
-                form.fields[field].queryset = LogisticsLocation.objects.filter(
-                    Q(pk__in=locations_for(business, actor).values("pk")) | Q(pk=saved),
-                    business=business,
-                )
+                queryset = queryset.filter(pk=saved)
             else:
-                selected = (
-                    locations_for(business, actor)
-                    .filter(
-                        worker_assignments__membership__user=actor,
-                        worker_assignments__is_current=True,
-                    )
-                    .first()
-                )
-                if side == "origin" and selected:
-                    form.initial.setdefault(field, selected.pk)
-        searchable(form.fields[field], "Search this workspace's facilities")
-        form.fields[
-            field
-        ].help_text = "Optional. Destinations do not need a company facility. Saved inactive facilities can be retained."
-        form.fields[side].label = f"{side.title()} geographic place"
-        form.fields[
-            side
-        ].help_text = "Geographic place, separate from company facilities and street addresses."
+                queryset = queryset.filter(pk=current.location_id if current else None)
+        form.route_options[side] = [
+            {"value": str(item.pk), "label": str(item), "country_code": item.country_code}
+            for item in queryset
+        ]
+        if country:
+            queryset = queryset.filter(country_code=country)
+        elif side != "destination":
+            queryset = queryset.filter(pk=saved)
+        form.fields[field].queryset = queryset
+        form.fields[field].label = f"{side.title()} company facility"
+        form.fields[field].help_text = ""
+        form.fields[field].widget.attrs["data-route-facility"] = side
+        searchable(form.fields[field], "Search company facilities")
+        reference_names = [f"{side}_reference_code"]
+        if "mode_of_transport" in form.fields:
+            reference_names.append(
+                "port_load_unlocode" if side == "origin" else "port_discharge_unlocode"
+            )
+        for name in reference_names:
+            saved_reference = getattr(previous, name, "")
+            choices = [
+                (code, label)
+                for code, label in reference_choices()
+                if reference_matches(code, country, mode) or code == saved_reference
+            ]
+            if saved_reference and saved_reference not in dict(choices):
+                choices.append((saved_reference, f"{saved_reference} (saved value)"))
+            form.fields[name] = forms.ChoiceField(
+                required=False,
+                label=form.fields[name].label,
+                choices=[("", "None"), *choices],
+            )
+            form.fields[name].widget.attrs["data-route-reference"] = side
+            if saved_reference:
+                form.fields[name].widget.attrs["data-route-saved-reference"] = saved_reference
+            searchable(form.fields[name], "Search ports and airports")
+        form.fields[side].widget = forms.HiddenInput()
+        form.fields[side].required = False
+        form.fields[side].disabled = True
+        if previous:
+            form.initial[side] = getattr(previous, side)
+
+
+def clean_route_fields(form, data):
+    for side in ("origin", "destination"):
+        if not data.get(side):
+            facility = data.get(f"{side}_location")
+            country = data.get(f"{side}_country_code")
+            data[side] = facility.name if facility else dict(country_choices()).get(country, "")
+        if not data.get(side):
+            form.add_error(f"{side}_country_code", "Select a country or territory.")
+    return data
 
 
 class LogisticsLocationForm(forms.ModelForm):
@@ -152,9 +232,9 @@ class LogisticsLocationForm(forms.ModelForm):
         if self.instance.pk:
             self.fields["code"].disabled = True
             self.fields["country_code"].disabled = True
-        self.fields[
-            "reference_code"
-        ].help_text = "Optional verified UN/LOCODE. Leave blank if the reference list does not cover this facility."
+        self.fields["reference_code"].help_text = (
+            "Optional verified UN/LOCODE. Leave blank if the reference list does not cover this facility."
+        )
         style_dashboard_fields(self.fields)
         self.fields["is_active"].widget.attrs["class"] = "form-check-input"
 

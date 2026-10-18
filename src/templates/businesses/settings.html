@@ -4,23 +4,11 @@
 <div class="content">
   <div class="row g-3 mb-4 justify-content-between align-items-center">
     <div class="col-lg-8">
-      <h2 class="mb-2 text-body-emphasis">Workspace Settings</h2>
-      <p class="text-body-tertiary mb-0">Manage the business-level details, invoice defaults, and operational settings for your Motionmate workspace.</p>
+      <h2 class="mb-2 text-body-emphasis">Business Settings</h2>
+      <p class="text-body-tertiary mb-0">Manage your account and the settings available to your role in this Motionmate workspace.</p>
     </div>
-    <div class="col-auto d-flex gap-2">
-      {% if membership.role == "owner" or membership.role == "admin" %}
-        <a class="btn btn-phoenix-secondary" href="{% url 'business_team_members' %}">Team Members</a>
-        {% if module_capabilities.public_booking %}
-        <a class="btn btn-phoenix-secondary" href="{% url 'business_booking_settings' %}">Booking Settings</a>
-        {% endif %}
-      {% endif %}
-      {% if membership.role == "owner" %}
-        <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Subscription</a>
-      {% endif %}
-      {% if module_capabilities.services %}
-      <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Services</a>
-      {% endif %}
-      <a class="btn btn-phoenix-secondary" href="{% url 'saas_profile' %}">Account Profile</a>
+    <div class="col-auto d-flex flex-wrap gap-2">
+      <a class="btn btn-phoenix-secondary" href="#my-account">My account</a>
       <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
     </div>
   </div>
@@ -32,6 +20,66 @@
       </div>
     {% endfor %}
   {% endif %}
+
+  <section class="card mb-4" id="my-account" aria-labelledby="my-account-title">
+    <div class="card-body p-4">
+      <h3 class="h5" id="my-account-title">My account</h3>
+      <p class="text-body-tertiary">Personal details for your sign-in. Changes here apply only to your account.</p>
+      <form method="post" action="{% url 'business_settings' %}#my-account" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="section" value="account">
+        {{ account_form.non_field_errors }}
+        <div class="row g-3">
+          {% for field in account_form %}
+          <div class="{% if field.name == 'address' %}col-12{% else %}col-md-6{% endif %}">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors|striptags }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Save personal details</button>
+      </form>
+      <hr class="my-4">
+      <h4 class="h6" id="security">Security</h4>
+      <a class="btn btn-phoenix-secondary" href="{% url 'password_change' %}">Change password</a>
+    </div>
+  </section>
+
+  {% if can_edit_business_settings %}
+  <section class="card mb-4" aria-labelledby="configuration-title">
+    <div class="card-body">
+      <h3 class="h5" id="configuration-title">Business configuration</h3>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h4 class="h6">Company and team</h4>
+          <ul class="mb-0">
+            <li><a href="#business-details">Company details, address and regional defaults</a></li>
+            <li><a href="{% url 'business_team_members' %}">Team invitations and roles</a></li>
+            {% if business.vertical == 'LOGISTICS' %}
+            <li><a href="{% url 'logistics_location_settings' %}">Operating locations</a></li>
+            <li><a href="{% url 'logistics_location_access' %}">Location access and Logistics configuration</a></li>
+            {% endif %}
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h4 class="h6">Services, invoicing and payments</h4>
+          <ul class="mb-0">
+            {% if module_capabilities.services %}
+            <li><a href="{% url 'business_service_list' %}">Services and categories</a> · <a href="{% url 'business_service_import' %}">Upload categories and services</a></li>
+            {% endif %}
+            {% if booking_availability_allowed %}
+            <li><a href="{% url 'business_booking_settings' %}">Booking rules and availability</a></li>
+            {% endif %}
+            <li><a href="#business-details">Invoice numbering, currency and tax defaults</a></li>
+            {% if membership.role == 'owner' %}
+            <li><a href="{% url 'business_subscription' %}">Subscription and Motionmate payment settings</a></li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
 
   {% if business.vertical == "LOGISTICS" %}
   <section class="card mb-4" aria-labelledby="logistics-profile-title">
@@ -47,91 +95,6 @@
   {% endif %}
 
   <div class="row g-3 mb-4">
-    <div class="col-12 col-xxl-8">
-      <div class="card border-0 overflow-hidden">
-        <div class="position-relative p-4 p-sm-5 motionmate-workspace-card" style="background: linear-gradient(135deg, #1d4ed8, #101828);">
-          <div class="row align-items-center g-4 position-relative">
-            <div class="col-auto">
-              <div class="avatar avatar-5xl border border-white border-opacity-25">
-                <div class="avatar-name rounded-circle fs-4 text-white" style="background-color: rgba(255,255,255,.14);">
-                  <span>{{ business.name|slice:":1"|upper }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="col">
-              <span class="badge badge-phoenix badge-phoenix-light mb-3">{{ membership.get_role_display }}</span>
-              <h2 class="text-white mb-1">{{ business.name }}</h2>
-              <p class="text-white text-opacity-75 mb-3">{{ business.email|default:"No business email configured yet." }}</p>
-              {% if business.formatted_address_lines %}
-                <p class="text-white text-opacity-75 mb-3">
-                  {% for line in business.formatted_address_lines %}
-                    {% if not forloop.first %}<br>{% endif %}{{ line }}
-                  {% endfor %}
-                </p>
-              {% endif %}
-              <div class="d-flex flex-wrap gap-4 text-white text-opacity-75">
-                <div>
-                  <div class="fs-10 text-uppercase">Workspace Name</div>
-                  <div class="fw-semibold text-white">{{ business.slug }}</div>
-                </div>
-                <div>
-                  <div class="fs-10 text-uppercase">Country</div>
-                  <div class="fw-semibold text-white">{{ business.country|default:"Not set" }}</div>
-                </div>
-                <div>
-                  <div class="fs-10 text-uppercase">Business Type</div>
-                  <div class="fw-semibold text-white">{{ business.business_type|default:"Not set" }}</div>
-                </div>
-                <div>
-                  <div class="fs-10 text-uppercase">Locale</div>
-                  <div class="fw-semibold text-white">{{ business.default_locale|default:"Not set" }}</div>
-                </div>
-                <div>
-                  <div class="fs-10 text-uppercase">Timezone</div>
-                  <div class="fw-semibold text-white">{{ business.timezone }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-12 col-xxl-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <h4 class="mb-3">Invoice Defaults</h4>
-          <div class="rounded-3 p-4 mb-4" style="background-color: #1d4ed812; border: 1px solid #1d4ed833;">
-            <div class="d-flex justify-content-between align-items-start mb-4">
-              <div>
-                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Preview Number</p>
-                <h4 class="mb-0">{{ business.invoice_prefix }}-{{ business.invoice_start_number }}</h4>
-              </div>
-              <span class="badge badge-phoenix badge-phoenix-primary">{{ business.currency }}</span>
-            </div>
-            <div class="d-flex justify-content-between">
-              <div>
-                <p class="text-body-tertiary fs-10 mb-1">{{ business.tax_label|default:"Tax" }} Rate</p>
-                <p class="mb-0 fw-semibold">{{ business.tax_rate }}%</p>
-              </div>
-              <div>
-                <p class="text-body-tertiary fs-10 mb-1">Tax Label</p>
-                <p class="mb-0 fw-semibold">{{ business.tax_label|default:"Tax" }}</p>
-              </div>
-              <div class="text-end">
-                <p class="text-body-tertiary fs-10 mb-1">Status</p>
-                <p class="mb-0 fw-semibold">{% if business.is_active %}Active{% else %}Inactive{% endif %}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="alert alert-info mb-0" role="alert">
-            Only workspace owners and admins can update these business-level settings.
-          </div>
-        </div>
-      </div>
-    </div>
-
     {% if module_capabilities.public_booking %}
     <div class="col-12">
       {% include "businesses/includes/public_booking_share_card.html" %}
@@ -139,63 +102,15 @@
     {% endif %}
   </div>
 
-  {% if module_capabilities.services %}
-  <div class="row g-3 mb-4">
-    <div class="col-12">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body p-4">
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div>
-              <h4 class="mb-1">Services & Categories</h4>
-              <p class="text-body-tertiary mb-0">{% if business.vertical == 'LOGISTICS' %}Manage reusable services and prices for parcel and shipment charges.{% else %}Manage priced services and the categories your team uses for requests, invoices, and bookings.{% endif %}</p>
-            </div>
-            <div class="d-flex gap-2">
-              <a class="btn btn-phoenix-secondary" href="{% url 'business_service_import' %}">Import CSV</a>
-              <a class="btn btn-primary" href="{% url 'business_service_list' %}">Manage services</a>
-            </div>
-          </div>
-
-          <div class="row g-3 mt-3">
-            <div class="col-sm-6 col-xl-3">
-              <div class="rounded-3 border p-3 h-100">
-                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Total Services</p>
-                <h3 class="mb-0">{{ business_service_count }}</h3>
-              </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-              <div class="rounded-3 border p-3 h-100">
-                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Active Services</p>
-                <h3 class="mb-0">{{ active_business_service_count }}</h3>
-              </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-              <div class="rounded-3 border p-3 h-100">
-                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Total Categories</p>
-                <h3 class="mb-0">{{ service_category_count }}</h3>
-              </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-              <div class="rounded-3 border p-3 h-100">
-                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Active Categories</p>
-                <h3 class="mb-0">{{ active_service_category_count }}</h3>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {% endif %}
-
+ 
   <div class="row g-4">
     <div class="col-12">
       <div class="card border-0 shadow-sm">
         <div class="card-body p-4 p-lg-5">
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
             <div>
-              <h4 class="mb-1">Business Details</h4>
-              <p class="text-body-tertiary mb-0">These settings apply to the current Motionmate workspace and will become the source of truth for workspace defaults.</p>
+              <h4 class="mb-1" id="business-details">Business Details</h4>
+              <p class="text-body-tertiary mb-0">These settings apply to the current Motionmate workspace.</p>
             </div>
             <span class="badge badge-phoenix badge-phoenix-primary">{{ membership.get_role_display }}</span>
           </div>
@@ -206,6 +121,7 @@
 
           <form method="POST" novalidate>
             {% csrf_token %}
+            <input type="hidden" name="section" value="business">
 
             <div class="row g-3">
               <div class="col-md-6">
@@ -233,7 +149,7 @@
                 {{ form.country }}
                 {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
               </div>
-              <div class="col-md-6">
+              <div class="col-md-6" id="invoice-defaults">
                 <label class="form-label" for="{{ form.currency.id_for_label }}">Currency</label>
                 {{ form.currency }}
                 {% if form.currency.errors %}<div class="invalid-feedback d-block">{{ form.currency.errors|striptags }}</div>{% endif %}
@@ -316,6 +232,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
 {% if business.vertical == 'LOGISTICS' %}{% include 'logistics/includes/scripts.html' %}{% endif %}
 {% endblock %}

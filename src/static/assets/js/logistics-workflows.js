@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+(() => {
+  // Form markup is ready here; route controls must work while dashboard vendors load.
   const shipmentForm = document.querySelector('[data-logistics-shipment-form]');
   if (shipmentForm) {
     const mode = shipmentForm.querySelector('[name="transport_mode"]');
@@ -7,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Keep error fields reachable and retain entered values when switching modes.
         group.hidden = group.dataset.shipmentReferenceMode !== mode.value &&
           !group.querySelector('.invalid-feedback.d-block');
+        group.querySelectorAll('input, select, textarea').forEach(field => { field.disabled = group.hidden; });
       });
     };
     updateReferences();
@@ -15,6 +17,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const parcelForm = document.querySelector('[data-logistics-parcel-form]');
   if (parcelForm) {
     const showFieldTab = field => {
+      if (field) parcelForm.dispatchEvent(new CustomEvent('parcel-wizard-reveal', {detail: field}));
+      const details = field?.closest('details');
+      if (details) details.open = true;
       const pane = field?.closest('.tab-pane');
       if (!pane || pane.classList.contains('active')) return;
       const trigger = parcelForm.querySelector(`[data-bs-target="#${pane.id}"]`);
@@ -49,22 +54,111 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   const selections = new Map();
-  document.querySelectorAll('[data-logistics-search-select]').forEach(select => {
-    if (window.Choices && !select.disabled) {
-      selections.set(select, new window.Choices(select, {
-        itemSelectText: '', allowHTML: false, shouldSort: false, searchEnabled: true,
-        searchResultLimit: 8,
-        searchPlaceholderValue: select.dataset.searchPlaceholder || 'Search',
-      }));
-      const search = select.closest('.choices')?.querySelector('input');
-      if (search) {
-        search.setAttribute('aria-label', `Search ${select.labels?.[0]?.textContent.trim() || 'options'}`);
-        search.setAttribute('autocapitalize', 'none');
-        search.setAttribute('spellcheck', 'false');
-        search.setAttribute('enterkeyhint', 'search');
+  let refreshRouteFields = () => {};
+  const enhanceSearchSelects = () => {
+    document.querySelectorAll('[data-logistics-search-select]').forEach(select => {
+      if (window.Choices && !select.disabled) {
+        selections.set(select, new window.Choices(select, {
+          itemSelectText: '', allowHTML: false, shouldSort: false, searchEnabled: true,
+          searchResultLimit: select.hasAttribute('data-route-facility') ? -1 : 8,
+          searchPlaceholderValue: select.dataset.searchPlaceholder || 'Search',
+        }));
+        const search = select.closest('.choices')?.querySelector('input');
+        if (search) {
+          search.setAttribute('aria-label', `Search ${select.labels?.[0]?.textContent.trim() || 'options'}`);
+          search.setAttribute('autocapitalize', 'none');
+          search.setAttribute('spellcheck', 'false');
+          search.setAttribute('enterkeyhint', 'search');
+        }
       }
-    }
-  });
+    });
+    refreshRouteFields();
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', enhanceSearchSelects, {once: true});
+  } else {
+    enhanceSearchSelects();
+  }
+
+  const routeData = document.getElementById('logistics-route-options');
+  if (routeData) {
+    const options = JSON.parse(routeData.textContent);
+    const form = routeData.closest('form');
+    const mode = form.querySelector('[name="transport_mode"], [name="mode_of_transport"]');
+    const replaceOptions = (select, rows, retainSaved) => {
+      if (!select || select.disabled) return;
+      const value = select.value;
+      const saved = Array.from(select.options).find(option => option.value === value);
+      const choices = [{value: '', label: 'None'}, ...rows];
+      if (retainSaved && value && !choices.some(row => row.value === value) && saved) {
+        choices.push({value, label: saved.textContent});
+      }
+      const selected = choices.some(row => row.value === value) ? value : '';
+      choices.forEach(row => { row.selected = row.value === selected; });
+      const enhanced = selections.get(select);
+      if (enhanced) {
+        enhanced.removeActiveItems();
+        enhanced.clearChoices();
+        enhanced.setChoices(choices, 'value', 'label', true);
+      } else {
+        select.replaceChildren(...choices.map(row => new Option(row.label, row.value, row.selected, row.selected)));
+      }
+    };
+    const update = (side, retainSaved = false, modeChange = false) => {
+      const country = form.querySelector(`[data-route-country="${side}"]`).value;
+      replaceOptions(form.querySelector(`[data-route-facility="${side}"]`),
+        options[side].filter(row => row.country_code === country || (!country && side === 'destination')),
+        side === 'destination' ? false : retainSaved);
+      const kind = {SEA: 'PORT', AIR: 'AIRPORT'}[mode.value.toUpperCase()];
+      const references = options.references.filter(row => row.country_code === country && row.types.includes(kind));
+      form.querySelectorAll(`[data-route-reference="${side}"]`).forEach(select => {
+        replaceOptions(select, references, retainSaved ||
+          (modeChange && select.value === select.dataset.routeSavedReference));
+      });
+    };
+    ['origin', 'destination'].forEach(side => {
+      update(side, true);
+      form.querySelector(`[data-route-country="${side}"]`).addEventListener('change', () => update(side));
+    });
+    const destination = form.querySelector('[data-route-facility="destination"]');
+    destination.addEventListener('change', () => {
+      const selected = options.destination.find(row => row.value === destination.value);
+      const country = form.querySelector('[data-route-country="destination"]');
+      if (!selected || country.value === selected.country_code) return;
+      const enhanced = selections.get(country);
+      if (enhanced) enhanced.setChoiceByValue(selected.country_code);
+      else country.value = selected.country_code;
+      country.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+    // Native form restoration may change a territory without firing change.
+    refreshRouteFields = () => ['origin', 'destination'].forEach(side => {
+      const country = form.querySelector(`[data-route-country="${side}"]`);
+      const value = country.value;
+      const enhanced = selections.get(country);
+      if (enhanced && enhanced.getValue(true) !== value) {
+        enhanced.removeActiveItems();
+        enhanced.setChoiceByValue(value);
+      }
+      update(side, true);
+    });
+    window.addEventListener('pageshow', refreshRouteFields);
+    const updateParcelReferences = () => {
+      if (!parcelForm) return;
+      const sea = mode.value.toUpperCase() === 'SEA';
+      parcelForm.querySelectorAll('[data-parcel-sea-reference]').forEach(group => {
+        group.hidden = !sea && !group.querySelector('.invalid-feedback.d-block');
+        group.querySelectorAll('input, select, textarea').forEach(field => { field.disabled = group.hidden; });
+      });
+    };
+    updateParcelReferences();
+    mode.addEventListener('change', () => {
+      ['origin', 'destination'].forEach(side => update(side, false, true));
+      updateParcelReferences();
+    });
+    form.querySelectorAll('[data-additional-details]').forEach(details => {
+      if (details.querySelector('.invalid-feedback.d-block')) details.open = true;
+    });
+  }
 
   document.querySelectorAll('[data-copy-tracking]').forEach(button => {
     button.addEventListener('click', async () => {
@@ -177,4 +271,4 @@ document.addEventListener('DOMContentLoaded', () => {
       button.disabled = false;
     }
   });
-});
+})();

@@ -16,17 +16,23 @@ require one when modes are configured; a single mode is preselected on the new
 form. Services enforce the same policy using persisted configuration at write
 time. They require an explicit mode rather than guessing an API caller's intent.
 
-When the profile has no known modes (including a missing profile or an operating
-area other than Transportation), all four modes are available optionally, with
-an explicit Unknown choice. This is the compatibility behavior for legacy
-customers. Parcels and Shipments remain available under the existing access rules.
+When the profile has no enabled modes, new forms offer only Unknown. New known
+modes must be enabled in the business Transportation Modes configuration. Existing
+saved modes, including unknown, remain editable without being changed. Parcels
+reuse `mode_of_transport`; no schema change or backfill is required. Assignment
+and mode changes reject incompatible known parcel/shipment modes.
 
 Existing shipments may retain their saved mode after profile changes, including
 unknown. Unrelated draft edits and lifecycle operations do not require mode
 correction. A changed mode must use the current configured choices, if known.
 Forms loaded before this field existed may omit it on edit; omission retains
 the saved value. Historical viewing, manifests, filters and inspection do not
-depend on the current profile. Geography is unrestricted.
+depend on the current profile. Route dropdowns use active business facilities
+and their territories, plus the business primary country. Saved historical route
+values are retained. Staff can choose all business destinations; origin and
+operational-site permission checks remain separate. Optional port/airport
+references and transport details live under collapsed Additional details.
+References are filtered by territory and mode in the form and validated on writes.
 
 Transactional services retain tenant authorization, revision checks and exact
 request receipts. Authorized replay is recognized before current profile policy;

@@ -1,4 +1,4 @@
-<div class="{{ column_class|default:'col-12' }}">
+<div {% if field.name == 'vessel_name' or field.name == 'voyage_no' or field.name == 'imo_no' or field.name == 'master_bl_no' or field.name == 'house_bl_no' %}data-parcel-sea-reference{% endif %} class="{{ column_class|default:'col-12' }}">
   {% if field.field.widget.input_type == 'checkbox' %}
   <div class="form-check">
     <label class="form-check-label" for="{{ field.id_for_label }}">{{ field }} <span>{{ field.label }}</span></label>

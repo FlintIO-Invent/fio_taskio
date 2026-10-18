@@ -169,7 +169,7 @@ class ParcelMetadataTests(TestCase):
         response = self.client.get(reverse("logistics_parcel_register"))
         for marker in (
             "vertical-tab",
-            "row g-5",
+            'data-parcel-wizard="entry"',
             "data-logistics-parcel-form",
             "data-parcel-client-form",
         ):

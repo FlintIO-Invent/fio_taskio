@@ -36,7 +36,7 @@ from .forms import (
     ParcelMetadataForm,
     ParcelRegistrationForm,
 )
-from .location_access import can_operate_record, lock_actor_membership
+from .location_access import can_operate_record, lock_actor_membership, membership_for
 from .models import LogisticsApplication, ParcelEvent
 from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 from .parcel_services import edit_parcel, parcels_for_business, record_parcel_event, register_parcel
@@ -324,6 +324,8 @@ def parcel_detail(request, parcel_id):
             "can_view_client": can_view_module(request.current_business, "crm"),
             "parcel_can_be_assigned": parcel.shipment_id is None
             and parcel.current_status in ASSIGNABLE_PARCEL_STATUSES,
+            "cancellation_can_manage": membership_for(request.current_business, request.user).role
+            in ("owner", "admin", "accountant"),
         },
     )
 

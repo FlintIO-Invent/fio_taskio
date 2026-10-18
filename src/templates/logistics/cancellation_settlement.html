@@ -1,0 +1,36 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<div class="content">
+  <a href="{% url 'logistics_parcel_detail' parcel.pk %}" class="btn btn-link px-0 mb-3">Back to Parcel</a>
+  <h2>Cancellation settlement</h2>
+  <p class="text-break">{{ parcel.tracking_code }} · {{ parcel.client }}</p>
+  <p class="text-body-secondary">Review the cancelled service and retained fees. Original financial records are preserved. Money is returned manually; record a completed refund after returning it.</p>
+  {% for message in messages %}<div class="alert alert-subtle-info">{{ message }}</div>{% endfor %}
+  {% if settlement_error %}<div class="alert alert-danger" role="alert">{{ settlement_error }}</div>{% endif %}
+  {% if settlement %}
+  <div class="alert alert-subtle-success">Settlement confirmed by {{ settlement.recorded_by }} · {{ settlement.recorded_at }} · {{ settlement.reason_reference }}</div>
+  {% for row in credits %}<div class="card mb-3"><div class="card-body">
+    <h3 class="fs-7">{{ row.credit.obligation.line.description }}</h3>
+    <p>Original Parcel obligation: {{ row.credit.obligation.currency }} {{ row.credit.obligation.total|floatformat:2 }} · Credit: {{ row.credit.total|floatformat:2 }} · Retained fee including tax: {{ row.retained|floatformat:2 }}</p>
+    <p><a href="{% url 'invoice_detail' row.invoice.pk %}">{{ row.invoice.invoice_number }}</a> · Full Invoice adjusted obligation: {{ row.balance.adjusted_total|floatformat:2 }} · Customer debt: {{ row.balance.outstanding|floatformat:2 }} · Refund due: {{ row.balance.refund_due|floatformat:2 }}</p>
+  </div></div>{% empty %}<p>Eligible uninvoiced charges have been voided. No invoiced obligations were credited.</p>{% endfor %}
+  {% for refund in refunds %}<div class="border rounded p-3 mb-3"><p>Refund available from receipt {{ refund.reference }}: {{ refund.currency }} {{ refund.due|floatformat:2 }}</p><a class="btn btn-primary" href="{{ refund.url }}">Record completed refund</a></div>{% endfor %}
+  {% elif form %}
+  <form method="post" class="card mb-4" novalidate><div class="card-body">
+    {% csrf_token %}{% include 'logistics/includes/form_errors.html' %}
+    <div class="row g-3">{% for field in form %}{% if field.is_hidden %}{{ field }}{% else %}{% include 'logistics/includes/form_field.html' %}{% endif %}{% endfor %}</div>
+    <button class="btn btn-primary mt-3" type="submit">Preview settlement</button>
+  </div></form>
+  {% endif %}
+  {% if preview %}
+  <section class="card mb-4" aria-label="Cancellation settlement preview"><div class="card-body">
+    <h3>Review before confirming</h3>
+    {% for charge in preview.voids %}<p>Void uninvoiced charge: {{ charge.description }} · {{ charge.currency_snapshot }} {{ charge.total|floatformat:2 }}. It cannot be invoiced later.</p>{% endfor %}
+    {% for row in preview.credits %}<p>{{ row.line.description }} · Original Parcel obligation: {{ row.total|floatformat:2 }} · Retained including tax: {{ row.retained|floatformat:2 }} · Credit including tax: {{ row.credit_total|floatformat:2 }}</p>{% endfor %}
+    {% for row in preview.invoices %}<p>{{ row.invoice.invoice_number }} ({{ row.invoice.currency_code }}) · Resulting full Invoice customer debt: {{ row.debt|floatformat:2 }} · Refund due: {{ row.refund_due|floatformat:2 }}</p>{% endfor %}
+    <p class="text-body-secondary">Confirmation records credits and voids. No money will be sent. Any refund due remains outstanding until a completed manual refund is recorded.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="confirmation" value="{{ confirmation }}"><button class="btn btn-danger" type="submit">Confirm cancellation settlement</button></form>
+  </div></section>
+  {% endif %}
+</div>
+{% endblock %}

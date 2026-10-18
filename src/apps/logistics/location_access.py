@@ -122,20 +122,12 @@ def require_creation_site(record, *, business, actor):
     if location is not None:
         if record.origin_location_id != location.pk:
             raise PermissionDenied("The origin facility must be your active work location.")
-        if (
-            not has_wide_access(business, actor)
-            and record.destination_location_id
-            and not locations_for(business, actor)
-            .filter(pk=record.destination_location_id)
-            .exists()
-        ):
-            raise PermissionDenied("Select an authorized destination facility.")
 
 
 def require_route_edit(record, fields, *, business, actor):
     if has_wide_access(business, actor):
         return
-    for name in ("origin_location", "destination_location"):
+    for name in ("origin_location",):
         if name in fields and getattr(fields[name], "pk", fields[name]) != getattr(
             record, name + "_id"
         ):

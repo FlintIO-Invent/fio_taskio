@@ -1,5 +1,8 @@
 {% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
 {% block content %}
+<link href="{% static 'assets/css/parcel-wizard.css' %}?v=20261018-2" rel="stylesheet">
+<noscript><style>.parcel-wizard .tab-pane { display: block; opacity: 1; margin-bottom: 2rem; } .parcel-wizard [role="tablist"] { display: none; }</style></noscript>
 <div class="content">
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
@@ -11,7 +14,7 @@
   <div class="row g-3 flex-between-end mb-5">
     <div class="col-auto">
       <h2 class="mb-2 text-body-emphasis">{{ title|title }}</h2>
-      {% if quick_client_form %}<p class="text-body-secondary">Find or add a Client, save the Parcel, then continue to charges, Invoice, optional payment and Shipment.</p>{% endif %}
+      {% if quick_client_form %}<p class="text-body-secondary">Start with the client and package, choose a route, then review before registering.</p>{% endif %}
       {% if parcel %}<p class="mb-2 text-body-secondary text-break">{{ parcel.tracking_code }} · {{ parcel.get_current_status_display }}</p>{% endif %}
       <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
     </div>
@@ -19,7 +22,26 @@
   <form method="post" class="mb-9" novalidate data-logistics-parcel-form data-cancel-confirmation="Cancel this parcel?"{% if can_prefill_shipping %} data-shipping-prefill-url="{% url 'logistics_shipping_prefill' %}"{% if parcel %} data-shipping-client-id="{{ parcel.client_id }}"{% endif %}{% endif %}>
     {% csrf_token %}
     {% include 'logistics/includes/form_errors.html' %}
+    <div class="alert alert-danger d-none" role="alert" tabindex="-1" data-parcel-browser-errors></div>
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+    {% if form.sections %}
+    <div class="card theme-wizard parcel-wizard" data-parcel-wizard="entry">
+      <div class="card-header bg-body-highlight border-bottom-0">
+        <nav aria-label="Parcel form steps" data-parcel-wizard-nav hidden>
+          <ol class="nav nav-wizard parcel-wizard-nav justify-content-between">
+            {% include 'logistics/includes/parcel_wizard_step.html' with target='parcel-basics' number='1' label='Client & package' %}
+            {% include 'logistics/includes/parcel_wizard_step.html' with target='parcel-route' number='2' label='Route' %}
+            {% include 'logistics/includes/parcel_wizard_step.html' with target='parcel-details' number='3' label='Details' %}
+            {% include 'logistics/includes/parcel_wizard_step.html' with target='parcel-review' number='4' label='Review' %}
+          </ol>
+        </nav>
+        <p class="small text-body-secondary mb-0 mt-3" data-parcel-wizard-status role="status"></p>
+      </div>
+      <div class="card-body">
+      <section id="parcel-basics" data-parcel-wizard-panel aria-labelledby="parcel-basics-title">
+        <h3 class="fs-7 mb-2" id="parcel-basics-title" tabindex="-1">Client &amp; package</h3>
+        <p class="text-body-secondary mb-4">Choose who this parcel belongs to and describe the package.</p>
+    {% endif %}
     {% if quick_client_form %}
       {% if not has_clients %}
       <div class="alert alert-subtle-info mb-4" data-no-clients>Add your first client before registering a parcel.</div>
@@ -31,9 +53,6 @@
         <p class="mb-0 text-body-secondary fs-9" role="status" data-client-selection-status>Search for an existing client or add one here.</p>
       </div>
     {% endif %}
-    <div class="alert alert-danger d-none" role="alert" tabindex="-1" data-parcel-browser-errors></div>
-    <div class="row g-5">
-      <div class="col-12 col-xl-8">
         {% if form.sections %}
         <div class="row g-3 mb-5">
           {% if form.client %}
@@ -42,13 +61,25 @@
           <div class="col-12"><p class="mb-0 text-body-secondary">Client: {{ parcel.client }}. The linked client and tracking code are fixed after registration.</p></div>
           {% endif %}
           {% include 'logistics/includes/form_field.html' with field=form.package_description %}
-          {% include 'logistics/includes/form_field.html' with field=form.origin column_class='col-12 col-md-6' %}
-          {% include 'logistics/includes/form_field.html' with field=form.destination column_class='col-12 col-md-6' %}
-          {% include 'logistics/includes/route_location_fields.html' %}
-          {% include 'logistics/includes/form_field.html' with field=form.quantity column_class='col-12 col-md-6' %}
-          {% include 'logistics/includes/form_field.html' with field=form.internal_reference column_class='col-12 col-md-6' %}
+          {% if form.quantity %}{% include 'logistics/includes/form_field.html' with field=form.quantity column_class='col-12 col-md-6' %}{% endif %}
         </div>
-        <h4 class="mb-3">Parcel information</h4>
+      </section>
+      <section id="parcel-route" data-parcel-wizard-panel aria-labelledby="parcel-route-title">
+        <h3 class="fs-7 mb-2" id="parcel-route-title" tabindex="-1">Route</h3>
+        <p class="text-body-secondary mb-4">Choose the transport mode and where the parcel is going.</p>
+        <div class="row g-3 mb-4">
+          {% include 'logistics/includes/form_field.html' with field=form.mode_of_transport column_class='col-12' %}
+          {% include 'logistics/includes/route_location_fields.html' %}
+        </div>
+      </section>
+      <section id="parcel-details" data-parcel-wizard-panel aria-labelledby="parcel-details-title">
+        <h3 class="fs-7 mb-2" id="parcel-details-title" tabindex="-1">Optional details</h3>
+        <p class="text-body-secondary mb-4">Add weight, shipping contacts, references or handling instructions. You can continue with these fields empty.</p>
+        <details class="mb-4" data-additional-details><summary class="fw-semibold mb-3">Additional details</summary>
+        <div class="row g-3 mb-4">
+          {% include 'logistics/includes/form_field.html' with field=form.internal_reference column_class='col-12 col-md-6' %}
+          {% for field in form.route_reference_fields %}{% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}{% endfor %}
+        </div>
         <div class="row g-0 border-top border-bottom">
           <div class="col-sm-4">
             <div class="nav flex-sm-column border-bottom border-bottom-sm-0 border-end-sm fs-9 vertical-tab h-100" role="tablist" aria-orientation="vertical">
@@ -83,6 +114,22 @@
             </div>
           </div>
         </div>
+        </details>
+      </section>
+      <section id="parcel-review" data-parcel-wizard-panel aria-labelledby="parcel-review-title" hidden>
+        <h3 class="fs-7 mb-2" id="parcel-review-title" tabindex="-1">Review {% if parcel %}parcel changes{% else %}your parcel{% endif %}</h3>
+        <p class="text-body-secondary">Check the details below. Use Back or the steps above to make changes.</p>
+        {% if parcel %}<p class="text-body-secondary">Client: {{ parcel.client }}</p>{% endif %}
+        <div data-parcel-wizard-review></div>
+        <p class="small text-body-secondary mb-0">{% if parcel %}Changes are saved when you select Save Parcel.{% else %}The parcel is saved when you register. You can then continue to charges, Invoice, optional payment and Shipment.{% endif %}</p>
+      </section>
+      </div>
+      <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3" data-parcel-wizard-controls hidden>
+        <button class="btn btn-phoenix-secondary" type="button" data-parcel-wizard-back>Back</button>
+        <span class="small text-body-secondary" data-parcel-wizard-save-note>{% if parcel %}Changes not saved yet{% else %}Parcel not registered yet{% endif %}</span>
+        <button class="btn btn-primary" type="button" data-parcel-wizard-next>Continue</button>
+      </div>
+    </div>
         {% else %}
         <div class="card mb-4">
           <div class="card-body">
@@ -99,9 +146,7 @@
           </div>
         </div>
         {% endif %}
-      </div>
-    </div>
-    <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4 mobile-form-actions">
+    <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4 mobile-form-actions" data-parcel-wizard-actions>
       <a class="btn btn-outline-secondary" href="{% if parcel %}{% url 'logistics_parcel_detail' parcel.pk %}{% else %}{% url 'logistics_parcel_list' %}{% endif %}">Cancel</a>
       {% if quick_client_form %}<button class="btn btn-primary" type="submit" name="continue_registration" value="1">Register &amp; continue</button>{% endif %}
       <button class="btn {% if quick_client_form %}btn-phoenix-secondary{% else %}btn-primary{% endif %}" type="submit">{% if editing_metadata %}Save Parcel{% elif parcel %}Save Update{% else %}Register Parcel{% endif %}</button>
@@ -112,4 +157,5 @@
   {% endif %}
 </div>
 {% include 'logistics/includes/scripts.html' %}
+<script src="{% static 'assets/js/parcel-wizard.js' %}?v=20261018-1"></script>
 {% endblock %}

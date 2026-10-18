@@ -233,6 +233,15 @@ def _result(*, business, actor, parcels, charges, clearance_only=False):
 
             balance = _invoice_settlement(active[0].invoice)
             financially_settled = balance.settled
+            from apps.billings.cancellation_services import parcel_invoice_settled
+
+            allocated = [
+                parcel_invoice_settled(active[0].invoice, item.pk)
+                for item in members
+                if item.pk in {p.pk for p in parcels}
+            ]
+            if allocated and all(value is not None for value in allocated):
+                financially_settled = all(allocated)
             if balance.issues or balance.legacy_paid_unverified:
                 issues.append("Invoice receipt history requires accounting settlement review.")
         if not charge.voided_at and (

@@ -100,6 +100,26 @@ ROUTE_LOCATION_FIELDS = (
 )
 
 
+def operating_country_codes(business):
+    from .models import LogisticsLocation
+
+    codes = set(
+        LogisticsLocation.objects.filter(business=business, is_active=True).values_list(
+            "country_code", flat=True
+        )
+    )
+    primary = exact_country_code(business.country)
+    if primary:
+        codes.add(primary)
+    return codes
+
+
+def reference_matches(code, country, mode):
+    row = location_references().get(code)
+    kind = {"SEA": "PORT", "AIR": "AIRPORT"}.get(mode)
+    return bool(row and country == row["country_code"] and kind in row["types"])
+
+
 def validate_route_locations(instance):
     from .models import LogisticsLocation
 
@@ -109,6 +129,12 @@ def validate_route_locations(instance):
         previous = type(instance).objects.filter(pk=instance.pk).first()
     for side in ("origin", "destination"):
         country = getattr(instance, f"{side}_country_code")
+        if (
+            country
+            and country not in operating_country_codes(instance.business)
+            and (previous is None or country != getattr(previous, f"{side}_country_code"))
+        ):
+            errors[f"{side}_country_code"] = "Select an operating territory for this workspace."
         facility_country = None
         field = f"{side}_location"
         location_id = getattr(instance, f"{field}_id")
@@ -134,6 +160,33 @@ def validate_route_locations(instance):
             and (country or facility_country) != reference["country_code"]
         ):
             errors[reference_field] = "The reference must be in the selected country or territory."
+        from .shipment_transport import parcel_mode
+
+        mode = getattr(instance, "transport_mode", None)
+        if hasattr(instance, "mode_of_transport"):
+            mode = parcel_mode(instance.mode_of_transport)
+        reference_fields = [reference_field]
+        if hasattr(instance, "mode_of_transport"):
+            reference_fields.append(
+                "port_load_unlocode" if side == "origin" else "port_discharge_unlocode"
+            )
+        for name in reference_fields:
+            value = getattr(instance, name)
+            row = location_references().get(value)
+            if (
+                value
+                and row
+                and previous is not None
+                and country != getattr(previous, f"{side}_country_code")
+                and row["country_code"] != (country or facility_country)
+            ):
+                errors[name] = "The reference must be in the selected country or territory."
+            if (
+                value
+                and (previous is None or value != getattr(previous, name))
+                and not reference_matches(value, country or facility_country, mode)
+            ):
+                errors[name] = "Select a reference matching the territory and transport mode."
     instance.location_review_required = any(
         getattr(instance, side)
         and not any(

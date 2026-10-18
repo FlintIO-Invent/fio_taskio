@@ -5,7 +5,12 @@ from django.core.exceptions import ValidationError
 
 from .classification import OperatingArea, TransportationMode
 from .dashboard_forms import style_dashboard_fields
-from .location_forms import configure_route_fields, geographic_country_field, searchable
+from .location_forms import (
+    clean_route_fields,
+    configure_route_fields,
+    geographic_country_field,
+    searchable,
+)
 from .location_reference import ROUTE_LOCATION_FIELDS, country_choices, exact_country_code
 from .models import LogisticsApplication
 
@@ -476,8 +481,49 @@ class ParcelMetadataForm(forms.ModelForm):
     def __init__(self, *args, business, actor=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.instance.business = business
+        from .parcel_services import PARCEL_INPUT_FIELDS
+        from .shipment_transport import configured_shipment_modes
+
+        configured = configured_shipment_modes(business)
+        saved_mode = self.instance.mode_of_transport
+        choices = [
+            (value, label) for value, label in TransportationMode.choices if value in configured
+        ]
+        if saved_mode and saved_mode not in dict(choices):
+            choices.append((saved_mode, f"{saved_mode} (saved value)"))
+        self.fields["mode_of_transport"] = forms.ChoiceField(
+            label="Transport mode",
+            choices=[
+                (
+                    "",
+                    (
+                        "Select transport mode"
+                        if configured and not (self.instance.pk and not saved_mode)
+                        else "Unknown"
+                    ),
+                ),
+                *choices,
+            ],
+            required=bool(configured) and not (self.instance.pk and not saved_mode),
+        )
+        if not self.instance.pk and len(configured) == 1:
+            self.initial.setdefault("mode_of_transport", configured[0])
+        if self.is_bound and self.instance.pk:
+            data = self.data.copy()
+            for name in PARCEL_INPUT_FIELDS:
+                key = self.add_prefix(name)
+                if key not in data and not isinstance(
+                    self.fields[name].widget, forms.CheckboxInput
+                ):
+                    value = getattr(
+                        self.instance, name + "_id" if name.endswith("_location") else name
+                    )
+                    data[key] = value if value is not None else ""
+            self.data = data
         self.fields["declared_value"].label = f"Declared value ({business.currency})"
         self.fields["weight_kg"].label = "Weight (kg)"
+        if "quantity" in self.fields:
+            self.fields["quantity"].widget.attrs.update({"step": "1", "inputmode": "numeric"})
         self.fields["recipient_name"].help_text = (
             "Optional delivery contact when different from the linked client."
         )
@@ -516,6 +562,14 @@ class ParcelMetadataForm(forms.ModelForm):
                         data[key] = getattr(self.instance, name) or ""
             self.data = data
         configure_route_fields(self, business, actor)
+        replay = getattr(self.instance, "_route_previous", None)
+        if replay is not None and replay.mode_of_transport:
+            field = self.fields["mode_of_transport"]
+            if replay.mode_of_transport not in dict(field.choices):
+                field.choices = [
+                    *field.choices,
+                    (replay.mode_of_transport, replay.mode_of_transport),
+                ]
         style_dashboard_fields(self.fields)
         for field in self.fields.values():
             if isinstance(field.widget, forms.CheckboxInput):
@@ -531,12 +585,24 @@ class ParcelMetadataForm(forms.ModelForm):
 
     @property
     def route_location_fields(self):
-        return [self[name] for name in ROUTE_LOCATION_FIELDS]
+        return [self[name] for name in ROUTE_LOCATION_FIELDS[:4]]
+
+    @property
+    def route_reference_fields(self):
+        return [self[name] for name in ROUTE_LOCATION_FIELDS[4:]]
+
+    def clean(self):
+        return clean_route_fields(self, super().clean())
 
     @property
     def sections(self):
         return [
-            {"id": section, "title": title, "icon": icon, "fields": [self[name] for name in names]}
+            {
+                "id": section,
+                "title": title,
+                "icon": icon,
+                "fields": [self[name] for name in names if name != "mode_of_transport"],
+            }
             for section, title, icon, names in PARCEL_FIELD_SECTIONS
         ]
 
@@ -552,7 +618,11 @@ class ParcelRegistrationForm(ParcelMetadataForm):
     idempotency_key = forms.UUIDField(widget=forms.HiddenInput)
 
     class Meta(ParcelMetadataForm.Meta):
-        fields = ("client",) + ParcelMetadataForm.Meta.fields
+        # Price quantities belong to Add Charge. New Parcel rows use the model's
+        # quantity default; existing operational quantities remain editable.
+        fields = ("client",) + tuple(
+            name for name in ParcelMetadataForm.Meta.fields if name != "quantity"
+        )
 
     def __init__(self, *args, business, actor=None, **kwargs):
         from apps.crm.models import Client

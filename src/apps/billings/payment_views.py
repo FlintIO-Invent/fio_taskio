@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
@@ -98,6 +99,8 @@ def invoice_payment_record(request, invoice_id):
     member = BusinessUser.objects.get(business=request.current_business, user=request.user)
     form = PaymentReceiptForm(
         request.POST if request.method == "POST" else None,
+        manual_receipts=request.current_business.vertical == "LOGISTICS",
+        invoice=invoice,
         currency=balance.currency,
         accounting=member.role in ACCOUNTING_ROLES,
         initial={"method": "CASH", "amount": balance.outstanding},
@@ -153,6 +156,28 @@ def invoice_payment_adjust(request, invoice_id, payment_id):
         accounting=True,
         initial={"amount": _remaining(original), "method": original.method},
     )
+    from .cancellation_services import refund_choices
+    from .models import InvoiceCancellationCredit
+
+    if InvoiceCancellationCredit.objects.filter(obligation__line__invoice=invoice).exists():
+        available = refund_choices(invoice, original)
+        form.fields["action"].choices = [("REFUND", "Record completed refund")]
+        form.fields.pop("method")
+        form.fields.pop("verification_reference")
+        form.fields["cancellation_credit"] = forms.ChoiceField(
+            choices=[
+                (
+                    c.pk,
+                    f"{c.obligation.parcel.tracking_code} · {c.obligation.line.description} · {original.currency} {due} due",
+                )
+                for c, due in available
+            ],
+            label="Refund for credited obligation",
+            widget=forms.Select(attrs={"class": "form-select"}),
+        )
+        if len(available) == 1:
+            form.initial["cancellation_credit"] = available[0][0].pk
+            form.initial["amount"] = available[0][1]
     if request.method == "POST" and form.is_valid():
         fields = dict(form.cleaned_data)
         action = fields.pop("action")
@@ -167,8 +192,8 @@ def invoice_payment_adjust(request, invoice_id, payment_id):
                     **fields,
                 )
             else:
-                fields.pop("method")
-                fields.pop("verification_reference")
+                fields.pop("method", None)
+                fields.pop("verification_reference", None)
                 adjust_invoice_payment(
                     business=request.current_business,
                     actor=request.user,

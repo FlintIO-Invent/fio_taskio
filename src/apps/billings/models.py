@@ -441,6 +441,7 @@ class InvoicePayment(models.Model):
     class Method(models.TextChoices):
         CASH = "CASH", "Cash"
         BANK_TRANSFER = "BANK_TRANSFER", "Bank transfer"
+        ONLINE = "ONLINE", "Online payment"
         VERIFIED_ONLINE = "VERIFIED_ONLINE", "Externally verified online"
 
     objects = InvoicePaymentQuerySet.as_manager()
@@ -537,3 +538,13 @@ class InvoicePayment(models.Model):
         self.full_clean()
         super().save(force_insert=True)
         return self
+
+
+# Register additive settlement models after the original billing models exist.
+from .cancellation_models import (  # noqa: E402,F401
+    InvoiceCancellationCredit,
+    InvoiceObligationShare,
+    InvoiceReceiptShare,
+    InvoiceRefundAllocation,
+    ParcelCancellationSettlement,
+)

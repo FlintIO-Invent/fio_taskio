@@ -6858,7 +6858,9 @@ class BusinessSettingsViewTests(TestCase):
 
                 response = self.client.get(reverse("business_settings"))
 
-                self.assertEqual(response.status_code, 403)
+                self.assertContains(response, "My account")
+                self.assertNotContains(response, 'name="currency"')
+                self.assertEqual(self.client.post(reverse("business_settings"), {"name": "Forbidden"}).status_code, 403)
 
 
 class BusinessBookingSettingsTests(TestCase):

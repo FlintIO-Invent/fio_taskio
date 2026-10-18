@@ -1,0 +1,6 @@
+{% if parcel.current_status == 'CANCELLED' %}
+<div class="alert alert-subtle-warning" role="status">
+  <p class="mb-1">This Parcel is cancelled. {% if parcel.cancellation_settlement %}Cancellation settlement is recorded; accounting can review any remaining balance or manual refund.{% else %}Accounting must review cancellation settlement and any manual refund due.{% endif %}</p>
+  {% if cancellation_can_manage %}<a class="btn btn-phoenix-primary" href="{% url 'logistics_parcel_cancellation_settlement' parcel.pk %}">Review cancellation settlement</a>{% endif %}
+</div>
+{% endif %}
