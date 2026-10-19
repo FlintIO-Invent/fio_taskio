@@ -1,0 +1,49 @@
+{% load money %}
+<section class="card mb-4" id="client-invoices" aria-labelledby="client-invoices-title">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <h4 class="mb-1" id="client-invoices-title">Invoices</h4>
+      <p class="text-body-secondary mb-0">Invoice history for {{ single_client.first_name }} {{ single_client.last_name }}.</p>
+    </div>
+    <span class="badge badge-phoenix badge-phoenix-secondary">{{ client_invoices.paginator.count }} invoice{{ client_invoices.paginator.count|pluralize }}</span>
+  </div>
+  <div class="card-body">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+      {% for invoice in client_invoices %}
+        <div class="col">
+          <article class="border rounded-3 p-3 p-sm-4 d-flex flex-column h-100" aria-labelledby="client-invoice-{{ invoice.pk }}">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+              <h5 class="fs-8 text-break mb-0" id="client-invoice-{{ invoice.pk }}">
+                <a href="{% url 'invoice_detail' invoice.pk %}">{{ invoice.invoice_number }}</a>
+              </h5>
+              <span class="badge badge-phoenix {% if invoice.status == 'PAID' %}badge-phoenix-success{% elif invoice.status == 'SENT' %}badge-phoenix-primary{% elif invoice.status == 'CANCELLED' %}badge-phoenix-danger{% else %}badge-phoenix-secondary{% endif %}">{{ invoice.get_status_display }}</span>
+            </div>
+            <dl class="mb-4">
+              <dt class="text-body-secondary fw-normal fs-9 mb-1">Invoice total</dt>
+              <dd class="fw-semibold text-break mb-3">{{ invoice.total|money:invoice.billing_business }} <span class="text-body-secondary fs-9">{{ invoice.currency_code }}</span></dd>
+              <dt class="text-body-secondary fw-normal fs-9 mb-1">Created</dt>
+              <dd class="mb-0">{{ invoice.created_at|date:"M j, Y" }}</dd>
+            </dl>
+            <a class="btn btn-phoenix-primary d-flex align-items-center justify-content-center w-100 p-3 mt-auto" href="{% url 'invoice_detail' invoice.pk %}" aria-label="View invoice {{ invoice.invoice_number }}">View Invoice</a>
+          </article>
+        </div>
+      {% empty %}
+        <div class="col w-100">
+          <div class="border rounded-3 p-4 bg-body-tertiary">
+            <h5 class="fs-8 mb-2">No invoices to display</h5>
+            <p class="text-body-secondary mb-0">No invoices are available for this client within your billing access.</p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    {% if client_invoices.has_other_pages %}
+      <nav class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4" aria-label="Client invoice pages">
+        <p class="text-body-secondary mb-0">Page {{ client_invoices.number }} of {{ client_invoices.paginator.num_pages }}</p>
+        <div class="d-flex flex-wrap gap-2">
+          {% if client_invoices.has_previous %}<a class="btn btn-phoenix-secondary" href="?invoice_page={{ client_invoices.previous_page_number }}#client-invoices">Previous</a>{% endif %}
+          {% if client_invoices.has_next %}<a class="btn btn-phoenix-secondary" href="?invoice_page={{ client_invoices.next_page_number }}#client-invoices">Next</a>{% endif %}
+        </div>
+      </nav>
+    {% endif %}
+  </div>
+</section>

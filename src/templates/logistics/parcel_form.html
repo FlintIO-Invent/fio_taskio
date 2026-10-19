@@ -96,7 +96,7 @@
               {% for section in form.sections %}
               <div class="tab-pane fade{% if forloop.first %} show active{% endif %}" id="parcel-{{ section.id }}" role="tabpanel" aria-labelledby="parcel-{{ section.id }}-tab">
                 <h5 class="mb-3 text-body-highlight">{{ section.title }}</h5>
-                {% if can_prefill_shipping and section.id == 'sender' or can_prefill_shipping and section.id == 'recipient' %}
+                {% if can_prefill_shipping and section.id == 'sender' %}
                 <button class="btn btn-phoenix-secondary btn-sm mb-2" type="button" data-shipping-prefill="{{ section.id }}">Prefill empty fields from Client</button>
                 <p class="text-body-secondary small" data-shipping-prefill-status="{{ section.id }}" role="status">Optional copy. Review before saving; Client details remain independent.</p>
                 {% endif %}
@@ -122,6 +122,7 @@
         {% if parcel %}<p class="text-body-secondary">Client: {{ parcel.client }}</p>{% endif %}
         <div data-parcel-wizard-review></div>
         <p class="small text-body-secondary mb-0">{% if parcel %}Changes are saved when you select Save Parcel.{% else %}The parcel is saved when you register. You can then continue to charges, Invoice, optional payment and Shipment.{% endif %}</p>
+        {% if intake_site %}<p class="small text-body-secondary mt-2 mb-0">Use Save &amp; receive only for a parcel physically accepted at {{ intake_site.name }}. For advance registration, use Register Parcel or Register &amp; continue.</p>{% endif %}
       </section>
       </div>
       <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3" data-parcel-wizard-controls hidden>
@@ -150,6 +151,7 @@
       <a class="btn btn-outline-secondary" href="{% if parcel %}{% url 'logistics_parcel_detail' parcel.pk %}{% else %}{% url 'logistics_parcel_list' %}{% endif %}">Cancel</a>
       {% if quick_client_form %}<button class="btn btn-primary" type="submit" name="continue_registration" value="1">Register &amp; continue</button>{% endif %}
       <button class="btn {% if quick_client_form %}btn-phoenix-secondary{% else %}btn-primary{% endif %}" type="submit">{% if editing_metadata %}Save Parcel{% elif parcel %}Save Update{% else %}Register Parcel{% endif %}</button>
+      {% if intake_site %}<button class="btn btn-phoenix-secondary" type="submit" name="save_and_receive" value="1">Save &amp; receive</button>{% endif %}
     </div>
   </form>
   {% if quick_client_form and can_add_client and role_access.can_manage_clients and workspace_can_modify %}

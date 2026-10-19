@@ -18,7 +18,7 @@ from .location_access import (
 )
 from .location_operations import operation_location, validate_transition_location
 from .location_reference import ROUTE_LOCATION_FIELDS, exact_country_code
-from .models import Parcel, ParcelEvent, Shipment, generate_tracking_code
+from .models import LogisticsLocation, Parcel, ParcelEvent, Shipment, generate_tracking_code
 from .parcel_policy import ALLOWED_TRANSITIONS, PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
 from .shipment_transport import validate_parcel_transport
 
@@ -141,6 +141,15 @@ def parcels_for_business(*, business, actor):
     )
 
 
+def require_parcel_intake_site(*, business, actor):
+    """Physical hub intake requires an explicit, authorized current work site."""
+    current = require_parcel_access(business=business, actor=actor, write=True)
+    site = operation_location(current, actor)
+    if site is None or site.location_type != LogisticsLocation.Type.HUB:
+        raise PermissionDenied("Save & receive requires an active hub work location.")
+    return site
+
+
 def _key(value):
     if value is None:
         return None
@@ -219,6 +228,35 @@ def register_parcel(*, business, client, actor, idempotency_key=None, **fields):
         public_message="Parcel registered.",
         idempotency_key=key,
     )._domain_save(force_insert=True)
+    return parcel
+
+
+@transaction.atomic
+def register_and_receive_parcel(*, business, client, actor, idempotency_key=None, **fields):
+    """Explicit physical intake; ordinary registration remains independently available."""
+    current = _locked_business(business, actor)
+    site = require_parcel_intake_site(business=current, actor=actor)
+    key = _key(idempotency_key)
+    if key is None:
+        raise ValidationError("Hub intake requires a registration retry key.")
+    parcel = register_parcel(
+        business=current, client=client, actor=actor, idempotency_key=key, **fields
+    )
+    if parcel.origin_location_id != site.pk:
+        raise PermissionDenied("Save & receive requires your actual hub as the origin facility.")
+    # Keep the original registration key/history. A stable, separate receipt key
+    # replays through the existing event service, even after subsequent movement.
+    receipt_key = uuid.uuid5(uuid.NAMESPACE_URL, f"motionmate:parcel-hub-intake:{key}")
+    change_parcel_status(
+        business=current,
+        parcel=parcel,
+        actor=actor,
+        status=Parcel.Status.RECEIVED,
+        expected_status=Parcel.Status.REGISTERED,
+        idempotency_key=receipt_key,
+        public_message="Parcel received.",
+    )
+    parcel.refresh_from_db()
     return parcel
 
 

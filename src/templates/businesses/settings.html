@@ -1,238 +1,236 @@
 {% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
 
 {% block content %}
-<div class="content">
+<link href="{% static 'assets/css/business-settings.css' %}?v=20261019-1" rel="stylesheet">
+<div class="content business-settings">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Business Settings</li>
+    </ol>
+  </nav>
   <div class="row g-3 mb-4 justify-content-between align-items-center">
-    <div class="col-lg-8">
+    <div class="col-12 col-lg-auto">
       <h2 class="mb-2 text-body-emphasis">Business Settings</h2>
-      <p class="text-body-tertiary mb-0">Manage your account and the settings available to your role in this Motionmate workspace.</p>
+      <p class="text-body-secondary mb-0">Manage your personal account and workspace preferences.</p>
     </div>
-    <div class="col-auto d-flex flex-wrap gap-2">
-      <a class="btn btn-phoenix-secondary" href="#my-account">My account</a>
-      <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
+    <div class="col-12 col-lg-auto">
+      <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}"><span class="fa-solid fa-arrow-left me-2" aria-hidden="true"></span>Back to dashboard</a>
     </div>
   </div>
 
-  {% if messages %}
-    {% for message in messages %}
-      <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
-        {{ message }}
-      </div>
-    {% endfor %}
-  {% endif %}
-
-  <section class="card mb-4" id="my-account" aria-labelledby="my-account-title">
-    <div class="card-body p-4">
-      <h3 class="h5" id="my-account-title">My account</h3>
-      <p class="text-body-tertiary">Personal details for your sign-in. Changes here apply only to your account.</p>
-      <form method="post" action="{% url 'business_settings' %}#my-account" novalidate>
-        {% csrf_token %}
-        <input type="hidden" name="section" value="account">
-        {{ account_form.non_field_errors }}
-        <div class="row g-3">
-          {% for field in account_form %}
-          <div class="{% if field.name == 'address' %}col-12{% else %}col-md-6{% endif %}">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors|striptags }}</div>{% endif %}
-          </div>
-          {% endfor %}
-        </div>
-        <button class="btn btn-primary mt-3" type="submit">Save personal details</button>
-      </form>
-      <hr class="my-4">
-      <h4 class="h6" id="security">Security</h4>
-      <a class="btn btn-phoenix-secondary" href="{% url 'password_change' %}">Change password</a>
-    </div>
-  </section>
-
-  {% if can_edit_business_settings %}
-  <section class="card mb-4" aria-labelledby="configuration-title">
-    <div class="card-body">
-      <h3 class="h5" id="configuration-title">Business configuration</h3>
-      <div class="row g-3">
-        <div class="col-md-6">
-          <h4 class="h6">Company and team</h4>
-          <ul class="mb-0">
-            <li><a href="#business-details">Company details, address and regional defaults</a></li>
-            <li><a href="{% url 'business_team_members' %}">Team invitations and roles</a></li>
-            {% if business.vertical == 'LOGISTICS' %}
-            <li><a href="{% url 'logistics_location_settings' %}">Operating locations</a></li>
-            <li><a href="{% url 'logistics_location_access' %}">Location access and Logistics configuration</a></li>
-            {% endif %}
-          </ul>
-        </div>
-        <div class="col-md-6">
-          <h4 class="h6">Services, invoicing and payments</h4>
-          <ul class="mb-0">
-            {% if module_capabilities.services %}
-            <li><a href="{% url 'business_service_list' %}">Services and categories</a> · <a href="{% url 'business_service_import' %}">Upload categories and services</a></li>
-            {% endif %}
-            {% if booking_availability_allowed %}
-            <li><a href="{% url 'business_booking_settings' %}">Booking rules and availability</a></li>
-            {% endif %}
-            <li><a href="#business-details">Invoice numbering, currency and tax defaults</a></li>
-            {% if membership.role == 'owner' %}
-            <li><a href="{% url 'business_subscription' %}">Subscription and Motionmate payment settings</a></li>
-            {% endif %}
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {% if business.vertical == "LOGISTICS" %}
-  <section class="card mb-4" aria-labelledby="logistics-profile-title">
-    <div class="card-body">
-      <h2 class="h5" id="logistics-profile-title">Logistics operating profile</h2>
-      <a class="btn btn-phoenix-secondary mb-3" href="{% url 'logistics_location_settings' %}">Operating locations</a>
-      <dl class="mb-0">
-        <dt>Operating areas</dt><dd>{{ logistics_profile.operating_area_labels|join:", "|default:"Not recorded" }}</dd>
-        <dt>Transportation modes</dt><dd>{{ logistics_profile.transportation_mode_labels|join:", "|default:"Not recorded" }}</dd>
-      </dl>
-    </div>
-  </section>
-  {% endif %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">{{ message }}</div>
+  {% endfor %}
 
   <div class="row g-3 mb-4">
-    {% if module_capabilities.public_booking %}
-    <div class="col-12">
-      {% include "businesses/includes/public_booking_share_card.html" %}
+    {% if business %}
+    <div class="col-12 col-lg-8">
+      <section class="card h-100" aria-labelledby="workspace-profile-title">
+        <div class="card-body p-3 p-sm-4">
+          <div class="d-flex align-items-start gap-3 border-bottom border-dashed pb-4 mb-4">
+            <div class="avatar avatar-xl flex-shrink-0">
+              <div class="avatar-name rounded-circle bg-primary-subtle text-primary"><span class="fa-solid fa-building" aria-hidden="true"></span></div>
+            </div>
+            <div class="flex-grow-1 settings-text">
+              <p class="text-body-secondary fs-9 mb-1">Current workspace</p>
+              <h3 class="fs-6 text-break mb-2" id="workspace-profile-title">{{ business.name }}</h3>
+              {% if membership %}<span class="badge badge-phoenix badge-phoenix-primary">{{ membership.get_role_display }}</span>{% endif %}
+            </div>
+          </div>
+          <dl class="row g-3 mb-0">
+            <div class="col-6 col-sm-4"><dt class="text-body-secondary fw-normal fs-9 mb-1">Workspace type</dt><dd class="fw-semibold mb-0">{{ business.get_vertical_display }}</dd></div>
+            <div class="col-6 col-sm-4"><dt class="text-body-secondary fw-normal fs-9 mb-1">Country</dt><dd class="fw-semibold text-break mb-0">{{ business.country|default:"Not set" }}</dd></div>
+            <div class="col-6 col-sm-4"><dt class="text-body-secondary fw-normal fs-9 mb-1">Currency</dt><dd class="fw-semibold mb-0">{{ business.currency }}</dd></div>
+          </dl>
+        </div>
+      </section>
     </div>
     {% endif %}
-  </div>
-
- 
-  <div class="row g-4">
-    <div class="col-12">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body p-4 p-lg-5">
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-            <div>
-              <h4 class="mb-1" id="business-details">Business Details</h4>
-              <p class="text-body-tertiary mb-0">These settings apply to the current Motionmate workspace.</p>
-            </div>
-            <span class="badge badge-phoenix badge-phoenix-primary">{{ membership.get_role_display }}</span>
-          </div>
-
-          {% if form.non_field_errors %}
-            <div class="alert alert-danger">{{ form.non_field_errors|striptags }}</div>
-          {% endif %}
-
-          <form method="POST" novalidate>
-            {% csrf_token %}
-            <input type="hidden" name="section" value="business">
-
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.name.id_for_label }}">Business name</label>
-                {{ form.name }}
-                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.email.id_for_label }}">Business email</label>
-                {{ form.email }}
-                {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.business_type.id_for_label }}">Business type / industry</label>
-                {{ form.business_type }}
-                {% if form.business_type.errors %}<div class="invalid-feedback d-block">{{ form.business_type.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.phone.id_for_label }}">Phone</label>
-                {{ form.phone }}
-                {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.country.id_for_label }}">Country{% include "includes/help_icon.html" with text=form.country.help_text %}</label>
-                {{ form.country }}
-                {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6" id="invoice-defaults">
-                <label class="form-label" for="{{ form.currency.id_for_label }}">Currency</label>
-                {{ form.currency }}
-                {% if form.currency.errors %}<div class="invalid-feedback d-block">{{ form.currency.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.timezone.id_for_label }}">Timezone{% include "includes/help_icon.html" with text=form.timezone.help_text %}</label>
-                {{ form.timezone }}
-                {% if form.timezone.errors %}<div class="invalid-feedback d-block">{{ form.timezone.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.default_locale.id_for_label }}">Default locale{% include "includes/help_icon.html" with text=form.default_locale.help_text %}</label>
-                {{ form.default_locale }}
-                {% if form.default_locale.errors %}<div class="invalid-feedback d-block">{{ form.default_locale.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-4">
-                <label class="form-label" for="{{ form.tax_label.id_for_label }}">Tax label{% include "includes/help_icon.html" with text=form.tax_label.help_text %}</label>
-                {{ form.tax_label }}
-                {% if form.tax_label.errors %}<div class="invalid-feedback d-block">{{ form.tax_label.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-4">
-                <label class="form-label" for="{{ form.tax_rate.id_for_label }}">Tax rate</label>
-                {{ form.tax_rate }}
-                {% if form.tax_rate.errors %}<div class="invalid-feedback d-block">{{ form.tax_rate.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-4">
-                <label class="form-label" for="{{ form.invoice_prefix.id_for_label }}">Invoice prefix</label>
-                {{ form.invoice_prefix }}
-                {% if form.invoice_prefix.errors %}<div class="invalid-feedback d-block">{{ form.invoice_prefix.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-4">
-                <label class="form-label" for="{{ form.invoice_start_number.id_for_label }}">Invoice start number</label>
-                {{ form.invoice_start_number }}
-                {% if form.invoice_start_number.errors %}<div class="invalid-feedback d-block">{{ form.invoice_start_number.errors|striptags }}</div>{% endif %}
-              </div>
-            </div>
-
-            <hr class="my-4">
-
-            <div class="mb-3">
-              <h5 class="mb-1">Business Address</h5>
-              <p class="text-body-tertiary mb-0">Address fields adapt to your country or territory. Netherlands uses postcode + city; Caribbean workspaces can leave postal code blank when unused.</p>
-            </div>
-
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.address_line_1.id_for_label }}">{{ form.address_line_1.label }}</label>
-                {{ form.address_line_1 }}
-                {% if form.address_line_1.errors %}<div class="invalid-feedback d-block">{{ form.address_line_1.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.address_line_2.id_for_label }}">{{ form.address_line_2.label }}</label>
-                {{ form.address_line_2 }}
-                {% if form.address_line_2.errors %}<div class="invalid-feedback d-block">{{ form.address_line_2.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-4">
-                <label class="form-label" for="{{ form.city.id_for_label }}">{{ form.city.label }}</label>
-                {{ form.city }}
-                {% if form.city.errors %}<div class="invalid-feedback d-block">{{ form.city.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-4">
-                <label class="form-label" for="{{ form.region.id_for_label }}">{{ form.region.label }}{% include "includes/help_icon.html" with text=form.region.help_text %}</label>
-                {{ form.region }}
-                {% if form.region.errors %}<div class="invalid-feedback d-block">{{ form.region.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-md-4">
-                <label class="form-label" for="{{ form.postal_code.id_for_label }}">{{ form.postal_code.label }}{% include "includes/help_icon.html" with text=form.postal_code.help_text %}</label>
-                {{ form.postal_code }}
-                {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
-              </div>
-              <div class="col-12">
-                <label class="form-label" for="{{ form.address.id_for_label }}">Address notes{% include "includes/help_icon.html" with text=form.address.help_text %}</label>
-                {{ form.address }}
-                {% if form.address.errors %}<div class="invalid-feedback d-block">{{ form.address.errors|striptags }}</div>{% endif %}
-              </div>
-            </div>
-
-            <button class="btn btn-primary mt-4" type="submit">Save business settings</button>
-          </form>
+    <div class="col-12 {% if business %}col-lg-4{% endif %}">
+      <section class="card h-100" aria-labelledby="account-profile-title">
+        <div class="card-body p-3 p-sm-4 d-flex flex-column">
+          <p class="text-body-secondary fs-9 mb-2">Signed in as</p>
+          <h3 class="fs-7 text-break mb-2" id="account-profile-title">{{ request.user.full_name|default:request.user.email }}</h3>
+          <p class="text-body-secondary text-break mb-4">{{ request.user.email }}</p>
+          <a class="btn btn-phoenix-secondary mt-auto align-self-start" href="#my-account"><span class="fa-solid fa-user-pen me-2" aria-hidden="true"></span>Edit personal details</a>
         </div>
-      </div>
+      </section>
     </div>
   </div>
-  {% endif %}
+
+  <div class="row g-4 align-items-start">
+    <aside class="col-12 col-xl-3 settings-sidebar">
+      <div class="card">
+        <div class="card-body p-3">
+          <h3 class="fs-9 text-body-secondary mb-3 px-2" id="settings-navigation-title">On this page</h3>
+          <nav class="settings-section-nav" aria-labelledby="settings-navigation-title">
+            {% if can_edit_business_settings %}
+            <a class="nav-link" href="#business-details"><span class="fa-solid fa-building" aria-hidden="true"></span>Business details</a>
+            <a class="nav-link" href="#business-address"><span class="fa-solid fa-location-dot" aria-hidden="true"></span>Business address</a>
+            <a class="nav-link" href="#regional-defaults"><span class="fa-solid fa-globe" aria-hidden="true"></span>Regional defaults</a>
+            <a class="nav-link" href="#invoice-defaults"><span class="fa-solid fa-file-invoice" aria-hidden="true"></span>Invoice defaults</a>
+            {% endif %}
+            <a class="nav-link" href="#my-account"><span class="fa-solid fa-user" aria-hidden="true"></span>My account</a>
+            <a class="nav-link" href="#security"><span class="fa-solid fa-shield-halved" aria-hidden="true"></span>Security</a>
+            {% if can_edit_business_settings %}
+            <a class="nav-link" href="#workspace-tools"><span class="fa-solid fa-sliders" aria-hidden="true"></span>Workspace tools</a>
+            {% if business.vertical == 'LOGISTICS' %}<a class="nav-link" href="#logistics-profile"><span class="fa-solid fa-truck-fast" aria-hidden="true"></span>Logistics profile</a>{% endif %}
+            {% if module_capabilities.public_booking %}<a class="nav-link" href="#online-booking"><span class="fa-solid fa-calendar" aria-hidden="true"></span>Online booking</a>{% endif %}
+            {% endif %}
+          </nav>
+        </div>
+      </div>
+    </aside>
+
+    <div class="col-12 col-xl-9 settings-main">
+      {% if can_edit_business_settings %}
+      <form method="post" id="business-settings-form" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="section" value="business">
+        {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+
+        <section class="card mb-4" id="business-details" aria-labelledby="business-details-title">
+          <div class="card-header border-bottom border-dashed p-3 p-sm-4">
+            <h3 class="fs-7 mb-1" id="business-details-title">Business Details</h3>
+            <p class="text-body-secondary mb-0">Company information used across your workspace.</p>
+          </div>
+          <div class="card-body p-3 p-sm-4">
+            <div class="row g-3">
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.name label='Business name' only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.email label='Business email' only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.business_type label='Business type / industry' only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.phone label='Phone' only %}</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card mb-4" id="business-address" aria-labelledby="business-address-title">
+          <div class="card-header border-bottom border-dashed p-3 p-sm-4">
+            <h3 class="fs-7 mb-1" id="business-address-title">Business Address</h3>
+            <p class="text-body-secondary mb-0">Address fields adapt to your country or territory. Postal code is optional where unused.</p>
+          </div>
+          <div class="card-body p-3 p-sm-4">
+            <div class="row g-3">
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.country label='Country' only %}</div>
+              <div class="col-12">{% include 'businesses/includes/settings_field.html' with field=form.address_line_1 only %}</div>
+              <div class="col-12">{% include 'businesses/includes/settings_field.html' with field=form.address_line_2 only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.city only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.region only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.postal_code only %}</div>
+              <div class="col-12">{% include 'businesses/includes/settings_field.html' with field=form.address label='Address notes' only %}</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card mb-4" id="regional-defaults" aria-labelledby="regional-defaults-title">
+          <div class="card-header border-bottom border-dashed p-3 p-sm-4">
+            <h3 class="fs-7 mb-1" id="regional-defaults-title">Regional defaults</h3>
+            <p class="text-body-secondary mb-0">Set the timezone and language conventions for this workspace.</p>
+          </div>
+          <div class="card-body p-3 p-sm-4">
+            <div class="row g-3">
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.timezone label='Timezone' only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.default_locale label='Default locale' only %}</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card mb-4" id="invoice-defaults" aria-labelledby="invoice-defaults-title">
+          <div class="card-header border-bottom border-dashed p-3 p-sm-4">
+            <h3 class="fs-7 mb-1" id="invoice-defaults-title">Invoice defaults</h3>
+            <p class="text-body-secondary mb-0">Currency, tax and numbering preferences for your invoices.</p>
+          </div>
+          <div class="card-body p-3 p-sm-4">
+            <div class="row g-3">
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.currency label='Currency' only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.tax_label label='Tax label' only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.tax_rate label='Tax rate' only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.invoice_prefix label='Invoice prefix' only %}</div>
+              <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.invoice_start_number label='Invoice start number' only %}</div>
+            </div>
+          </div>
+          <div class="card-footer bg-body-highlight p-3 p-sm-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <p class="text-body-secondary fs-9 mb-0">Save company, address, regional and invoice settings together.</p>
+            <button class="btn btn-primary settings-save-button" type="submit">Save business settings</button>
+          </div>
+        </section>
+      </form>
+      {% endif %}
+
+      <section class="card mb-4" id="my-account" aria-labelledby="my-account-title">
+        <div class="card-header border-bottom border-dashed p-3 p-sm-4">
+          <h3 class="fs-7 mb-1" id="my-account-title">My account</h3>
+          <p class="text-body-secondary mb-0">Personal details for your sign-in. Changes here apply only to your account.</p>
+        </div>
+        <form method="post" action="{% url 'business_settings' %}#my-account" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="section" value="account">
+          <div class="card-body p-3 p-sm-4">
+            {% if account_form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ account_form.non_field_errors }}</div>{% endif %}
+            <div class="row g-3">
+              {% for field in account_form %}
+                <div class="col-12{% if field.name != 'address' %} col-md-6{% endif %}">{% include 'businesses/includes/settings_field.html' with field=field only %}</div>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="card-footer bg-body-highlight p-3 p-sm-4 d-flex justify-content-end">
+            <button class="btn btn-primary settings-save-button" type="submit">Save personal details</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card mb-4" id="security" aria-labelledby="security-title">
+        <div class="card-body p-3 p-sm-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+          <div><h3 class="fs-7 mb-1" id="security-title">Security</h3><p class="text-body-secondary mb-0">Manage the password you use to sign in.</p></div>
+          <a class="btn btn-phoenix-secondary" href="{% url 'password_change' %}"><span class="fa-solid fa-key me-2" aria-hidden="true"></span>Change password</a>
+        </div>
+      </section>
+
+      {% if can_edit_business_settings %}
+      <section class="card mb-4" id="workspace-tools" aria-labelledby="configuration-title">
+        <div class="card-header border-bottom border-dashed p-3 p-sm-4">
+          <h3 class="fs-7 mb-1" id="configuration-title">Business configuration</h3>
+          <p class="text-body-secondary mb-0">Manage your team and the tools available to this workspace.</p>
+        </div>
+        <div class="card-body p-3 p-sm-4">
+          <div class="row row-cols-1 row-cols-md-2 g-3">
+            <div class="col"><div class="border rounded-3 p-3 h-100"><h4 class="fs-8 mb-2"><a href="{% url 'business_team_members' %}">Team invitations and roles<span class="fa-solid fa-arrow-up-right-from-square ms-2 fs-10" aria-hidden="true"></span></a></h4><p class="text-body-secondary fs-9 mb-0">Invite colleagues and manage workspace membership.</p></div></div>
+            {% if module_capabilities.services %}
+            <div class="col"><div class="border rounded-3 p-3 h-100"><h4 class="fs-8 mb-2"><a href="{% url 'business_service_list' %}">Services and categories<span class="fa-solid fa-arrow-up-right-from-square ms-2 fs-10" aria-hidden="true"></span></a></h4><p class="text-body-secondary fs-9 mb-2">Maintain your service catalogue.</p><a class="fs-9" href="{% url 'business_service_import' %}">Upload categories and services</a></div></div>
+            {% endif %}
+            {% if booking_availability_allowed %}
+            <div class="col"><div class="border rounded-3 p-3 h-100"><h4 class="fs-8 mb-2"><a href="{% url 'business_booking_settings' %}">Booking rules and availability<span class="fa-solid fa-arrow-up-right-from-square ms-2 fs-10" aria-hidden="true"></span></a></h4><p class="text-body-secondary fs-9 mb-0">Set booking preferences and working hours.</p></div></div>
+            {% endif %}
+            {% if membership.role == 'owner' %}
+            <div class="col"><div class="border rounded-3 p-3 h-100"><h4 class="fs-8 mb-2"><a href="{% url 'business_subscription' %}">Subscription and payments<span class="fa-solid fa-arrow-up-right-from-square ms-2 fs-10" aria-hidden="true"></span></a></h4><p class="text-body-secondary fs-9 mb-0">Review your plan and Motionmate payment settings.</p></div></div>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      {% if business.vertical == 'LOGISTICS' %}
+      <section class="card mb-4" id="logistics-profile" aria-labelledby="logistics-profile-title">
+        <div class="card-header border-bottom border-dashed p-3 p-sm-4"><h3 class="fs-7 mb-1" id="logistics-profile-title">Logistics operating profile</h3><p class="text-body-secondary mb-0">Operating areas, transportation modes and location access.</p></div>
+        <div class="card-body p-3 p-sm-4">
+          <dl class="row g-3 mb-4">
+            <div class="col-12 col-md-6"><dt class="text-body-secondary fw-normal fs-9 mb-1">Operating areas</dt><dd class="fw-semibold mb-0">{{ logistics_profile.operating_area_labels|join:", "|default:"Not recorded" }}</dd></div>
+            <div class="col-12 col-md-6"><dt class="text-body-secondary fw-normal fs-9 mb-1">Transportation modes</dt><dd class="fw-semibold mb-0">{{ logistics_profile.transportation_mode_labels|join:", "|default:"Not recorded" }}</dd></div>
+          </dl>
+          <div class="row row-cols-1 row-cols-md-2 g-3">
+            <div class="col"><a class="btn btn-phoenix-secondary d-flex align-items-center justify-content-center p-3 h-100" href="{% url 'logistics_location_settings' %}">Operating locations</a></div>
+            <div class="col"><a class="btn btn-phoenix-secondary d-flex align-items-center justify-content-center p-3 h-100" href="{% url 'logistics_location_access' %}">Location access and Logistics configuration</a></div>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+      {% if module_capabilities.public_booking %}
+      <section class="mb-4" id="online-booking" aria-label="Online booking">{% include 'businesses/includes/public_booking_share_card.html' %}</section>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
 </div>
 {% if business.vertical == 'LOGISTICS' %}{% include 'logistics/includes/scripts.html' %}{% endif %}
 {% endblock %}
