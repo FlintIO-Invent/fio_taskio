@@ -411,12 +411,12 @@ def parcel_register(request):
             messages.success(
                 request,
                 (
-                    "Parcel registered and received. Continue with charges, Invoice and Shipment."
+                    "Parcel registered and received. Preview, print or download its shipping label below."
                     if receive_at_hub
                     else "Parcel registered. Preview, print or download its shipping label below."
                 ),
             )
-            if receive_at_hub or request.POST.get("continue_registration") == "1":
+            if request.POST.get("continue_registration") == "1":
                 return redirect("logistics_parcel_registration", parcel_id=parcel.pk)
             return redirect("logistics_parcel_detail", parcel_id=parcel.pk)
     try:

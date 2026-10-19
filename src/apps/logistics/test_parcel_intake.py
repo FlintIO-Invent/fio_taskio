@@ -249,15 +249,29 @@ class ParcelIntakeTests(TestCase):
     def test_explicit_ui_action_and_repeated_posts_receive_once(self):
         self.client.force_login(self.staff)
         url = reverse("logistics_parcel_register")
-        self.assertContains(self.client.get(url), 'name="save_and_receive"')
+        page = self.client.get(url)
+        self.assertContains(page, 'name="save_and_receive"', count=1)
+        self.assertContains(page, ">Register Parcel</button>", count=1)
+        self.assertNotContains(page, "Save &amp; receive")
         data = self.post_data()
         first = self.client.post(url, data)
         self.assertEqual(first.status_code, 302)
         parcel = Parcel.objects.exclude(pk=self.item.pk).get()
-        self.assertEqual(first.url, reverse("logistics_parcel_registration", args=[parcel.pk]))
+        self.assertEqual(first.url, reverse("logistics_parcel_detail", args=[parcel.pk]))
         self.assertEqual(parcel.current_status, "RECEIVED")
         self.assertEqual(self.client.post(url, data).url, first.url)
         self.assertEqual(parcel.events.count(), 2)
+
+    def test_non_hub_register_parcel_still_registers_and_opens_details(self):
+        self.a.location_type = "WAREHOUSE"
+        self.a.save()
+        url = reverse("logistics_parcel_register")
+        self.assertNotContains(self.client.get(url), 'name="save_and_receive"')
+        response = self.client.post(url, self.post_data(save_and_receive=""))
+        parcel = Parcel.objects.exclude(pk=self.item.pk).get()
+        self.assertEqual(response.url, reverse("logistics_parcel_detail", args=[parcel.pk]))
+        self.assertEqual(parcel.current_status, "REGISTERED")
+        self.assertEqual(parcel.events.count(), 1)
 
     def test_view_receipt_failure_keeps_form_key_and_creates_nothing(self):
         data = self.post_data()
@@ -278,7 +292,15 @@ class ParcelIntakeTests(TestCase):
         url = reverse("logistics_parcel_register")
         for continue_registration in ("", "1"):
             data = self.post_data(save_and_receive="", continue_registration=continue_registration)
-            self.assertEqual(self.client.post(url, data).status_code, 302)
+            response = self.client.post(url, data)
+            self.assertEqual(response.status_code, 302)
+            created = Parcel.objects.get(events__idempotency_key=data["idempotency_key"])
+            expected_view = (
+                "logistics_parcel_registration"
+                if continue_registration
+                else "logistics_parcel_detail"
+            )
+            self.assertEqual(response.url, reverse(expected_view, args=[created.pk]))
         for parcel in Parcel.objects.exclude(pk=self.item.pk):
             self.assertEqual(parcel.current_status, "REGISTERED")
             self.assertEqual(parcel.events.count(), 1)

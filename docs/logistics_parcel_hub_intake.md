@@ -2,16 +2,17 @@
 
 ## Decision and scope
 
-Go for an explicit **Save & receive** action on the internal parcel creation form.
-Ordinary creation is not proof of physical possession: the same form and shared
-`register_parcel()` service support registration without receipt. Both existing
-registration actions remain available, with their original POST behavior. They
-still create REGISTERED parcels, including when the employee is at a hub.
+The secondary **Register Parcel** button saves and opens parcel details. At an
+authorized, active current work location whose type is HUB, it also records
+receipt. The operator uses it for physically accepted cargo. Outside that hub
+context it retains registration-only behavior. The separate Save & receive
+button has been removed.
 
-The new primary action is offered only with an authorized, active current work
-location whose type is HUB. The operator chooses it only for physically accepted
-cargo. No new fields, confirmation screen, routes or migrations are introduced.
-Warehouses and other facility types retain their existing registration workflow.
+The primary **Register & continue** button is unchanged: it creates a REGISTERED
+parcel and opens the existing registration workflow. It remains available for
+advance registration. No new fields, confirmation screen, routes or migrations
+are introduced. Warehouses and other facility types retain their existing
+registration workflow.
 
 ## Existing receipt behavior traced
 
@@ -54,15 +55,16 @@ retry/authorization checks. A failed receipt rolls back parcel creation, both
 history writes, status changes and queued `on_commit` callbacks together.
 
 Only `views.parcel_register()` opts into this helper when its explicit
-`save_and_receive=1` button is submitted. Ordinary registration, edit, scanner,
-demo and other shared-service callers retain their existing paths. The new
-button is after the original submit buttons in DOM order, retaining the existing
-implicit-submit default for advance registration. Successful intake returns to
-the existing resumable registration workflow for charges/invoice/shipment steps.
+`save_and_receive=1` submit flag is sent by Register Parcel at an eligible hub.
+Ordinary registration, edit, scanner, demo and other shared-service callers retain
+their existing paths. The
+Register Parcel button stays after Register & continue in DOM order, retaining
+the existing implicit-submit default. Successful intake opens parcel details;
+the continuation workflow is entered only through Register & continue.
 
 ## Verification
 
-23 focused tests passed on an isolated PostgreSQL 14 instance, including 18 new
+24 focused tests passed on an isolated PostgreSQL 14 instance, including 19 new
 intake tests (one uses real concurrent transactions). Coverage includes employee
 and hub attribution, timestamps/history, public tracking, shipment assignment,
 no automatic financial/notification effects, full rollback and discarded commit
@@ -73,9 +75,10 @@ structured-route registration/charge checks also passed. Formatting/lint and
 `git diff --check` passed.
 
 Desktop and mobile Chromium checks exercised the existing wizard through Review,
-verified the new intake button's submitted action, and verified that both advance
-registration buttons still submit without the intake flag. No additional input
-fields or confirmation step were needed.
+verified that only the two intended submit buttons remain, and verified their
+distinct submitted actions and primary/secondary styles. Register & continue
+still submits without the intake flag; Register Parcel submits it only at an
+eligible hub. No additional input fields or confirmation step were needed.
 
 A separate existing metadata suite had 13 passes and seven failures; an older
 complete-registration test also failed. All eight failures were reproduced with

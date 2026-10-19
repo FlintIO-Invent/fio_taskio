@@ -146,7 +146,7 @@ def require_parcel_intake_site(*, business, actor):
     current = require_parcel_access(business=business, actor=actor, write=True)
     site = operation_location(current, actor)
     if site is None or site.location_type != LogisticsLocation.Type.HUB:
-        raise PermissionDenied("Save & receive requires an active hub work location.")
+        raise PermissionDenied("Receiving a parcel requires an active hub work location.")
     return site
 
 
@@ -243,7 +243,9 @@ def register_and_receive_parcel(*, business, client, actor, idempotency_key=None
         business=current, client=client, actor=actor, idempotency_key=key, **fields
     )
     if parcel.origin_location_id != site.pk:
-        raise PermissionDenied("Save & receive requires your actual hub as the origin facility.")
+        raise PermissionDenied(
+            "Receiving a parcel requires your actual hub as the origin facility."
+        )
     # Keep the original registration key/history. A stable, separate receipt key
     # replays through the existing event service, even after subsequent movement.
     receipt_key = uuid.uuid5(uuid.NAMESPACE_URL, f"motionmate:parcel-hub-intake:{key}")
