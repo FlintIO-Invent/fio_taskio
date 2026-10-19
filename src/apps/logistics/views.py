@@ -39,7 +39,14 @@ from .forms import (
 from .location_access import can_operate_record, lock_actor_membership, membership_for
 from .models import LogisticsApplication, ParcelEvent
 from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
-from .parcel_services import edit_parcel, parcels_for_business, record_parcel_event, register_parcel
+from .parcel_services import (
+    edit_parcel,
+    parcels_for_business,
+    record_parcel_event,
+    register_and_receive_parcel,
+    register_parcel,
+    require_parcel_intake_site,
+)
 from .shipment_policy import ASSIGNABLE_PARCEL_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -380,6 +387,7 @@ def parcel_edit(request, parcel_id):
 def parcel_register(request):
     import uuid
 
+    receive_at_hub = request.method == "POST" and request.POST.get("save_and_receive") == "1"
     form = ParcelRegistrationForm(
         request.POST if request.method == "POST" else None,
         business=request.current_business,
@@ -393,24 +401,37 @@ def parcel_register(request):
             raise Http404("Client is unavailable in this workspace.") from exc
     if request.method == "POST" and form.is_valid():
         try:
-            parcel = register_parcel(
+            create = register_and_receive_parcel if receive_at_hub else register_parcel
+            parcel = create(
                 business=request.current_business, actor=request.user, **form.cleaned_data
             )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
             messages.success(
-                request, "Parcel registered. Preview, print or download its shipping label below."
+                request,
+                (
+                    "Parcel registered and received. Preview, print or download its shipping label below."
+                    if receive_at_hub
+                    else "Parcel registered. Preview, print or download its shipping label below."
+                ),
             )
             if request.POST.get("continue_registration") == "1":
                 return redirect("logistics_parcel_registration", parcel_id=parcel.pk)
             return redirect("logistics_parcel_detail", parcel_id=parcel.pk)
+    try:
+        intake_site = require_parcel_intake_site(
+            business=request.current_business, actor=request.user
+        )
+    except PermissionDenied:
+        intake_site = None
     return render(
         request,
         "logistics/parcel_form.html",
         {
             "form": form,
             "title": "Register parcel",
+            "intake_site": intake_site,
             "quick_client_form": QuickClientForm(prefix="new_client"),
             "has_clients": form.fields["client"].queryset.exists(),
             "can_add_client": can_use_module(request.current_business, "crm"),

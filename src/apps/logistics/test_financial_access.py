@@ -96,6 +96,27 @@ class LogisticsFinancialAccessTests(TestCase):
         self.assertNotContains(parcel, self.mixed.invoice_number)
         self.assertContains(parcel, "Financial details restricted")
 
+    def test_client_invoice_history_keeps_existing_location_financial_scope(self):
+        url = reverse("staff_client_detail", args=[self.customer.pk])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["client_invoices"]), [self.ia])
+        self.assertContains(response, reverse("invoice_detail", args=[self.ia.pk]))
+        for invoice in (self.ic, self.mixed, self.manual):
+            self.assertNotContains(response, reverse("invoice_detail", args=[invoice.pk]))
+
+        self.client.force_login(self.user)
+        self.business.currency = "EUR"
+        self.business.save(update_fields=["currency", "updated_at"])
+        response = self.client.get(url)
+        self.assertEqual(response.context["client_invoices"].paginator.count, 4)
+        self.assertTrue(
+            all(row.currency_code == "USD" for row in response.context["client_invoices"])
+        )
+        self.assertContains(response, "USD")
+
     def test_normal_ui_issues_protected_draft_without_modifying_lines(self):
         before = list(self.ia.lines.values())
         detail = self.client.get(reverse("invoice_detail", args=[self.ia.pk]))

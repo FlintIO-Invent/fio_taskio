@@ -1,0 +1,60 @@
+/* Layout refinements for the existing Phoenix settings components. */
+.business-settings [id] {
+  scroll-margin-top: calc(var(--phoenix-navbar-top-height, 4rem) + 1.5rem);
+}
+
+.business-settings .settings-text,
+.business-settings .settings-main {
+  min-width: 0;
+}
+
+.business-settings .settings-section-nav {
+  display: flex;
+  gap: .25rem;
+  overflow-x: auto;
+}
+
+.business-settings .settings-section-nav .nav-link {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: .75rem;
+  padding: .75rem;
+  border-radius: var(--phoenix-border-radius);
+  color: var(--phoenix-body-color);
+  font-size: .8rem;
+  font-weight: 600;
+}
+
+.business-settings .settings-section-nav .nav-link:hover,
+.business-settings .settings-section-nav .nav-link:focus-visible {
+  color: var(--phoenix-primary);
+  background-color: var(--phoenix-body-highlight-bg);
+}
+
+.business-settings .settings-section-nav .nav-link:focus-visible {
+  outline: 2px solid var(--phoenix-primary);
+  outline-offset: -2px;
+}
+
+.business-settings .settings-section-nav .nav-link .fa-solid {
+  width: 1rem;
+  text-align: center;
+}
+
+@media (min-width: 1200px) {
+  .business-settings .settings-sidebar {
+    position: sticky;
+    top: calc(var(--phoenix-navbar-top-height, 4rem) + 1rem);
+  }
+
+  .business-settings .settings-section-nav {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .business-settings .settings-save-button {
+    width: 100%;
+  }
+}
