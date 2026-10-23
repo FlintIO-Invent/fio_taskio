@@ -508,6 +508,9 @@ class ParcelMetadataForm(forms.ModelForm):
         )
         if not self.instance.pk and len(configured) == 1:
             self.initial.setdefault("mode_of_transport", configured[0])
+        from .business_defaults import configure_transport_names
+
+        configure_transport_names(self, business, parcel=True)
         if self.is_bound and self.instance.pk:
             data = self.data.copy()
             for name in PARCEL_INPUT_FIELDS:

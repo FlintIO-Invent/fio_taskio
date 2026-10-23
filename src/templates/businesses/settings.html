@@ -137,6 +137,18 @@
           </div>
         </section>
 
+        {% if business.vertical == 'LOGISTICS' %}
+        <section class="card mb-4" id="logistics-defaults" aria-labelledby="logistics-defaults-title">
+          <div class="card-header p-3 p-sm-4"><h3 class="fs-7 mb-1" id="logistics-defaults-title">Logistics defaults</h3><p class="text-body-secondary mb-0">Reusable names for new Parcels and Shipments. Saved transactions keep their original values.</p></div>
+          <div class="card-body p-3 p-sm-4"><div class="row g-3">
+            <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.logistics_vessel_names label='Vessel names' only %}</div>
+            <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.logistics_carrier_names label='Carrier names' only %}</div>
+            <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.logistics_default_vessel label='Default vessel' only %}</div>
+            <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.logistics_default_carrier label='Default carrier' only %}</div>
+          </div><p class="mt-3 mb-0"><a href="{% url 'business_service_list' %}">Configure reusable service charges</a> · Saved services prefill charge prices and tax treatment.</p></div>
+        </section>
+        {% endif %}
+
         <section class="card mb-4" id="invoice-defaults" aria-labelledby="invoice-defaults-title">
           <div class="card-header border-bottom border-dashed p-3 p-sm-4">
             <h3 class="fs-7 mb-1" id="invoice-defaults-title">Invoice defaults</h3>
@@ -147,6 +159,7 @@
               <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.currency label='Currency' only %}</div>
               <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.tax_label label='Tax label' only %}</div>
               <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.tax_rate label='Tax rate' only %}</div>
+              {% if form.cancellation_service_charge %}<div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.cancellation_service_charge only %}</div>{% endif %}
               <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.invoice_prefix label='Invoice prefix' only %}</div>
               <div class="col-12 col-md-6">{% include 'businesses/includes/settings_field.html' with field=form.invoice_start_number label='Invoice start number' only %}</div>
             </div>

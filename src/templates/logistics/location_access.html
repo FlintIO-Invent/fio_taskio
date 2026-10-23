@@ -17,14 +17,14 @@
     <p>Staff without an active site assignment: {% for item in unassigned_workers %}{{ item.user }}{% if not forloop.last %}, {% endif %}{% empty %}None{% endfor %}</p>
   </div></div>
   <div class="card mb-3"><div class="card-body"><h4>Handling sites</h4>
-    <p>Associate one parcel or shipment with an expected site, a current handling site or an operational stop.</p>
+    <p>Associate a shipment with an expected site, a current handling site or an operational stop. Parcels use the handling sites of their assigned shipment.</p>
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="handling">
       {% for error in handling_form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
       <div class="row g-3">{% for field in handling_form %}{% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}{% endfor %}</div>
       <button class="btn btn-primary mt-3">Save handling site</button>
     </form>
-    <div class="table-responsive mt-3"><table class="table"><thead><tr><th>Record</th><th>Site</th><th>Association</th></tr></thead><tbody>
-      {% for item in handling_sites %}<tr><td>{% if item.parcel_id %}{{ item.parcel.tracking_code }}{% else %}{{ item.shipment.reference }}{% endif %}</td><td>{{ item.location }}</td><td>{{ item.get_kind_display }}</td></tr>{% empty %}<tr><td colspan="3">No handling sites registered.</td></tr>{% endfor %}
+    <div class="table-responsive mt-3"><table class="table"><thead><tr><th>Shipment</th><th>Site</th><th>Association</th></tr></thead><tbody>
+      {% for item in handling_sites %}<tr><td>{{ item.shipment.reference }}</td><td>{{ item.location }}</td><td>{{ item.get_kind_display }}</td></tr>{% empty %}<tr><td colspan="3">No shipment handling sites registered.</td></tr>{% endfor %}
     </tbody></table></div>
   </div></div>
   <div class="card"><div class="card-body"><h4>Assignment review</h4>

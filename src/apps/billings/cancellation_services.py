@@ -254,11 +254,25 @@ def review_cancellation(*, business, actor, parcel, choices=None):
     business, parcel = _access(business, actor, parcel, lock=True)
     choices = json.loads(json.dumps(choices or {}, default=str))
     parcel, charges, invoices = settlement_options(business=business, actor=actor, parcel=parcel)
-    if set(choices.get("retained", {})) - {str(c.pk) for c in charges}:
-        raise ValidationError("Unknown retained fee.")
+    if choices.get("retained"):
+        raise ValidationError(
+            "The cancellation service charge is set in Business Settings and cannot be overridden."
+        )
     if set(choices.get("invoices", {})) - {str(i.pk) for i, _ in invoices}:
         raise ValidationError("Unknown Invoice allocation.")
-    voids, credits, invoice_plans, source = [], [], [], []
+    voids, credits, invoice_plans = [], [], []
+    # Version the calculation so a preview from the previous tax-refund policy
+    # cannot be confirmed with different amounts after an application update.
+    configured_fee = _amount(business.cancellation_service_charge, business.currency)
+    remaining_fee = configured_fee
+    source = [
+        [
+            "refund_policy",
+            "business_fixed_service_charge_v2",
+            str(configured_fee),
+            business.currency,
+        ]
+    ]
     for charge in charges:
         validate_charge_coverage(charge)
         source.append(
@@ -278,12 +292,6 @@ def review_cancellation(*, business, actor, parcel, choices=None):
             if charge.shipment_id:
                 raise ValidationError(
                     "Uninvoiced shared freight requires explicit accounting reconciliation before settlement."
-                )
-            if _amount(
-                choices.get("retained", {}).get(str(charge.pk), "0"), charge.currency_snapshot
-            ):
-                raise ValidationError(
-                    "Retained fees require an existing invoiced obligation; uninvoiced charges are voided in full."
                 )
             voids.append(charge)
     for invoice, _ in invoices:
@@ -313,25 +321,23 @@ def review_cancellation(*, business, actor, parcel, choices=None):
         for row in allocations:
             if row["parcel"].pk != parcel.pk:
                 continue
-            retained = _amount(
-                choices.get("retained", {}).get(str(row["line"].charge_source_id), "0"),
-                invoice.currency_code,
-            )
-            if retained > row["subtotal"]:
-                raise ValidationError("Retained fee cannot exceed the cancelled Parcel obligation.")
-            retained_tax = (
-                row["tax"]
-                if retained == row["subtotal"]
-                else min(
-                    row["tax"],
-                    calculate_tax_amount(subtotal=retained, tax_rate=invoice.tax_rate_percentage),
+            if configured_fee and row["subtotal"] and invoice.currency_code != business.currency:
+                raise ValidationError(
+                    "The cancellation service charge currency differs from the original Invoice. Accounting reconciliation is required; no currency conversion is applied."
                 )
-            )
+            retained = min(remaining_fee, row["subtotal"])
+            remaining_fee -= retained
+            # Refund the original Parcel price before tax, less the optional
+            # service charge. Preserve all original tax, including saved rounding.
+            # Apply the business's fixed fee once across the Parcel's original
+            # obligations, capped at their combined subtotal.
             credit = {
                 **row,
                 "credit_subtotal": row["subtotal"] - retained,
-                "credit_tax": row["tax"] - retained_tax,
-                "retained": retained + retained_tax,
+                "credit_tax": ZERO,
+                "service_charge": retained,
+                "retained_tax": row["tax"],
+                "retained": retained + row["tax"],
             }
             credit["credit_total"] = credit["credit_subtotal"] + credit["credit_tax"]
             invoice_credits.append(credit)
@@ -349,6 +355,13 @@ def review_cancellation(*, business, actor, parcel, choices=None):
                 "allocations": allocations,
                 "receipts": receipt_rows,
                 "credits": invoice_credits,
+                "credit_total": _sum(c["credit_total"] for c in invoice_credits),
+                "received": balance.received,
+                "net_paid": balance.net_paid,
+                "can_record_payment": (
+                    invoice.status in (Invoice.Status.SENT, Invoice.Status.PAID)
+                    and balance.outstanding > 0
+                ),
                 "debt": debt,
                 "refund_due": refund,
             }
@@ -361,6 +374,11 @@ def review_cancellation(*, business, actor, parcel, choices=None):
         "invoices": invoice_plans,
         "fingerprint": hashlib.sha256(encoded.encode()).hexdigest(),
         "choices": choices,
+        "service_charge": {
+            "configured": str(configured_fee),
+            "applied": str(configured_fee - remaining_fee),
+            "currency": business.currency,
+        },
     }
 
 
@@ -397,7 +415,10 @@ def confirm_cancellation(
     request = {"choices": choices, "reason": reason_reference.strip(), "fingerprint": fingerprint}
     previous = ParcelCancellationSettlement.objects.filter(business=business, parcel=parcel).first()
     if previous:
-        if previous.idempotency_key != key or previous.request_snapshot != request:
+        previous_request = {
+            k: v for k, v in previous.request_snapshot.items() if k != "service_charge"
+        }
+        if previous.idempotency_key != key or previous_request != request:
             raise ValidationError("This cancelled Parcel already has a confirmed settlement.")
         return previous
     if not request["reason"]:
@@ -407,6 +428,7 @@ def confirm_cancellation(
         raise ValidationError(
             "Financial records changed after preview. Review the settlement again."
         )
+    request["service_charge"] = plan["service_charge"]
     case = ParcelCancellationSettlement(
         business=business,
         parcel=parcel,

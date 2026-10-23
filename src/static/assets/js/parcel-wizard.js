@@ -8,6 +8,28 @@
     const next = wizard.querySelector('[data-parcel-wizard-next]');
     const saveButtons = form ? Array.from(form.querySelectorAll('[type="submit"]')) : [];
     let current = 0;
+    const decisionForm = wizard.querySelector('[data-payment-decision-form]');
+    const paymentIndex = panels.findIndex(panel => panel.id === 'registration-payment');
+    const paymentComplete = () => decisionForm?.dataset.paymentComplete === 'true';
+    if (decisionForm) {
+      const refreshPayment = () => {
+        const paid = decisionForm.querySelector('[name="decision"]:checked')?.value === 'paid';
+        const receipt = decisionForm.querySelector('[data-payment-receipt-fields]');
+        if (receipt) {
+          receipt.hidden = !paid;
+          receipt.querySelectorAll('input, select, textarea').forEach(field => {
+            if (field.name !== 'currency') field.disabled = !paid;
+          });
+        }
+      };
+      decisionForm.querySelectorAll('[name="decision"]').forEach(field => {
+        field.addEventListener('change', () => {
+          decisionForm.dataset.paymentComplete = 'false';
+          refreshPayment();
+        });
+      });
+      refreshPayment();
+    }
 
     const fieldLabel = field => field.labels?.[0]?.textContent.trim().replace(/\s*\*$/, '') || field.name;
     const fieldsIn = panel => Array.from(panel.querySelectorAll('input, select, textarea'))
@@ -140,6 +162,11 @@
 
     const navigate = index => {
       if (index < 0 || index >= panels.length) return;
+      if (decisionForm && index > paymentIndex && !paymentComplete()) {
+        if (current === paymentIndex) decisionForm.requestSubmit();
+        else show(paymentIndex);
+        return;
+      }
       if (index > current && !validateThrough(index - 1)) return;
       show(index);
       if (!entry) history.pushState(null, '', `#${panels[index].id}`);
@@ -169,7 +196,7 @@
       // Preserve existing resume, payment and summary deep links.
       const followHash = (focus = true) => {
         const index = panels.findIndex(panel => `#${panel.id}` === window.location.hash);
-        if (index >= 0) show(index, focus);
+        if (index >= 0) show(decisionForm && index > paymentIndex && !paymentComplete() ? paymentIndex : index, focus);
       };
       document.addEventListener('click', event => {
         const link = event.target.closest('a[href^="#registration-"]');
@@ -191,7 +218,8 @@
       .querySelector('input, select, textarea');
     const hash = panels.findIndex(panel => `#${panel.id}` === window.location.hash);
     const requested = panels.findIndex(panel => panel.id === wizard.dataset.initialStep);
-    const initial = !entry && hash >= 0 && !errorField ? hash : Math.max(0, requested);
+    let initial = !entry && hash >= 0 && !errorField ? hash : Math.max(0, requested);
+    if (decisionForm && initial > paymentIndex && !paymentComplete()) initial = paymentIndex;
     wizard.querySelector('[data-parcel-wizard-nav]').hidden = false;
     wizard.querySelector('[data-parcel-wizard-controls]').hidden = false;
     show(initial, false);

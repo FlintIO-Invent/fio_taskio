@@ -47,7 +47,11 @@ class UnifiedSettingsTests(TestCase):
                         'name="currency"' in response.content.decode(), role in ("owner", "admin")
                     )
                     self.assertEqual(
-                        "Subscription and Motionmate payment settings" in response.content.decode(),
+                        'name="cancellation_service_charge"' in response.content.decode(),
+                        business.vertical == Business.Vertical.LOGISTICS and role in ("owner", "admin"),
+                    )
+                    self.assertEqual(
+                        "Subscription and payments" in response.content.decode(),
                         role == "owner",
                     )
         self.assertFalse(SaaSUserProfile.objects.filter(user=self.owner).exists())

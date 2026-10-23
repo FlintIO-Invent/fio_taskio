@@ -175,9 +175,17 @@ def invoice_payment_adjust(request, invoice_id, payment_id):
             label="Refund for credited obligation",
             widget=forms.Select(attrs={"class": "form-select"}),
         )
-        if len(available) == 1:
-            form.initial["cancellation_credit"] = available[0][0].pk
-            form.initial["amount"] = available[0][1]
+        selected = next(
+            (
+                (credit, due)
+                for credit, due in available
+                if str(credit.pk) == request.GET.get("cancellation_credit")
+            ),
+            available[0] if len(available) == 1 else None,
+        )
+        if selected:
+            form.initial["cancellation_credit"] = selected[0].pk
+            form.initial["amount"] = selected[1]
     if request.method == "POST" and form.is_valid():
         fields = dict(form.cleaned_data)
         action = fields.pop("action")

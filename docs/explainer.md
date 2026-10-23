@@ -8,6 +8,8 @@ An **invoice** is a bill sent to a client for services provided.
 
 It usually includes the service details, quantity, price, tax, total amount due, and invoice status. Invoices can also be downloaded as PDFs or emailed to the client.
 
+ENV=local DEBUG=True LOGISTICS_LOCAL_BILLING_BYPASS=True python3 src/manage.py runserver
+
 ## Client
 
 A **client** is a customer or business contact that receives services.

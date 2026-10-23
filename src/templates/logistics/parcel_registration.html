@@ -8,12 +8,12 @@
   {% include 'logistics/includes/cancellation_notice.html' %}
   <p class="text-break">{{ parcel.client }} · <strong>{{ parcel.tracking_code }}</strong> · {{ parcel.origin }} → {{ parcel.destination }}</p>
   <p class="text-body-secondary">Each step is saved separately. Return here to continue at any time.</p>
-  <!-- {% for message in messages %}<div class="alert alert-subtle-{{ message.tags|default:'info' }}" role="status">{{ message }}</div>{% endfor %}
-  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %} -->
+  {% for message in messages %}<div class="alert alert-subtle-{{ message.tags|default:'info' }}" role="status">{{ message }}</div>{% endfor %}
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
   <!-- <div class="alert alert-subtle-info"><a class="btn btn-primary mb-2" href="#{{ resume_step }}">{{ resume_label }}</a>
     <p class="fw-semibold mb-1">Outstanding registration tasks</p><ul class="mb-0">{% for task in registration_tasks %}<li>{{ task }}</li>{% empty %}<li>Registration steps completed. Operational tracking continues separately.</li>{% endfor %}</ul>
   </div> -->
-  <div class="card theme-wizard parcel-wizard mb-5" data-parcel-wizard="registration" data-initial-step="{% if payment_form or request.POST.action == 'issue' or request.POST.action == 'payment' %}registration-payment{% elif request.POST.action == 'assign' %}registration-shipment{% elif show_completion %}registration-summary{% else %}{{ resume_step }}{% endif %}">
+  <div class="card theme-wizard parcel-wizard mb-5" data-parcel-wizard="registration" data-initial-step="{% if request.POST.action == 'issue' or request.POST.action == 'payment' %}registration-payment{% elif request.POST.action == 'assign' %}registration-shipment{% elif show_completion %}registration-summary{% else %}{{ resume_step }}{% endif %}">
     <div class="card-header bg-body-highlight border-bottom-0">
       <nav aria-label="Registration steps" data-parcel-wizard-nav hidden>
         <ol class="nav nav-wizard parcel-wizard-nav justify-content-between">
@@ -52,7 +52,7 @@
     </div>
   </section>
   <section id="registration-payment" data-parcel-wizard-panel aria-labelledby="registration-payment-title">
-    <h3 class="fs-7 mb-4" id="registration-payment-title" tabindex="-1">Issue Invoice &amp; optional payment</h3>
+    <h3 class="fs-7 mb-4" id="registration-payment-title" tabindex="-1">Customer payment decision</h3>
     {% for invoice in invoices %}
       <div class="border rounded-3 p-3 p-sm-4 mb-3">
         <p class="text-break mb-0"><a class="fw-semibold" href="{% url 'invoice_detail' invoice.id %}">{{ invoice.number }}</a>{% if not invoice.restricted %} · {{ invoice.lifecycle_status }} · Outstanding {{ invoice.currency }} {{ invoice.outstanding|floatformat:2 }}{% if invoice.shared %} · Full shared Invoice balance{% endif %}{% endif %}</p>
@@ -60,8 +60,10 @@
     {% empty %}
       <p class="text-body-secondary mb-4">An issued Invoice and verified receipts are needed for financial clearance. Authorized accounting colleagues can complete this later.</p>
     {% endfor %}
-    {% if payment_form %}<form id="registration-payment-form" method="post" class="border rounded-3 p-3 p-sm-4 mt-4" novalidate>
+    {% if can_decide_payment %}<form id="registration-payment-form" data-payment-decision-form data-payment-complete="{{ payment_decision_complete|yesno:'true,false' }}" method="post" class="border rounded-3 p-3 p-sm-4 mt-4" novalidate>
       {% csrf_token %}<input type="hidden" name="action" value="payment"><input type="hidden" name="invoice" value="{{ payment_invoice.pk }}">
+      <fieldset class="mb-4"><legend class="fs-8">Customer payment decision</legend>{{ payment_decision_form.decision }}{{ payment_decision_form.decision.errors }}<p class="text-body-secondary mb-0">Choose explicitly, then press Continue. Unpaid keeps the existing outstanding balance and does not grant clearance.</p></fieldset>
+      {% if payment_form %}<div data-payment-receipt-fields>
       <h4 class="fs-8 text-break mb-2">Record customer payment · {{ payment_invoice.invoice_number }}</h4>
       <p class="text-body-secondary mb-4">Record money already received. This does not collect a payment.</p>
       {% if payment_form.non_field_errors %}<div class="alert alert-danger">{{ payment_form.non_field_errors }}</div>{% endif %}
@@ -77,7 +79,9 @@
           {% endif %}
         {% endfor %}
       </div>
-    </form>{% endif %}
+      </div>{% else %}<p class="text-body-secondary">To record a new payment, first create and issue an Invoice. If the balance is already cleared, Paid confirms the saved receipts.</p>{% endif %}
+      <button class="btn btn-primary mt-3 w-100" type="submit">Continue</button>
+    </form>{% else %}<p class="text-body-secondary">An authorized operational or accounting colleague must record the payment decision.</p>{% endif %}
     <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 mt-1">
       {% for invoice in invoices %}
         {% if invoice.can_issue %}
@@ -94,14 +98,6 @@
           </div>
         {% endif %}
       {% endfor %}
-      {% if payment_form %}
-        <div class="col">
-          <button class="btn btn-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" type="submit" form="registration-payment-form">Save customer receipt</button>
-        </div>
-      {% endif %}
-      <div class="col">
-        <a class="btn btn-phoenix-secondary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="#registration-shipment">Continue to Shipment; payment later</a>
-      </div>
     </div>
   </section>
   <section id="registration-shipment" data-parcel-wizard-panel aria-labelledby="registration-shipment-title">
@@ -126,9 +122,11 @@
     {% else %}<p class="text-body-secondary mb-4">Assignment requires an eligible Parcel and authorized work site. It can be completed later.</p>{% endif %}
     <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
       {% if not workflow_summary.shipment and can_assign %}
+        {% if role_access.can_manage_shipments %}
         <div class="col">
           <a class="btn btn-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="{% url 'logistics_shipment_create' %}?parcel={{ parcel.pk }}&amp;registration_parcel={{ parcel.pk }}">Create Shipment with this Parcel</a>
         </div>
+        {% endif %}
         <div class="col">
           <a class="btn btn-phoenix-secondary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="{% url 'logistics_shipment_list' %}?parcel={{ parcel.pk }}">Browse all Shipments</a>
         </div>
@@ -158,5 +156,5 @@
     </div>
   </div>
 </div>
-<script src="{% static 'assets/js/parcel-wizard.js' %}?v=20261018-1"></script>
+<script src="{% static 'assets/js/parcel-wizard.js' %}?v=20261023-1"></script>
 {% endblock %}

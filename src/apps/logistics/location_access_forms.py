@@ -5,7 +5,7 @@ from apps.businesses.models import BusinessUser
 from .dashboard_forms import style_dashboard_fields
 from .location_access import WIDE_ROLES
 from .location_forms import searchable
-from .models import LogisticsHandlingSite, LogisticsLocation, Parcel, Shipment
+from .models import LogisticsHandlingSite, LogisticsLocation, Shipment
 
 
 class LocationAssignmentForm(forms.Form):
@@ -36,27 +36,16 @@ class LocationAssignmentForm(forms.Form):
 
 
 class HandlingSiteForm(forms.Form):
-    parcel = forms.ModelChoiceField(queryset=Parcel.objects.none(), required=False)
-    shipment = forms.ModelChoiceField(queryset=Shipment.objects.none(), required=False)
+    shipment = forms.ModelChoiceField(queryset=Shipment.objects.none())
     location = forms.ModelChoiceField(queryset=LogisticsLocation.objects.none())
     kind = forms.ChoiceField(choices=LogisticsHandlingSite.Kind.choices)
     remove = forms.BooleanField(required=False, label="Remove association")
 
     def __init__(self, *args, business, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["parcel"].queryset = Parcel.objects.filter(
-            business=business, client__business=business
-        )
-        self.fields["parcel"].label_from_instance = lambda parcel: parcel.tracking_code
         self.fields["shipment"].queryset = Shipment.objects.filter(business=business)
         self.fields["location"].queryset = LogisticsLocation.objects.filter(business=business)
-        for name in ("parcel", "shipment", "location"):
+        for name in ("shipment", "location"):
             searchable(self.fields[name], "Search records and facilities")
         style_dashboard_fields(self.fields)
         self.fields["remove"].widget.attrs["class"] = "form-check-input"
-
-    def clean(self):
-        data = super().clean()
-        if bool(data.get("parcel")) == bool(data.get("shipment")):
-            raise forms.ValidationError("Select exactly one parcel or shipment.")
-        return data

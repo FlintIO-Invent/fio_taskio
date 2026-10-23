@@ -20,7 +20,19 @@ from .parcel_services import register_parcel
 
 
 class ParcelRegistrationTests(TestCase):
-    setUp = fixtures.ParcelWorkflowSummaryTests.setUp
+    def setUp(self):
+        fixtures.ParcelWorkflowSummaryTests.setUp(self)
+        from .models import LogisticsLocation
+
+        for code in ("US", "CW"):
+            LogisticsLocation.objects.create(
+                business=self.business,
+                code=code,
+                name=code,
+                country_code=code,
+                location_type="WAREHOUSE",
+            )
+
     parcel = fixtures.ParcelWorkflowSummaryTests.parcel
     shipment = fixtures.ParcelWorkflowSummaryTests.shipment
     charge = fixtures.ParcelWorkflowSummaryTests.charge
@@ -36,6 +48,8 @@ class ParcelRegistrationTests(TestCase):
             {
                 "client": self.customer.pk,
                 "origin": "A",
+                "origin_country_code": "US",
+                "destination_country_code": "CW",
                 "destination": "B",
                 "quantity": 1,
                 "package_description": "Books",
@@ -79,6 +93,7 @@ class ParcelRegistrationTests(TestCase):
             self.url(parcel),
             {
                 "action": "payment",
+                "decision": "paid",
                 "invoice": invoice.pk,
                 "amount": "100",
                 "method": "CASH",
@@ -117,7 +132,8 @@ class ParcelRegistrationTests(TestCase):
         receipt_key = uuid.uuid4()
         for _ in range(2):
             self.assertRedirects(
-                self.pay(parcel, invoice, idempotency_key=receipt_key), self.url(parcel)
+                self.pay(parcel, invoice, idempotency_key=receipt_key),
+                self.url(parcel) + "#registration-shipment",
             )
         self.assertEqual(InvoicePayment.objects.count(), 1)
         shipment = self.shipment(origin="A", destination="B")
@@ -221,7 +237,14 @@ class ParcelRegistrationTests(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.context["form"].initial["parcel"], parcel)
         key = uuid.uuid4()
-        data = {"origin": "A", "destination": "B", "parcel": parcel.pk, "idempotency_key": key}
+        data = {
+            "origin": "A",
+            "destination": "B",
+            "origin_country_code": "US",
+            "destination_country_code": "CW",
+            "parcel": parcel.pk,
+            "idempotency_key": key,
+        }
         for _ in range(2):
             self.assertRedirects(self.client.post(url, data), self.url(parcel))
         parcel.refresh_from_db()
@@ -236,6 +259,8 @@ class ParcelRegistrationTests(TestCase):
             url,
             {
                 "origin": "A",
+                "origin_country_code": "US",
+                "destination_country_code": "CW",
                 "destination": "B",
                 "parcel": other.pk,
                 "idempotency_key": uuid.uuid4(),
@@ -252,10 +277,13 @@ class ParcelRegistrationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(str(response.context["payment_form"]["amount"].value()), "101")
         self.assertEqual(InvoicePayment.objects.count(), 0)
-        self.assertRedirects(self.pay(parcel, invoice, amount="40"), self.url(parcel))
+        self.assertRedirects(
+            self.pay(parcel, invoice, amount="40"), self.url(parcel) + "#registration-shipment"
+        )
         self.assertContains(self.client.get(self.url(parcel)), "Partial")
         self.assertRedirects(
-            self.pay(parcel, invoice, amount="60", reference="CASH-002"), self.url(parcel)
+            self.pay(parcel, invoice, amount="60", reference="CASH-002"),
+            self.url(parcel) + "#registration-shipment",
         )
         self.assertContains(self.client.get(self.url(parcel)), "Paid")
 
@@ -307,7 +335,8 @@ class ParcelRegistrationTests(TestCase):
         self.assertEqual(self.add(parcel).status_code, 403)
         self.assertEqual(
             self.client.post(
-                self.url(parcel), {"action": "payment", "invoice": invoice.pk, "amount": 25}
+                self.url(parcel),
+                {"action": "payment", "decision": "paid", "invoice": invoice.pk, "amount": 25},
             ).status_code,
             404,
         )
@@ -346,19 +375,23 @@ class ParcelRegistrationTests(TestCase):
         self.assertContains(response, 'value="ONLINE"')
         key = uuid.uuid4()
         payload = dict(amount="25", method="ONLINE", reference="", idempotency_key=key)
-        self.assertRedirects(self.pay(parcel, invoice, **payload), self.url(parcel))
+        self.assertRedirects(
+            self.pay(parcel, invoice, **payload), self.url(parcel) + "#registration-shipment"
+        )
         receipt = InvoicePayment.objects.get()
         self.assertEqual(receipt.method, "ONLINE")
         self.assertEqual(receipt.verification_reference, "")
         self.assertEqual(receipt.reference, f"RECEIPT-{str(key).upper()}")
         self.assertEqual(receipt.recorded_by, self.user)
-        self.assertRedirects(self.pay(parcel, invoice, **payload), self.url(parcel))
+        self.assertRedirects(
+            self.pay(parcel, invoice, **payload), self.url(parcel) + "#registration-shipment"
+        )
         self.assertEqual(InvoicePayment.objects.count(), 1)
         self.assertEqual(self.pay(parcel, invoice, **{**payload, "amount": "26"}).status_code, 200)
         # Older open forms still work without evidence, and save the ordinary method.
         self.assertRedirects(
             self.pay(parcel, invoice, amount="75", method="VERIFIED_ONLINE", reference=""),
-            self.url(parcel),
+            self.url(parcel) + "#registration-shipment",
         )
         balance = invoice_settlement(business=self.business, actor=self.user, invoice=invoice)
         self.assertTrue(balance.settled)
@@ -457,6 +490,8 @@ class ParcelRegistrationTests(TestCase):
                 url,
                 {
                     "origin": "A",
+                    "origin_country_code": "US",
+                    "destination_country_code": "CW",
                     "destination": "B",
                     "parcel": parcel.pk,
                     "idempotency_key": uuid.uuid4(),

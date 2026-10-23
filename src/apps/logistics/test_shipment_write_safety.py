@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from . import test_concurrency as concurrency_fixtures
 from . import test_shipments as fixtures
-from .models import ParcelEvent, Shipment
+from .models import LogisticsLocation, ParcelEvent, Shipment
 from .parcel_services import change_parcel_status
 from .shipment_services import (
     assign_parcel,
@@ -22,7 +22,10 @@ from .test_concurrency import race
 
 
 def hidden(form):
-    return {field.name: field.value() for field in form.hidden_fields()}
+    return {
+        field.name: field.value() if field.value() is not None else ""
+        for field in form.hidden_fields()
+    }
 
 
 class ShipmentWriteSafetyTests(TestCase):
@@ -35,13 +38,28 @@ class ShipmentWriteSafetyTests(TestCase):
     ready_shipment = fixtures.ShipmentTests.ready_shipment
 
     def form_data(self, shipment=None, **fields):
+        # Route text is now derived from the selected territory/facility.
+        route = {}
+        for side, name, country in (("origin", "Miami", "US"), ("destination", "Curacao", "CW")):
+            name = fields.pop(side, name)
+            site, _ = LogisticsLocation.objects.get_or_create(
+                business=self.business,
+                name=name,
+                defaults={
+                    "code": "T-" + uuid.uuid4().hex[:12],
+                    "country_code": country,
+                    "location_type": "WAREHOUSE",
+                },
+            )
+            route[f"{side}_location"] = site.pk
+            route[f"{side}_country_code"] = country
         url = (
             reverse("logistics_shipment_edit", args=[shipment.pk])
             if shipment
             else reverse("logistics_shipment_create")
         )
         form = self.client.get(url).context["form"]
-        return {**hidden(form), "origin": "Miami", "destination": "Curacao", "notes": "", **fields}
+        return {**hidden(form), **route, "notes": "", **fields}
 
     def detail_data(self, shipment, form="assignment_form", **fields):
         response = self.client.get(reverse("logistics_shipment_detail", args=[shipment.pk]))
@@ -82,13 +100,13 @@ class ShipmentWriteSafetyTests(TestCase):
         self.assertEqual(parcel.events.count(), 1)
 
     def test_invalid_create_keeps_retry_token_for_successful_resubmission(self):
-        data = self.form_data(destination="")
+        data = self.form_data(destination_country_code="XX")
         response = self.client.post(reverse("logistics_shipment_create"), data)
         self.assertEqual(
             str(response.context["form"]["idempotency_key"].value()), str(data["idempotency_key"])
         )
         self.assertEqual(Shipment.objects.count(), 0)
-        data["destination"] = "Curacao"
+        data["destination_country_code"] = "CW"
         self.assertEqual(
             self.client.post(reverse("logistics_shipment_create"), data).status_code, 302
         )
@@ -134,15 +152,15 @@ class ShipmentWriteSafetyTests(TestCase):
     def test_edit_retry_does_not_restore_old_data_after_another_edit(self):
         shipment = self.shipment()
         url = reverse("logistics_shipment_edit", args=[shipment.pk])
-        first = self.form_data(shipment, origin="First edit")
+        first = self.form_data(shipment, notes="First edit")
         self.assertEqual(self.client.post(url, first).status_code, 302)
         shipment.refresh_from_db()
-        later = self.form_data(shipment, origin="Later edit")
+        later = self.form_data(shipment, notes="Later edit")
         self.assertEqual(self.client.post(url, later).status_code, 302)
         self.assertEqual(self.client.post(url, first).status_code, 302)
         shipment.refresh_from_db()
-        self.assertEqual((shipment.origin, shipment.revision), ("Later edit", 3))
-        first["origin"] = "Changed retry payload"
+        self.assertEqual((shipment.notes, shipment.revision), ("Later edit", 3))
+        first["notes"] = "Changed retry payload"
         self.assertContains(self.client.post(url, first), "different shipment operation")
 
     def test_assignment_and_status_cycles_invalidate_old_edit_revision(self):

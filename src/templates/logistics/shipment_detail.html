@@ -47,9 +47,9 @@
       </dl>
     </div>
   </div>
-  {% if can_operate_shipment and role_access.can_manage_shipments and module_write_access.shipments %}
+  {% if can_operate_shipment and role_access.can_manage_parcels and module_write_access.shipments %}
   <div class="row g-4 mb-4 mobile-detail-lifecycle" id="shipment-lifecycle">
-    {% if status_actions %}
+    {% if role_access.can_manage_shipments and status_actions %}
     <div class="col-12 col-xl-6">
       <div class="card h-100"><div class="card-body">
         <h4 class="mb-3">Change shipment status</h4>

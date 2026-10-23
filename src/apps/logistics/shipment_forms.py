@@ -156,6 +156,9 @@ class ShipmentForm(forms.ModelForm):
         else:
             self.fields.pop("parcel")
         configure_route_fields(self, business, actor)
+        from .business_defaults import configure_transport_names
+
+        configure_transport_names(self, business)
         style_dashboard_fields(self.fields)
         self.fields["origin"].widget.attrs.update({"placeholder": "e.g. Miami", "autofocus": True})
         self.fields["destination"].widget.attrs["placeholder"] = "e.g. Curaçao"

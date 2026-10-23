@@ -496,6 +496,67 @@ class LocationAccessTests(TestCase):
             302,
         )
 
+    def test_handling_settings_show_shipments_only_and_preserve_legacy_parcel_sites(self):
+        legacy = set_handling_site(
+            business=self.business, actor=self.user, parcel=self.pa, location=self.a, kind="CURRENT"
+        )
+        shipment_site = set_handling_site(
+            business=self.business, actor=self.user, shipment=self.sa, location=self.a, kind="STOP"
+        )
+        response = self.client.get(reverse("logistics_location_access"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'name="handling-parcel"')
+        self.assertContains(response, 'name="handling-shipment"')
+        self.assertContains(response, "<th>Shipment</th>")
+        self.assertEqual(list(response.context["handling_sites"]), [shipment_site])
+        self.assertTrue(LogisticsHandlingSite.objects.filter(pk=legacy.pk).exists())
+
+    def test_handling_settings_require_a_workspace_shipment(self):
+        payload = {
+            "action": "handling",
+            "handling-parcel": self.pa.pk,
+            "handling-location": self.a.pk,
+            "handling-kind": "STOP",
+        }
+        response = self.client.post(reverse("logistics_location_access"), payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("shipment", response.context["handling_form"].errors)
+        self.assertFalse(LogisticsHandlingSite.objects.exists())
+        foreign_shipment = create_shipment(
+            business=self.other, actor=self.other_user, origin="Miami", destination="Curacao"
+        )
+        for field, foreign_id in (
+            ("handling-shipment", foreign_shipment.pk),
+            ("handling-location", self.foreign.pk),
+        ):
+            with self.subTest(field=field):
+                response = self.client.post(
+                    reverse("logistics_location_access"),
+                    {**payload, "handling-shipment": self.sa.pk, field: foreign_id},
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(field.removeprefix("handling-"), response.context["handling_form"].errors)
+                self.assertFalse(LogisticsHandlingSite.objects.exists())
+
+    def test_handling_settings_save_and_remove_shipment_sites_without_tying_parcels(self):
+        payload = {
+            "action": "handling",
+            "handling-shipment": self.sa.pk,
+            "handling-parcel": self.pa.pk,
+            "handling-location": self.a.pk,
+            "handling-kind": "STOP",
+        }
+        response = self.client.post(reverse("logistics_location_access"), payload)
+        self.assertRedirects(response, reverse("logistics_location_access"))
+        site = LogisticsHandlingSite.objects.get()
+        self.assertEqual(site.shipment_id, self.sa.pk)
+        self.assertIsNone(site.parcel_id)
+        response = self.client.post(
+            reverse("logistics_location_access"), {**payload, "handling-remove": "on"}
+        )
+        self.assertRedirects(response, reverse("logistics_location_access"))
+        self.assertFalse(LogisticsHandlingSite.objects.exists())
+
     def test_demo_reset_preserves_user_created_handling_associations(self):
         set_handling_site(
             business=self.business, actor=self.user, parcel=self.pa, location=self.a, kind="CURRENT"

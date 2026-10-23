@@ -91,8 +91,8 @@ def location_access_settings(request):
                 business=business, is_work_context=False
             ).select_related("membership__user", "location"),
             "handling_sites": LogisticsHandlingSite.objects.filter(
-                business=business
-            ).select_related("location", "parcel", "shipment"),
+                business=business, shipment__business=business, parcel__isnull=True
+            ).select_related("location", "shipment"),
             "unassigned_workers": BusinessUser.objects.filter(
                 business=business, role=BusinessUser.Role.STAFF, is_active=True
             ).exclude(logistics_location_assignments__location__is_active=True),

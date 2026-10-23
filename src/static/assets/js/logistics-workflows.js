@@ -4,6 +4,8 @@
   if (shipmentForm) {
     const mode = shipmentForm.querySelector('[name="transport_mode"]');
     const updateReferences = () => {
+      const vessel = shipmentForm.querySelector('[name="vessel_name"][data-default-name]');
+      if (vessel && !vessel.value && mode.value === 'SEA') vessel.value = vessel.dataset.defaultName;
       shipmentForm.querySelectorAll('[data-shipment-reference-mode]').forEach(group => {
         // Keep error fields reachable and retain entered values when switching modes.
         group.hidden = group.dataset.shipmentReferenceMode !== mode.value &&
@@ -145,6 +147,8 @@
     const updateParcelReferences = () => {
       if (!parcelForm) return;
       const sea = mode.value.toUpperCase() === 'SEA';
+      const vessel = parcelForm.querySelector('[name="vessel_name"][data-default-name]');
+      if (vessel && !vessel.value && sea) vessel.value = vessel.dataset.defaultName;
       parcelForm.querySelectorAll('[data-parcel-sea-reference]').forEach(group => {
         group.hidden = !sea && !group.querySelector('.invalid-feedback.d-block');
         group.querySelectorAll('input, select, textarea').forEach(field => { field.disabled = group.hidden; });

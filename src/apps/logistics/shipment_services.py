@@ -33,6 +33,7 @@ from .shipment_policy import (
     ALLOWED_TRANSITIONS,
     ASSIGNABLE_PARCEL_STATUSES,
     ASSIGNABLE_SHIPMENT_STATUSES,
+    SHIPMENT_ASSIGN_ROLES,
     SHIPMENT_MANAGE_ROLES,
     SHIPMENT_VIEW_ROLES,
 )
@@ -69,7 +70,7 @@ class _ReceiptEncoder(DjangoJSONEncoder):
         return super().default(value)
 
 
-def require_shipment_access(*, business, actor, write=False, manifest=False):
+def require_shipment_access(*, business, actor, write=False, manifest=False, assignment=False):
     current = Business.objects.filter(pk=getattr(business, "pk", None), is_active=True).first()
     if current is None or current.vertical != Business.Vertical.LOGISTICS:
         raise PermissionDenied("Shipment operations require an active Logistics workspace.")
@@ -78,7 +79,11 @@ def require_shipment_access(*, business, actor, write=False, manifest=False):
         user_id=getattr(actor, "pk", None),
         is_active=True,
         user__is_active=True,
-        role__in=SHIPMENT_MANAGE_ROLES if write else SHIPMENT_VIEW_ROLES,
+        role__in=(
+            (SHIPMENT_ASSIGN_ROLES if assignment else SHIPMENT_MANAGE_ROLES)
+            if write
+            else SHIPMENT_VIEW_ROLES
+        ),
     ).exists():
         raise PermissionDenied("Your workspace role does not permit this shipment operation.")
     subscription = (
@@ -104,11 +109,13 @@ def shipments_for_business(*, business, actor):
     return scope_records(Shipment.objects.filter(business=current), business=current, actor=actor)
 
 
-def _locked_business(business, actor, *, write=True, manifest=False):
+def _locked_business(business, actor, *, write=True, manifest=False, assignment=False):
     current = Business.objects.select_for_update().filter(pk=getattr(business, "pk", None)).first()
     if write:
         lock_actor_membership(current, actor)
-    return require_shipment_access(business=current, actor=actor, write=write, manifest=manifest)
+    return require_shipment_access(
+        business=current, actor=actor, write=write, manifest=manifest, assignment=assignment
+    )
 
 
 def _shipment(current, shipment, actor, *, write=True):
@@ -374,7 +381,7 @@ def update_shipment(
 def assign_parcel(
     *, business, shipment, parcel, actor, idempotency_key=None, expected_revision=None
 ):
-    current = _locked_business(business, actor)
+    current = _locked_business(business, actor, assignment=True)
     require_parcel_access(business=current, actor=actor, write=True)
     locked = _shipment(current, shipment, actor)
     item = _parcel(current, parcel, actor)

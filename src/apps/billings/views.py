@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import Exists, F, OuterRef, Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -36,7 +36,8 @@ from apps.logistics.financial_access import (
 )
 from apps.notifications.emails import send_invoice_email
 
-from .models import Invoice, InvoiceLine
+from .models import Invoice, InvoiceCancellationCredit, InvoiceLine, InvoicePayment
+from .payment_services import _invoice_settlement
 from .pdf import invoice_pdf_filename, render_invoice_pdf
 from .services import (
     change_invoice_status,
@@ -911,12 +912,38 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
 
     # Filter by status if provided
     status_filter = request.GET.get("status")
-    if status_filter:
+    if status_filter == "REFUNDED":
+        # Refunds are ledger entries, independent of the invoice lifecycle status.
+        refunds = InvoicePayment.objects.filter(
+            business=current_business,
+            invoice_id=OuterRef("pk"),
+            kind=InvoicePayment.Kind.REFUND,
+            amount__gt=0,
+        )
+        invoices = invoices.filter(Exists(refunds))
+    elif status_filter == "REFUND_DUE":
+        credits = InvoiceCancellationCredit.objects.filter(
+            business=current_business,
+            obligation__line__invoice_id=OuterRef("pk"),
+        )
+        # Use the same validated settlement balance as the refund dashboard.
+        candidates = invoices.filter(Exists(credits)).prefetch_related("payments")
+        due_ids = []
+        for invoice in candidates:
+            balance = _invoice_settlement(invoice)
+            if balance.refund_due > 0 and not balance.issues:
+                due_ids.append(invoice.pk)
+        invoices = invoices.filter(pk__in=due_ids)
+    elif status_filter:
         invoices = invoices.filter(status=status_filter)
 
     context: dict[str, Any] = {
         "invoices": invoices,
-        "status_choices": Invoice.Status.choices,
+        "status_choices": [
+            *Invoice.Status.choices,
+            ("REFUND_DUE", "Refund due"),
+            ("REFUNDED", "Refunded"),
+        ],
         "current_status": status_filter,
     }
     return render(request, "billings/invoice_list.html", context)

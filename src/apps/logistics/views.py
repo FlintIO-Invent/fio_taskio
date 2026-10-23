@@ -387,7 +387,6 @@ def parcel_edit(request, parcel_id):
 def parcel_register(request):
     import uuid
 
-    receive_at_hub = request.method == "POST" and request.POST.get("save_and_receive") == "1"
     form = ParcelRegistrationForm(
         request.POST if request.method == "POST" else None,
         business=request.current_business,
@@ -401,10 +400,18 @@ def parcel_register(request):
             raise Http404("Client is unavailable in this workspace.") from exc
     if request.method == "POST" and form.is_valid():
         try:
-            create = register_and_receive_parcel if receive_at_hub else register_parcel
-            parcel = create(
-                business=request.current_business, actor=request.user, **form.cleaned_data
-            )
+            with transaction.atomic():
+                business = Business.objects.select_for_update().get(pk=request.current_business.pk)
+                lock_actor_membership(business, request.user)
+                try:
+                    intake_site = require_parcel_intake_site(business=business, actor=request.user)
+                except PermissionDenied:
+                    intake_site = None
+                # Choose intake under the same locks as registration, so a work-site
+                # change cannot silently turn physical hub receipt into pre-advice.
+                receive_at_hub = bool(intake_site) or request.POST.get("save_and_receive") == "1"
+                create = register_and_receive_parcel if receive_at_hub else register_parcel
+                parcel = create(business=business, actor=request.user, **form.cleaned_data)
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
