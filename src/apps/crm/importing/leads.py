@@ -98,7 +98,7 @@ LEAD_SAMPLE_ROW = {
     "phone": "+1 721 555 0100",
     "company_name": "Example Customer",
     "status": Lead.Status.NEW,
-    "category": "Maintenance",
+    "category": "",
     "street_address": "12 Example Street",
     "district": Lead.DistrictChoices.SIMPSON_BAY,
     "country": "Sint Maarten",

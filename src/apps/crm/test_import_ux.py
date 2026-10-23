@@ -169,6 +169,80 @@ class ImportUXTests(TestCase):
         self.assertContains(response, "1</strong> duplicates will be skipped")
         self.assertContains(response, "Import rows cannot be edited in the browser")
 
+    def test_missing_client_values_identify_fields_instead_of_only_showing_error(self):
+        response = self.post_csv(
+            "client_import_upload",
+            "salon-clients.csv",
+            "first_name,last_name,email,phone,company_name,street_address\n"
+            "Jane,Doe,jane@example.com,,,\n",
+        )
+        self.assertContains(response, "Validation status")
+        for field in ("company_name", "phone", "street_address"):
+            self.assertContains(response, f"<code>{field}</code>")
+        self.assertNotContains(response, "Confirm Client Import")
+        self.assertFalse(Client.objects.exists())
+
+    def test_invalid_client_status_names_the_field(self):
+        response = self.post_csv(
+            "client_import_upload",
+            "clients.csv",
+            "first_name,last_name,email,phone,company_name,street_address,client_status\n"
+            "Jane,Doe,jane@example.com,17215550100,Example,12 Example Street,UNKNOWN\n",
+        )
+        self.assertContains(response, "<code>client_status</code>")
+        self.assertNotContains(response, "Confirm Client Import")
+        self.assertFalse(Client.objects.exists())
+
+    def test_wrong_csv_type_explains_the_matching_import(self):
+        samples = {
+            "Clients": "first_name,last_name,email,phone,company_name,street_address\nJane,Doe,jane@example.com,17215550100,Example,12 Example Street\n",
+            "Leads": "lead_type,first_name,last_name,email,phone,company_name\nREQUEST,Jane,Doe,jane@example.com,17215550100,Example\n",
+            "Services": "name,unit_price\nHaircut,25.00\n",
+        }
+        routes = {
+            "Clients": "client_import_upload",
+            "Leads": "lead_import_upload",
+            "Services": "business_service_import",
+        }
+        for source, content in samples.items():
+            for target, route in routes.items():
+                if source == target:
+                    continue
+                with self.subTest(source=source, target=target):
+                    response = self.post_csv(route, "wrong-type.csv", content)
+                    self.assertContains(response, f"This looks like a {source} CSV.")
+                    self.assertContains(response, "Choose the matching import")
+                    self.assertNotContains(response, "Ready to confirm")
+        self.assertFalse(Client.objects.exists())
+        self.assertFalse(Lead.objects.exists())
+        self.assertFalse(BusinessService.objects.exists())
+
+    def test_every_downloaded_csv_template_can_preview_confirm_and_replay(self):
+        flows = (
+            ("client_import_template", "client_import_upload", "client_import_execute", Client),
+            ("lead_import_template", "lead_import_upload", "lead_import_execute", Lead),
+            (
+                "business_service_sample_csv",
+                "business_service_import",
+                "business_service_import_execute",
+                BusinessService,
+            ),
+        )
+        for template, upload, execute, model in flows:
+            with self.subTest(template=template):
+                csv_content = self.client.get(reverse(template)).content.decode()
+                before = model.objects.count()
+                response = self.post_csv(upload, "template.csv", csv_content)
+                job = response.context["job"]
+                self.assertEqual(job.status, ImportJob.Status.READY)
+                self.assertEqual(model.objects.count(), before)
+                response = self.client.post(reverse(execute, args=[job.pk]), follow=True)
+                self.assertTrue(response.context["result"].completed)
+                after = model.objects.count()
+                self.assertGreater(after, before)
+                self.client.post(reverse(execute, args=[job.pk]))
+                self.assertEqual(model.objects.count(), after)
+
     def test_lead_preview_uses_accessible_states_and_confirmation_counts(self):
         row = "REQUEST,Jamie,Requester,jamie@example.com,+1 721 555 0100,Example Co"
         response = self.post_csv(

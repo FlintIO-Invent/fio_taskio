@@ -1,0 +1,75 @@
+<section class="mb-4" id="logistics-defaults" aria-labelledby="logistics-defaults-title">
+  <div class="mb-3">
+    <h3 class="fs-7 mb-1" id="logistics-defaults-title">Carriers and vessels</h3>
+    <p class="text-body-secondary mb-0">Save reusable names for {{ business.name }} to use on new Parcels and Shipments. Saved transactions keep their original values.</p>
+  </div>
+  <div class="row g-3">
+    <div class="col-12 col-lg-5">
+      <div class="card h-100">
+        <div class="card-body p-3 p-sm-4">
+          <h4 class="fs-8 mb-2">Add carrier or vessel</h4>
+          <p class="text-body-secondary fs-9 mb-4">Enter a carrier name, a vessel name, or both. Each name is saved to your business list.</p>
+          <form method="post" action="{% url 'business_settings' %}#logistics-defaults" id="transport-name-form" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="section" value="logistics_transport">
+            <input type="hidden" name="action" value="add">
+            {% if transport_form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ transport_form.non_field_errors }}</div>{% endif %}
+            <div class="mb-3">{% include 'businesses/includes/settings_field.html' with field=transport_form.carrier_name label='Carrier name' only %}</div>
+            <div class="mb-4">{% include 'businesses/includes/settings_field.html' with field=transport_form.vessel_name label='Vessel name' only %}</div>
+            <button class="btn btn-primary w-100" type="submit"><span class="fa-solid fa-plus me-2" aria-hidden="true"></span>Save names</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-7">
+      <div class="card h-100">
+        <div class="card-body p-3 p-sm-4">
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+            <div>
+              <h4 class="fs-8 mb-2">Saved carriers and vessels</h4>
+              <p class="text-body-secondary fs-9 mb-0">Set a default to prefill new records.</p>
+            </div>
+            <span class="badge badge-phoenix badge-phoenix-primary" aria-label="{{ transport_names|length }} saved names">{{ transport_names|length }}</span>
+          </div>
+          {% if transport_action_form.errors %}<div class="alert alert-danger" role="alert">{% for errors in transport_action_form.errors.values %}{{ errors }}{% endfor %}</div>{% endif %}
+          {% if transport_names %}
+          <ul class="list-group list-group-flush">
+            {% for entry in transport_names %}
+            <li class="list-group-item px-0 py-3" data-transport-kind="{{ entry.kind }}">
+              <div class="d-flex align-items-start gap-2 mb-2">
+                <div class="flex-grow-1 settings-text">
+                  <p class="fw-semibold text-break mb-1">{{ entry.name }}</p>
+                  <span class="text-body-secondary fs-9">{{ entry.label }}</span>
+                </div>
+                {% if entry.is_default %}<span class="badge badge-phoenix badge-phoenix-success">Default</span>{% endif %}
+              </div>
+              <div class="row row-cols-1 row-cols-sm-2 g-2">
+                <form method="post" action="{% url 'business_settings' %}#logistics-defaults" class="col">
+                  {% csrf_token %}
+                  <input type="hidden" name="section" value="logistics_transport">
+                  <input type="hidden" name="action" value="{% if entry.is_default %}clear_default{% else %}default{% endif %}">
+                  <input type="hidden" name="kind" value="{{ entry.kind }}">
+                  <input type="hidden" name="name" value="{{ entry.name }}">
+                  <button class="btn btn-phoenix-secondary btn-sm w-100" type="submit" aria-label="{% if entry.is_default %}Clear default{% else %}Set as default{% endif %}: {{ entry.name }}">{% if entry.is_default %}Clear default{% else %}Set as default{% endif %}</button>
+                </form>
+                <form method="post" action="{% url 'business_settings' %}#logistics-defaults" class="col" onsubmit="return confirm('Remove this saved name? Existing Parcels and Shipments will keep their original values.');">
+                  {% csrf_token %}
+                  <input type="hidden" name="section" value="logistics_transport">
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="kind" value="{{ entry.kind }}">
+                  <input type="hidden" name="name" value="{{ entry.name }}">
+                  <button class="btn btn-phoenix-danger btn-sm w-100" type="submit" aria-label="Remove {{ entry.label|lower }}: {{ entry.name }}">Remove</button>
+                </form>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="alert alert-subtle-secondary border mb-0" role="status">No carriers or vessels saved yet. Add your first name using the form.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="mt-3 mb-0 fs-9"><a href="{% url 'business_service_list' %}">Configure reusable service charges</a> · Saved services prefill charge prices and tax treatment.</p>
+</section>

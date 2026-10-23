@@ -2,6 +2,7 @@
 
 import uuid
 from decimal import Decimal
+from html.parser import HTMLParser
 
 from django.core.exceptions import PermissionDenied
 from django.test import TestCase, TransactionTestCase
@@ -116,6 +117,50 @@ class ExplicitPaymentDecisionTests(TestCase):
         invoice = self.bill(self.charge(parcel=parcel, unit_price=100))
         self.issue(invoice)
         return parcel, invoice
+
+    def payment_choices(self, response):
+        class ChoicesParser(HTMLParser):
+            choices = {}
+
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == "input" and attrs.get("name") == "decision":
+                    self.choices[attrs["value"]] = attrs
+
+        parser = ChoicesParser()
+        parser.feed(response.content.decode())
+        return parser.choices
+
+    def test_invoice_is_presented_before_payment_and_issuance_enables_paid(self):
+        parcel = self.parcel()
+        invoice = self.bill(self.charge(parcel=parcel, unit_price=100))
+        response = self.client.get(self.url(parcel))
+        html = response.content.decode()
+        self.assertLess(html.index(f"Issue Invoice {invoice.invoice_number}"), html.index('id="registration-payment-form"'))
+        self.assertIn("disabled", self.payment_choices(response)["paid"])
+        self.assertNotIn("disabled", self.payment_choices(response)["unpaid"])
+        self.assertEqual(InvoicePayment.objects.count(), 0)
+        self.assertRedirects(
+            self.client.post(self.url(parcel), {"action": "issue", "invoice": invoice.pk}),
+            self.url(parcel),
+        )
+        response = self.client.get(self.url(parcel))
+        self.assertNotIn("disabled", self.payment_choices(response)["paid"])
+        self.assertIsNone(response.context["payment_decision_form"]["decision"].value())
+        self.assertEqual(response.context["payment_invoice"].pk, invoice.pk)
+        self.assertEqual(InvoicePayment.objects.count(), 0)
+
+    def test_no_invoice_disables_paid_but_paid_receipts_can_be_confirmed(self):
+        parcel = self.parcel()
+        response = self.client.get(self.url(parcel))
+        self.assertIn("disabled", self.payment_choices(response)["paid"])
+        self.assertNotIn("disabled", self.payment_choices(response)["unpaid"])
+        invoice = self.bill(self.charge(parcel=parcel, unit_price=100))
+        self.issue(invoice)
+        self.pay(parcel, invoice)
+        response = self.client.get(self.url(parcel))
+        self.assertNotIn("disabled", self.payment_choices(response)["paid"])
+        self.assertEqual(InvoicePayment.objects.count(), 1)
 
     def test_no_default_unpaid_preserves_balance_and_saved_choice(self):
         parcel, invoice = self.prepare()

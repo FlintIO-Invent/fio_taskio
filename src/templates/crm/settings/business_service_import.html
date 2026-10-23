@@ -41,7 +41,7 @@
             <div class="mb-3">
               <label class="form-label" for="{{ form.csv_file.id_for_label }}">CSV file</label>
               {{ form.csv_file }}
-              <div id="service-csv-help" class="form-text">CSV only, up to {{ import_limits.maximum_upload_megabytes }} MB and {{ import_limits.maximum_data_rows }} data rows.</div>
+              <div id="service-csv-help" class="form-text">CSV only, up to {{ import_limits.maximum_upload_megabytes }} MB and {{ import_limits.maximum_data_rows }} data rows. Save as CSV UTF-8.</div>
               {% if form.csv_file.errors %}<div class="invalid-feedback d-block">{{ form.csv_file.errors|striptags }}</div>{% endif %}
             </div>
             <button class="btn btn-primary" type="submit">Validate and preview</button>

@@ -37,7 +37,7 @@
   {% if file_issues %}
     <div class="alert alert-danger" role="alert">
       <h3 class="h5 alert-heading">Blocking file issues</h3>
-      <ul class="mb-0">{% for issue in file_issues %}<li>{{ issue.message }}</li>{% endfor %}</ul>
+      <ul class="mb-0">{% for issue in file_issues %}<li>{% include "crm/importing/includes/issue.html" with issue=issue only %}</li>{% endfor %}</ul>
       <p class="mt-2 mb-0">Download the current template, copy your data beneath its headers, and upload the corrected CSV.</p>
     </div>
   {% endif %}
@@ -64,7 +64,7 @@
       <div class="table-responsive position-relative">
         <table class="table table-hover align-middle mb-0">
           <caption class="visually-hidden">Service import row-by-row results</caption>
-          <thead><tr><th scope="col">Row</th><th scope="col">Service</th><th scope="col">Price</th><th scope="col">External code</th><th scope="col">Category</th><th scope="col">Status</th><th scope="col">Changes and notes</th><th scope="col">Issues</th></tr></thead>
+          <thead><tr><th scope="col">Row</th><th scope="col">Service</th><th scope="col">Price</th><th scope="col">External code</th><th scope="col">Category</th><th scope="col">Validation status</th><th scope="col">Changes and notes</th><th scope="col">Issues</th></tr></thead>
           <tbody>
             {% for row in preview_rows %}
               <tr>
@@ -79,7 +79,7 @@
                   {% for note in row.notes %}<div class="text-body-tertiary">{{ note }}</div>{% endfor %}
                   {% if not row.changes and not row.notes %}<span class="text-body-tertiary">—</span>{% endif %}
                 </td>
-                <td>{% for issue in row.issues %}<div>{{ issue.message }}</div>{% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
+                <td>{% for issue in row.issues %}<div>{% include "crm/importing/includes/issue.html" with issue=issue only %}</div>{% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
               </tr>
             {% empty %}
               <tr><td colspan="8" class="text-center text-body-tertiary py-4">No previewable rows.</td></tr>
