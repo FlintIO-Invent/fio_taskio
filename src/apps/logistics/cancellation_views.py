@@ -37,20 +37,7 @@ class CancellationReviewForm(forms.Form):
 
     def __init__(self, *args, charges, invoices, parcel, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fees, self.shares, self.receipts = {}, {}, {}
-        active_charge_ids = {o["line"].charge_source_id for _, options in invoices for o in options}
-        for charge in charges:
-            if charge.pk in active_charge_ids and not charge.voided_at:
-                name = f"retained_{charge.pk}"
-                self.fees[name] = str(charge.pk)
-                self.fields[name] = forms.DecimalField(
-                    min_value=0,
-                    max_digits=12,
-                    decimal_places=2,
-                    initial=0,
-                    label=f"Retained fee before tax · {charge.description}",
-                    help_text=f"{charge.currency_snapshot}. Retain only the cancelled Parcel share; the rest is credited.",
-                )
+        self.shares, self.receipts = {}, {}
         for invoice, options in invoices:
             obligations = [(o["line"], p) for o in options for p in o["members"]]
             saved = InvoiceObligationShare.objects.filter(line__invoice=invoice).exists()
@@ -58,13 +45,13 @@ class CancellationReviewForm(forms.Form):
                 if len(option["members"]) > 1 and not saved:
                     for member in option["members"]:
                         key = f"{option['line'].pk}:{member.pk}"
-                        name = f'share_{invoice.pk}_{option["line"].pk}_{member.pk}'
+                        name = f"share_{invoice.pk}_{option['line'].pk}_{member.pk}"
                         self.shares[name] = (str(invoice.pk), key)
                         self.fields[name] = forms.DecimalField(
                             min_value=0,
                             max_digits=12,
                             decimal_places=2,
-                            label=f'{invoice.invoice_number} · {option["line"].description} · {member.tracking_code}',
+                            label=f"{invoice.invoice_number} · {option['line'].description} · {member.tracking_code}",
                             help_text=f"Explicit original freight share before tax ({invoice.currency_code}). All shares must total the original line amount.",
                         )
             if len(obligations) > 1:
@@ -87,9 +74,7 @@ class CancellationReviewForm(forms.Form):
             field.widget.attrs["class"] = "form-control"
 
     def choices(self):
-        choices = {"retained": {}, "invoices": {}}
-        for name, charge in self.fees.items():
-            choices["retained"][charge] = str(self.cleaned_data[name])
+        choices = {"invoices": {}}
         for name, (invoice, key) in self.shares.items():
             choices["invoices"].setdefault(invoice, {}).setdefault("obligations", {})[key] = str(
                 self.cleaned_data[name]
@@ -161,6 +146,10 @@ def parcel_cancellation_settlement(request, parcel_id):
                 parcel=parcel,
                 initial={"idempotency_key": uuid.uuid4()},
             )
+            if not form.is_bound and not form.shares and not form.receipts:
+                preview = review_cancellation(
+                    business=business, actor=actor, parcel=parcel, choices={}
+                )
             if form.is_bound and form.is_valid():
                 preview = review_cancellation(
                     business=business, actor=actor, parcel=parcel, choices=form.choices()
@@ -196,6 +185,8 @@ def parcel_cancellation_settlement(request, parcel_id):
                     "invoice": invoice,
                     "balance": balance,
                     "retained": credit.obligation.total - credit.total,
+                    "retained_tax": credit.obligation.tax - credit.tax,
+                    "service_charge": credit.obligation.subtotal - credit.subtotal,
                 }
             )
             for receipt in invoice.payments.filter(kind="RECEIPT"):
@@ -208,7 +199,8 @@ def parcel_cancellation_settlement(request, parcel_id):
                                 "currency": invoice.currency_code,
                                 "url": reverse(
                                     "invoice_payment_adjust", args=[invoice.pk, receipt.pk]
-                                ),
+                                )
+                                + f"?cancellation_credit={credit.pk}",
                             }
                         )
     return render(
@@ -223,5 +215,7 @@ def parcel_cancellation_settlement(request, parcel_id):
             "settlement": case,
             "credits": credits,
             "refunds": refunds,
+            "configured_service_charge": business.cancellation_service_charge,
+            "service_charge_currency": business.currency,
         },
     )

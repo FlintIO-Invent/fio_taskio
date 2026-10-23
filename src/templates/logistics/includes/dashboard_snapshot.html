@@ -49,6 +49,34 @@
         {% endfor %}
       </div>
       {% if payment_review_invoice_count %}<p class="text-body-secondary mt-3 mb-0">{{ payment_review_invoice_count }} Invoice balance{{ payment_review_invoice_count|pluralize }} need{{ payment_review_invoice_count|pluralize:'s,' }} accounting review. Manual PAID status does not establish receipt-backed settlement.</p>{% endif %}
+      <section class="card mt-3 p-0" id="logistics-refunds" aria-labelledby="logistics-refunds-title">
+        <div class="card-header p-3">
+          <h4 class="mb-1" id="logistics-refunds-title"><span class="fa-solid fa-arrow-rotate-left text-body-tertiary me-2" aria-hidden="true"></span>Customer refunds</h4>
+          <p class="text-body-tertiary fs-9 mb-0">Across all dates, grouped by saved receipt currency.</p>
+        </div>
+        <div class="card-body p-3">
+          {% for totals in refund_currency_totals %}
+            <div{% if not forloop.last %} class="border-bottom border-translucent pb-2 mb-2"{% endif %}>
+              <h5 class="fs-8 mb-2">{{ totals.currency }}</h5>
+              <dl class="row gx-3 gy-2 mb-0">
+                <div class="col-12 col-sm-6">
+                  <dt class="mb-1"><span class="badge badge-phoenix badge-phoenix-warning">Refund due</span></dt>
+                  <dd class="fs-6 fw-semibold text-body-emphasis mb-1">{{ totals.refund_due_total|money:totals.billing_business }}</dd>
+                  <dd class="text-body-secondary fs-9 mb-0">{{ totals.refund_due_invoice_count }} invoice{{ totals.refund_due_invoice_count|pluralize }} awaiting a recorded return of funds.</dd>
+                </div>
+                <div class="col-12 col-sm-6">
+                  <dt class="mb-1"><span class="badge badge-phoenix badge-phoenix-success">Refund recorded</span></dt>
+                  <dd class="fs-6 fw-semibold text-body-emphasis mb-1">{{ totals.recorded_refund_total|money:totals.billing_business }}</dd>
+                  <dd class="text-body-secondary fs-9 mb-0">{{ totals.recorded_refund_count }} completed refund{{ totals.recorded_refund_count|pluralize }} recorded. Receipt reversals are excluded.</dd>
+                </div>
+              </dl>
+            </div>
+          {% empty %}
+            <p class="text-body-secondary mb-0">No refunds due or recorded are available within your billing access.</p>
+          {% endfor %}
+          {% if refund_review_invoice_count %}<p class="text-body-secondary fs-9 mt-2 mb-0" role="status">{{ refund_review_invoice_count }} invoice{{ refund_review_invoice_count|pluralize }} with refund or cancellation history need{{ refund_review_invoice_count|pluralize:'s,' }} accounting review and {{ refund_review_invoice_count|pluralize:'is,are' }} excluded from these amounts.</p>{% endif %}
+        </div>
+      </section>
     </section>
   {% endif %}
 

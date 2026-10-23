@@ -5,10 +5,10 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from django.db.models import Count, Q, Sum, Value
+from django.db.models import Count, Exists, OuterRef, Q, Sum, Value
 from django.db.models.functions import Coalesce
 
-from apps.billings.models import Invoice
+from apps.billings.models import Invoice, InvoiceCancellationCredit, InvoicePayment
 from apps.billings.payment_services import _invoice_settlement
 from apps.businesses.utils import BILLING_VIEW_ROLES, can_view_module, membership_has_any_role
 
@@ -79,15 +79,57 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
         )
         context.update({key: Decimal("0.00") for key in keys})
         receipt_totals = {}
+        refund_totals = {}
+        refund_review_count = 0
         review_count = 0
         for invoice in (
-            invoices.filter(status__in=[Invoice.Status.SENT, Invoice.Status.PAID])
+            invoices.annotate(
+                has_refund=Exists(
+                    InvoicePayment.objects.filter(invoice_id=OuterRef("pk"), kind="REFUND")
+                ),
+                has_cancellation_credit=Exists(
+                    InvoiceCancellationCredit.objects.filter(
+                        obligation__line__invoice_id=OuterRef("pk")
+                    )
+                ),
+            )
+            .filter(
+                Q(status__in=[Invoice.Status.SENT, Invoice.Status.PAID])
+                | Q(has_refund=True)
+                | Q(has_cancellation_credit=True)
+            )
             .select_related("business")
             .prefetch_related("payments")
         ):
             balance = _invoice_settlement(invoice)
             if balance.issues:
-                review_count += 1
+                if invoice.status in (Invoice.Status.SENT, Invoice.Status.PAID):
+                    review_count += 1
+                if invoice.has_refund or invoice.has_cancellation_credit:
+                    refund_review_count += 1
+                continue
+            refunds = [
+                entry
+                for entry in invoice.payments.all()
+                if entry.kind == InvoicePayment.Kind.REFUND
+            ]
+            if balance.refund_due or refunds:
+                values = refund_totals.setdefault(
+                    balance.currency,
+                    {
+                        "refund_due_total": Decimal("0.00"),
+                        "refund_due_invoice_count": 0,
+                        "recorded_refund_total": Decimal("0.00"),
+                        "recorded_refund_count": 0,
+                    },
+                )
+                values["refund_due_total"] += balance.refund_due
+                values["refund_due_invoice_count"] += bool(balance.refund_due)
+                values["recorded_refund_total"] += sum(
+                    (entry.amount for entry in refunds), Decimal("0.00")
+                )
+                values["recorded_refund_count"] += len(refunds)
+            if invoice.status not in (Invoice.Status.SENT, Invoice.Status.PAID):
                 continue
             if balance.legacy_paid_unverified or invoice.snapshot_is_legacy:
                 review_count += 1
@@ -101,6 +143,15 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             values["outstanding_invoice_total"] += balance.outstanding
             values["paid_invoice_total"] += balance.net_paid
         context["payment_review_invoice_count"] = review_count
+        refund_currencies = []
+        for currency, totals in sorted(refund_totals.items()):
+            money_business = copy(business)
+            money_business.currency = currency
+            refund_currencies.append(
+                {**totals, "currency": currency, "billing_business": money_business}
+            )
+        context["refund_currency_totals"] = refund_currencies
+        context["refund_review_invoice_count"] = refund_review_count
         other_currencies = []
         for bucket in buckets.order_by("finance_currency"):
             values = {key: bucket.get(key) or Decimal("0.00") for key in keys}

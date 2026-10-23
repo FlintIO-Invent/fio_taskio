@@ -51,6 +51,11 @@
             </a>
             {% endfor %}
           </div>
+          {% if current_status == 'REFUNDED' %}
+            <p class="text-body-secondary fs-9 mt-2 mb-0">Invoices with recorded refunds, including partial refunds.</p>
+          {% elif current_status == 'REFUND_DUE' %}
+            <p class="text-body-secondary fs-9 mt-2 mb-0">Invoices awaiting a recorded return of funds after cancellation settlement.</p>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -134,7 +139,12 @@
             </div>
             <h4 class="mb-3">No invoices found</h4>
             <p class="mb-4 text-body-secondary">
-              {% if current_status %}
+              {% if current_status == 'REFUNDED' %}
+                No invoices with recorded refunds found.
+                Refunds awaiting return of funds appear under <a href="?status=REFUND_DUE">Refund due</a>.
+              {% elif current_status == 'REFUND_DUE' %}
+                No invoices with refunds due found.
+              {% elif current_status %}
                 No invoices with status "{{ current_status }}" found.
               {% else %}
                 No invoices have been created yet.

@@ -17,7 +17,19 @@ from .test_concurrency import race
 
 @skipUnless(connection.vendor == "postgresql", "Guided retries require PostgreSQL row locks")
 class ParcelRegistrationConcurrencyTests(TransactionTestCase):
-    setUp = fixtures.LogisticsBillingConcurrencyTests.setUp
+    def setUp(self):
+        fixtures.LogisticsBillingConcurrencyTests.setUp(self)
+        from .models import LogisticsLocation
+
+        for code in ("US", "CW"):
+            LogisticsLocation.objects.create(
+                business=self.business,
+                code=code,
+                name=code,
+                country_code=code,
+                location_type="WAREHOUSE",
+            )
+
     parcel = fixtures.LogisticsBillingConcurrencyTests.parcel
     shipment = fixtures.LogisticsBillingConcurrencyTests.shipment
     charge = fixtures.LogisticsBillingConcurrencyTests.charge
@@ -45,6 +57,8 @@ class ParcelRegistrationConcurrencyTests(TransactionTestCase):
         data = {
             "client": self.customer.pk,
             "origin": "A",
+            "origin_country_code": "US",
+            "destination_country_code": "CW",
             "destination": "B",
             "package_description": "Books",
             "quantity": 1,
@@ -76,6 +90,7 @@ class ParcelRegistrationConcurrencyTests(TransactionTestCase):
         self.assertEqual(invoice.status, "SENT")
         data = {
             "action": "payment",
+            "decision": "paid",
             "invoice": invoice.pk,
             "amount": 25,
             "method": "CASH",
@@ -99,7 +114,13 @@ class ParcelRegistrationConcurrencyTests(TransactionTestCase):
         invoice = Invoice.objects.get()
         url = reverse("logistics_parcel_registration", args=[parcel.pk])
         self.client.post(url, {"action": "issue", "invoice": invoice.pk})
-        data = {"action": "payment", "invoice": invoice.pk, "amount": 25, "method": "BANK_TRANSFER"}
+        data = {
+            "action": "payment",
+            "decision": "paid",
+            "invoice": invoice.pk,
+            "amount": 25,
+            "method": "BANK_TRANSFER",
+        }
         result = self.submit(
             url,
             [

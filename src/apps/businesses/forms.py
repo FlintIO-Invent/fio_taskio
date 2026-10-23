@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -116,7 +118,46 @@ class BusinessSettingsForm(forms.ModelForm):
 
             self.fields["country"] = geographic_country_field(value=self.instance.country)
             self.fields["country"].widget.attrs["class"] = "form-select"
+            self.fields["cancellation_service_charge"].required = False
+        else:
+            self.fields.pop("cancellation_service_charge")
+        for kind in ("vessel", "carrier"):
+            names = f"logistics_{kind}_names"
+            default = f"logistics_default_{kind}"
+            if self.instance.vertical != Business.Vertical.LOGISTICS:
+                self.fields.pop(names)
+                self.fields.pop(default)
+                continue
+            self.fields[names].widget = forms.Textarea(attrs={"rows": 4, "class": "form-control"})
+            self.fields[names].help_text = "Optional. One name per line, up to 160 characters each."
+            self.fields[default].widget.attrs["class"] = "form-control"
+            self.fields[default].help_text = (
+                "Optional. Must match a configured name. Used only for new records."
+            )
         self._apply_address_style()
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.instance.vertical != Business.Vertical.LOGISTICS:
+            return cleaned
+        for kind in ("vessel", "carrier"):
+            names_key = f"logistics_{kind}_names"
+            default_key = f"logistics_default_{kind}"
+            # Older/partial settings forms must not erase saved options.
+            for key in (names_key, default_key):
+                if self.add_prefix(key) not in self.data:
+                    cleaned[key] = getattr(self.instance, key)
+            names = list(
+                dict.fromkeys(
+                    line.strip() for line in cleaned.get(names_key, "").splitlines() if line.strip()
+                )
+            )
+            if len(names) > 100 or any(len(name) > 160 for name in names):
+                self.add_error(names_key, "Use up to 100 names, each at most 160 characters.")
+            cleaned[names_key] = "\n".join(names)
+            if cleaned.get(default_key) and cleaned[default_key] not in names:
+                self.add_error(default_key, "Choose a name from the configured list.")
+        return cleaned
 
     def _address_country(self) -> str:
         if self.is_bound:
@@ -169,6 +210,11 @@ class BusinessSettingsForm(forms.ModelForm):
             self.cleaned_data.get("country") or self._address_country(),
         )
 
+    def clean_cancellation_service_charge(self):
+        if self.add_prefix("cancellation_service_charge") not in self.data:
+            return self.instance.cancellation_service_charge
+        return self.cleaned_data.get("cancellation_service_charge") or Decimal("0.00")
+
     class Meta:
         model = Business
         fields = [
@@ -182,6 +228,11 @@ class BusinessSettingsForm(forms.ModelForm):
             "default_locale",
             "tax_label",
             "tax_rate",
+            "cancellation_service_charge",
+            "logistics_vessel_names",
+            "logistics_carrier_names",
+            "logistics_default_vessel",
+            "logistics_default_carrier",
             "invoice_prefix",
             "invoice_start_number",
             "address_line_1",
@@ -221,6 +272,9 @@ class BusinessSettingsForm(forms.ModelForm):
             "tax_rate": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0, "max": 100, "step": "1.00"}
             ),
+            "cancellation_service_charge": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "step": "0.01"}
+            ),
             "invoice_prefix": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "INV"}
             ),
@@ -258,6 +312,7 @@ class BusinessSettingsForm(forms.ModelForm):
             "business_type": "Business type / industry",
             "default_locale": "Default locale",
             "tax_label": "Tax label",
+            "cancellation_service_charge": "Cancellation service charge per parcel",
             "address_line_1": "Address line 1",
             "address_line_2": "Address line 2",
             "city": "City / locality",

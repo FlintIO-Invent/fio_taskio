@@ -274,7 +274,7 @@ class ParcelIntakeTests(TestCase):
         self.assertEqual(parcel.events.count(), 1)
 
     def test_view_receipt_failure_keeps_form_key_and_creates_nothing(self):
-        data = self.post_data()
+        data = self.post_data(save_and_receive="", continue_registration="1")
         count = Parcel.objects.count()
         with patch(
             "apps.logistics.parcel_services.change_parcel_status",
@@ -287,6 +287,28 @@ class ParcelIntakeTests(TestCase):
             response.context["form"]["idempotency_key"].value(), data["idempotency_key"]
         )
         self.assertEqual(Parcel.objects.count(), count)
+
+    def test_hub_continue_receives_for_owner_admin_and_staff_with_exact_retries(self):
+        for role, actor in (("owner", self.user), ("admin", self.user), ("staff", self.staff)):
+            if actor == self.user:
+                self.membership.role = role
+                self.membership.save(update_fields=["role"])
+            self.client.force_login(actor)
+            data = self.post_data(save_and_receive="", continue_registration="1")
+            response = self.client.post(reverse("logistics_parcel_register"), data)
+            self.assertEqual(response.status_code, 302)
+            created = Parcel.objects.get(events__idempotency_key=data["idempotency_key"])
+            self.assertEqual(created.current_status, "RECEIVED")
+            self.assertEqual(
+                list(created.events.values_list("status", flat=True)), ["REGISTERED", "RECEIVED"]
+            )
+            self.assertEqual(created.events.last().actor_id, actor.pk)
+            self.assertEqual(created.events.last().operational_location_id, self.a.pk)
+            self.assertEqual(
+                self.client.post(reverse("logistics_parcel_register"), data).url, response.url
+            )
+            self.assertEqual(created.events.count(), 2)
+        self.assertEqual(Invoice.objects.count(), 0)
 
     def test_registration_buttons_and_metadata_edit_stay_separate(self):
         url = reverse("logistics_parcel_register")
@@ -302,8 +324,8 @@ class ParcelIntakeTests(TestCase):
             )
             self.assertEqual(response.url, reverse(expected_view, args=[created.pk]))
         for parcel in Parcel.objects.exclude(pk=self.item.pk):
-            self.assertEqual(parcel.current_status, "REGISTERED")
-            self.assertEqual(parcel.events.count(), 1)
+            self.assertEqual(parcel.current_status, "RECEIVED")
+            self.assertEqual(parcel.events.count(), 2)
         parcel = self.intake()
         edited = edit_parcel(
             business=self.business, actor=self.staff, parcel=parcel, sender_name="Updated sender"

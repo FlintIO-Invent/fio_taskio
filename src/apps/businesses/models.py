@@ -122,12 +122,29 @@ class Business(TimeStampedModel):
             MaxValueValidator(Decimal("100.00")),
         ],
     )
+    cancellation_service_charge = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+        help_text="Fixed amount per cancelled Parcel, in the business currency. Zero means no charge.",
+    )
     invoice_prefix = models.CharField(max_length=12, default="INV")
+    logistics_vessel_names = models.TextField(blank=True, default="")
+    logistics_carrier_names = models.TextField(blank=True, default="")
+    logistics_default_vessel = models.CharField(max_length=160, blank=True, default="")
+    logistics_default_carrier = models.CharField(max_length=160, blank=True, default="")
     invoice_start_number = models.PositiveIntegerField(default=1)
     is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(cancellation_service_charge__gte=0),
+                name="business_cancellation_service_charge_nonnegative",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name

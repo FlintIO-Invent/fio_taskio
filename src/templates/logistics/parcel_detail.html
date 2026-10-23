@@ -38,11 +38,11 @@
       <button class="btn btn-phoenix-secondary" type="submit">Open Public Tracking</button>
     </form>
     {% endif %}
-    {% if role_access.can_manage_shipments and module_write_access.shipments and module_write_access.parcels %}
-      {% if shipment %}<a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_detail' shipment.pk %}">Manage Shipment</a>
+    {% if role_access.can_manage_parcels and module_write_access.shipments and module_write_access.parcels %}
+      {% if shipment %}<a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_detail' shipment.pk %}">{% if role_access.can_manage_shipments %}Manage{% else %}View{% endif %} Shipment</a>
       {% elif parcel_can_be_assigned %}
       <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_list' %}?parcel={{ parcel.pk }}">Assign to Shipment</a>
-      <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipment_create' %}?parcel={{ parcel.pk }}">Create Shipment</a>
+      {% if role_access.can_manage_shipments %}<a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipment_create' %}?parcel={{ parcel.pk }}">Create Shipment</a>{% endif %}
       {% endif %}
     {% endif %}
   </div>

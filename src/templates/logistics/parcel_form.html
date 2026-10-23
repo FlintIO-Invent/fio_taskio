@@ -122,7 +122,7 @@
         {% if parcel %}<p class="text-body-secondary">Client: {{ parcel.client }}</p>{% endif %}
         <div data-parcel-wizard-review></div>
         <p class="small text-body-secondary mb-0">{% if parcel %}Changes are saved when you select Save Parcel.{% else %}Register Parcel saves and opens the parcel details. Register &amp; continue opens the charges, Invoice, optional payment and Shipment workflow.{% endif %}</p>
-        {% if intake_site %}<p class="small text-body-secondary mt-2 mb-0">Register Parcel also records receipt at {{ intake_site.name }}. Use it only for a parcel physically accepted at this hub. For advance registration, use Register &amp; continue.</p>{% endif %}
+        {% if intake_site %}<p class="small text-body-secondary mt-2 mb-0">Both registration actions record physical receipt at {{ intake_site.name }}. Use this hub flow for parcels accepted here.</p>{% endif %}
       </section>
       </div>
       <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3" data-parcel-wizard-controls hidden>

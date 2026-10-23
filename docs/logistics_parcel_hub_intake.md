@@ -8,11 +8,12 @@ receipt. The operator uses it for physically accepted cargo. Outside that hub
 context it retains registration-only behavior. The separate Save & receive
 button has been removed.
 
-The primary **Register & continue** button is unchanged: it creates a REGISTERED
-parcel and opens the existing registration workflow. It remains available for
-advance registration. No new fields, confirmation screen, routes or migrations
-are introduced. Warehouses and other facility types retain their existing
-registration workflow.
+The primary **Register & continue** button also records RECEIVED at an authorized
+current HUB, then opens the existing registration workflow. Both hub actions
+represent physical receipt; ordinary registration at other facility types and
+direct service/API/import entry points retain their existing behavior. No new
+intake fields, confirmation screen, routes or migrations are introduced. See
+`logistics_registration_safety_update.md` for the October 23 update and verification.
 
 ## Existing receipt behavior traced
 

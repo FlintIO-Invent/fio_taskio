@@ -117,6 +117,93 @@ class LogisticsFinancialAccessTests(TestCase):
         )
         self.assertContains(response, "USD")
 
+    def test_dashboard_refund_card_uses_existing_location_financial_scope(self):
+        from apps.billings.payment_services import adjust_invoice_payment, record_invoice_payment
+
+        for invoice, amount in ((self.ia, 5), (self.ic, 7)):
+            change_invoice_status(
+                business=self.business, actor=self.user, invoice=invoice, status="SENT"
+            )
+            invoice.refresh_from_db()
+            receipt = record_invoice_payment(
+                business=self.business,
+                actor=self.user,
+                invoice=invoice,
+                amount=invoice.total,
+                currency=invoice.currency_code,
+                method="CASH",
+                reference=f"CASH-{invoice.pk}",
+                idempotency_key=uuid.uuid4(),
+            )
+            adjust_invoice_payment(
+                business=self.business,
+                actor=self.user,
+                invoice=invoice,
+                payment=receipt,
+                kind="REFUND",
+                amount=amount,
+                reference=f"RETURN-{invoice.pk}",
+                reason_reference="Refund recorded",
+                idempotency_key=uuid.uuid4(),
+            )
+        response = self.client.get(reverse("agent_dashboard"))
+        totals = response.context["refund_currency_totals"][0]
+        self.assertEqual(totals["recorded_refund_total"], 5)
+        self.assertEqual(totals["recorded_refund_count"], 1)
+        response = self.client.get(reverse("invoice_list"), {"status": "REFUNDED"})
+        self.assertEqual(list(response.context["invoices"]), [self.ia])
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("agent_dashboard"))
+        self.assertEqual(response.context["refund_currency_totals"][0]["recorded_refund_total"], 12)
+        response = self.client.get(reverse("invoice_list"), {"status": "REFUNDED"})
+        self.assertEqual(list(response.context["invoices"]), [self.ic, self.ia])
+
+    def test_refund_due_filter_preserves_location_and_tenant_scope(self):
+        from apps.billings.cancellation_services import confirm_cancellation, review_cancellation
+        from apps.billings.payment_services import record_invoice_payment
+
+        from .parcel_services import change_parcel_status
+
+        for parcel, invoice in ((self.pa, self.ia), (self.pc, self.ic)):
+            change_invoice_status(
+                business=self.business, actor=self.user, invoice=invoice, status="SENT"
+            )
+            invoice.refresh_from_db()
+            record_invoice_payment(
+                business=self.business,
+                actor=self.user,
+                invoice=invoice,
+                amount=invoice.total,
+                currency=invoice.currency_code,
+                method="CASH",
+                reference=f"CASH-{invoice.pk}",
+                idempotency_key=uuid.uuid4(),
+            )
+            change_parcel_status(
+                business=self.business, actor=self.user, parcel=parcel, status="CANCELLED"
+            )
+            plan = review_cancellation(business=self.business, actor=self.user, parcel=parcel)
+            confirm_cancellation(
+                business=self.business,
+                actor=self.user,
+                parcel=parcel,
+                choices={},
+                fingerprint=plan["fingerprint"],
+                idempotency_key=uuid.uuid4(),
+                reason_reference="Refund due filter check",
+            )
+
+        response = self.client.get(reverse("invoice_list"), {"status": "REFUND_DUE"})
+        self.assertEqual(list(response.context["invoices"]), [self.ia])
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("invoice_list"), {"status": "REFUND_DUE"})
+        self.assertEqual(list(response.context["invoices"]), [self.ic, self.ia])
+
+        self.client.force_login(self.other_user)
+        self.switch(self.other)
+        response = self.client.get(reverse("invoice_list"), {"status": "REFUND_DUE"})
+        self.assertEqual(list(response.context["invoices"]), [])
+
     def test_normal_ui_issues_protected_draft_without_modifying_lines(self):
         before = list(self.ia.lines.values())
         detail = self.client.get(reverse("invoice_detail", args=[self.ia.pk]))

@@ -28,3 +28,7 @@
   border-radius: .5rem;
 }
 .logistics-workspace .logistics-scan .scan-camera-panel { min-width: 0; }
+.logistics-workspace .logistics-scan .row > * { min-width: 0; }
+.logistics-workspace .logistics-scan .scan-workflow-summary > .card { padding: 0; }
+.logistics-workspace .logistics-scan .scan-workflow-summary > .card > .card-body { padding: 1rem; }
+.logistics-workspace .logistics-scan .scan-workflow-summary h3 { font-size: 1rem; }

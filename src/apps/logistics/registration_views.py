@@ -30,6 +30,7 @@ from .location_access import (
 )
 from .parcel_policy import PARCEL_VIEW_ROLES
 from .parcel_services import parcels_for_business
+from .registration_forms import PaymentDecisionForm
 from .shipment_forms import ShipmentWriteForm
 from .shipment_policy import ASSIGNABLE_PARCEL_STATUSES, ASSIGNABLE_SHIPMENT_STATUSES
 from .shipment_services import assign_parcel, require_shipment_access, shipments_for_business
@@ -94,7 +95,9 @@ def _shipment_choices(request, parcel):
     if parcel.shipment_id or parcel.current_status not in ASSIGNABLE_PARCEL_STATUSES:
         return [], False
     try:
-        require_shipment_access(business=request.current_business, actor=request.user, write=True)
+        require_shipment_access(
+            business=request.current_business, actor=request.user, write=True, assignment=True
+        )
         require_record_operation(parcel, business=request.current_business, actor=request.user)
         site = require_work_location(request.current_business, request.user)
     except PermissionDenied:
@@ -136,7 +139,31 @@ def _shipment_choices(request, parcel):
 
 def _post(request, parcel, summary):
     action = request.POST.get("action")
+    if action == "payment":
+        if request.POST.get("invoice"):
+            _related_invoice(request, summary, request.POST.get("invoice"))
+        if not _can_decide_payment(request, parcel):
+            raise PermissionDenied(
+                "Payment decisions require authorized financial or operational access."
+            )
+        decision = PaymentDecisionForm(request.POST)
+        if not decision.is_valid():
+            raise ValidationError("Select paid or unpaid, then press Continue.")
+        if decision.cleaned_data["decision"] == "unpaid":
+            request.session[
+                f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
+            ] = "unpaid"
+            return redirect(registration_url(parcel) + "#registration-shipment")
+        if summary.financial["clearance"]["cleared"] and not request.POST.get("invoice"):
+            request.session[
+                f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
+            ] = "paid"
+            return redirect(registration_url(parcel) + "#registration-shipment")
     if action in ("issue", "payment"):
+        if action == "payment" and not request.POST.get("invoice"):
+            raise ValidationError(
+                "Create and issue an Invoice before recording payment, or choose unpaid."
+            )
         invoice = _related_invoice(request, summary, request.POST.get("invoice"))
         if action == "issue":
             if invoice.status not in ("DRAFT", "SENT", "PAID"):
@@ -173,6 +200,9 @@ def _post(request, parcel, summary):
                 form.add_error(None, "; ".join(exc.messages))
                 return form, invoice
             messages.success(request, "Customer receipt recorded.")
+            request.session[
+                f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
+            ] = "paid"
     elif action == "assign":
         shipment = get_object_or_404(
             shipments_for_business(business=request.current_business, actor=request.user),
@@ -194,7 +224,23 @@ def _post(request, parcel, summary):
         return redirect(registration_url(parcel) + "?summary=1")
     else:
         raise ValidationError("Choose an available registration action.")
-    return redirect(registration_url(parcel))
+    return redirect(
+        registration_url(parcel) + ("#registration-shipment" if action == "payment" else "")
+    )
+
+
+def _can_decide_payment(request, parcel):
+    member = membership_for(request.current_business, request.user)
+    if not member or member.role not in (*ACCOUNTING_ROLES, "staff"):
+        return False
+    if not can_use_module(request.current_business, "invoicing"):
+        return False
+    try:
+        if member.role not in ACCOUNTING_ROLES:
+            require_record_operation(parcel, business=request.current_business, actor=request.user)
+    except PermissionDenied:
+        return False
+    return True
 
 
 @never_cache
@@ -223,6 +269,21 @@ def parcel_registration(request, parcel_id):
                     return result
             except ValidationError as exc:
                 error = "; ".join(exc.messages)
+                if request.POST.get("action") == "payment" and request.POST.get("invoice"):
+                    payment_invoice = _related_invoice(request, summary, request.POST["invoice"])
+                    balance = invoice_settlement(
+                        business=request.current_business,
+                        actor=request.user,
+                        invoice=payment_invoice,
+                    )
+                    payment_form = PaymentReceiptForm(
+                        request.POST,
+                        invoice=payment_invoice,
+                        manual_receipts=True,
+                        currency=balance.currency,
+                        accounting=membership_for(request.current_business, request.user).role
+                        in ACCOUNTING_ROLES,
+                    )
     parcel = _parcel(request, parcel_id)
     summary = resolve_parcel_workflow(
         business=request.current_business, actor=request.user, parcel=parcel
@@ -264,6 +325,8 @@ def parcel_registration(request, parcel_id):
                 }
             )
     selected_payment = request.GET.get("payment")
+    if payment_form is None and not selected_payment:
+        selected_payment = next((str(row["id"]) for row in invoices if row["can_pay"]), None)
     if payment_form is None and selected_payment:
         if not any(str(row["id"]) == selected_payment and row["can_pay"] for row in invoices):
             raise PermissionDenied("Payment entry is unavailable for this Parcel/Invoice.")
@@ -309,6 +372,13 @@ def parcel_registration(request, parcel_id):
         resume_step, resume_label = "registration-payment", "Continue to Invoice issuance"
     elif parcel.shipment_id or request.GET.get("summary") == "1":
         resume_step, resume_label = "registration-summary", "View completion summary"
+    elif not request.session.get(
+        f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
+    ):
+        resume_step, resume_label = "registration-payment", "Choose payment decision"
+    saved_decision = request.session.get(
+        f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
+    )
     return render(
         request,
         "logistics/parcel_registration.html",
@@ -321,6 +391,16 @@ def parcel_registration(request, parcel_id):
             "can_assign": can_assign,
             "payment_form": payment_form,
             "payment_invoice": payment_invoice,
+            "payment_decision_form": PaymentDecisionForm(
+                (
+                    request.POST
+                    if request.method == "POST" and request.POST.get("action") == "payment"
+                    else None
+                ),
+                initial={"decision": saved_decision} if saved_decision else None,
+            ),
+            "payment_decision_complete": bool(saved_decision) and request.method != "POST",
+            "can_decide_payment": _can_decide_payment(request, parcel),
             "error": error,
             "show_completion": request.GET.get("summary") == "1" or bool(parcel.shipment_id),
             "registration_tasks": tasks,

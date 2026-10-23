@@ -25,6 +25,7 @@ from .shipment_forms import (
 )
 from .shipment_policy import (
     ASSIGNABLE_SHIPMENT_STATUSES,
+    SHIPMENT_ASSIGN_ROLES,
     SHIPMENT_MANAGE_ROLES,
     SHIPMENT_VIEW_ROLES,
 )
@@ -295,7 +296,7 @@ def shipment_edit(request, shipment_id):
 @business_module_required("shipments")
 @business_module_required("parcels")
 @business_module_required("tracking")
-@business_role_required(*SHIPMENT_MANAGE_ROLES)
+@business_role_required(*SHIPMENT_ASSIGN_ROLES)
 @require_POST
 def shipment_assign(request, shipment_id):
     shipment = _get_shipment(request, shipment_id)
