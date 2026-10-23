@@ -1,10 +1,11 @@
 """Varied, attributable Logistics demo data created through operational services."""
 
+from collections import Counter
 from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -18,7 +19,20 @@ from apps.crm.models import ActivityLog, BusinessService, Client
 
 from .billing_services import add_charge, invoice_charges
 from .classification import OperatingArea, TransportationMode
-from .models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
+from .location_access import assignments_for, has_wide_access
+from .location_access_services import select_work_location
+from .location_operations import operation_location, operations_enabled
+from .location_reference import country_choices, exact_country_code
+from .models import (
+    LogisticsCharge,
+    LogisticsCreditApproval,
+    LogisticsCreditRevocation,
+    LogisticsLocation,
+    LogisticsProfile,
+    Parcel,
+    ParcelEvent,
+    Shipment,
+)
 from .parcel_policy import PARCEL_MANAGE_ROLES
 from .parcel_services import (
     change_parcel_status,
@@ -33,6 +47,7 @@ from .shipment_services import (
     create_shipment,
     require_shipment_access,
 )
+from .shipment_transport import configured_shipment_modes
 
 LOGISTICS_RESET_ORDER = (
     LogisticsCharge,
@@ -40,6 +55,8 @@ LOGISTICS_RESET_ORDER = (
     Invoice,
     ActivityLog,
     ParcelEvent,
+    LogisticsCreditRevocation,
+    LogisticsCreditApproval,
     Parcel,
     Shipment,
     Client,
@@ -51,10 +68,12 @@ LOGISTICS_DEMO_COUNTS = {
     "parcel_events": 83,
     "shipments": 6,
     "services": 0,
-    "logistics_charges": 16,
-    "invoices": 4,
-    "invoice_lines": 13,
-    "activity_logs": 4,
+    "logistics_credit_approvals": 12,
+    "logistics_credit_revocations": 0,
+    "logistics_charges": 17,
+    "invoices": 5,
+    "invoice_lines": 14,
+    "activity_logs": 17,
 }
 PARCEL_STATUS_COUNTS = {
     "REGISTERED": 3,
@@ -128,12 +147,14 @@ def shipment_demo_references(index, mode):
             "container_reference": f"DEMO-CONT-{index + 1:03d}",
             "bill_of_lading_reference": f"DEMO-BOL-{index + 1:03d}",
         }
-    return {
-        "carrier_name": "[DEMO] Island Dispatch",
-        "vehicle_reference": f"DEMO-TRUCK-{index + 1:03d}",
-        "driver_name": "[DEMO] Alex Example",
-        "dispatch_reference": f"DEMO-DISPATCH-{index + 1:03d}",
-    }
+    if mode == TransportationMode.ROAD:
+        return {
+            "carrier_name": "[DEMO] Island Dispatch",
+            "vehicle_reference": f"DEMO-TRUCK-{index + 1:03d}",
+            "driver_name": "[DEMO] Alex Example",
+            "dispatch_reference": f"DEMO-DISPATCH-{index + 1:03d}",
+        }
+    return {"carrier_name": "[DEMO] Example Cargo Carrier"}
 
 
 def parcel_demo_fields(*, index, client, route, today):
@@ -150,9 +171,29 @@ def parcel_demo_fields(*, index, client, route, today):
         "destination": destination,
         "package_description": description,
         "internal_reference": f"DEMO-{index + 1:03d}",
+        "sender_name": (
+            "[DEMO] Mainland Supply" if origin.startswith("Miami") else "[DEMO] Island Distribution"
+        ),
+        "sender_contact": "dispatch@example.test",
+        "sender_address_line_1": f"{100 + index} Demo Cargo Road",
+        "sender_address_line_2": f"Demo dispatch unit {index + 1}",
+        "sender_city": origin.split()[0],
+        "sender_region": "Demo dispatch district",
+        "sender_postal_code": f"DEMO-{100 + index}",
+        "sender_country_code": (
+            "US" if origin.startswith("Miami") else "DM" if origin.startswith("Roseau") else "SX"
+        ),
+        "recipient_name": f"[DEMO] {client.first_name} {client.last_name}",
+        "recipient_contact": client.email if index % 2 == 0 else client.phone,
+        "recipient_address_line_1": client.street_address,
+        "recipient_address_line_2": client.company_name,
+        "recipient_city": client.get_district_display(),
+        "recipient_region": "Demo delivery district",
+        "recipient_postal_code": f"DEMO-{200 + index}",
+        "recipient_country_code": exact_country_code(client.country),
     }
     if index == 19:
-        return fields  # New registration before weighing, addressing and routing.
+        return fields  # Addressed registration before weighing and Shipment assignment.
     length = Decimal(20 + index * 2)
     width = Decimal(15 + index)
     height = Decimal(10 + index)
@@ -171,15 +212,8 @@ def parcel_demo_fields(*, index, client, route, today):
         declared_value=Decimal("35.00") + Decimal(index * 18) if index % 4 != 3 else None,
         hs_code=hs_code,
         marks_numbers=f"DEMO-BOX-{index + 1:03d}" if index % 3 != 2 else "",
-        sender_name=f"Demo {'Mainland Supply' if origin.startswith('Miami') else 'Island Distribution'}",
-        sender_contact="dispatch@example.test" if index % 4 != 1 else "",
         sender_address=f"{100 + index} Demo Cargo Road, {origin.split()[0]}",
-        sender_country_code=(
-            "US" if origin.startswith("Miami") else "DM" if origin.startswith("Roseau") else "SX"
-        ),
         sender_tax_id=f"DEMO-TAX-{index + 1:03d}" if mode == "Sea" else "",
-        recipient_name=f"{client.first_name} {client.last_name}",
-        recipient_contact=client.email if index % 2 == 0 else client.phone,
         recipient_address=f"{client.company_name}, {destination}" if index % 4 != 1 else "",
         mode_of_transport=mode,
         vessel_name="Demo Coral Voyager" if mode == "Sea" else "",
@@ -207,34 +241,83 @@ def require_logistics_business(business):
 
 
 def logistics_demo_profile_plan(business):
-    """Preview classification without overwriting an explicit operational profile."""
+    """Plan compatible examples without creating or changing operational settings."""
     profile = LogisticsProfile.objects.filter(business=business).first()
-    modes = [TransportationMode.SEA, TransportationMode.ROAD]
-    if profile and (
-        profile.operating_areas != [OperatingArea.TRANSPORTATION]
-        or (profile.transportation_modes and set(profile.transportation_modes) != set(modes))
-    ):
+    if profile and OperatingArea.TRANSPORTATION not in profile.operating_areas:
         raise ValidationError(
-            "The demo requires Transportation with Sea + Road. The existing explicit "
-            "LogisticsProfile was preserved; configure a compatible demo workspace first."
+            "The current demo requires Transportation. The existing explicit "
+            "LogisticsProfile was preserved; no operating areas or modes were changed."
         )
+    modes = configured_shipment_modes(business)
+    # Unknown modes retain the existing mixed examples. Shipment services allow
+    # these legacy writes when no recognized mode is configured; the profile stays
+    # unknown rather than treating demo content as operational configuration.
+    if not modes or set(modes) == {TransportationMode.SEA, TransportationMode.ROAD}:
+        shipment_modes = [ROUTES[index][2].upper() for index in SHIPMENT_ROUTE_INDEXES]
+    else:
+        shipment_modes = [
+            modes[index % len(modes)] for index in range(LOGISTICS_DEMO_COUNTS["shipments"])
+        ]
     return {
-        "create_count": int(profile is None),
-        "action": (
-            "create"
-            if profile is None
-            else "fill_modes" if not profile.transportation_modes else "keep"
-        ),
-        "operating_areas": [OperatingArea.TRANSPORTATION],
-        "transportation_modes": modes,
+        "create_count": 0,
+        "action": "keep" if profile else "leave_missing",
+        "operating_areas": profile.operating_areas if profile else [],
+        "transportation_modes": profile.transportation_modes if profile else [],
+        "strategy": "configured_modes" if modes else "legacy_mixed_unknown_modes",
+        "shipment_modes": shipment_modes,
+        "shipment_mode_counts": dict(Counter(shipment_modes)),
     }
+
+
+def logistics_demo_routes(profile_plan):
+    shipment_modes = profile_plan["shipment_modes"]
+    if shipment_modes == [ROUTES[index][2].upper() for index in SHIPMENT_ROUTE_INDEXES]:
+        return (
+            [ROUTES[index] for index in SHIPMENT_ROUTE_INDEXES],
+            [ROUTES[index] for index in PARCEL_ROUTE_INDEXES],
+        )
+    sea_routes = [route for route in ROUTES if route[2] == "Sea"]
+    generic_routes = {
+        TransportationMode.AIR: (ROUTES[0][0], ROUTES[0][1], "Air", "", ""),
+        TransportationMode.RAIL: (
+            "Miami consolidation depot",
+            "Orlando collection depot",
+            "Rail",
+            "",
+            "",
+        ),
+        TransportationMode.ROAD: ROUTES[2],
+    }
+    shipment_routes = [
+        (
+            sea_routes[index % len(sea_routes)]
+            if mode == TransportationMode.SEA
+            else generic_routes[mode]
+        )
+        for index, mode in enumerate(shipment_modes)
+    ]
+    # Assigned parcel metadata follows its shipment, including mode and Sea fields.
+    parcel_routes = [
+        (
+            shipment_routes[ASSIGNED_PARCEL_SHIPMENT_INDEXES[index]]
+            if index < len(ASSIGNED_PARCEL_SHIPMENT_INDEXES)
+            else shipment_routes[index % len(shipment_routes)]
+        )
+        for index in range(LOGISTICS_DEMO_COUNTS["parcels"])
+    ]
+    return shipment_routes, parcel_routes
 
 
 def demo_actor(*, business, actor_id=None):
     require_logistics_business(business)
+    from .financial_access import ACCOUNTING_ROLES, require_financial_access
+
     members = (
         BusinessUser.objects.filter(
-            business=business, is_active=True, user__is_active=True, role__in=PARCEL_MANAGE_ROLES
+            business=business,
+            is_active=True,
+            user__is_active=True,
+            role__in=set(PARCEL_MANAGE_ROLES) & set(ACCOUNTING_ROLES),
         )
         .select_related("user")
         .order_by("user_id")
@@ -243,14 +326,60 @@ def demo_actor(*, business, actor_id=None):
         members = members.filter(user_id=actor_id)
     member = members.first()
     if member is None:
-        raise ValidationError("Seeding requires an existing active Logistics operator membership.")
+        raise ValidationError(
+            "Financial demo seeding requires an active Logistics owner or administrator."
+        )
+    require_financial_access(business=business, actor=member.user, write=True, accounting=True)
     require_parcel_access(business=business, actor=member.user, write=True)
     require_shipment_access(business=business, actor=member.user, write=True)
     return member.user
 
 
+def logistics_demo_location_plan(
+    *, business, actor, origin_location_id=None, destination_location_id=None
+):
+    """Read-only, explicit facility selection; never infer or create company sites."""
+    if (
+        not operations_enabled(business)
+        and origin_location_id is None
+        and destination_location_id is None
+    ):
+        return None
+    if not origin_location_id or not destination_location_id:
+        raise ValidationError(
+            "Verified demo seeding requires explicit --origin-location-id and "
+            "--destination-location-id for registered operating facilities."
+        )
+    sites = []
+    for value in (origin_location_id, destination_location_id):
+        site = LogisticsLocation.objects.filter(business=business, pk=value, is_active=True).first()
+        if site is None:
+            raise ValidationError("Select active demo facilities owned by this workspace.")
+        if (
+            not has_wide_access(business, actor)
+            and not assignments_for(business, actor)
+            .filter(location=site, can_operate=True)
+            .exists()
+        ):
+            raise PermissionDenied("Demo operations require permission to operate at both sites.")
+        sites.append(site)
+    if operations_enabled(business) and operation_location(business, actor).pk != sites[0].pk:
+        raise ValidationError("Select the demo origin as your current work location first.")
+    return {
+        side: {
+            "id": site.pk,
+            "code": site.code,
+            "name": site.name,
+            "country_code": site.country_code,
+        }
+        for side, site in zip(("origin", "destination"), sites, strict=True)
+    }
+
+
 @transaction.atomic
-def seed_logistics_demo(*, business_id, actor_id=None):
+def seed_logistics_demo(
+    *, business_id, actor_id=None, origin_location_id=None, destination_location_id=None
+):
     business = Business.objects.select_for_update().get(pk=business_id)
     require_logistics_business(business)
     if DemoSeedRun.objects.filter(business=business).exists():
@@ -258,18 +387,22 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             "Demo ownership metadata already exists; preview/reset it before seeding again."
         )
     actor = demo_actor(business=business, actor_id=actor_id)
-    logistics_demo_profile_plan(business)
-    profile, created = LogisticsProfile.objects.get_or_create(business=business)
-    # Fill only the legacy/default unknown-mode profile, preserving explicit settings.
-    if created or (
-        profile.operating_areas == [OperatingArea.TRANSPORTATION]
-        and not profile.transportation_modes
-    ):
-        profile.transportation_modes = [
-            TransportationMode.SEA,
-            TransportationMode.ROAD,
-        ]
-        profile.save(update_fields=["transportation_modes", "updated_at"])
+    location_plan = logistics_demo_location_plan(
+        business=business,
+        actor=actor,
+        origin_location_id=origin_location_id,
+        destination_location_id=destination_location_id,
+    )
+    route_fields = {}
+    if location_plan:
+        for side in ("origin", "destination"):
+            site = location_plan[side]
+            route_fields[f"{side}_location"] = LogisticsLocation.objects.get(pk=site["id"])
+            route_fields[f"{side}_country_code"] = site["country_code"]
+            route_fields[side] = dict(country_choices())[site["country_code"]]
+        select_work_location(business=business, actor=actor, location=origin_location_id)
+    profile_plan = logistics_demo_profile_plan(business)
+    shipment_routes, parcel_routes = logistics_demo_routes(profile_plan)
     seed = DemoSeedRun.objects.create(business=business, planned_counts=LOGISTICS_DEMO_COUNTS)
     now = timezone.now()
     today = timezone.localdate(now)
@@ -304,12 +437,15 @@ def seed_logistics_demo(*, business_id, actor_id=None):
                 business=business,
                 client=clients[PARCEL_CLIENT_INDEXES[index]],
                 actor=actor,
-                **parcel_demo_fields(
-                    index=index,
-                    client=clients[PARCEL_CLIENT_INDEXES[index]],
-                    route=ROUTES[PARCEL_ROUTE_INDEXES[index]],
-                    today=today,
-                ),
+                **{
+                    **parcel_demo_fields(
+                        index=index,
+                        client=clients[PARCEL_CLIENT_INDEXES[index]],
+                        route=parcel_routes[index],
+                        today=today,
+                    ),
+                    **route_fields,
+                },
             )
         )
         for index in range(LOGISTICS_DEMO_COUNTS["parcels"])
@@ -319,21 +455,44 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             create_shipment(
                 business=business,
                 actor=actor,
-                origin=ROUTES[SHIPMENT_ROUTE_INDEXES[index]][0],
-                destination=ROUTES[SHIPMENT_ROUTE_INDEXES[index]][1],
-                transport_mode=TransportationMode(ROUTES[SHIPMENT_ROUTE_INDEXES[index]][2].upper()),
+                **{
+                    **{
+                        "origin": shipment_routes[index][0],
+                        "destination": shipment_routes[index][1],
+                    },
+                    **route_fields,
+                },
+                transport_mode=profile_plan["shipment_modes"][index],
                 departure_at=now + timedelta(days=(-8, -1, -4, 2, 4, 7)[index]),
                 estimated_arrival_at=now + timedelta(days=(-3, 3, -1, 5, 4, 12)[index]),
                 notes=f"[DEMO] Shipment {index + 1:02d}; fictional cargo for UI testing.",
-                **shipment_demo_references(
-                    index, TransportationMode(ROUTES[SHIPMENT_ROUTE_INDEXES[index]][2].upper())
-                ),
+                **shipment_demo_references(index, profile_plan["shipment_modes"][index]),
             )
         )
         for index in range(LOGISTICS_DEMO_COUNTS["shipments"])
     ]
 
+    operations = []
+    final_invoice_states = []
+
     def status(parcel, value):
+        operations.append(("parcel", parcel, value, None))
+
+    def queue_shipment(*, business, shipment, actor, status):
+        site = operation_location(business, actor)
+        operations.append(("shipment", shipment, status, site.pk if site else None))
+
+    def apply_status(parcel, value):
+        if location_plan:
+            select_work_location(
+                business=business,
+                actor=actor,
+                location=(
+                    destination_location_id
+                    if value in {"ARRIVED", "READY", "DELIVERED"}
+                    else origin_location_id
+                ),
+            )
         messages = {
             Parcel.Status.RECEIVED: "Received and weighed at the origin depot.",
             Parcel.Status.IN_TRANSIT: "Dispatched from the origin depot to the destination hub.",
@@ -371,20 +530,30 @@ def seed_logistics_demo(*, business_id, actor_id=None):
             status(parcel, Parcel.Status.RECEIVED)
             assign_parcel(business=business, shipment=shipment, parcel=parcel, actor=actor)
         for value in (Shipment.Status.READY, Shipment.Status.IN_TRANSIT, Shipment.Status.ARRIVED):
-            change_shipment_status(business=business, shipment=shipment, actor=actor, status=value)
+            if location_plan:
+                select_work_location(
+                    business=business,
+                    actor=actor,
+                    location=(
+                        destination_location_id
+                        if value == Shipment.Status.ARRIVED
+                        else origin_location_id
+                    ),
+                )
+            queue_shipment(business=business, shipment=shipment, actor=actor, status=value)
             if value == target:
                 break
         if target == Shipment.Status.COMPLETED:
             for parcel in members:
                 status(parcel, Parcel.Status.READY)
                 status(parcel, Parcel.Status.DELIVERED)
-            change_shipment_status(
+            queue_shipment(
                 business=business, shipment=shipment, actor=actor, status=Shipment.Status.COMPLETED
             )
     status(parcels[10], Parcel.Status.RECEIVED)
     for parcel in parcels[10:12]:
         assign_parcel(business=business, shipment=shipments[4], parcel=parcel, actor=actor)
-    change_shipment_status(
+    queue_shipment(
         business=business, shipment=shipments[5], actor=actor, status=Shipment.Status.CANCELLED
     )
     status(parcels[13], Parcel.Status.RECEIVED)
@@ -402,8 +571,162 @@ def seed_logistics_demo(*, business_id, actor_id=None):
     status(parcels[18], Parcel.Status.RECEIVED)
     status(parcels[18], Parcel.Status.CANCELLED)
 
+    # Build exact obligations before any simulated departure/delivery. These are
+    # fictional demo approvals, never customer receipts or real-client exceptions.
+    # Demo charge snapshots need no SERVICE catalogue or appointment objects.
+    rates = (
+        ("Small Parcel Delivery", "15"),
+        ("Medium Parcel Delivery", "25"),
+        ("Large Parcel Delivery", "40"),
+        ("Standard Handling", "5"),
+        ("Fragile Handling", "12"),
+        ("Storage", "8"),
+        ("Freight", "150"),
+        ("Customs Processing", "35"),
+    )
+
+    def charge(target, rate_index, *, quantity=1, price=None, description=""):
+        if rate_index is not None:
+            name, standard_price = rates[rate_index]
+            description = description or f"[DEMO] {name}"
+            if price is None:
+                price = Decimal(standard_price)
+        return own(
+            add_charge(
+                business=business,
+                actor=actor,
+                **({"parcel": target} if isinstance(target, Parcel) else {"shipment": target}),
+                quantity=Decimal(quantity),
+                unit_price=price,
+                description=description,
+                idempotency_key=uuid4(),
+            )
+        )
+
+    # Each shipment billed here has one client. Mixed-client shipment billing is
+    # deliberately not bypassed. Paid/Sent are fictional local invoice snapshots;
+    # no email, payment, Stripe or subscription action is performed.
+    invoice_scenarios = (
+        (
+            Invoice.Status.SENT,
+            "F: Arrived freight under explicit demonstration credit",
+            [charge(shipments[2], 6)],
+        ),
+        (
+            Invoice.Status.SENT,
+            f"A: Books moving from {shipments[1].origin} to {shipments[1].destination}",
+            [
+                charge(shipments[1], 6),
+                charge(parcels[3], 3, quantity=2),
+                charge(parcels[4], 7),
+            ],
+        ),
+        (
+            Invoice.Status.PAID,
+            f"C: Shop supplies delivered from {shipments[0].origin} to {shipments[0].destination}",
+            [
+                charge(shipments[0], 6),
+                charge(parcels[0], 2, price=Decimal("35.00"), description="Negotiated delivery"),
+                charge(parcels[1], 3),
+                charge(
+                    parcels[2], None, price=Decimal("37.50"), description="Oversized cargo handling"
+                ),
+            ],
+        ),
+        (
+            Invoice.Status.SENT,
+            "D: Tableware ready, awaiting onward local delivery",
+            [
+                charge(parcels[14], 0),
+                charge(parcels[14], 4),
+                charge(parcels[14], 5, quantity=2),
+            ],
+        ),
+        (
+            Invoice.Status.DRAFT,
+            "E: Display materials booked for "
+            f"{TransportationMode(shipments[4].transport_mode).label.lower()} dispatch",
+            [
+                charge(shipments[4], 6),
+                charge(parcels[10], 7),
+                charge(parcels[11], 3),
+            ],
+        ),
+    )
+    for state, story, group in invoice_scenarios:
+        invoice = own(
+            invoice_charges(
+                business=business, actor=actor, charge_ids=[charge.pk for charge in group]
+            )
+        )
+        invoice.status = Invoice.Status.SENT if state == Invoice.Status.PAID else state
+        final_invoice_states.append((invoice, state))
+        invoice.notes = (
+            f"[DEMO] {story}. Simulated {state.lower()} status; no email or payment processed."
+        )
+        invoice.save(update_fields=["status", "notes", "updated_at"])
+        for line in invoice.lines.all():
+            own(line)
+        for activity in ActivityLog.objects.filter(
+            business=business,
+            client=invoice.client,
+            payload__invoice_number=invoice.invoice_number,
+        ):
+            own(activity)
+
+    from .credit_services import approve_credit, credit_review, fingerprint
+
+    credit_expiry = now + timedelta(days=14)
+
+    def credit_for(item, movement):
+        snapshot = credit_review(business=business, actor=actor, parcel=item)
+        approval = own(
+            approve_credit(
+                business=business,
+                actor=actor,
+                parcel=item,
+                status=movement,
+                expires_at=credit_expiry,
+                reason_reference=f"[DEMO] Fictional movement credit {item.internal_reference}/{movement}",
+                obligation_fingerprint=fingerprint(snapshot),
+                idempotency_key=uuid4(),
+            )
+        )
+        for log in ActivityLog.objects.filter(
+            business=business, payload__credit_approval_id=approval.pk
+        ):
+            own(log)
+
+    for kind, obj, movement, site_id in operations:
+        if movement in ("IN_TRANSIT", "DELIVERED"):
+            affected = [obj] if kind == "parcel" else list(obj.parcels.all())
+            for item in affected:
+                credit_for(item, movement)
+        if kind == "parcel":
+            apply_status(obj, movement)
+        else:
+            if site_id:
+                select_work_location(business=business, actor=actor, location=site_id)
+            change_shipment_status(business=business, shipment=obj, actor=actor, status=movement)
+    # Preserve the existing manually marked PAID demonstration as unverified legacy
+    # status. No receipt is invented to support it.
+    for invoice, state in final_invoice_states:
+        if invoice.status != state:
+            invoice.status = state
+            invoice.save(update_fields=["status", "updated_at"])
+
     for parcel in parcels:
         parcel.refresh_from_db()
+        if location_plan:
+            select_work_location(
+                business=business,
+                actor=actor,
+                location=(
+                    destination_location_id
+                    if parcel.current_status in {"ARRIVED", "READY", "DELIVERED"}
+                    else origin_location_id
+                ),
+            )
         location = parcel.origin
         if parcel.current_status == Parcel.Status.IN_TRANSIT:
             location = "En route to " + parcel.destination
@@ -441,103 +764,12 @@ def seed_logistics_demo(*, business_id, actor_id=None):
     events = ParcelEvent.objects.filter(business=business, parcel__in=parcels).order_by("pk")
     for event in events:
         own(event)
-    # Demo charge snapshots need no SERVICE catalogue or appointment objects.
-    rates = (
-        ("Small Parcel Delivery", "15"),
-        ("Medium Parcel Delivery", "25"),
-        ("Large Parcel Delivery", "40"),
-        ("Standard Handling", "5"),
-        ("Fragile Handling", "12"),
-        ("Storage", "8"),
-        ("Freight", "150"),
-        ("Customs Processing", "35"),
-    )
-
-    def charge(target, rate_index, *, quantity=1, price=None, description=""):
-        if rate_index is not None:
-            name, standard_price = rates[rate_index]
-            description = description or f"[DEMO] {name}"
-            if price is None:
-                price = Decimal(standard_price)
-        return own(
-            add_charge(
-                business=business,
-                actor=actor,
-                **({"parcel": target} if isinstance(target, Parcel) else {"shipment": target}),
-                quantity=Decimal(quantity),
-                unit_price=price,
-                description=description,
-                idempotency_key=uuid4(),
-            )
-        )
-
-    # Each shipment billed here has one client. Mixed-client shipment billing is
-    # deliberately not bypassed. Paid/Sent are fictional local invoice snapshots;
-    # no email, payment, Stripe or subscription action is performed.
-    invoice_scenarios = (
-        (
-            Invoice.Status.SENT,
-            "A: Books moving from Sint Maarten to Anguilla",
-            [
-                charge(shipments[1], 6),
-                charge(parcels[3], 3, quantity=2),
-                charge(parcels[4], 7),
-            ],
-        ),
-        (
-            Invoice.Status.PAID,
-            "C: Shop supplies delivered from Miami to Sint Maarten",
-            [
-                charge(shipments[0], 6),
-                charge(parcels[0], 2, price=Decimal("35.00"), description="Negotiated delivery"),
-                charge(parcels[1], 3),
-                charge(
-                    parcels[2], None, price=Decimal("37.50"), description="Oversized cargo handling"
-                ),
-            ],
-        ),
-        (
-            Invoice.Status.SENT,
-            "D: Tableware ready, awaiting onward local delivery",
-            [
-                charge(parcels[14], 0),
-                charge(parcels[14], 4),
-                charge(parcels[14], 5, quantity=2),
-            ],
-        ),
-        (
-            Invoice.Status.DRAFT,
-            "E: Display materials booked for local road dispatch",
-            [
-                charge(shipments[4], 6),
-                charge(parcels[10], 7),
-                charge(parcels[11], 3),
-            ],
-        ),
-    )
-    for state, story, group in invoice_scenarios:
-        invoice = own(
-            invoice_charges(
-                business=business, actor=actor, charge_ids=[charge.pk for charge in group]
-            )
-        )
-        invoice.status = state
-        invoice.notes = (
-            f"[DEMO] {story}. Simulated {state.lower()} status; no email or payment processed."
-        )
-        invoice.save(update_fields=["status", "notes", "updated_at"])
-        for line in invoice.lines.all():
-            own(line)
-        for activity in ActivityLog.objects.filter(
-            business=business,
-            client=invoice.client,
-            payload__invoice_number=invoice.invoice_number,
-        ):
-            own(activity)
     # Unbilled estimates demonstrate the existing charge-to-invoice workflow too.
     charge(parcels[16], 5, quantity=3)
     charge(parcels[16], 3)
     charge(parcels[8], 1)
+    if location_plan:
+        select_work_location(business=business, actor=actor, location=origin_location_id)
     return seed
 
 

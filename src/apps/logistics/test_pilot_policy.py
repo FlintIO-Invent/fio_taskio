@@ -27,6 +27,12 @@ class PilotConfigurationTests(SimpleTestCase):
 
 @override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY, LOGISTICS_AUTO_APPROVE_ALL=True)
 class PilotApprovalTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
+
     def submit(self, **changes):
         response = self.client.post(
             reverse("logistics_application_create"),
@@ -63,7 +69,7 @@ class PilotApprovalTests(TestCase):
             ({"custom_workflow_details": "Special process"}, "CUSTOM_WORKFLOW"),
             ({"multi_jurisdiction": True}, "MULTI_JURISDICTION"),
             ({"api_integration_needed": True}, "API_INTEGRATION_REQUIRED"),
-            ({"country": "Unknown territory"}, "UNSUPPORTED_TERRITORY"),
+            ({"country": "Dominica"}, "UNSUPPORTED_TERRITORY"),
             ({"custom_pricing_requested": True}, "CUSTOM_PRICING_REQUESTED"),
             ({"monthly_parcel_estimate": 10000}, "HIGH_RESOURCE_INTENSITY"),
             ({"operation_type": "OTHER"}, "HIGH_RESOURCE_INTENSITY"),
@@ -151,7 +157,7 @@ class PilotApprovalTests(TestCase):
 
     def test_pilot_approval_can_enroll_with_existing_pending_annual_flow_and_replay_guards(self):
         application = self.submit(
-            monthly_parcel_estimate=10000, api_integration_needed=True, country="Unknown territory"
+            monthly_parcel_estimate=10000, api_integration_needed=True, country="Dominica"
         )
         token = issue_enrollment_link(application.pk, actor=reviewer(), expected_revision=1)
         result = enroll_application(token, password=PASSWORD)

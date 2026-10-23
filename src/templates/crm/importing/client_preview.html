@@ -70,8 +70,8 @@
       <h4>Client capacity</h4>
       <div class="row g-3">
         <div class="col-md-3"><span class="text-body-tertiary">Current active clients</span><div class="fw-semibold">{{ capacity.current_active_clients }}</div></div>
-        <div class="col-md-3"><span class="text-body-tertiary">Plan limit</span><div class="fw-semibold">{% if capacity.available %}{{ capacity.plan_limit }}{% else %}Unavailable{% endif %}</div></div>
-        <div class="col-md-3"><span class="text-body-tertiary">Remaining capacity</span><div class="fw-semibold">{% if capacity.available %}{{ capacity.remaining_capacity }}{% else %}Unavailable{% endif %}</div></div>
+        <div class="col-md-3"><span class="text-body-tertiary">Plan limit</span><div class="fw-semibold">{% if capacity.available %}{{ capacity.plan_limit|default_if_none:"Unlimited" }}{% else %}Unavailable{% endif %}</div></div>
+        <div class="col-md-3"><span class="text-body-tertiary">Remaining capacity</span><div class="fw-semibold">{% if capacity.available %}{{ capacity.remaining_capacity|default_if_none:"Unlimited" }}{% else %}Unavailable{% endif %}</div></div>
         <div class="col-md-3"><span class="text-body-tertiary">New importable clients</span><div class="fw-semibold">{{ capacity.new_importable_clients }}</div></div>
       </div>
     </div>

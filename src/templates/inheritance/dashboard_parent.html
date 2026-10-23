@@ -22,7 +22,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/favicon-32x32.png' %}?v=motionmate-20260629">
     <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/favicon-16x16.png' %}?v=motionmate-20260629">
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/favicon.ico' %}?v=motionmate-20260629">
-    <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}?v=motionmate-20260629">
+    {% include "includes/pwa_head.html" %}
     <meta name="msapplication-config" content="{% static 'assets/img/favicons/browserconfig.xml' %}?v=motionmate-20260629">
     <meta name="msapplication-TileImage" content="{% static 'assets/img/favicons/mstile-150x150.png' %}?v=motionmate-20260629">
     <meta name="theme-color" content="#ffffff">
@@ -62,9 +62,13 @@
         userLinkRTL.setAttribute('disabled', true);
       }
     </script>
+    {% if current_business.vertical == 'LOGISTICS' %}
+    <link href="{% static 'assets/css/logistics-mobile.css' %}" rel="stylesheet">
+    <script src="{% static 'assets/js/logistics-mobile.js' %}" defer></script>
+    {% endif %}
   </head>
 
-  <body>
+  <body{% if current_business.vertical == 'LOGISTICS' %} class="logistics-workspace"{% endif %}>
     <!-- ===============================================-->
     <!--    Main Content-->
     <!-- ===============================================-->
@@ -95,11 +99,9 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Team Members</span></div>
                                                 </a>
                                             {% endif %}
-                                            {% if role_access.can_manage_business_settings and workspace_can_modify %}
                                                 <a class="nav-link" href="{% url 'business_settings' %}" data-onboarding-target="business-settings">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                                 </a>
-                                            {% endif %}
                                             {% if module_capabilities.services and role_access.can_manage_services %}
                                                 <a class="nav-link" href="{% url 'business_service_list' %}" data-onboarding-target="services">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Services</span></div>
@@ -110,7 +112,7 @@
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Data Import</span></div>
                                                 </a>
                                             {% endif %}
-                                            {% if role_access.can_manage_subscription %}
+                                            {% if role_access.can_manage_subscription or role_access.can_view_logistics_usage %}
                                                 <a class="nav-link" href="{% url 'business_subscription' %}">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Subscription</span></div>
                                                 </a>
@@ -210,6 +212,11 @@
                                             <a class="nav-link" href="{% url 'logistics_parcel_list' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">All Parcels</span></div>
                                             </a>
+                                            {% if current_business.vertical == 'LOGISTICS' %}
+                                            <a class="nav-link" href="{% url 'logistics_parcel_scan' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Scan Parcel</span></div>
+                                            </a>
+                                            {% endif %}
                                             {% if role_access.can_manage_parcels and module_write_access.parcels %}
                                             <a class="nav-link" href="{% url 'logistics_parcel_register' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Register Parcel</span></div>
@@ -373,13 +380,23 @@
                             </label>
                         </div>
                     </li>
+                    {% if current_business.vertical == 'LOGISTICS' %}
+                    {% if module_access.parcels %}
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link" href="{% url 'logistics_parcel_list' %}" aria-label="Search parcels">
+                            <span data-feather="search" aria-hidden="true"></span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% else %}
                     <li class="nav-item d-lg-none">
                         <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#searchBoxModal">
                             <span class="d-block" style="height: 20px; width: 20px;"><span data-feather="search" style="height: 19px; width: 19px; margin-bottom: 2px;"></span></span>
                         </a>
                     </li>
+                    {% endif %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link lh-1 pe-0" id="navbarDropdownUser" href="#!" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
+                        <a class="nav-link lh-1 pe-0" aria-label="Account menu" id="navbarDropdownUser" href="#!" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
                             <div class="avatar avatar-xl">
                                 <div class="avatar-name rounded-circle"><span>{{ request.user.initials|default:request.user.email|slice:":1"|upper }}</span></div>
                             </div>
@@ -396,12 +413,10 @@
                                     <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'agent_dashboard' %}">
                                         <span data-feather="grid" style="width: 16px; height: 16px;"></span>Dashboard
                                     </a>
-                                    {% if role_access.can_manage_business_settings and workspace_can_modify %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_settings' %}">
                                           <span data-feather="settings" style="width: 16px; height: 16px;"></span>Business Settings
                                       </a>
-                                    {% endif %}
-                                    {% if role_access.can_manage_subscription %}
+                                    {% if role_access.can_manage_subscription or role_access.can_view_logistics_usage %}
                                       <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_subscription' %}">
                                           <span data-feather="layers" style="width: 16px; height: 16px;"></span>Subscription
                                       </a>
@@ -416,7 +431,7 @@
                                           <span data-feather="users" style="width: 16px; height: 16px;"></span>Team
                                       </a>
                                     {% endif %}
-                                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'password_change' %}">
+                                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{% url 'business_settings' %}#security">
                                         <span data-feather="lock" style="width: 16px; height: 16px;"></span>Change Password
                                     </a>
                                 </div>
@@ -471,7 +486,8 @@
 	        </div>
 	      {% endif %}
 
-	      {% block content %} {% endblock %}
+	      {% include "logistics/includes/work_location.html" %}
+          {% block content %} {% endblock %}
       
       <script>
           var navbarTopStyle = window.config.config.phoenixNavbarTopStyle;

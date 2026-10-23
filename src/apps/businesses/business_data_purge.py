@@ -10,7 +10,18 @@ from apps.accounts.models import TaskIOUser
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
-from apps.logistics.models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
+from apps.logistics.models import (
+    LogisticsCharge,
+    LogisticsCreditApproval,
+    LogisticsCreditRevocation,
+    LogisticsHandlingSite,
+    LogisticsLocation,
+    LogisticsLocationAssignment,
+    LogisticsProfile,
+    Parcel,
+    ParcelEvent,
+    Shipment,
+)
 
 from .business_data_inventory import (
     DIRECT_BUSINESS_RELATION_REGISTRY,
@@ -51,8 +62,13 @@ PURGE_DELETION_ORDER = (
     "activity_logs",
     "leads",
     "parcel_events",
+    "logistics_credit_revocations",
+    "logistics_credit_approvals",
+    "logistics_handling_sites",
+    "logistics_location_assignments",
     "parcels",
     "shipments",
+    "logistics_locations",
     "clients",
     "business_services",
     "service_categories",
@@ -133,6 +149,12 @@ class BusinessPurgePlan:
             blockers.append("logistics_conversion_protected")
         if self.has_stripe_references:
             blockers.append("stripe_references_present")
+        if any(
+            (record.key == "customer_payments" or record.key.startswith("customer_cancellation_"))
+            and record.total_count
+            for record in self.inventory.records
+        ):
+            blockers.append("customer_payment_history_protected")
         if self.invoice_confirmation_required:
             blockers.append("test_financial_data_confirmation_required")
         return tuple(blockers)
@@ -303,6 +325,7 @@ def _build_purge_plan(
 
 def _enforce_purge_safety(plan: BusinessPurgePlan) -> None:
     messages = {
+        "customer_payment_history_protected": "Customer receipt/refund history blocks tenant purge, including confirmed test-financial purges.",
         "business_active": "The business must be deactivated before permanent purge.",
         "cross_tenant_integrity_blockers": (
             "Cross-tenant integrity blockers must be resolved before permanent purge."
@@ -389,6 +412,8 @@ def _has_cross_business_operational_references(*, user_id: int, business_id: int
         (Shipment, "created_by_id"),
         (LogisticsCharge, "created_by_id"),
         (ParcelEvent, "actor_id"),
+        (LogisticsCreditApproval, "approved_by_id"),
+        (LogisticsCreditRevocation, "revoked_by_id"),
         (UserOnboardingState, "user_id"),
         (SubscriptionNotification, "recipient_user_id"),
         (BusinessInvitation, "invited_by_id"),
@@ -427,8 +452,23 @@ def _delete_business_records(
         "parcel_events": _delete_parcel_history(
             ParcelEvent.objects.filter(business_id=business_id)
         ),
+        "logistics_credit_revocations": _delete_parcel_history(
+            LogisticsCreditRevocation.objects.filter(business_id=business_id)
+        ),
+        "logistics_credit_approvals": _delete_parcel_history(
+            LogisticsCreditApproval.objects.filter(business_id=business_id)
+        ),
+        "logistics_handling_sites": _delete_queryset(
+            LogisticsHandlingSite.objects.filter(business_id=business_id)
+        ),
+        "logistics_location_assignments": _delete_queryset(
+            LogisticsLocationAssignment.objects.filter(business_id=business_id)
+        ),
         "parcels": _delete_parcel_history(Parcel.objects.filter(business_id=business_id)),
         "shipments": _delete_parcel_history(Shipment.objects.filter(business_id=business_id)),
+        "logistics_locations": _delete_queryset(
+            LogisticsLocation.objects.filter(business_id=business_id)
+        ),
         "clients": _delete_queryset(Client.objects.filter(business_id=business_id)),
         "business_services": _delete_queryset(
             BusinessService.objects.filter(business_id=business_id)

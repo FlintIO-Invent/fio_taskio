@@ -1,0 +1,58 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+{% block content %}
+<div class="content logistics-scan" data-scan-workflow>
+  <nav class="mb-3" aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'logistics_parcel_list' %}">Parcels</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Scan Parcel</li>
+  </ol></nav>
+  <div class="row g-3 justify-content-between align-items-center mb-4">
+    <div class="col-12 col-sm-auto">
+      <h2 class="mb-1 text-body-emphasis">Scan Parcel</h2>
+      <p class="text-body-secondary mb-0">Find a parcel and review its latest details and available actions.</p>
+    </div>
+    <div class="col-12 col-sm-auto">
+      <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_list' %}"><span class="fa-solid fa-boxes-stacked me-2" aria-hidden="true"></span>All Parcels</a>
+    </div>
+  </div>
+  {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="status">{{ message }}</div>{% endfor %}
+  <div class="row g-3 align-items-start">
+    <div class="col-12 col-lg-5 col-xl-4">
+    <section class="card p-0" aria-labelledby="scan-lookup-title">
+      <div class="card-header border-bottom border-translucent px-3 py-3">
+        <h3 class="fs-8 mb-1" id="scan-lookup-title"><span class="fa-solid fa-qrcode text-primary me-2" aria-hidden="true"></span>Find a parcel</h3>
+        <p class="text-body-secondary fs-9 mb-0">Enter a tracking code or use a scanner.</p>
+      </div>
+      <div class="card-body p-3">
+      <form method="post" action="{% url 'logistics_parcel_scan' %}" data-scan-lookup>
+        {% csrf_token %}
+        <label class="form-label" for="{{ lookup_form.tracking_code.id_for_label }}">{{ lookup_form.tracking_code.label }}</label>
+        {{ lookup_form.tracking_code }}
+        <p class="form-text mb-3" id="scan-input-help">Type, paste or scan the complete MM-PCL-… or legacy tracking code, then press Enter.</p>
+        <div class="row g-2">
+          <div class="col-6"><button type="submit" class="btn btn-primary w-100 h-100">Find Parcel</button></div>
+          <div class="col-6"><button type="button" class="btn btn-phoenix-secondary w-100 h-100" data-next-scan>Next Scan</button></div>
+        </div>
+      </form>
+      <div class="border-top border-translucent mt-3 pt-3" data-scan-camera data-decoder-src="{% static 'vendors/zxing/zxing-browser-0.2.1.min.js' %}" hidden>
+        <button type="button" class="btn btn-phoenix-primary w-100" data-camera-start aria-controls="scan-camera-panel" aria-expanded="false"><span class="fa-solid fa-camera me-2" aria-hidden="true"></span>Scan with Camera</button>
+        <p class="form-text mt-2 mb-0" data-camera-status role="status" aria-live="polite" aria-atomic="true">Camera scanning is optional. You can always type, paste or use a keyboard scanner.</p>
+        <div id="scan-camera-panel" class="scan-camera-panel border border-translucent rounded-2 p-3 mt-3" data-camera-panel role="region" aria-labelledby="scan-camera-heading" hidden>
+          <h4 id="scan-camera-heading" class="fs-8 mb-2">Scan a Parcel code</h4>
+          <p class="text-body-secondary fs-9 mb-3">Point the camera at the tracking QR code or barcode. Keep it steady and well lit.</p>
+          <video class="scan-camera-preview" data-camera-preview autoplay muted playsinline aria-label="Live camera preview"></video>
+          <button type="button" class="btn btn-phoenix-secondary w-100 mt-2" data-camera-stop>Stop Camera</button>
+        </div>
+      </div>
+    </div></section>
+    </div>
+    <div class="col-12 col-lg-7 col-xl-8">
+      <div data-scan-result>{% include 'logistics/includes/scan_panel.html' %}</div>
+    </div>
+  </div>
+</div>
+<link rel="stylesheet" href="{% static 'assets/css/logistics-scan.css' %}">
+<script src="{% static 'assets/js/logistics-scan.js' %}" defer></script>
+<script src="{% static 'assets/js/logistics-camera.js' %}" defer></script>
+{% endblock %}

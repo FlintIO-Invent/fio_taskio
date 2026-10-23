@@ -65,6 +65,13 @@ def _record_decision(application, *, result=None, actor=None, override_reason=""
     result = result or (
         LogisticsApplication.Status.APPROVED if pilot_auto_approval else evaluated.result
     )
+    if result == LogisticsApplication.Status.APPROVED:
+        from .tier_selection import admission_plan, selected_plan
+
+        if application.converted_at is None:
+            admission_plan(application.selected_plan_slug)
+        elif application.selected_plan_slug != "logistics":
+            selected_plan(application.selected_plan_slug)
     evaluated_at = timezone.now()
     snapshot = policy.model_dump(mode="json")
     snapshot["auto_approve_all"] = pilot_auto_approval
@@ -75,6 +82,7 @@ def _record_decision(application, *, result=None, actor=None, override_reason=""
         for key, value in inputs.items()
         if key
         in {
+            "selected_plan_slug",
             "country",
             "operating_areas",
             "transportation_modes",

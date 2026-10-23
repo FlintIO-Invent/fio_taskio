@@ -1,0 +1,160 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% load static %}
+{% block content %}
+<link href="{% static 'assets/css/parcel-wizard.css' %}?v=20261018-2" rel="stylesheet">
+<div class="content">
+  <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'logistics_parcel_list' %}">Parcels</a></li><li class="breadcrumb-item"><a href="{% url 'logistics_parcel_detail' parcel.pk %}">{{ parcel.tracking_code }}</a></li><li class="breadcrumb-item active">Continue Registration</li></ol></nav>
+  <h2 class="mb-2">{% if show_completion %}Registration summary{% else %}Continue Registration{% endif %}</h2>
+  {% include 'logistics/includes/cancellation_notice.html' %}
+  <p class="text-break">{{ parcel.client }} · <strong>{{ parcel.tracking_code }}</strong> · {{ parcel.origin }} → {{ parcel.destination }}</p>
+  <p class="text-body-secondary">Each step is saved separately. Return here to continue at any time.</p>
+  {% for message in messages %}<div class="alert alert-subtle-{{ message.tags|default:'info' }}" role="status">{{ message }}</div>{% endfor %}
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+  <!-- <div class="alert alert-subtle-info"><a class="btn btn-primary mb-2" href="#{{ resume_step }}">{{ resume_label }}</a>
+    <p class="fw-semibold mb-1">Outstanding registration tasks</p><ul class="mb-0">{% for task in registration_tasks %}<li>{{ task }}</li>{% empty %}<li>Registration steps completed. Operational tracking continues separately.</li>{% endfor %}</ul>
+  </div> -->
+  <div class="card theme-wizard parcel-wizard mb-5" data-parcel-wizard="registration" data-initial-step="{% if request.POST.action == 'issue' or request.POST.action == 'payment' %}registration-payment{% elif request.POST.action == 'assign' %}registration-shipment{% elif show_completion %}registration-summary{% else %}{{ resume_step }}{% endif %}">
+    <div class="card-header bg-body-highlight border-bottom-0">
+      <nav aria-label="Registration steps" data-parcel-wizard-nav hidden>
+        <ol class="nav nav-wizard parcel-wizard-nav justify-content-between">
+          {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-parcel' number='1' label='Parcel' %}
+          {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-billing' number='2' label='Charges' %}
+          {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-payment' number='3' label='Payment' %}
+          {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-shipment' number='4' label='Shipment' %}
+          {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-summary' number='5' label='Summary' %}
+        </ol>
+      </nav>
+      <p class="small text-body-secondary mb-0 mt-3" role="status" data-parcel-wizard-status></p>
+    </div>
+    <div class="card-body">
+  <section id="registration-parcel" data-parcel-wizard-panel aria-labelledby="registration-parcel-title">
+    <h3 class="fs-7" id="registration-parcel-title" tabindex="-1">Client &amp; Parcel saved</h3>
+    <p>{{ parcel.sender_name|default:'Sender details not supplied' }} → {{ parcel.recipient_name|default:'Client recipient' }} · {{ parcel.weight_kg|default:'Weight not supplied' }}{% if parcel.weight_kg %} kg{% endif %}</p>
+    {% if role_access.can_manage_parcels and module_write_access.parcels %}<a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_edit' parcel.pk %}">Review Parcel details</a>{% endif %}
+  </section>
+  <section id="registration-billing" data-parcel-wizard-panel aria-labelledby="registration-billing-title">
+    <h3 class="fs-7" id="registration-billing-title" tabindex="-1">Charges &amp; Invoice</h3>
+    <p class="text-body-secondary mb-4">Add the agreed charges, then select charges to create an Invoice or append to an authorized same-Client draft. You can combine several Parcels belonging to this Client.</p>
+    {% if not financial_actions %}
+      <p class="text-body-secondary mb-3">Billing is saved or requires an authorized accounting colleague.</p>
+    {% endif %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+      {% for action in financial_actions %}
+        <div class="col">
+          <a class="btn btn-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="{{ action.url }}">{{ action.label }}</a>
+        </div>
+      {% endfor %}
+      {% if role_access.can_manage_parcels and module_write_access.parcels %}
+        <div class="col">
+          <a class="btn btn-phoenix-secondary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="{% url 'logistics_parcel_register' %}?client={{ parcel.client_id }}">Register another Parcel for this Client</a>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+  <section id="registration-payment" data-parcel-wizard-panel aria-labelledby="registration-payment-title">
+    <h3 class="fs-7 mb-4" id="registration-payment-title" tabindex="-1">Customer payment decision</h3>
+    {% for invoice in invoices %}
+      <div class="border rounded-3 p-3 p-sm-4 mb-3">
+        <p class="text-break mb-0"><a class="fw-semibold" href="{% url 'invoice_detail' invoice.id %}">{{ invoice.number }}</a>{% if not invoice.restricted %} · {{ invoice.lifecycle_status }} · Outstanding {{ invoice.currency }} {{ invoice.outstanding|floatformat:2 }}{% if invoice.shared %} · Full shared Invoice balance{% endif %}{% endif %}</p>
+      </div>
+    {% empty %}
+      <p class="text-body-secondary mb-4">An issued Invoice and verified receipts are needed for financial clearance. Authorized accounting colleagues can complete this later.</p>
+    {% endfor %}
+    {% if can_decide_payment %}<form id="registration-payment-form" data-payment-decision-form data-payment-complete="{{ payment_decision_complete|yesno:'true,false' }}" method="post" class="border rounded-3 p-3 p-sm-4 mt-4" novalidate>
+      {% csrf_token %}<input type="hidden" name="action" value="payment"><input type="hidden" name="invoice" value="{{ payment_invoice.pk }}">
+      <fieldset class="mb-4"><legend class="fs-8">Customer payment decision</legend>{{ payment_decision_form.decision }}{{ payment_decision_form.decision.errors }}<p class="text-body-secondary mb-0">Choose explicitly, then press Continue. Unpaid keeps the existing outstanding balance and does not grant clearance.</p></fieldset>
+      {% if payment_form %}<div data-payment-receipt-fields>
+      <h4 class="fs-8 text-break mb-2">Record customer payment · {{ payment_invoice.invoice_number }}</h4>
+      <p class="text-body-secondary mb-4">Record money already received. This does not collect a payment.</p>
+      {% if payment_form.non_field_errors %}<div class="alert alert-danger">{{ payment_form.non_field_errors }}</div>{% endif %}
+      <div class="row g-3 mb-4">
+        {% for field in payment_form %}
+          {% if field.is_hidden %}{{ field }}{{ field.errors }}{% else %}
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<p class="form-text mb-0">{{ field.help_text }}</p>{% endif %}
+              {{ field.errors }}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      </div>{% else %}<p class="text-body-secondary">To record a new payment, first create and issue an Invoice. If the balance is already cleared, Paid confirms the saved receipts.</p>{% endif %}
+      <button class="btn btn-primary mt-3 w-100" type="submit">Continue</button>
+    </form>{% else %}<p class="text-body-secondary">An authorized operational or accounting colleague must record the payment decision.</p>{% endif %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 mt-1">
+      {% for invoice in invoices %}
+        {% if invoice.can_issue %}
+          <div class="col">
+            <form method="post" class="h-100">
+              {% csrf_token %}<input type="hidden" name="action" value="issue"><input type="hidden" name="invoice" value="{{ invoice.id }}">
+              <button class="btn btn-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" type="submit">Issue Invoice {{ invoice.number }}</button>
+            </form>
+          </div>
+        {% endif %}
+        {% if invoice.can_pay %}
+          <div class="col">
+            <a class="btn btn-phoenix-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="?payment={{ invoice.id }}#registration-payment">Record payment {{ invoice.number }}</a>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  <section id="registration-shipment" data-parcel-wizard-panel aria-labelledby="registration-shipment-title">
+    <h3 class="fs-7 mb-4" id="registration-shipment-title" tabindex="-1">Shipment · optional</h3>
+    {% if workflow_summary.shipment %}
+      <p class="border rounded-3 p-3 p-sm-4 text-break mb-4">Assigned to <a class="fw-semibold" href="{% url 'logistics_shipment_detail' workflow_summary.shipment.id %}">{{ workflow_summary.shipment.reference }}</a> · {{ workflow_summary.shipment.transport_mode|default:'Unknown mode' }}</p>
+    {% elif can_assign %}
+      <p class="text-body-secondary mb-4">Choose an available Shipment on this route. Routing choices do not grant location-operating permissions.</p>
+      <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 mb-4">
+        {% for shipment in shipments %}
+          <div class="col">
+            <form method="post" class="border rounded-3 p-3 p-sm-4 d-flex flex-column h-100">
+              {% csrf_token %}<input type="hidden" name="action" value="assign"><input type="hidden" name="shipment" value="{{ shipment.pk }}">{{ shipment.registration_form }}
+              <p class="text-break mb-4"><strong>{{ shipment.reference }}</strong> · {{ shipment.get_transport_mode_display|default:'Unknown mode' }} · {{ shipment.origin }} → {{ shipment.destination }}</p>
+              <button type="submit" class="btn btn-phoenix-primary d-flex align-items-center justify-content-center w-100 p-3 mt-auto">Assign to {{ shipment.reference }}</button>
+            </form>
+          </div>
+        {% empty %}
+          <div class="col w-100"><p class="text-body-secondary mb-0">No eligible Shipments on this route.</p></div>
+        {% endfor %}
+      </div>
+    {% else %}<p class="text-body-secondary mb-4">Assignment requires an eligible Parcel and authorized work site. It can be completed later.</p>{% endif %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+      {% if not workflow_summary.shipment and can_assign %}
+        {% if role_access.can_manage_shipments %}
+        <div class="col">
+          <a class="btn btn-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="{% url 'logistics_shipment_create' %}?parcel={{ parcel.pk }}&amp;registration_parcel={{ parcel.pk }}">Create Shipment with this Parcel</a>
+        </div>
+        {% endif %}
+        <div class="col">
+          <a class="btn btn-phoenix-secondary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="{% url 'logistics_shipment_list' %}?parcel={{ parcel.pk }}">Browse all Shipments</a>
+        </div>
+      {% endif %}
+      <div class="col">
+        <form method="post" action="#registration-summary" class="h-100">
+          {% csrf_token %}<input type="hidden" name="action" value="later">
+          <button type="submit" class="btn btn-phoenix-secondary d-flex align-items-center justify-content-center w-100 h-100 p-3">{% if parcel.shipment_id %}View completion summary{% else %}Assign later · View summary{% endif %}</button>
+        </form>
+      </div>
+    </div>
+  </section>
+  <section id="registration-summary" data-parcel-wizard-panel aria-label="Registration completion summary" aria-labelledby="registration-summary-title" class="mb-4">
+    <h3 id="registration-summary-title" tabindex="-1">Completion summary</h3>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipping_label' parcel.pk %}">Preview tracking label</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipping_label_pdf' parcel.pk %}?download=1">Download tracking label</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_detail' parcel.pk %}">Parcel detail</a>
+    </div>
+    {% include 'logistics/includes/workflow_summary.html' %}
+  </section>
+    </div>
+    <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3" data-parcel-wizard-controls hidden>
+      <button class="btn btn-phoenix-secondary" type="button" data-parcel-wizard-back>Back</button>
+      <a class="btn btn-link" href="{% url 'logistics_parcel_detail' parcel.pk %}">Return to Parcel detail</a>
+      <button class="btn btn-primary" type="button" data-parcel-wizard-next>Continue</button>
+    </div>
+  </div>
+</div>
+<script src="{% static 'assets/js/parcel-wizard.js' %}?v=20261023-1"></script>
+{% endblock %}

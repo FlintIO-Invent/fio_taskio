@@ -13,8 +13,10 @@
 
   <div class="row g-3 mb-4 justify-content-between align-items-center">
     <div class="col-lg-8">
-      <h2 class="mb-2 text-body-emphasis">Import Services From CSV</h2>
+      <h2 class="mb-2 text-body-emphasis">Upload Categories and Services</h2>
       <p class="text-body-tertiary mb-0">Upload a price list for {{ business.name }} to validate and preview it. Nothing is saved before you confirm the import.</p>
+      <p class="text-body-tertiary mt-2 mb-0">Use the category column to group services. Existing categories are matched only within this business; new category names are created once and shared by their service rows. Categories and services are saved together, or no changes are saved.</p>
+      <p class="text-body-tertiary mt-2 mb-0">An external_code matching an existing service proposes an update in the preview. Leave it blank to create a service. Review proposed updates before confirming.</p>
     </div>
     <div class="col-auto d-flex gap-2">
       <a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Back to services</a>

@@ -5,9 +5,18 @@ from dataclasses import dataclass
 from django.db import models
 
 from apps.appointments.models import Appointment
-from apps.billings.models import Invoice, InvoiceLine
+from apps.billings.models import Invoice, InvoiceLine, InvoicePayment
 from apps.crm.models import ActivityLog, BusinessService, Client, Lead, ServiceCategory
-from apps.logistics.models import LogisticsCharge, Parcel, ParcelEvent, Shipment
+from apps.logistics.models import (
+    LogisticsCharge,
+    LogisticsChargeParcel,
+    LogisticsCreditApproval,
+    LogisticsCreditRevocation,
+    LogisticsHandlingSite,
+    Parcel,
+    ParcelEvent,
+    Shipment,
+)
 
 from .models import (
     Business,
@@ -155,7 +164,14 @@ def execute_demo_seed_reset(
         pks = plan.object_pks[label]
         deleted_counts[label] = model._default_manager.filter(pk__in=pks).count()
         queryset = model._default_manager.filter(pk__in=pks)
-        if model in (LogisticsCharge, ParcelEvent, Parcel, Shipment):
+        if model in (
+            LogisticsCharge,
+            LogisticsCreditApproval,
+            LogisticsCreditRevocation,
+            ParcelEvent,
+            Parcel,
+            Shipment,
+        ):
             queryset._purge_delete()
         else:
             queryset.delete()
@@ -207,7 +223,17 @@ def _validate_related_tenant_ids(*, obj: models.Model, business_id: int) -> None
                 related_business_ids.append(relation.business_id)
         if obj.invoice_line_id:
             related_business_ids.append(obj.invoice_line.invoice.business_id)
+        for coverage in obj.parcel_coverage.select_related("parcel"):
+            related_business_ids.append(coverage.parcel.business_id)
+            if coverage.parcel.client_id != obj.client_id:
+                raise DemoSeedResetError(
+                    "Reset aborted: charge coverage has a cross-client relationship."
+                )
+        if obj.supersedes_id:
+            related_business_ids.append(obj.supersedes.business_id)
     elif isinstance(obj, InvoiceLine):
+        if obj.charge_source_id:
+            related_business_ids.append(obj.charge_source.business_id)
         for name in ("parcel", "shipment"):
             relation = getattr(obj, name)
             if relation is not None:
@@ -240,11 +266,20 @@ def _validate_related_tenant_ids(*, obj: models.Model, business_id: int) -> None
 
 
 def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -> None:
+    if LogisticsHandlingSite.objects.filter(
+        models.Q(parcel_id__in=object_pks.get("logistics.Parcel", ()))
+        | models.Q(shipment_id__in=object_pks.get("logistics.Shipment", ()))
+    ).exists():
+        raise DemoSeedResetError(
+            "Reset aborted: demo records have manually registered handling sites."
+        )
     owned = {
         model._meta.label: set()
         for model in (
             *RESET_MODEL_ORDER,
             LogisticsCharge,
+            LogisticsCreditApproval,
+            LogisticsCreditRevocation,
             ParcelEvent,
             Parcel,
             Shipment,
@@ -282,6 +317,12 @@ def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -
         (LogisticsCharge, "invoice_line", InvoiceLine),
         (InvoiceLine, "parcel", Parcel),
         (InvoiceLine, "shipment", Shipment),
+        (InvoiceLine, "charge_source", LogisticsCharge),
+        (LogisticsCharge, "supersedes", LogisticsCharge),
+        (LogisticsCreditApproval, "parcel", Parcel),
+        (LogisticsCreditApproval, "client", Client),
+        (LogisticsCreditRevocation, "approval", LogisticsCreditApproval),
+        (ParcelEvent, "credit_approval", LogisticsCreditApproval),
     ):
         _append_unowned_blocker(
             blockers,
@@ -296,10 +337,23 @@ def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -
             ("client", Client),
             ("service", BusinessService),
             ("invoice_line", InvoiceLine),
+            ("supersedes", LogisticsCharge),
         ):
             value = getattr(charge, f"{name}_id")
             if value is not None and value not in owned[model._meta.label]:
                 blockers.append(f"seeded charge -> genuine {name}")
+    if (
+        LogisticsChargeParcel.objects.filter(charge_id__in=owned[LogisticsCharge._meta.label])
+        .exclude(parcel_id__in=owned[Parcel._meta.label])
+        .exists()
+    ):
+        blockers.append("seeded charge coverage -> genuine parcel")
+    if (
+        LogisticsChargeParcel.objects.filter(parcel_id__in=owned[Parcel._meta.label])
+        .exclude(charge_id__in=owned[LogisticsCharge._meta.label])
+        .exists()
+    ):
+        blockers.append("genuine charge coverage -> seeded parcel")
     if (
         ParcelEvent.objects.filter(pk__in=owned[ParcelEvent._meta.label])
         .exclude(parcel_id__in=owned[Parcel._meta.label])
@@ -319,6 +373,8 @@ def _validate_no_genuine_dependents(*, object_pks: dict[str, tuple[int, ...]]) -
         queryset=InvoiceLine.objects.filter(invoice_id__in=owned[Invoice._meta.label]),
         owned_pks=owned[InvoiceLine._meta.label],
     )
+    if InvoicePayment.objects.filter(invoice_id__in=owned[Invoice._meta.label]).exists():
+        blockers.append("customer payment history -> seeded invoice")
     _append_unowned_blocker(
         blockers,
         description="billings.Invoice.appointment -> seeded appointment",

@@ -7,7 +7,7 @@
     <h3 class="mb-1">Logistics operations</h3>
     <p class="text-body-tertiary fs-9 mb-0">Parcel movement and shipment activity at a glance.</p>
   </div>
-  <div class="row g-3 mb-4">
+  <div class="row g-3 mb-4 mobile-dashboard-kpis">
     {% if dashboard_parcels_enabled %}
       {% with total=parcel_count|stringformat:'s' %}
         {% include 'logistics/includes/kpi_card.html' with label='Active Parcels' value=active_parcel_count icon='fa-box' tone='primary' description=total|add:' registered in total.' only %}
@@ -27,7 +27,7 @@
   </div>
 
   {% if dashboard_invoices_enabled %}
-    <section class="mb-4 p-0" aria-labelledby="logistics-finance-heading" data-onboarding-target="invoices">
+    <section class="mb-4 p-0 mobile-dashboard-finance" aria-labelledby="logistics-finance-heading" data-onboarding-target="invoices">
       <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <div>
           <h4 class="mb-1" id="logistics-finance-heading">Finance overview</h4>
@@ -37,18 +37,57 @@
       </div>
       <div class="row g-3">
         {% include 'logistics/includes/kpi_card.html' with label='Invoiced This Month' value=invoiced_this_month_total|money:current_business icon='fa-chart-line' tone='primary' description='Sent and paid invoices created this calendar month.' columns='col-12 col-sm-6 col-xl-3' only %}
-        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Invoices' value=outstanding_invoice_total|money:current_business icon='fa-hourglass-half' tone='warning' description='Unpaid sent invoices, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
-        {% include 'logistics/includes/kpi_card.html' with label='Paid Invoice Value' value=paid_invoice_total|money:current_business icon='fa-circle-check' tone='success' description='Invoices marked paid, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Balances' value=outstanding_invoice_total|money:current_business icon='fa-hourglass-half' tone='warning' description='Issued Invoice amounts less net customer receipts.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Net Customer Receipts' value=paid_invoice_total|money:current_business icon='fa-circle-check' tone='success' description='Recorded receipts less reversals and refunds.' columns='col-12 col-sm-6 col-xl-3' only %}
         {% include 'logistics/includes/kpi_card.html' with label='Draft Invoice Value' value=draft_invoice_total|money:current_business icon='fa-file-circle-plus' tone='info' description='Draft invoices awaiting issue, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% for totals in other_currency_invoice_totals %}
+        <div class="col-12"><p class="fw-semibold mb-0">Saved Invoice currency: {{ totals.currency }}</p></div>
+        {% include 'logistics/includes/kpi_card.html' with label='Invoiced This Month' value=totals.invoiced_this_month_total|money:totals.billing_business icon='fa-chart-line' tone='primary' description='Sent and paid invoices created this calendar month.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Balances' value=totals.outstanding_invoice_total|money:totals.billing_business icon='fa-hourglass-half' tone='warning' description='Issued Invoice amounts less net customer receipts.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Net Customer Receipts' value=totals.paid_invoice_total|money:totals.billing_business icon='fa-circle-check' tone='success' description='Recorded receipts less reversals and refunds.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Draft Invoice Value' value=totals.draft_invoice_total|money:totals.billing_business icon='fa-file-circle-plus' tone='info' description='Draft invoices awaiting issue, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% endfor %}
       </div>
+      {% if payment_review_invoice_count %}<p class="text-body-secondary mt-3 mb-0">{{ payment_review_invoice_count }} Invoice balance{{ payment_review_invoice_count|pluralize }} need{{ payment_review_invoice_count|pluralize:'s,' }} accounting review. Manual PAID status does not establish receipt-backed settlement.</p>{% endif %}
+      <section class="card mt-3 p-0" id="logistics-refunds" aria-labelledby="logistics-refunds-title">
+        <div class="card-header p-3">
+          <h4 class="mb-1" id="logistics-refunds-title"><span class="fa-solid fa-arrow-rotate-left text-body-tertiary me-2" aria-hidden="true"></span>Customer refunds</h4>
+          <p class="text-body-tertiary fs-9 mb-0">Across all dates, grouped by saved receipt currency.</p>
+        </div>
+        <div class="card-body p-3">
+          {% for totals in refund_currency_totals %}
+            <div{% if not forloop.last %} class="border-bottom border-translucent pb-2 mb-2"{% endif %}>
+              <h5 class="fs-8 mb-2">{{ totals.currency }}</h5>
+              <dl class="row gx-3 gy-2 mb-0">
+                <div class="col-12 col-sm-6">
+                  <dt class="mb-1"><span class="badge badge-phoenix badge-phoenix-warning">Refund due</span></dt>
+                  <dd class="fs-6 fw-semibold text-body-emphasis mb-1">{{ totals.refund_due_total|money:totals.billing_business }}</dd>
+                  <dd class="text-body-secondary fs-9 mb-0">{{ totals.refund_due_invoice_count }} invoice{{ totals.refund_due_invoice_count|pluralize }} awaiting a recorded return of funds.</dd>
+                </div>
+                <div class="col-12 col-sm-6">
+                  <dt class="mb-1"><span class="badge badge-phoenix badge-phoenix-success">Refund recorded</span></dt>
+                  <dd class="fs-6 fw-semibold text-body-emphasis mb-1">{{ totals.recorded_refund_total|money:totals.billing_business }}</dd>
+                  <dd class="text-body-secondary fs-9 mb-0">{{ totals.recorded_refund_count }} completed refund{{ totals.recorded_refund_count|pluralize }} recorded. Receipt reversals are excluded.</dd>
+                </div>
+              </dl>
+            </div>
+          {% empty %}
+            <p class="text-body-secondary mb-0">No refunds due or recorded are available within your billing access.</p>
+          {% endfor %}
+          {% if refund_review_invoice_count %}<p class="text-body-secondary fs-9 mt-2 mb-0" role="status">{{ refund_review_invoice_count }} invoice{{ refund_review_invoice_count|pluralize }} with refund or cancellation history need{{ refund_review_invoice_count|pluralize:'s,' }} accounting review and {{ refund_review_invoice_count|pluralize:'is,are' }} excluded from these amounts.</p>{% endif %}
+        </div>
+      </section>
     </section>
   {% endif %}
 
-  <div class="card mb-4">
+  <div class="card mb-4 mobile-dashboard-quick">
     <div class="card-header">
       <h4 class="mb-0"><span class="fa-solid fa-bolt text-body-tertiary me-2" aria-hidden="true"></span>Quick Actions</h4>
     </div>
     <div class="card-body d-flex flex-wrap gap-2">
+      {% if dashboard_parcels_enabled %}
+        <a class="btn btn-primary" href="{% url 'logistics_parcel_scan' %}"><span class="fa-solid fa-keyboard me-2" aria-hidden="true"></span>Scan Parcel</a>
+      {% endif %}
       {% if role_access.can_manage_parcels and module_write_access.parcels %}
         <a class="btn btn-primary" href="{% url 'logistics_parcel_register' %}"><span class="fa-solid fa-plus me-2" aria-hidden="true"></span>Register Parcel</a>
       {% endif %}
@@ -61,15 +100,12 @@
       {% if dashboard_parcels_enabled %}
         <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_list' %}"><span class="fa-solid fa-box me-2" aria-hidden="true"></span>View Parcels</a>
       {% endif %}
-      {% if module_access.tracking %}
-        <a class="btn btn-phoenix-secondary" href="{% url 'logistics_public_tracking' %}"><span class="fa-solid fa-magnifying-glass me-2" aria-hidden="true"></span>Public Tracking</a>
-      {% endif %}
     </div>
   </div>
 
   {% if dashboard_parcels_enabled %}
-    <div class="row g-3 mb-4">
-      <div class="col-12 col-xl-4">
+    <div class="row g-3 mb-4 mobile-dashboard-group">
+      <div class="col-12 col-xl-4 mobile-dashboard-status">
         <div class="card h-100" data-onboarding-target="parcels">
           <div class="card-header">
             <h4 class="mb-1"><span class="fa-solid fa-boxes-stacked text-body-tertiary me-2" aria-hidden="true"></span>Parcels by current status</h4>
@@ -92,7 +128,7 @@
           </div>
         </div>
       </div>
-      <div class="col-12 col-xl-8">
+      <div class="col-12 col-xl-8 mobile-dashboard-activity">
         <div class="card h-100">
           <div class="card-header">
             <h4 class="mb-1"><span class="fa-solid fa-clock-rotate-left text-body-tertiary me-2" aria-hidden="true"></span>Recent Parcel Activity</h4>
@@ -129,9 +165,9 @@
     </div>
   {% endif %}
 
-  <div class="row g-3 mb-4">
+  <div class="row g-3 mb-4 mobile-dashboard-group">
     {% if dashboard_shipments_enabled %}
-      <div class="col-12 col-xl-6">
+      <div class="col-12 col-xl-6 mobile-dashboard-shipments">
         <div class="card h-100">
           <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div class="logistics-min-w-0">
@@ -165,7 +201,7 @@
       </div>
     {% endif %}
     {% if dashboard_parcels_enabled %}
-      <div class="col-12 col-xl-6">
+      <div class="col-12 col-xl-6 mobile-dashboard-attention">
         <div class="card h-100">
           <div class="card-header">
             <h4 class="mb-1"><span class="fa-solid fa-triangle-exclamation text-warning me-2" aria-hidden="true"></span>Parcels Requiring Attention</h4>
@@ -179,6 +215,7 @@
                   {% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}
                 </div>
                 <p class="text-body-tertiary fs-9 mb-0">{{ parcel.client }}</p>
+                <p class="fs-9 mb-0">{% if parcel.workflow_summary.financial.visibility == 'DETAILED' %}{{ parcel.workflow_summary.financial.state_label }}{% elif parcel.workflow_summary.financial.clearance.cleared %}Accounting clearance confirmed{% else %}Accounting clearance pending{% endif %}</p>
               </li>
             {% empty %}
               <li class="list-group-item text-center py-5">

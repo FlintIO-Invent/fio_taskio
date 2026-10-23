@@ -65,6 +65,7 @@ from apps.businesses.utils import (
     redirect_for_unavailable_business_module,
 )
 from apps.logistics.dashboard import get_logistics_dashboard_context
+from apps.logistics.financial_access import scope_invoices
 from apps.logistics.models import LogisticsApplication
 from apps.logistics.parcel_policy import PARCEL_MANAGE_ROLES
 from apps.logistics.parcel_services import parcels_for_business
@@ -1492,6 +1493,20 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
         "client_upcoming_appointments": upcoming_appointments,
         "client_recent_appointment_history": recent_appointment_history,
     }
+    if can_view_module(current_business, "invoicing") and membership_has_any_role(
+        get_current_business_membership(request), BILLING_VIEW_ROLES
+    ):
+        client_invoices = scope_invoices(
+            Invoice.objects.filter(business=current_business, client=client).select_related(
+                "business"
+            ),
+            business=current_business,
+            actor=request.user,
+        ).order_by("-created_at", "-pk")
+        context.update(
+            show_client_invoices=True,
+            client_invoices=Paginator(client_invoices, 6).get_page(request.GET.get("invoice_page")),
+        )
     if (
         current_business.vertical == Business.Vertical.LOGISTICS
         and can_view_module(current_business, "parcels")

@@ -1,0 +1,81 @@
+/* Phoenix progress tabs, with labels kept visible on small screens. */
+.parcel-wizard [hidden],
+[data-parcel-wizard-actions] [hidden] {
+  display: none !important;
+}
+
+.parcel-wizard-nav {
+  --parcel-wizard-circle-size: 2.5rem;
+  list-style: none;
+  padding: 0;
+  gap: 0;
+}
+
+.parcel-wizard-nav .nav-item {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  position: relative;
+}
+
+/* Join the circle edges; label widths and wrapping must not move the line. */
+.parcel-wizard-nav > .nav-item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(50% + var(--parcel-wizard-circle-size) / 2);
+  inline-size: calc(100% - var(--parcel-wizard-circle-size));
+  top: calc(.5rem + var(--parcel-wizard-circle-size) / 2);
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--phoenix-border-color);
+  pointer-events: none;
+}
+
+/* Replace Phoenix's percentage-based connectors for this wizard only. */
+.parcel-wizard-nav .nav-link::before,
+.parcel-wizard-nav .nav-item-circle-parent::before,
+.parcel-wizard-nav .nav-item-circle-parent::after {
+  content: none !important;
+}
+
+.parcel-wizard .parcel-wizard-nav .nav-item .nav-link .nav-item-circle {
+  width: var(--parcel-wizard-circle-size);
+  height: var(--parcel-wizard-circle-size);
+  line-height: calc(var(--parcel-wizard-circle-size) - 4px);
+}
+
+.parcel-wizard-nav .nav-link {
+  padding: .5rem .125rem;
+  height: 100%;
+  overflow-wrap: anywhere;
+}
+
+.parcel-wizard-nav .nav-link:focus-visible {
+  outline: 2px solid var(--phoenix-primary);
+  outline-offset: 2px;
+}
+
+.parcel-wizard [data-parcel-wizard-panel] {
+  scroll-margin-top: 6rem;
+}
+
+.parcel-wizard [data-parcel-wizard-review] dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 575.98px) {
+  .parcel-wizard-nav {
+    --parcel-wizard-circle-size: 2rem;
+  }
+
+  .parcel-wizard > .card-header,
+  .parcel-wizard > .card-body,
+  .parcel-wizard > .card-footer {
+    padding: 1rem;
+  }
+
+  .parcel-wizard-nav .fs-9 {
+    font-size: .7rem !important;
+  }
+}

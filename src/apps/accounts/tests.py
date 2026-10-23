@@ -1965,17 +1965,21 @@ class OnboardingScopeGuardTests(TestCase):
         self.assertFalse(model_names & forbidden_models)
 
         apps_dir = Path(__file__).resolve().parents[1]
-        migration_names = {
-            path.name.lower()
+        migration_paths = {
+            path.relative_to(apps_dir).as_posix().lower()
             for path in apps_dir.glob("*/migrations/*.py")
             if path.name != "__init__.py"
         }
+        # The existing shared Invoice receipt ledger is customer accounting,
+        # within billings. Keep every other payment/Stripe/SaaS scope guard.
+        customer_receipt_migration = "billings/migrations/0012_customer_invoice_payments.py"
         forbidden_terms = ("customer_portal", "membership", "payment", "saas_billing", "stripe")
         self.assertFalse(
             [
-                migration_name
-                for migration_name in migration_names
-                if any(term in migration_name for term in forbidden_terms)
+                migration_path
+                for migration_path in migration_paths
+                if migration_path != customer_receipt_migration
+                and any(term in migration_path for term in forbidden_terms)
             ]
         )
 
@@ -2157,18 +2161,13 @@ class SaaSProfileViewTests(TestCase):
             f"{reverse('business_login')}?next={reverse('saas_profile')}",
         )
 
-    def test_get_creates_profile_and_renders_page(self):
+    def test_get_redirects_to_unified_settings_without_creating_profile(self):
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("saas_profile"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Account Profile")
-        self.assertContains(
-            response,
-            "Business-level workspace details and invoice defaults are managed from Business Settings.",
-        )
-        self.assertTrue(SaaSUserProfile.objects.filter(user=self.user).exists())
+        self.assertRedirects(response, f"{reverse('business_settings')}#my-account")
+        self.assertFalse(SaaSUserProfile.objects.filter(user=self.user).exists())
 
     def test_post_basic_info_updates_user(self):
         self.client.force_login(self.user)
@@ -2191,7 +2190,7 @@ class SaaSProfileViewTests(TestCase):
 
         self.user.refresh_from_db()
 
-        self.assertRedirects(response, f"{reverse('saas_profile')}?section=basic")
+        self.assertRedirects(response, f"{reverse('business_settings')}#my-account")
         self.assertEqual(self.user.first_name, "Janet")
         self.assertEqual(self.user.email, "janet@example.com")
         self.assertEqual(self.user.company_name, "FlintIO Caribbean")
@@ -2218,11 +2217,11 @@ class SaaSProfileViewTests(TestCase):
 
         profile.refresh_from_db()
 
-        self.assertRedirects(response, f"{reverse('saas_profile')}?section=invoice")
+        self.assertRedirects(response, f"{reverse('business_settings')}#my-account")
         self.assertEqual(profile.currency_code, "XCD")
         self.assertEqual(profile.invoice_prefix, "CAS")
         self.assertEqual(profile.invoice_default_due_days, 21)
         self.assertEqual(profile.invoice_accent_color, "#0B6E4F")
         self.assertTrue(profile.show_company_address_on_invoice)
         self.assertFalse(profile.show_tax_id_on_invoice)
-        self.assertContains(response, "Legacy invoice preferences updated.")
+        self.assertContains(response, "Saved account preferences.")

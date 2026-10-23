@@ -21,7 +21,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'assets/img/favicons/favicon-32x32.png' %}?v=motionmate-20260629">
     <link rel="icon" type="image/png" sizes="16x16" href="{% static 'assets/img/favicons/favicon-16x16.png' %}?v=motionmate-20260629">
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/img/favicons/favicon.ico' %}?v=motionmate-20260629">
-    <link rel="manifest" href="{% static 'assets/img/favicons/manifest.json' %}?v=motionmate-20260629">
+    {% include "includes/pwa_head.html" %}
     <meta name="msapplication-config" content="{% static 'assets/img/favicons/browserconfig.xml' %}?v=motionmate-20260629">
     <meta name="msapplication-TileImage" content="{% static 'assets/img/favicons/mstile-150x150.png' %}?v=motionmate-20260629">
     <meta name="theme-color" content="#ffffff">
@@ -90,8 +90,8 @@
                                             <a class="nav-link" href="{% url 'agent_dashboard' %}">
                                                 <div class="d-flex align-items-center"><span class="nav-link-text">Dashboard</span></div>
                                             </a>
-                                            <a class="nav-link" href="{% url 'saas_profile' %}">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text"> {{ request.user.first_name }}'s  Profile</span></div>
+                                            <a class="nav-link" href="{% url 'business_settings' %}">
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">Business Settings</span></div>
                                             </a>
                                             <!-- more inner pages-->
                                         </li>
@@ -706,7 +706,7 @@
                                 <div class="overflow-auto scrollbar" style="height: 10rem;">
                                     <ul class="nav d-flex flex-column mb-2 pb-1">
                                         <li class="nav-item">
-                                            <a class="nav-link px-3 d-block" href="#!"> <span class="me-2 text-body align-bottom" data-feather="user"></span><span>Profile</span></a>
+                                            <a class="nav-link px-3 d-block" href="{% url 'business_settings' %}#my-account"> <span class="me-2 text-body align-bottom" data-feather="user"></span><span>My account</span></a>
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link px-3 d-block" href="#!"><span class="me-2 text-body align-bottom" data-feather="pie-chart"></span>Dashboard</a>

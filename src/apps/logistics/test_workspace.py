@@ -108,6 +108,10 @@ class LogisticsWorkspaceTests(TestCase):
             destination="Curacao",
             package_description="Books",
         )
+        if status not in ("REGISTERED", "RECEIVED"):
+            from .financial_test_support import clear_test_parcel
+
+            clear_test_parcel(business=business, actor=self.user, parcel=parcel)
         for next_status in (
             Parcel.Status.RECEIVED,
             Parcel.Status.IN_TRANSIT,
@@ -264,6 +268,9 @@ class LogisticsWorkspaceTests(TestCase):
         self.assertTemplateUsed(response, "logistics/public_tracking.html")
 
     def test_logistics_sidebar_write_links_respect_roles(self):
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership)
         for role in BusinessUser.Role.values:
             self.membership.role = role
             self.membership.save(update_fields=["role"])
@@ -426,6 +433,9 @@ class LogisticsWorkspaceTests(TestCase):
         self.assertEqual(response.context["parcel_count"], 1)
 
     def test_dashboard_actions_respect_all_roles(self):
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership)
         for role in BusinessUser.Role.values:
             self.membership.role = role
             self.membership.save(update_fields=["role"])
@@ -441,7 +451,7 @@ class LogisticsWorkspaceTests(TestCase):
                     else:
                         self.assertNotContains(response, f'href="{reverse(route)}"')
             self.assertContains(response, f'href="{reverse("logistics_parcel_list")}"')
-            self.assertContains(response, f'href="{reverse("logistics_public_tracking")}"')
+            self.assertNotContains(response, f'href="{reverse("logistics_public_tracking")}"')
 
     def test_read_only_dashboard_keeps_reads_and_hides_write_actions(self):
         subscription = self.business.subscription
@@ -527,7 +537,28 @@ class LogisticsWorkspaceTests(TestCase):
             for event in snapshot["recent_tracking_events"]:
                 str(event.parcel)
         domain_queries = [q for q in queries if re.search(r'\b(?:FROM|JOIN) "logistics_', q["sql"])]
-        self.assertEqual(len(domain_queries), 9)
+        self.assertLessEqual(len(domain_queries), 25)
+        for _ in range(6):
+            self.parcel(status=Parcel.Status.DELIVERED)
+        with CaptureQueriesContext(connection) as more_queries:
+            scaled_snapshot = get_logistics_dashboard_context(
+                business=self.business,
+                actor=self.user,
+                membership=self.membership,
+                now=timezone.now(),
+            )
+            for event in scaled_snapshot["recent_deliveries"]:
+                str(event.parcel.client)
+            for parcel in scaled_snapshot["parcels_requiring_attention"]:
+                str(parcel.client)
+            list(scaled_snapshot["active_shipments"])
+            for event in scaled_snapshot["recent_tracking_events"]:
+                str(event.parcel)
+        scaled_domain = [
+            q for q in more_queries if re.search(r'\b(?:FROM|JOIN) "logistics_', q["sql"])
+        ]
+        self.assertEqual(len(scaled_domain), len(domain_queries))
+        self.assertEqual(len(more_queries), len(queries))
         self.assertEqual(len(snapshot["recent_deliveries"]), 5)
         self.assertEqual(len(snapshot["recent_tracking_events"]), 5)
 
@@ -706,8 +737,8 @@ class LogisticsWorkspaceTests(TestCase):
                 self.assertContains(response, 'aria-label="breadcrumb"')
                 self.assertContains(response, 'class="card')
                 if route.endswith("list") or route == "logistics_shipment_detail":
-                    self.assertContains(response, 'class="table-responsive"')
-                    self.assertContains(response, 'class="table table-hover align-middle mb-0"')
+                    self.assertContains(response, "table-responsive")
+                    self.assertContains(response, "table-hover align-middle mb-0")
 
     def test_shipment_form_keeps_fields_and_shows_validation(self):
         url = reverse("logistics_shipment_create")

@@ -31,6 +31,7 @@ from .enrollment import (
 )
 from .inventory import application_inventory
 from .models import LogisticsApplication, LogisticsEnrollmentToken, LogisticsProfile
+from .registration_test_support import activate_logistics_tiers
 from .services import review_application
 from .tests import PILOT_POLICY, application_data
 
@@ -59,6 +60,7 @@ def approve(application, actor):
 @override_settings(LOGISTICS_ELIGIBILITY_POLICY=PILOT_POLICY)
 class EnrollmentTests(TestCase):
     def setUp(self):
+        activate_logistics_tiers()
         self.reviewer = reviewer()
         self.application = LogisticsApplication.objects.create(**application_data())
         self.token = issue_enrollment_link(
@@ -292,7 +294,7 @@ class EnrollmentTests(TestCase):
         self.assertIsNone(self.application.enrollment_tokens.get().used_at)
 
     def test_missing_or_wrong_family_offering_rolls_back(self):
-        ClarivoPlan.objects.filter(slug="logistics").update(family="SERVICE")
+        ClarivoPlan.objects.filter(slug="logistics-core").update(family="SERVICE")
         with self.assertRaises(ValidationError):
             self.enroll(password=PASSWORD)
         self.assertEqual(TaskIOUser.objects.count(), 1)
@@ -395,10 +397,7 @@ class EnrollmentTests(TestCase):
 class EnrollmentConcurrencyTests(TransactionTestCase):
     def setUp(self):
         # TransactionTestCase flushes migration seed rows between methods.
-        ClarivoPlan.objects.get_or_create(
-            slug="logistics",
-            defaults={"name": "Logistics", "family": "LOGISTICS", "is_active": False},
-        )
+        activate_logistics_tiers()
 
     def test_same_grant_simultaneous_requests_create_one_conversion(self):
         actor = reviewer()

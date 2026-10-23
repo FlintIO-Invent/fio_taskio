@@ -9,12 +9,14 @@ from unittest.mock import patch
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import models
+from django.db.models import QuerySet
 from django.test import TestCase
 from django.urls import reverse
 
 from apps.appointments.models import Appointment
 from apps.billings.models import Invoice, InvoiceLine
-from apps.billings.services import generate_invoice_number
+from apps.billings.services import generate_invoice_number, recalculate_invoice_totals
 from apps.businesses.models import DemoSeedRecord, DemoSeedRun
 from apps.businesses.utils import CURRENT_BUSINESS_SESSION_KEY
 from apps.crm.models import ActivityLog, BusinessService, Client, Lead
@@ -22,10 +24,12 @@ from apps.crm.models import ActivityLog, BusinessService, Client, Lead
 from . import test_operations as fixtures
 from .billing_services import invoice_charges
 from .demo import LOGISTICS_DEMO_COUNTS, PARCEL_STATUS_COUNTS, SHIPMENT_STATUS_COUNTS
+from .location_reference import ROUTE_LOCATION_FIELDS
 from .models import LogisticsCharge, LogisticsProfile, Parcel, ParcelEvent, Shipment
 from .parcel_policy import ALLOWED_TRANSITIONS
 from .parcel_services import PARCEL_INPUT_FIELDS
 from .public_tracking import lookup_public_tracking
+from .shipment_references import SHIPMENT_REFERENCE_FIELDS, reference_fields_for_mode
 from .shipment_services import generate_manifest
 
 
@@ -51,7 +55,7 @@ class LogisticsDemoDataTests(TestCase):
         self.assertIn('"parcels": 20', output)
         self.assertIn("DRY RUN ONLY", output)
         plan = json.loads(output.splitlines()[0])
-        self.assertEqual(plan["planned_counts"], {"logistics_profiles": 1, **LOGISTICS_DEMO_COUNTS})
+        self.assertEqual(plan["planned_counts"], {"logistics_profiles": 0, **LOGISTICS_DEMO_COUNTS})
         self.assertEqual(plan["parcel_status_counts"], PARCEL_STATUS_COUNTS)
         self.assertEqual(plan["shipment_status_counts"], SHIPMENT_STATUS_COUNTS)
         self.assertEqual(plan["invoice_status_counts"], {"DRAFT": 1, "SENT": 2, "PAID": 1})
@@ -60,17 +64,50 @@ class LogisticsDemoDataTests(TestCase):
         self.assertFalse(LogisticsProfile.objects.exists())
         self.assertEqual(Client.objects.count(), 1)
 
-    def test_seed_defaults_to_realistic_modes_and_reset_keeps_profile(self):
-        self.command(execute=True)
-        profile = LogisticsProfile.objects.get(business=self.business)
-        self.assertEqual(profile.operating_areas, ["TRANSPORTATION"])
-        self.assertEqual(profile.transportation_modes, ["SEA", "ROAD"])
-        self.command(reset_demo=True, execute=True)
-        profile.refresh_from_db()
-        self.assertEqual(profile.transportation_modes, ["SEA", "ROAD"])
+    def test_missing_profile_keeps_legacy_examples_without_creating_settings(self):
         plan = json.loads(self.command().splitlines()[0])
-        self.assertEqual(plan["planned_counts"]["logistics_profiles"], 0)
-        self.assertEqual(plan["logistics_profile"]["action"], "keep")
+        self.assertEqual(plan["logistics_profile"]["operating_areas"], [])
+        self.assertEqual(plan["logistics_profile"]["transportation_modes"], [])
+        self.assertEqual(plan["logistics_profile"]["action"], "leave_missing")
+        self.assertEqual(plan["shipment_mode_counts"], {"SEA": 4, "ROAD": 2})
+        self.command(execute=True)
+        self.assertEqual(
+            Counter(Shipment.objects.values_list("transport_mode", flat=True)),
+            {"SEA": 4, "ROAD": 2},
+        )
+        self.assertFalse(LogisticsProfile.objects.exists())
+        self.command(reset_demo=True, execute=True)
+        self.assertFalse(LogisticsProfile.objects.exists())
+
+    def test_v2_seed_preview_never_generates_codes(self):
+        with patch("secrets.choice", side_effect=AssertionError("Preview generated a code")):
+            self.command()
+            call_command(
+                "seed_logistics_demo_data", business_id=self.business.pk, stdout=StringIO()
+            )
+        self.assertFalse(DemoSeedRun.objects.exists())
+
+    def test_legacy_seed_codes_and_invoices_survive_reruns_and_preview(self):
+        self.command(execute=True)
+        parcel = Parcel.objects.order_by("pk").first()
+        legacy_code = "A10F" * 12
+        QuerySet(model=Parcel).filter(pk=parcel.pk).update(tracking_code=legacy_code)
+        models = (Parcel, ParcelEvent, Shipment, Invoice, InvoiceLine, DemoSeedRecord, DemoSeedRun)
+        before = {model: list(model.objects.order_by("pk").values()) for model in models}
+        for command in ("seed_demo_data", "seed_logistics_demo_data"):
+            with self.assertRaisesMessage(CommandError, "preview/reset"):
+                call_command(command, business_id=self.business.pk, execute=True, stdout=StringIO())
+            call_command(command, business_id=self.business.pk, reset_demo=True, stdout=StringIO())
+        for model in models:
+            self.assertEqual(list(model.objects.order_by("pk").values()), before[model])
+        parcel.refresh_from_db()
+        self.assertEqual(parcel.tracking_code, legacy_code)
+        parcel.full_clean()
+        self.assertIsNotNone(lookup_public_tracking(legacy_code))
+        self.command(reset_demo=True, execute=True)
+        self.assertFalse(Parcel.objects.exists())
+        self.assertFalse(DemoSeedRecord.objects.exists())
+        self.assertEqual(list(Client.objects.all()), [self.genuine])
 
     def test_seed_preserves_explicit_operating_profile(self):
         profile = LogisticsProfile.objects.create(
@@ -85,22 +122,146 @@ class LogisticsDemoDataTests(TestCase):
         self.assertFalse(DemoSeedRun.objects.exists())
         self.assertFalse(Parcel.objects.exists())
 
-    def test_seed_fills_only_unknown_modes_and_rejects_explicit_other_modes(self):
-        profile = LogisticsProfile.objects.create(business=self.business)
+    def assert_profile_seed(self, modes, expected, *, areas=None, legacy_modes=None):
+        profile = LogisticsProfile.objects.create(
+            business=self.business,
+            operating_areas=areas or ["TRANSPORTATION"],
+            transportation_modes=modes,
+        )
+        if legacy_modes is not None:
+            # Simulate persisted legacy values that current profile forms cannot write.
+            LogisticsProfile.objects.filter(pk=profile.pk).update(transportation_modes=legacy_modes)
+        before = LogisticsProfile.objects.filter(pk=profile.pk).values().get()
         preview = json.loads(self.command().splitlines()[0])
-        self.assertEqual(preview["logistics_profile"]["action"], "fill_modes")
-        profile.refresh_from_db()
-        self.assertEqual(profile.transportation_modes, [])
+        self.assertEqual(preview["logistics_profile"]["operating_areas"], before["operating_areas"])
+        self.assertEqual(
+            preview["logistics_profile"]["transportation_modes"], before["transportation_modes"]
+        )
+        self.assertEqual(preview["shipment_mode_counts"], expected)
+        self.assertEqual(
+            preview["planned_counts"], {"logistics_profiles": 0, **LOGISTICS_DEMO_COUNTS}
+        )
+        self.assertFalse(DemoSeedRun.objects.exists())
         self.command(execute=True)
-        profile.refresh_from_db()
-        self.assertEqual(profile.transportation_modes, ["SEA", "ROAD"])
+        after = LogisticsProfile.objects.filter(pk=profile.pk).values().get()
+        self.assertEqual(after, before)  # Includes timestamps, not just selections.
+        self.assertEqual(
+            Counter(Shipment.objects.values_list("transport_mode", flat=True)), expected
+        )
+        self.assertEqual(
+            list(Shipment.objects.order_by("pk").values_list("transport_mode", flat=True)),
+            preview["logistics_profile"]["shipment_modes"],
+        )
+        for name, model in (
+            ("clients", Client),
+            ("parcels", Parcel),
+            ("parcel_events", ParcelEvent),
+            ("shipments", Shipment),
+            ("logistics_charges", LogisticsCharge),
+            ("invoices", Invoice),
+            ("invoice_lines", InvoiceLine),
+            ("activity_logs", ActivityLog),
+        ):
+            if model is InvoiceLine:
+                records = model.objects.filter(invoice__business=self.business)
+            else:
+                records = model.objects.filter(business=self.business)
+                if model is Client:
+                    records = records.exclude(pk=self.genuine.pk)
+            self.assertEqual(records.count(), LOGISTICS_DEMO_COUNTS[name])
+        seed = DemoSeedRun.objects.get(business=self.business)
+        self.assertEqual(seed.owned_records.count(), sum(LOGISTICS_DEMO_COUNTS.values()))
+        self.assertEqual(
+            Counter(Parcel.objects.values_list("current_status", flat=True)), PARCEL_STATUS_COUNTS
+        )
+        self.assertEqual(
+            Counter(Shipment.objects.values_list("status", flat=True)), SHIPMENT_STATUS_COUNTS
+        )
+        for shipment in Shipment.objects.all():
+            shipment.full_clean()
+            allowed = reference_fields_for_mode(shipment.transport_mode)
+            self.assertTrue(shipment.carrier_name)
+            for field in SHIPMENT_REFERENCE_FIELDS:
+                if field not in allowed:
+                    self.assertIsNone(getattr(shipment, field))
+            for parcel in shipment.parcels.all():
+                self.assertEqual(
+                    (parcel.origin, parcel.destination), (shipment.origin, shipment.destination)
+                )
+                self.assertEqual(parcel.mode_of_transport.upper(), shipment.transport_mode)
+                if shipment.transport_mode != "SEA":
+                    self.assertEqual(parcel.vessel_name, "")
+                    self.assertEqual(parcel.master_bl_no, "")
+                    self.assertEqual(parcel.port_load_unlocode, "")
+        for invoice in Invoice.objects.all():
+            invoice.full_clean()
+            self.assertEqual(invoice.total, invoice.subtotal + invoice.tax)
+            self.assertTrue(invoice.lines.exists())
+            for line in invoice.lines.all():
+                line.full_clean()
+        for parcel in Parcel.objects.prefetch_related("events"):
+            parcel.full_clean()
+            self.assertRegex(parcel.tracking_code, r"\AMM-PCL-[A-HJKM-NP-Z2-9]{39}\Z")
+            statuses = [
+                event.status for event in parcel.events.all() if event.event_type == "STATUS"
+            ]
+            self.assertEqual(statuses[0], "REGISTERED")
+            self.assertEqual(statuses[-1], parcel.current_status)
+            for previous, current in zip(statuses, statuses[1:], strict=False):
+                self.assertIn(current, ALLOWED_TRANSITIONS[previous])
+        shipment = Shipment.objects.get(status="IN_TRANSIT")
+        manifest = generate_manifest(business=self.business, shipment=shipment, actor=self.user)
+        self.assertEqual(manifest["parcel_count"], 3)
+        self.assertEqual(manifest["total_known_weight_kg"], Decimal("9.750"))
+        self.login()
+        self.assertEqual(self.client.get(reverse("agent_dashboard")).context["parcel_count"], 20)
+        self.assertEqual(
+            self.client.get(
+                reverse("logistics_shipment_manifest", args=[shipment.pk]), {"download": "csv"}
+            ).status_code,
+            200,
+        )
+        self.assertIn("RESET PREVIEW ONLY", self.command(reset_demo=True))
+        self.assertEqual(Invoice.objects.count(), 5)
         self.command(reset_demo=True, execute=True)
-        profile.transportation_modes = ["AIR"]
-        profile.save()
-        with self.assertRaisesMessage(CommandError, "Sea + Road"):
-            self.command(execute=True)
-        profile.refresh_from_db()
-        self.assertEqual(profile.transportation_modes, ["AIR"])
+        self.assertFalse(DemoSeedRun.objects.exists())
+        self.assertFalse(Invoice.objects.exists())
+        self.assertFalse(InvoiceLine.objects.exists())
+        self.assertFalse(Parcel.objects.exists())
+        self.assertEqual(list(Client.objects.all()), [self.genuine])
+        reset_profile = LogisticsProfile.objects.filter(pk=profile.pk).values().get()
+        self.assertEqual(reset_profile, before)
+
+    def test_sea_only_profile(self):
+        self.assert_profile_seed(["SEA"], {"SEA": 6})
+
+    def test_road_only_profile(self):
+        self.assert_profile_seed(["ROAD"], {"ROAD": 6})
+
+    def test_sea_and_road_preserve_mixed_examples(self):
+        self.assert_profile_seed(["SEA", "ROAD"], {"SEA": 4, "ROAD": 2})
+
+    def test_air_only_profile(self):
+        self.assert_profile_seed(["AIR"], {"AIR": 6})
+
+    def test_rail_only_profile(self):
+        self.assert_profile_seed(["RAIL"], {"RAIL": 6})
+
+    def test_air_and_rail_profile(self):
+        self.assert_profile_seed(["AIR", "RAIL"], {"AIR": 3, "RAIL": 3})
+
+    def test_all_modes_with_additional_operating_areas(self):
+        self.assert_profile_seed(
+            ["SEA", "AIR", "ROAD", "RAIL"],
+            {"SEA": 2, "AIR": 2, "ROAD": 1, "RAIL": 1},
+            areas=["TRANSPORTATION", "WAREHOUSING", "INVENTORY_MANAGEMENT"],
+        )
+
+    def test_unknown_modes_preserve_profile_and_legacy_examples(self):
+        self.assert_profile_seed([], {"SEA": 4, "ROAD": 2})
+
+    def test_unrecognized_legacy_modes_use_existing_shipment_validation_behavior(self):
+        self.assert_profile_seed([], {"SEA": 4, "ROAD": 2}, legacy_modes=["LEGACY_UNKNOWN"])
 
     def test_dataset_covers_metadata_statuses_relations_and_valid_history(self):
         output = self.command(execute=True)
@@ -123,7 +284,8 @@ class LogisticsDemoDataTests(TestCase):
             set(Shipment.objects.values_list("status", flat=True)), set(Shipment.Status.values)
         )
         self.assertEqual(sum(parcel.shipment_id is not None for parcel in parcels), 12)
-        for name in PARCEL_INPUT_FIELDS:
+        # Facility/geography selectors are optional additions, not fictional seed facilities.
+        for name in (name for name in PARCEL_INPUT_FIELDS if name not in ROUTE_LOCATION_FIELDS):
             with self.subTest(populated_field=name):
                 self.assertTrue(
                     any(getattr(parcel, name) not in (None, "", False) for parcel in parcels)
@@ -135,7 +297,7 @@ class LogisticsDemoDataTests(TestCase):
                 self.assertEqual(parcel.client.business_id, self.business.pk)
                 self.assertEqual(parcel.created_by_id, self.user.pk)
                 self.assertLessEqual(parcel.created_at, parcel.updated_at)
-                self.assertRegex(parcel.tracking_code, r"\A[A-F0-9]{48}\Z")
+                self.assertRegex(parcel.tracking_code, r"\AMM-PCL-[A-HJKM-NP-Z2-9]{39}\Z")
                 if parcel.shipment_id:
                     self.assertEqual(parcel.shipment.business_id, self.business.pk)
                     self.assertEqual(
@@ -163,7 +325,9 @@ class LogisticsDemoDataTests(TestCase):
         minimal = Parcel.objects.get(internal_reference="DEMO-020")
         self.assertIsNone(minimal.weight_kg)
         self.assertIsNone(minimal.length_cm)
-        self.assertEqual(minimal.sender_name, "")
+        self.assertTrue(minimal.sender_name.startswith("[DEMO]"))
+        self.assertTrue(minimal.recipient_address_line_1)
+        self.assertEqual(minimal.recipient_country_code, "SX")
         self.assertFalse(minimal.shipment_id)
         self.assertTrue(Parcel.objects.filter(dimensions__gt="", length_cm__isnull=True).exists())
         self.assertEqual(
@@ -225,12 +389,12 @@ class LogisticsDemoDataTests(TestCase):
         self.assertEqual(
             Counter(Invoice.objects.values_list("status", flat=True)),
             {
-                "SENT": 2,
+                "SENT": 3,
                 "PAID": 1,
                 "DRAFT": 1,
             },
         )
-        self.assertEqual(InvoiceLine.objects.count(), 13)
+        self.assertEqual(InvoiceLine.objects.count(), 14)
         self.assertFalse(BusinessService.objects.filter(business=self.business).exists())
         self.assertFalse(Appointment.objects.filter(business=self.business).exists())
         self.assertFalse(Lead.objects.filter(business=self.business).exists())
@@ -249,7 +413,7 @@ class LogisticsDemoDataTests(TestCase):
             (d, "SENT", 3, "43.00"),
             (e, "DRAFT", 3, "190.00"),
         ):
-            invoice = Invoice.objects.get(client=client)
+            invoice = Invoice.objects.get(client=client, status=state)
             invoice.full_clean()
             self.assertEqual(invoice.status, state)
             self.assertEqual(invoice.lines.count(), count)
@@ -341,11 +505,14 @@ class LogisticsDemoDataTests(TestCase):
         )
         application = fixtures.LogisticsOperationsTests.link_application(self)
         invoice = Invoice.objects.create(
-            business=self.business, client=self.genuine, invoice_number="REAL-PAID", status="PAID"
+            business=self.business, client=self.genuine, invoice_number="REAL-PAID", status="DRAFT"
         )
         line = InvoiceLine.objects.create(
             invoice=invoice, description="Real freight", unit_price=Decimal("42.00")
         )
+        recalculate_invoice_totals(invoice, actor=self.user)
+        invoice.status = "PAID"
+        invoice.save(update_fields=["status"])
         before = {
             model: model.objects.count() for model in (Parcel, Invoice, InvoiceLine, DemoSeedRecord)
         }
@@ -369,9 +536,20 @@ class LogisticsDemoDataTests(TestCase):
     def test_reset_refuses_genuine_line_on_seed_owned_paid_invoice(self):
         self.command(execute=True)
         invoice = Invoice.objects.get(status="PAID")
-        line = InvoiceLine.objects.create(
-            invoice=invoice, description="Genuine financial history", unit_price=Decimal("42.00")
+        with self.assertRaises(ValidationError):
+            InvoiceLine.objects.create(
+                invoice=invoice,
+                description="Genuine financial history",
+                unit_price=Decimal("42.00"),
+            )
+        # Simulate a historical/trusted-ORM modification to verify reset still fails closed.
+        line = InvoiceLine(
+            invoice=invoice,
+            description="Genuine financial history",
+            unit_price=Decimal("42.00"),
+            line_total=Decimal("42.00"),
         )
+        models.Model.save(line, force_insert=True)
         before = {
             model: model.objects.count() for model in (Parcel, Invoice, InvoiceLine, DemoSeedRecord)
         }
@@ -383,7 +561,7 @@ class LogisticsDemoDataTests(TestCase):
 
     def test_invoice_failure_rolls_back_the_entire_connected_seed(self):
         def fail_after_paid_scenario(**kwargs):
-            if Invoice.objects.filter(status="PAID").exists():
+            if Invoice.objects.count() >= 2:
                 raise ValidationError("Demo invoice failure")
             return invoice_charges(**kwargs)
 

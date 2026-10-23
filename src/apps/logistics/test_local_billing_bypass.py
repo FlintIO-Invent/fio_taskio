@@ -121,6 +121,10 @@ class LocalLogisticsAccessTests(TestCase):
         )
 
     def move(self, parcel, status):
+        from .financial_test_support import clear_test_parcel
+
+        if status not in ("REGISTERED", "RECEIVED"):
+            clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         for next_status in ("RECEIVED", "IN_TRANSIT", "ARRIVED", "READY", "DELIVERED"):
             if parcel.current_status == status:
                 break
@@ -335,7 +339,6 @@ class LocalLogisticsAccessTests(TestCase):
             "staff_client_create",
             "logistics_parcel_list",
             "logistics_shipment_list",
-            "logistics_public_tracking",
             "business_settings",
         ):
             self.assertContains(local, f'href="{reverse(name)}"')
@@ -460,6 +463,9 @@ class LocalLogisticsAccessTests(TestCase):
         self.assertEqual(response.context["delivered_this_month_count"], 1)
 
     def test_direct_signup_uses_the_normal_operational_dashboard_with_truthful_pending_state(self):
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
         response = self.client.post(
             reverse("logistics_application_create"),
             {**application_data(), "password1": PASSWORD, "password2": PASSWORD},

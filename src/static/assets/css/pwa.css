@@ -1,0 +1,44 @@
+.pwa-connectivity {
+  position: fixed;
+  bottom: 1rem;
+  inset-inline: 1rem;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: calc(100% - 2rem);
+  padding: .65rem 1rem;
+  border: 1px solid #e5c374;
+  border-radius: .5rem;
+  background: #fff3cd;
+  color: #664d03;
+  font: 14px/1.5 system-ui, sans-serif;
+  z-index: 1100;
+}
+.pwa-connectivity[hidden] { display: none; }
+.pwa-private-hidden body { visibility: hidden; }
+.pwa-offline-page {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: #f5f7fa;
+  color: #31374a;
+  font: 16px/1.5 system-ui, sans-serif;
+}
+.pwa-offline-card { max-width: 28rem; padding: 2rem; text-align: center; }
+.pwa-offline-card h1 { font-size: 1.5rem; }
+.pwa-offline-card button {
+  border: 0;
+  border-radius: .4rem;
+  background: #3874ff;
+  color: white;
+  padding: .75rem 1rem;
+  font: inherit;
+  cursor: pointer;
+}
+.pwa-offline-card a { display: block; margin-top: 1rem; color: #2058cf; }
+@media (display-mode: standalone) {
+  /* Default iOS status bar keeps the viewport inside safe areas. */
+  body { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pwa-connectivity { bottom: max(1rem, env(safe-area-inset-bottom, 0px)); }
+}

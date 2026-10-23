@@ -224,10 +224,17 @@ class Settings(BaseSettings):
     stripe_price_business_yearly_eur: str = Field(default="")
     stripe_price_logistics_yearly_usd: str = Field(default="")
     stripe_price_logistics_yearly_eur: str = Field(default="")
+    stripe_price_logistics_core_yearly_eur: str = Field(default="")
+    stripe_price_logistics_growth_yearly_eur: str = Field(default="")
+    stripe_price_logistics_scale_yearly_eur: str = Field(default="")
     logistics_local_billing_bypass: bool = Field(
         default=False,
         description="Allow pending Logistics operations only with ENV=local and DEBUG=True.",
     )
+    logistics_test_lab_enabled: bool = Field(default=False)
+    logistics_test_lab_database_id: str = Field(default="")
+    logistics_test_lab_staging_app: str = Field(default="")
+    logistics_test_lab_entitlement_approval: str = Field(default="")
     logistics_rule_version: str = Field(default="pilot-v1", min_length=1, max_length=100)
     logistics_auto_approve_all: bool = Field(
         default=True,
@@ -337,6 +344,9 @@ class Settings(BaseSettings):
         "stripe_price_business_yearly_eur",
         "stripe_price_logistics_yearly_usd",
         "stripe_price_logistics_yearly_eur",
+        "stripe_price_logistics_core_yearly_eur",
+        "stripe_price_logistics_growth_yearly_eur",
+        "stripe_price_logistics_scale_yearly_eur",
         mode="before",
     )
     @classmethod

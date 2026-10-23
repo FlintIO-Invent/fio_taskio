@@ -12,13 +12,27 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.appointments.models import Appointment
-from apps.billings.models import Invoice, InvoiceLine
+from apps.billings.models import (
+    Invoice,
+    InvoiceCancellationCredit,
+    InvoiceLine,
+    InvoiceObligationShare,
+    InvoicePayment,
+    InvoiceReceiptShare,
+    InvoiceRefundAllocation,
+    ParcelCancellationSettlement,
+)
 from apps.crm.models import ActivityLog, BusinessService, Client, ImportJob, Lead, ServiceCategory
 from apps.logistics.models import (
     LogisticsApplication,
     LogisticsApplicationDecision,
     LogisticsCharge,
+    LogisticsChargeParcel,
+    LogisticsCreditApproval,
+    LogisticsCreditRevocation,
     LogisticsEnrollmentToken,
+    LogisticsHandlingSite,
+    LogisticsLocationAssignment,
     Parcel,
     ParcelEvent,
     Shipment,
@@ -252,6 +266,24 @@ class BusinessDataInventory:
 
 DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
     InventoryRegistration(
+        "logistics_credit_approvals",
+        "logistics.LogisticsCreditApproval",
+        "business",
+        "Business.logistics_credit_approvals",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        True,
+    ),
+    InventoryRegistration(
+        "logistics_credit_revocations",
+        "logistics.LogisticsCreditRevocation",
+        "business",
+        "Business.logistics_credit_revocations",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        True,
+    ),
+    InventoryRegistration(
         "logistics_charges",
         "logistics.LogisticsCharge",
         "business",
@@ -285,6 +317,33 @@ DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
         "logistics.ParcelEvent",
         "business",
         "Business.parcel_events",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
+    InventoryRegistration(
+        "logistics_location_assignments",
+        "logistics.LogisticsLocationAssignment",
+        "business",
+        "Business.logistics_location_assignments",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
+    InventoryRegistration(
+        "logistics_handling_sites",
+        "logistics.LogisticsHandlingSite",
+        "business",
+        "Business.logistics_handling_sites",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        False,
+    ),
+    InventoryRegistration(
+        "logistics_locations",
+        "logistics.LogisticsLocation",
+        "business",
+        "Business.logistics_locations",
         InventoryClassification.PROTECT_BLOCKER,
         True,
         False,
@@ -479,6 +538,33 @@ DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
         True,
         True,
     ),
+    InventoryRegistration(
+        "customer_payments",
+        "billings.InvoicePayment",
+        "business",
+        "Business.customer_payments",
+        InventoryClassification.PROTECT_BLOCKER,
+        True,
+        True,
+    ),
+    *(
+        InventoryRegistration(
+            f"customer_cancellation_{key}",
+            f"billings.{model}",
+            "business",
+            f"Business.{model}",
+            InventoryClassification.PROTECT_BLOCKER,
+            True,
+            True,
+        )
+        for key, model in (
+            ("obligations", "InvoiceObligationShare"),
+            ("receipts", "InvoiceReceiptShare"),
+            ("settlements", "ParcelCancellationSettlement"),
+            ("credits", "InvoiceCancellationCredit"),
+            ("refunds", "InvoiceRefundAllocation"),
+        )
+    ),
 )
 
 # No direct Business relationship is intentionally excluded today. Snapshot IDs,
@@ -557,6 +643,16 @@ def build_business_data_inventory(business: Business | int) -> BusinessDataInven
         )
     )
 
+    records.append(
+        _queryset_record(
+            key="logistics_charge_parcels",
+            queryset=LogisticsChargeParcel.objects.filter(charge__business_id=business_id),
+            relationship_path="Business.logistics_charges -> frozen Parcel coverage",
+            classification=InventoryClassification.INDIRECT,
+            explicit_deletion_required=False,
+            financially_or_legally_sensitive=True,
+        )
+    )
     subscription = BusinessSubscription.objects.filter(business_id=business_id).first()
     webhook_queryset = _correlated_webhook_events(selected_business, subscription)
     records.append(
@@ -987,6 +1083,8 @@ def _cross_business_user_references(
         (Shipment, "created_by_id", "business_id", "shipments"),
         (LogisticsCharge, "created_by_id", "business_id", "logistics_charges"),
         (ParcelEvent, "actor_id", "business_id", "parcel_events"),
+        (LogisticsCreditApproval, "approved_by_id", "business_id", "credit_approvals"),
+        (LogisticsCreditRevocation, "revoked_by_id", "business_id", "credit_revocations"),
         (UserOnboardingState, "user_id", "business_id", "onboarding_states"),
         (
             SubscriptionNotification,
@@ -1020,7 +1118,27 @@ def _cross_business_user_references(
 
 def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ...]:
     selected_members = BusinessUser.objects.filter(business_id=business_id).values("user_id")
-    checks = (
+    location_checks = []
+    for model, relations in (
+        (LogisticsLocationAssignment, ("membership", "location")),
+        (LogisticsHandlingSite, ("parcel", "shipment", "location")),
+        (ParcelEvent, ("operational_location",)),
+    ):
+        for relation in relations:
+            lookup = f"{relation}__business_id"
+            outbound = model.objects.filter(
+                business_id=business_id, **{f"{relation}__isnull": False}
+            ).exclude(**{lookup: business_id})
+            inbound = model.objects.filter(**{lookup: business_id}).exclude(business_id=business_id)
+            location_checks.append(
+                _blocker_check(
+                    f"cross_tenant_{model._meta.model_name}_{relation}",
+                    f"{model._meta.label}.{relation} -> Business",
+                    outbound.count() + inbound.count(),
+                    "Location access associations cross workspace boundaries.",
+                )
+            )
+    checks = tuple(location_checks) + (
         _blocker_check(
             "cross_tenant_logistics_conversion_snapshot",
             "logistics.LogisticsApplication.business_id_snapshot -> Business.pk",
@@ -1309,8 +1427,51 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
             "Another business has invoice lines referencing selected-business services.",
         ),
     )
+    # Coverage and reissue edges are financially sensitive even without a direct Business FK.
     extra_checks = []
+    extra_checks.append(
+        _blocker_check(
+            "cross_client_logistics_charge_coverage",
+            "LogisticsChargeParcel.charge -> Parcel.client",
+            LogisticsChargeParcel.objects.filter(charge__business_id=business_id)
+            .exclude(parcel__client_id=models.F("charge__client_id"))
+            .count(),
+            "Frozen charge coverage must preserve its saved Client.",
+        )
+    )
+    extra_checks.append(
+        _blocker_check(
+            "cross_client_invoice_charge_source",
+            "InvoiceLine.charge_source -> Invoice.client",
+            InvoiceLine.objects.filter(
+                invoice__business_id=business_id, charge_source__isnull=False
+            )
+            .exclude(charge_source__client_id=models.F("invoice__client_id"))
+            .count(),
+            "Reissue lines must preserve the charge Client.",
+        )
+    )
     for model, owner, field, related_owner in (
+        (InvoiceObligationShare, "business_id", "line", "invoice__business_id"),
+        (InvoiceObligationShare, "business_id", "parcel", "business_id"),
+        (InvoiceReceiptShare, "business_id", "receipt", "business_id"),
+        (InvoiceReceiptShare, "business_id", "obligation", "business_id"),
+        (ParcelCancellationSettlement, "business_id", "parcel", "business_id"),
+        (InvoiceCancellationCredit, "business_id", "settlement", "business_id"),
+        (InvoiceCancellationCredit, "business_id", "obligation", "business_id"),
+        (InvoiceRefundAllocation, "business_id", "refund", "business_id"),
+        (InvoiceRefundAllocation, "business_id", "credit", "business_id"),
+        (InvoicePayment, "business_id", "invoice", "business_id"),
+        (InvoicePayment, "business_id", "original", "business_id"),
+        (LogisticsCreditApproval, "business_id", "parcel", "business_id"),
+        (LogisticsCreditApproval, "business_id", "client", "business_id"),
+        (LogisticsCreditApproval, "business_id", "location", "business_id"),
+        (LogisticsCreditRevocation, "business_id", "approval", "business_id"),
+        (ParcelEvent, "business_id", "credit_approval", "business_id"),
+        (Parcel, "business_id", "origin_location", "business_id"),
+        (Parcel, "business_id", "destination_location", "business_id"),
+        (Shipment, "business_id", "origin_location", "business_id"),
+        (Shipment, "business_id", "destination_location", "business_id"),
         (LogisticsCharge, "business_id", "client", "business_id"),
         (LogisticsCharge, "business_id", "parcel", "business_id"),
         (LogisticsCharge, "business_id", "shipment", "business_id"),
@@ -1318,6 +1479,9 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
         (LogisticsCharge, "business_id", "invoice_line", "invoice__business_id"),
         (InvoiceLine, "invoice__business_id", "parcel", "business_id"),
         (InvoiceLine, "invoice__business_id", "shipment", "business_id"),
+        (InvoiceLine, "invoice__business_id", "charge_source", "business_id"),
+        (LogisticsCharge, "business_id", "supersedes", "business_id"),
+        (LogisticsChargeParcel, "charge__business_id", "parcel", "business_id"),
     ):
         path = f"{field}__{related_owner}"
         for direction, qs in (
@@ -1337,7 +1501,7 @@ def _relationship_integrity_checks(business_id: int) -> tuple[IntegrityCheck, ..
                     f"cross_tenant_{model._meta.model_name}_{field}_{direction}",
                     f"{model._meta.label}.{field}",
                     qs.count(),
-                    "Billing references must remain inside one business.",
+                    "Operational and billing references must remain inside one business.",
                 )
             )
     from django.db.models import F

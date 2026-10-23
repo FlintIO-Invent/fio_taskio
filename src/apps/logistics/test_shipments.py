@@ -115,11 +115,20 @@ class ShipmentTests(TestCase):
         )
 
     def parcel_status(self, parcel, status):
+        if status in ("IN_TRANSIT", "DELIVERED"):
+            from .financial_test_support import clear_test_parcel
+
+            clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         return change_parcel_status(
             business=self.business, parcel=parcel, actor=self.user, status=status
         )
 
     def status(self, shipment, status, **kwargs):
+        if status == "IN_TRANSIT":
+            from .financial_test_support import clear_test_parcel
+
+            for parcel in shipment.parcels.all():
+                clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         return change_shipment_status(
             business=self.business, shipment=shipment, actor=self.user, status=status, **kwargs
         )
@@ -191,6 +200,10 @@ class ShipmentTests(TestCase):
             self.parcel_status(parcel, "RECEIVED")
             self.assign(shipment, parcel)
         self.status(shipment, "READY")
+        from .financial_test_support import clear_test_parcel
+
+        for parcel in parcels:
+            clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         return shipment, parcels
 
     def write_post(self, route, data=None, *, shipment=None, parcel=None):
@@ -199,6 +212,14 @@ class ShipmentTests(TestCase):
             args.append(parcel.pk)
         url = reverse(route, args=args)
         if route in {"logistics_shipment_create", "logistics_shipment_edit"}:
+            from .models import LogisticsLocation
+
+            for code in ("US", "CW"):
+                LogisticsLocation.objects.get_or_create(
+                    business=self.business,
+                    code=code,
+                    defaults={"name": code, "country_code": code, "location_type": "WAREHOUSE"},
+                )
             form = self.client.get(url).context["form"]
         else:
             context = self.client.get(
@@ -213,6 +234,8 @@ class ShipmentTests(TestCase):
                     "assignment_form" if route == "logistics_shipment_assign" else "status_form"
                 ]
         hidden = {field.name: field.value() for field in form.hidden_fields()}
+        if route in {"logistics_shipment_create", "logistics_shipment_edit"}:
+            hidden.update(origin_country_code="US", destination_country_code="CW")
         return self.client.post(url, {**hidden, **(data or {})})
 
     def test_logistics_creation_and_immutable_reference(self):
@@ -548,7 +571,7 @@ class ShipmentTests(TestCase):
         self.assertContains(html, "&lt;script&gt;destination&lt;/script&gt;")
         self.assertNotContains(html, "<script>destination</script>")
 
-    def test_staff_ui_creation_edit_assignment_status_manifest_and_association(self):
+    def test_owner_ui_creation_edit_assignment_status_manifest_and_association(self):
         response = self.write_post(
             "logistics_shipment_create",
             {
@@ -664,16 +687,19 @@ class ShipmentTests(TestCase):
         )
 
     def test_roles_membership_and_user_activity_in_services_and_ui(self):
-        shipment = self.shipment()
-        for role in ("owner", "admin", "staff"):
+        from .location_test_support import approve_test_site
+
+        site = approve_test_site(business=self.business, membership=self.membership)
+        shipment = self.shipment(origin_location=site)
+        for role in ("owner", "admin"):
             self.membership.role = role
             self.membership.save(update_fields=["role"])
-            self.shipment()
-        for role in ("accountant", "viewer"):
+            self.shipment(origin_location=site)
+        for role in ("staff", "accountant", "viewer"):
             self.membership.role = role
             self.membership.save(update_fields=["role"])
             with self.assertRaises(PermissionDenied):
-                self.shipment()
+                self.shipment(origin_location=site)
             with self.assertRaises(PermissionDenied):
                 self.status(shipment, "CANCELLED")
             self.assertEqual(self.manifest(shipment)["parcel_count"], 0)

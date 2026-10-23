@@ -1,14 +1,18 @@
 """Read-only workspace presentation; lifecycle decisions stay in domain services."""
 
+from copy import copy
 from datetime import datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Exists, OuterRef, Q, Sum, Value
+from django.db.models.functions import Coalesce
 
-from apps.billings.models import Invoice
+from apps.billings.models import Invoice, InvoiceCancellationCredit, InvoicePayment
+from apps.billings.payment_services import _invoice_settlement
 from apps.businesses.utils import BILLING_VIEW_ROLES, can_view_module, membership_has_any_role
 
+from .financial_access import scope_invoices
 from .models import Parcel, ParcelEvent, Shipment
 from .parcel_policy import PARCEL_VIEW_ROLES
 from .parcel_services import parcels_for_business
@@ -45,21 +49,134 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
         )
     if invoices_enabled:
         # Status totals describe invoice value, not payment receipts: invoices have no paid_at.
-        invoices = Invoice.objects.filter(business=business, client__business=business)
-        totals = invoices.aggregate(
-            invoiced_this_month_total=Sum(
-                "total",
-                filter=Q(
-                    status__in=(Invoice.Status.SENT, Invoice.Status.PAID),
-                    created_at__gte=month_start,
-                    created_at__lt=month_end,
-                ),
-            ),
-            outstanding_invoice_total=Sum("total", filter=Q(status=Invoice.Status.SENT)),
-            paid_invoice_total=Sum("total", filter=Q(status=Invoice.Status.PAID)),
-            draft_invoice_total=Sum("total", filter=Q(status=Invoice.Status.DRAFT)),
+        invoices = scope_invoices(
+            Invoice.objects.filter(business=business, client__business=business),
+            business=business,
+            actor=actor,
         )
-        context.update({key: value or Decimal("0.00") for key, value in totals.items()})
+        buckets = (
+            invoices.annotate(
+                finance_currency=Coalesce("currency_snapshot", Value(business.currency))
+            )
+            .values("finance_currency")
+            .annotate(
+                invoiced_this_month_total=Sum(
+                    "total",
+                    filter=Q(
+                        status__in=(Invoice.Status.SENT, Invoice.Status.PAID),
+                        created_at__gte=month_start,
+                        created_at__lt=month_end,
+                    ),
+                ),
+                draft_invoice_total=Sum("total", filter=Q(status=Invoice.Status.DRAFT)),
+            )
+        )
+        keys = (
+            "invoiced_this_month_total",
+            "outstanding_invoice_total",
+            "paid_invoice_total",
+            "draft_invoice_total",
+        )
+        context.update({key: Decimal("0.00") for key in keys})
+        receipt_totals = {}
+        refund_totals = {}
+        refund_review_count = 0
+        review_count = 0
+        for invoice in (
+            invoices.annotate(
+                has_refund=Exists(
+                    InvoicePayment.objects.filter(invoice_id=OuterRef("pk"), kind="REFUND")
+                ),
+                has_cancellation_credit=Exists(
+                    InvoiceCancellationCredit.objects.filter(
+                        obligation__line__invoice_id=OuterRef("pk")
+                    )
+                ),
+            )
+            .filter(
+                Q(status__in=[Invoice.Status.SENT, Invoice.Status.PAID])
+                | Q(has_refund=True)
+                | Q(has_cancellation_credit=True)
+            )
+            .select_related("business")
+            .prefetch_related("payments")
+        ):
+            balance = _invoice_settlement(invoice)
+            if balance.issues:
+                if invoice.status in (Invoice.Status.SENT, Invoice.Status.PAID):
+                    review_count += 1
+                if invoice.has_refund or invoice.has_cancellation_credit:
+                    refund_review_count += 1
+                continue
+            refunds = [
+                entry
+                for entry in invoice.payments.all()
+                if entry.kind == InvoicePayment.Kind.REFUND
+            ]
+            if balance.refund_due or refunds:
+                values = refund_totals.setdefault(
+                    balance.currency,
+                    {
+                        "refund_due_total": Decimal("0.00"),
+                        "refund_due_invoice_count": 0,
+                        "recorded_refund_total": Decimal("0.00"),
+                        "recorded_refund_count": 0,
+                    },
+                )
+                values["refund_due_total"] += balance.refund_due
+                values["refund_due_invoice_count"] += bool(balance.refund_due)
+                values["recorded_refund_total"] += sum(
+                    (entry.amount for entry in refunds), Decimal("0.00")
+                )
+                values["recorded_refund_count"] += len(refunds)
+            if invoice.status not in (Invoice.Status.SENT, Invoice.Status.PAID):
+                continue
+            if balance.legacy_paid_unverified or invoice.snapshot_is_legacy:
+                review_count += 1
+            values = receipt_totals.setdefault(
+                balance.currency,
+                {
+                    "outstanding_invoice_total": Decimal("0.00"),
+                    "paid_invoice_total": Decimal("0.00"),
+                },
+            )
+            values["outstanding_invoice_total"] += balance.outstanding
+            values["paid_invoice_total"] += balance.net_paid
+        context["payment_review_invoice_count"] = review_count
+        refund_currencies = []
+        for currency, totals in sorted(refund_totals.items()):
+            money_business = copy(business)
+            money_business.currency = currency
+            refund_currencies.append(
+                {**totals, "currency": currency, "billing_business": money_business}
+            )
+        context["refund_currency_totals"] = refund_currencies
+        context["refund_review_invoice_count"] = refund_review_count
+        other_currencies = []
+        for bucket in buckets.order_by("finance_currency"):
+            values = {key: bucket.get(key) or Decimal("0.00") for key in keys}
+            values.update(
+                receipt_totals.get(
+                    bucket["finance_currency"],
+                    {
+                        "outstanding_invoice_total": Decimal("0.00"),
+                        "paid_invoice_total": Decimal("0.00"),
+                    },
+                )
+            )
+            if bucket["finance_currency"] == business.currency:
+                context.update(values)
+            else:
+                money_business = copy(business)
+                money_business.currency = bucket["finance_currency"]
+                other_currencies.append(
+                    {
+                        **values,
+                        "currency": bucket["finance_currency"],
+                        "billing_business": money_business,
+                    }
+                )
+        context["other_currency_invoice_totals"] = other_currencies
     if parcels_enabled:
         parcels = parcels_for_business(business=business, actor=actor)
         status_counts = dict(
@@ -69,7 +186,10 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             .values_list("current_status", "total")
         )
         events = ParcelEvent.objects.filter(
-            business=business, parcel__business=business, parcel__client__business=business
+            business=business,
+            parcel__in=parcels,
+            parcel__business=business,
+            parcel__client__business=business,
         )
         delivered = (
             events.filter(
@@ -138,4 +258,21 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
         context["active_shipments"] = shipments.exclude(
             status__in=(Shipment.Status.COMPLETED, Shipment.Status.CANCELLED)
         ).order_by("-updated_at", "-pk")[:5]
+    if parcels_enabled:
+        from .workflow_summary import resolve_parcel_workflows
+
+        attention = list(context["parcels_requiring_attention"])
+        deliveries = list(context["recent_deliveries"])
+        summaries = resolve_parcel_workflows(
+            business=business,
+            actor=actor,
+            parcel_ids=[item.pk for item in attention] + [event.parcel_id for event in deliveries],
+            include_history=False,
+        ).by_parcel_id
+        for parcel in attention:
+            parcel.workflow_summary = summaries[parcel.pk]
+        for event in deliveries:
+            event.parcel.workflow_summary = summaries[event.parcel_id]
+        context["parcels_requiring_attention"] = attention
+        context["recent_deliveries"] = deliveries
     return context

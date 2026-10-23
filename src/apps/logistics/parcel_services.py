@@ -3,13 +3,24 @@
 import uuid
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser
 from apps.crm.models import Client
 
-from .models import Parcel, ParcelEvent
+from .location_access import (
+    lock_actor_membership,
+    require_creation_site,
+    require_record_operation,
+    require_route_edit,
+    require_work_location,
+    scope_records,
+)
+from .location_operations import operation_location, validate_transition_location
+from .location_reference import ROUTE_LOCATION_FIELDS, exact_country_code
+from .models import LogisticsLocation, Parcel, ParcelEvent, Shipment, generate_tracking_code
 from .parcel_policy import ALLOWED_TRANSITIONS, PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
+from .shipment_transport import validate_parcel_transport
 
 PARCEL_INPUT_FIELDS = (
     "internal_reference",
@@ -29,11 +40,22 @@ PARCEL_INPUT_FIELDS = (
     "sender_name",
     "sender_contact",
     "sender_address",
+    "sender_address_line_1",
+    "sender_address_line_2",
+    "sender_city",
+    "sender_region",
+    "sender_postal_code",
     "sender_country_code",
     "sender_tax_id",
     "recipient_name",
     "recipient_contact",
     "recipient_address",
+    "recipient_address_line_1",
+    "recipient_address_line_2",
+    "recipient_city",
+    "recipient_region",
+    "recipient_postal_code",
+    "recipient_country_code",
     "mode_of_transport",
     "vessel_name",
     "voyage_no",
@@ -48,7 +70,35 @@ PARCEL_INPUT_FIELDS = (
     "biodegradable_goods",
     "expiry_date",
     "internal_notes",
-)
+) + ROUTE_LOCATION_FIELDS
+
+
+TRACKING_CODE_ATTEMPTS = 5
+
+
+def _insert_registered_parcel(parcel):
+    """Retry only code collisions, including concurrent inserts in other tenants."""
+    for attempt in range(TRACKING_CODE_ATTEMPTS):
+        try:
+            # A savepoint keeps a database collision from poisoning registration.
+            with transaction.atomic():
+                parcel._domain_save(force_insert=True)
+            return
+        except ValidationError as exc:
+            errors = getattr(exc, "error_dict", {})
+            if set(errors) != {"tracking_code"} or any(
+                error.code != "unique" for error in errors["tracking_code"]
+            ):
+                raise
+        except IntegrityError as exc:
+            constraint = getattr(getattr(exc.__cause__, "diag", None), "constraint_name", None)
+            if constraint and "tracking_code" not in constraint:
+                raise
+            if not Parcel.objects.filter(tracking_code=parcel.tracking_code).exists():
+                raise
+        if attempt + 1 < TRACKING_CODE_ATTEMPTS:
+            parcel.tracking_code = generate_tracking_code()
+    raise ValidationError("Unable to allocate a unique parcel tracking code. Please retry.")
 
 
 def require_parcel_access(*, business, actor, write=False):
@@ -77,12 +127,27 @@ def require_parcel_access(*, business, actor, write=False):
     )
     if not allowed:
         raise PermissionDenied("Your workspace subscription does not permit this parcel operation.")
+    if write:
+        require_work_location(current, actor)
     return current
 
 
 def parcels_for_business(*, business, actor):
     current = require_parcel_access(business=business, actor=actor)
-    return Parcel.objects.filter(business=current, client__business=current)
+    return scope_records(
+        Parcel.objects.filter(business=current, client__business=current),
+        business=current,
+        actor=actor,
+    )
+
+
+def require_parcel_intake_site(*, business, actor):
+    """Physical hub intake requires an explicit, authorized current work site."""
+    current = require_parcel_access(business=business, actor=actor, write=True)
+    site = operation_location(current, actor)
+    if site is None or site.location_type != LogisticsLocation.Type.HUB:
+        raise PermissionDenied("Receiving a parcel requires an active hub work location.")
+    return site
 
 
 def _key(value):
@@ -96,6 +161,7 @@ def _key(value):
 
 def _locked_business(business, actor):
     current = Business.objects.select_for_update().filter(pk=getattr(business, "pk", None)).first()
+    lock_actor_membership(current, actor)
     return require_parcel_access(business=current, actor=actor, write=True)
 
 
@@ -116,11 +182,26 @@ def register_parcel(*, business, client, actor, idempotency_key=None, **fields):
         raise ValidationError({"client": "Select a client owned by this workspace."})
     key = _key(idempotency_key)
     parcel = Parcel(business=current, client=customer, created_by=actor, **fields)
-    # Validation also normalizes decimal and integer values before comparing retries.
-    parcel.full_clean(exclude=["tracking_code"])
     existing = (
         ParcelEvent.objects.filter(business=current, idempotency_key=key).first() if key else None
     )
+    parcel._route_previous = (
+        Parcel.objects.filter(pk=existing.parcel_id, business=current).first() if existing else None
+    )
+    if parcel._route_previous:
+        # Country-only backfills must not invalidate an older registration retry.
+        for side in ("origin", "destination"):
+            name = f"{side}_country_code"
+            previous = parcel._route_previous
+            if (
+                getattr(parcel, name) is None
+                and getattr(parcel, side) == getattr(previous, side)
+                and getattr(previous, name) == exact_country_code(getattr(previous, side))
+            ):
+                setattr(parcel, name, getattr(previous, name))
+    require_creation_site(parcel, business=current, actor=actor)
+    # Validation also normalizes decimal and integer values before comparing retries.
+    parcel.full_clean(exclude=["tracking_code"])
     if existing:
         previous = Parcel.objects.filter(pk=existing.parcel_id, business=current).first()
         if (
@@ -132,17 +213,52 @@ def register_parcel(*, business, client, actor, idempotency_key=None, **fields):
             or any(getattr(previous, name) != getattr(parcel, name) for name in PARCEL_INPUT_FIELDS)
         ):
             raise ValidationError("This retry key was already used for a different operation.")
+        require_record_operation(previous, business=current, actor=actor)
         return previous
-    parcel._domain_save(force_insert=True)
+    validate_parcel_transport(parcel)
+    _insert_registered_parcel(parcel)
     ParcelEvent(
         business=current,
         parcel=parcel,
         actor=actor,
         event_type=ParcelEvent.Type.STATUS,
         status=Parcel.Status.REGISTERED,
+        operational_location=operation_location(current, actor),
+        resulting_status=Parcel.Status.REGISTERED,
         public_message="Parcel registered.",
         idempotency_key=key,
     )._domain_save(force_insert=True)
+    return parcel
+
+
+@transaction.atomic
+def register_and_receive_parcel(*, business, client, actor, idempotency_key=None, **fields):
+    """Explicit physical intake; ordinary registration remains independently available."""
+    current = _locked_business(business, actor)
+    site = require_parcel_intake_site(business=current, actor=actor)
+    key = _key(idempotency_key)
+    if key is None:
+        raise ValidationError("Hub intake requires a registration retry key.")
+    parcel = register_parcel(
+        business=current, client=client, actor=actor, idempotency_key=key, **fields
+    )
+    if parcel.origin_location_id != site.pk:
+        raise PermissionDenied(
+            "Receiving a parcel requires your actual hub as the origin facility."
+        )
+    # Keep the original registration key/history. A stable, separate receipt key
+    # replays through the existing event service, even after subsequent movement.
+    receipt_key = uuid.uuid5(uuid.NAMESPACE_URL, f"motionmate:parcel-hub-intake:{key}")
+    change_parcel_status(
+        business=current,
+        parcel=parcel,
+        actor=actor,
+        status=Parcel.Status.RECEIVED,
+        expected_status=Parcel.Status.REGISTERED,
+        idempotency_key=receipt_key,
+        public_message="Parcel received.",
+    )
+    parcel.refresh_from_db()
     return parcel
 
 
@@ -159,28 +275,35 @@ def edit_parcel(*, business, parcel, actor, expected_updated_at=None, **fields):
     )
     if locked is None:
         raise ValidationError("Parcel is unavailable in this workspace.")
+    require_record_operation(locked, business=current, actor=actor)
     if (
         not Client.objects.select_for_update()
         .filter(pk=locked.client_id, business=current)
         .exists()
     ):
         raise ValidationError("Parcel client is unavailable in this workspace.")
+    require_route_edit(locked, fields, business=current, actor=actor)
     previous = {name: getattr(locked, name) for name in fields}
+    previous_parcel = Parcel.objects.get(pk=locked.pk, business=current)
     for name, value in fields.items():
         setattr(locked, name, value)
     locked.full_clean()
+    validate_parcel_transport(locked, previous_parcel)
     changed = [name for name in fields if previous[name] != getattr(locked, name)]
     # An identical retry needs neither another write nor another history event.
     if not changed:
         return locked
     if expected_updated_at is not None and locked.updated_at != expected_updated_at:
         raise ValidationError("The parcel changed. Reload before saving your edits.")
-    locked._domain_save(update_fields=[*changed, "updated_at"])
+    locked._domain_save(update_fields=[*changed, "location_review_required", "updated_at"])
     ParcelEvent(
         business=current,
         parcel=locked,
         actor=actor,
         event_type=ParcelEvent.Type.NOTE,
+        operational_location=operation_location(current, actor),
+        previous_status=locked.current_status,
+        resulting_status=locked.current_status,
         internal_note="Parcel details updated: "
         + ", ".join(str(Parcel._meta.get_field(name).verbose_name) for name in changed)
         + ".",
@@ -200,6 +323,8 @@ def record_parcel_event(
     internal_note="",
     idempotency_key=None,
     expected_status=None,
+    location_override_reason="",
+    _shipment_context=None,
 ):
     current = _locked_business(business, actor)
     locked = (
@@ -209,6 +334,7 @@ def record_parcel_event(
     )
     if locked is None:
         raise ValidationError("Parcel is unavailable in this workspace.")
+    require_record_operation(locked, business=current, actor=actor)
     # Recheck the CRM relation too, including legacy/unowned or subsequently moved clients.
     if (
         not Client.objects.select_for_update()
@@ -219,6 +345,29 @@ def record_parcel_event(
     if status is not None and status not in Parcel.Status.values:
         raise ValidationError({"status": "Select a valid parcel status."})
     key = _key(idempotency_key)
+    site = operation_location(current, actor)
+    if _shipment_context is not None and (
+        _shipment_context.pk != locked.shipment_id or _shipment_context.business_id != current.pk
+    ):
+        raise PermissionDenied("Shipment context does not match this parcel.")
+    if _shipment_context is not None:
+        from .shipment_services import require_shipment_access
+
+        require_shipment_access(business=current, actor=actor, write=True)
+        # Never trust fields on a caller-supplied instance, even for internal adapters.
+        _shipment_context = (
+            Shipment.objects.select_for_update()
+            .filter(pk=locked.shipment_id, business=current)
+            .first()
+        )
+        if _shipment_context is None:
+            raise ValidationError("Shipment relationship requires integrity review.")
+        require_record_operation(_shipment_context, business=current, actor=actor)
+        if (
+            status == Parcel.Status.ARRIVED
+            and _shipment_context.status != Shipment.Status.IN_TRANSIT
+        ):
+            raise ValidationError("Shipment arrival requires an in-transit shipment.")
     event = ParcelEvent(
         business=current,
         parcel=locked,
@@ -229,6 +378,10 @@ def record_parcel_event(
         public_message=public_message,
         internal_note=internal_note,
         idempotency_key=key,
+        operational_location=site,
+        previous_status=locked.current_status,
+        resulting_status=status or locked.current_status,
+        location_override_reason=(location_override_reason or "").strip(),
     )
     existing = (
         ParcelEvent.objects.filter(business=current, idempotency_key=key).first() if key else None
@@ -244,15 +397,30 @@ def record_parcel_event(
                 "location",
                 "public_message",
                 "internal_note",
+                "operational_location_id",
+                "location_override_reason",
             )
         ):
             raise ValidationError("This retry key was already used for a different operation.")
         return existing
     if expected_status is not None and locked.current_status != expected_status:
         raise ValidationError("The parcel status changed. Reload before recording this update.")
+    validate_transition_location(
+        locked,
+        business=current,
+        actor=actor,
+        status=status,
+        override_reason=location_override_reason,
+        shipment_context=_shipment_context,
+    )
     if status:
         if status not in ALLOWED_TRANSITIONS[locked.current_status]:
             raise ValidationError({"status": "This status transition is not allowed."})
+        from .credit_services import require_movement_clearance
+
+        event.credit_approval_id = require_movement_clearance(
+            business=current, actor=actor, parcel=locked, status=status
+        )
         locked.current_status = status
         locked._domain_save(update_fields=["current_status", "updated_at"])
     elif not (public_message.strip() or internal_note.strip()):

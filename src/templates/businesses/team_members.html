@@ -7,7 +7,7 @@
       <h2 class="mb-2 text-body-emphasis">Team Members</h2>
       <p class="text-body-tertiary mb-0">Invite employees into {{ business.name }} without creating a new business workspace.</p>
     </div>
-    <div class="col-auto d-flex gap-2">
+    <div class="col-auto d-flex flex-wrap gap-2">
       {% if role_access.can_manage_subscription %}
         <a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Subscription</a>
       {% endif %}
@@ -56,6 +56,15 @@
               {{ invite_form.role }}
               {% if invite_form.role.errors %}<div class="invalid-feedback d-block">{{ invite_form.role.errors|striptags }}</div>{% endif %}
             </div>
+            {% if invite_form.location %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ invite_form.location.id_for_label }}">Location</label>
+              {{ invite_form.location }}
+              <div class="form-text">{{ invite_form.location.help_text }}</div>
+              {% if invite_form.location.errors %}<div class="invalid-feedback d-block">{{ invite_form.location.errors|striptags }}</div>{% endif %}
+              <a href="{% url 'logistics_location_access' %}">Manage location access and operational permissions</a>
+            </div>
+            {% endif %}
             <button class="btn btn-primary w-100" type="submit">Send invitation</button>
           </form>
 
@@ -85,6 +94,7 @@
                   <tr>
                     <th>Email</th>
                     <th>Role</th>
+                    {% if business.vertical == 'LOGISTICS' %}<th>Location</th>{% endif %}
                     <th>Expires</th>
                     {% if workspace_can_modify %}
                       <th>Invite Link</th>
@@ -99,6 +109,7 @@
                         <div class="fs-10 text-body-tertiary">Invited by {{ invitation.invited_by.full_name|default:invitation.invited_by.email|default:"Workspace admin" }}</div>
                       </td>
                       <td>{{ invitation.get_role_display }}</td>
+                      {% if business.vertical == 'LOGISTICS' %}<td>{{ invitation.location|default:"Unassigned" }}</td>{% endif %}
                       <td>{{ invitation.expires_at|date:"M j, Y, g:i a" }}</td>
                       {% if workspace_can_modify %}
                         <td>

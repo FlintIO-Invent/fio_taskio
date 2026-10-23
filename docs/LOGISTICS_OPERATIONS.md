@@ -43,11 +43,16 @@ Twelve parcels are assigned to shipments; eight remain unassigned. Every listed
 demo record belongs to the selected existing business and is tracked by the
 demo run (152 owned records in total).
 
-The operating profile is Transportation with Sea + Road. A missing profile is
-created; an existing Transportation profile with unknown modes is filled. An
-incompatible explicit profile aborts preview/execute without modifying it. Reset
-keeps this operational profile. Preview reports its conditional creation count,
-planned record counts and parcel/shipment/invoice status distributions. Execute
+Seeding reads operating profiles without creating or changing them. Explicit
+profiles must include Transportation; other operating areas stay selected without
+seeding Warehousing or Inventory workflows. SEA-only and ROAD-only profiles get
+six shipments of that mode. AIR/RAIL use generic carrier, route and schedule fields;
+other multi-mode profiles distribute six examples in taxonomy order. Sea + Road
+preserves the current four Sea/two Road dataset. Unknown modes or a missing profile
+use those legacy-compatible examples while leaving operational settings unchanged.
+Reset also keeps the profile. Preview reports existing areas, configured modes,
+intended shipment mode distribution, planned record counts and
+parcel/shipment/invoice status distributions. Execute
 also prints two owned tracking codes (active and delivered) and the active
 shipment's ID/reference for manifest demonstration.
 
@@ -62,7 +67,9 @@ shipment's ID/reference for manifest demonstration.
 | On hold | 2 |
 | Cancelled | 2 |
 
-The six connected client stories are:
+The six connected client stories below show the Sea + Road / legacy dataset.
+Other modes adapt routes and mode-specific metadata while retaining these client,
+parcel, status, invoice and manifest counts:
 
 | Client | Parcels | Operational story | Invoice |
 | --- | ---: | --- | --- |
@@ -88,7 +95,7 @@ current assignment services accept only registered/received parcels. The cancell
 shipment is empty and cancelled safely before departure. All other shipment
 readiness/departure/arrival/completion transitions use existing services.
 
-Metadata varies across sea and local road routes, sender/recipient names and
+Metadata varies across profile-compatible routes, sender/recipient names and
 contacts, addresses, country/tax IDs, content, quantity, weight, structured
 centimetre measurements, volume, legacy
 dimensions, declared value, HS codes, marks, carrier/vessel and voyage details,
@@ -102,12 +109,12 @@ parcels, attention items and shipment/dashboard summaries for manual testing.
 its optional metadata, measurements and location are unknown. Some other parcels
 omit contacts, addresses, declared values, marks or notes to exercise empty states;
 legacy-dimension examples omit structured measurements. Sea-only voyage/IMO and
-bill-of-lading fields are empty on road parcels. Expiry dates are provided only
+bill-of-lading fields are empty on non-Sea parcels. Expiry dates are provided only
 for the compostable-container examples. Creation/update/event timestamps remain
 the real service-write times, preserving immutable history; document/expiry and
 shipment schedule dates vary relative to seeding time.
 
-The active Anguilla shipment demonstrates both HTML and CSV manifests with three
+The active shipment demonstrates both HTML and CSV manifests with three
 parcels, seven units, 9.750 kg known weight and client names. Public tracking exposes
 only the existing public projection: public status messages/checkpoints are
 present, while client contact details, internal references and private notes are

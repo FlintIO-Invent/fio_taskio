@@ -10,6 +10,7 @@ from apps.logistics.demo import (
     PARCEL_STATUS_COUNTS,
     SHIPMENT_STATUS_COUNTS,
     demo_actor,
+    logistics_demo_location_plan,
     logistics_demo_profile_plan,
     plan_logistics_demo_reset,
     require_logistics_business,
@@ -27,9 +28,11 @@ class Command(BaseCommand):
         parser.add_argument(
             "--actor-id",
             type=int,
-            help="Existing operator (otherwise first eligible member by ID).",
+            help="Existing owner/admin (otherwise first eligible member by ID).",
         )
         parser.add_argument("--execute", action="store_true")
+        parser.add_argument("--origin-location-id", type=int)
+        parser.add_argument("--destination-location-id", type=int)
         parser.add_argument("--reset-demo", "--reset", dest="reset_demo", action="store_true")
 
     def handle(self, *args, **options):
@@ -37,8 +40,17 @@ class Command(BaseCommand):
         actor_id = options.get("actor_id")
         if business_id <= 0 or (actor_id is not None and actor_id <= 0):
             raise CommandError("Business and actor IDs must be positive integers.")
+        origin_location_id = options.get("origin_location_id")
+        destination_location_id = options.get("destination_location_id")
+        if any(
+            value is not None and value <= 0
+            for value in (origin_location_id, destination_location_id)
+        ):
+            raise CommandError("Operating-site IDs must be positive integers.")
         if options["reset_demo"] and actor_id is not None:
             raise CommandError("--actor-id cannot be combined with --reset-demo.")
+        if options["reset_demo"] and (origin_location_id or destination_location_id):
+            raise CommandError("Operating sites cannot be combined with --reset-demo.")
         try:
             business = Business.objects.get(pk=business_id)
             require_logistics_business(business)
@@ -68,17 +80,25 @@ class Command(BaseCommand):
                         "Demo ownership metadata already exists; preview/reset it before seeding again."
                     )
                 actor = demo_actor(business=business, actor_id=actor_id)
+                location_plan = logistics_demo_location_plan(
+                    business=business,
+                    actor=actor,
+                    origin_location_id=origin_location_id,
+                    destination_location_id=destination_location_id,
+                )
                 profile_plan = logistics_demo_profile_plan(business)
                 self.stdout.write(
                     json.dumps(
                         {
                             "business_id": business_id,
                             "actor_id": actor.pk,
+                            **({"operational_locations": location_plan} if location_plan else {}),
                             "planned_counts": {
                                 "logistics_profiles": profile_plan["create_count"],
                                 **LOGISTICS_DEMO_COUNTS,
                             },
                             "logistics_profile": profile_plan,
+                            "shipment_mode_counts": profile_plan["shipment_mode_counts"],
                             "parcel_status_counts": PARCEL_STATUS_COUNTS,
                             "shipment_status_counts": SHIPMENT_STATUS_COUNTS,
                             "invoice_status_counts": {"DRAFT": 1, "SENT": 2, "PAID": 1},
@@ -87,7 +107,12 @@ class Command(BaseCommand):
                     )
                 )
                 if options["execute"]:
-                    seed = seed_logistics_demo(business_id=business_id, actor_id=actor.pk)
+                    seed = seed_logistics_demo(
+                        business_id=business_id,
+                        actor_id=actor.pk,
+                        origin_location_id=origin_location_id,
+                        destination_location_id=destination_location_id,
+                    )
                     self.stdout.write("Logistics demo data created with ownership metadata.")
                     owned = [
                         int(pk)

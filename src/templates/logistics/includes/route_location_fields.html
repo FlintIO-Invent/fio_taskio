@@ -1,0 +1,5 @@
+{% for field in form.route_location_fields %}
+  {% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}
+{% endfor %}
+
+{{ form.route_options|json_script:"logistics-route-options" }}

@@ -1,6 +1,10 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% block content %}
 <div class="content">
+  {% if messages %}{% for message in messages %}
+  <div class="alert alert-subtle-{{ message.tags|default:'info' }} mb-3" role="status">{{ message }}</div>
+  {% endfor %}{% endif %}
+  {% include 'logistics/includes/route_location_details.html' with item=parcel %}
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
@@ -12,8 +16,10 @@
     <div class="col-12 col-md-auto">
       <h2 class="mb-2 text-body-emphasis text-break">{{ parcel.tracking_code }}</h2>
       <p class="mb-0 text-body-secondary text-break">{% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %} · {% if can_view_client %}<a href="{% url 'staff_client_detail' parcel.client_id %}">{{ parcel.client }}</a>{% else %}{{ parcel.client }}{% endif %}</p>
+      <p class="d-lg-none mt-2 mb-0 text-break">{{ parcel.origin }} → {{ parcel.destination }}</p>
+      {% if shipment %}<p class="d-lg-none mt-2 mb-0 text-break">Shipment <a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a> · {{ shipment.get_transport_mode_display|default:'Unknown mode' }}</p>{% endif %}
     </div>
-    {% if role_access.can_manage_parcels and module_write_access.parcels %}
+    {% if can_operate_parcel and role_access.can_manage_parcels and module_write_access.parcels %}
     <div class="col-auto d-flex flex-wrap gap-2">
       <a class="btn btn-phoenix-primary" href="{% url 'logistics_parcel_edit' parcel.pk %}">Edit Parcel</a>
       <a class="btn btn-primary" href="{% url 'logistics_parcel_update' parcel.pk %}">Record Update</a>
@@ -21,22 +27,29 @@
     {% endif %}
   </div>
   <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+    <a class="btn btn-primary" href="{% url 'logistics_parcel_registration' parcel.pk %}">Continue Registration</a>
     {% include 'logistics/includes/copy_tracking.html' with tracking_code=parcel.tracking_code %}
+    <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipping_label' parcel.pk %}">Preview Shipping Label</a>
+    <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipping_label' parcel.pk %}?print=1" target="_blank" rel="noopener">Print Shipping Label</a>
+    <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipping_label_pdf' parcel.pk %}?download=1">Download PDF</a>
     {% if module_access.tracking and module_write_access.parcels %}
     <form method="post" action="{% url 'logistics_public_tracking' %}" target="_blank" rel="noopener">
       {% csrf_token %}<input type="hidden" name="tracking_code" value="{{ parcel.tracking_code }}">
       <button class="btn btn-phoenix-secondary" type="submit">Open Public Tracking</button>
     </form>
     {% endif %}
-    {% if role_access.can_manage_shipments and module_write_access.shipments and module_write_access.parcels %}
-      {% if shipment %}<a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_detail' shipment.pk %}">Manage Shipment</a>
+    {% if role_access.can_manage_parcels and module_write_access.shipments and module_write_access.parcels %}
+      {% if shipment %}<a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_detail' shipment.pk %}">{% if role_access.can_manage_shipments %}Manage{% else %}View{% endif %} Shipment</a>
       {% elif parcel_can_be_assigned %}
       <a class="btn btn-phoenix-primary" href="{% url 'logistics_shipment_list' %}?parcel={{ parcel.pk }}">Assign to Shipment</a>
-      <a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipment_create' %}?parcel={{ parcel.pk }}">Create Shipment</a>
+      {% if role_access.can_manage_shipments %}<a class="btn btn-phoenix-secondary" href="{% url 'logistics_shipment_create' %}?parcel={{ parcel.pk }}">Create Shipment</a>{% endif %}
       {% endif %}
     {% endif %}
   </div>
-  <div class="card mb-4">
+  <div class="mobile-detail-sections">
+  {% include 'logistics/includes/workflow_summary.html' %}
+  {% include 'logistics/includes/cancellation_notice.html' %}
+  <div class="card mb-4 mobile-detail-overview">
     <div class="card-body">
       <h4 class="mb-3">Parcel details</h4>
       <dl class="row mb-0">
@@ -54,16 +67,30 @@
     </div>
   </div>
   {% if shipment %}
-  <div class="card mb-4"><div class="card-body">
+  <div class="card mb-4 mobile-detail-shipment"><div class="card-body">
     <h4 class="mb-3">Shipment</h4>
     <dl class="row mb-0">
       <dt class="col-sm-4 mb-2">Reference</dt><dd class="col-sm-8 mb-3 text-break"><a href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a> · {{ shipment.get_status_display }}</dd>
       <dt class="col-sm-4 mb-2">Shipment route</dt><dd class="col-sm-8 mb-3 text-break">{{ shipment.origin }} → {{ shipment.destination }}</dd>
+      <dt class="col-sm-4 mb-2">Transportation mode</dt><dd class="col-sm-8 mb-3">{{ shipment.get_transport_mode_display|default:'Unknown' }}</dd>
       <dt class="col-sm-4 mb-2">Departure</dt><dd class="col-sm-8 mb-3">{{ shipment.departure_at|default_if_none:'—' }}</dd>
       <dt class="col-sm-4 mb-2">Estimated arrival</dt><dd class="col-sm-8 mb-0">{{ shipment.estimated_arrival_at|default_if_none:'—' }}</dd>
     </dl>
   </div></div>
   {% endif %}
+  <section class="card mb-4 d-lg-none mobile-detail-recent" aria-labelledby="recent-parcel-events">
+    <div class="card-body">
+      <h4 id="recent-parcel-events">Recent events</h4>
+      {% for event in recent_events %}
+      <div class="border-bottom py-2 text-break">
+        <p class="fw-semibold mb-1">{{ event.get_status_display|default:event.get_event_type_display }}</p>
+        <p class="fs-9 text-body-secondary mb-0">{{ event.timestamp }}{% if event.location %} · {{ event.location }}{% endif %}</p>
+        {% if event.public_message %}<p class="mb-0 mt-1">{{ event.public_message }}</p>{% endif %}
+      </div>
+      {% empty %}<p class="mb-0">No tracking updates yet.</p>{% endfor %}
+      <a class="btn btn-phoenix-secondary mt-3" href="#parcel-history">Full tracking history</a>
+    </div>
+  </section>
   <div class="row g-4 mb-4">
     {% for section in detail_sections %}
     <div class="col-12 col-xl-6">
@@ -81,12 +108,15 @@
     {% endfor %}
   </div>
   {% include "logistics/includes/billing.html" %}
+  <div id="parcel-history">
   <h3 class="mb-3">Tracking history</h3>
   {% for event in events %}
   <article class="card mb-3">
     <div class="card-body text-break">
       <p class="fw-semibold mb-2">{{ event.get_status_display|default:event.get_event_type_display }}</p>
       <p class="text-body-secondary mb-2">{{ event.timestamp }} · {{ event.actor|default:'—' }}</p>
+      {% if event.operational_location %}<p class="mb-2">Authorized work site: {{ event.operational_location }}{% if event.previous_status %} · {{ event.get_previous_status_display }} → {{ event.get_resulting_status_display }}{% endif %}</p>{% endif %}
+      {% if event.location_override_reason %}<p class="bg-body-tertiary rounded p-3">Administrator site override · Workspace only: {{ event.location_override_reason }}</p>{% endif %}
       {% if event.location %}<p class="mb-2">{{ event.location }}</p>{% endif %}
       {% if event.public_message %}<div class="border rounded p-3 mb-2"><p class="fw-semibold mb-1">Public message</p><p class="mb-0">{{ event.public_message }}</p></div>{% endif %}
       {% if event.internal_note %}<div class="bg-body-tertiary rounded p-3"><p class="fw-semibold mb-1">Internal note · Workspace only</p><p class="mb-0">{{ event.internal_note }}</p></div>{% endif %}
@@ -95,6 +125,8 @@
   {% empty %}
   <div class="card"><div class="card-body text-center py-5"><p class="mb-0 text-body-secondary">No tracking updates yet.</p></div></div>
   {% endfor %}
+  </div>
+  </div>
 </div>
 {% include 'logistics/includes/scripts.html' %}
 {% endblock %}

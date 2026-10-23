@@ -398,6 +398,9 @@ class TransportDetailsSeedTests(TestCase):
     setUp = test_operations.LogisticsOperationsTests.setUp
 
     def test_seed_has_fictional_mode_specific_references_only(self):
+        profile = LogisticsProfile.objects.create(
+            business=self.business, transportation_modes=["SEA", "ROAD"]
+        )
         call_command(
             "seed_logistics_demo_data",
             business_id=self.business.pk,
@@ -422,6 +425,7 @@ class TransportDetailsSeedTests(TestCase):
             LogisticsProfile.objects.get(business=self.business).transportation_modes,
             ["SEA", "ROAD"],
         )
+        self.assertEqual(LogisticsProfile.objects.get(pk=profile.pk).updated_at, profile.updated_at)
 
 
 @skipUnless(connection.vendor == "postgresql", "Row-lock concurrency requires PostgreSQL")
@@ -505,7 +509,12 @@ class TransportDetailsMigrationTests(TransactionTestCase):
                 saved.append((item.pk, item.updated_at, mode))
             MigrationExecutor(connection).migrate(new)
             for pk, updated_at, mode in saved:
-                item = Shipment.objects.get(pk=pk)
+                item = (
+                    MigrationExecutor(connection)
+                    .loader.project_state(new)
+                    .apps.get_model("logistics", "Shipment")
+                    .objects.get(pk=pk)
+                )
                 for name in SHIPMENT_REFERENCE_FIELDS:
                     self.assertIsNone(getattr(item, name))
                 self.assertEqual(item.transport_mode, mode)

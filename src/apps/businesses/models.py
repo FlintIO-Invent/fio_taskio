@@ -13,6 +13,7 @@ from django.db import models
 from django.utils import timezone
 
 from .billing_policy import (
+    billing_offering,
     is_stripe_billable_plan,
     logistics_local_billing_bypass_enabled,
     offering_allows_interval,
@@ -21,10 +22,13 @@ from .billing_policy import (
 from .capabilities import business_has_capability, plan_module_name, vertical_has_capability
 from .localization import format_business_address_lines, uses_europe_pricing_region
 from .plan_catalog import (
+    LOGISTICS_TIER_CAPACITY_FIELDS,
+    LOGISTICS_TIER_SLUGS,
     PUBLIC_PAID_PLAN_ORDERING,
     PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
 )
+from .usage_limits import CapacityQuerySet, capacity_guard
 
 
 def default_business_invitation_expiry():
@@ -118,12 +122,29 @@ class Business(TimeStampedModel):
             MaxValueValidator(Decimal("100.00")),
         ],
     )
+    cancellation_service_charge = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+        help_text="Fixed amount per cancelled Parcel, in the business currency. Zero means no charge.",
+    )
     invoice_prefix = models.CharField(max_length=12, default="INV")
+    logistics_vessel_names = models.TextField(blank=True, default="")
+    logistics_carrier_names = models.TextField(blank=True, default="")
+    logistics_default_vessel = models.CharField(max_length=160, blank=True, default="")
+    logistics_default_carrier = models.CharField(max_length=160, blank=True, default="")
     invoice_start_number = models.PositiveIntegerField(default=1)
     is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(cancellation_service_charge__gte=0),
+                name="business_cancellation_service_charge_nonnegative",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -471,6 +492,13 @@ class ClarivoPlan(TimeStampedModel):
     max_invoices_per_month = models.PositiveIntegerField(null=True, blank=True)
     max_appointments_per_month = models.PositiveIntegerField(null=True, blank=True)
     max_public_bookings_per_month = models.PositiveIntegerField(null=True, blank=True)
+    max_locations = models.PositiveIntegerField(null=True, blank=True)
+    max_services = models.PositiveIntegerField(null=True, blank=True)
+    max_parcels_per_month = models.PositiveIntegerField(null=True, blank=True)
+    max_shipments_per_month = models.PositiveIntegerField(null=True, blank=True)
+    parcel_events_per_month_budget = models.PositiveIntegerField(null=True, blank=True)
+    transactional_emails_per_month_budget = models.PositiveIntegerField(null=True, blank=True)
+    storage_planning_gb = models.PositiveIntegerField(null=True, blank=True)
     allow_invoicing = models.BooleanField(default=False)
     allow_appointments = models.BooleanField(default=False)
     allow_memberships = models.BooleanField(default=False)
@@ -549,6 +577,21 @@ class ClarivoPlan(TimeStampedModel):
     ) -> dict:
         pricing_region = region or self.pricing_region_for_business(business)
         regional_prices = self.regional_prices or {}
+        if self.is_logistics_capacity_tier:
+            # Staged tiers have explicit regional prices only. Never label an EUR
+            # fallback as a USD offer or display the monthly placeholder as free.
+            region_data = regional_prices.get(pricing_region) or {}
+            currency = pricing_region.upper()
+            yearly = region_data.get("yearly")
+            configured = region_data.get("currency") == currency and yearly not in (None, "")
+            return {
+                "region": pricing_region,
+                "region_label": self.PRICING_REGION_LABELS.get(pricing_region, "Default"),
+                "currency": currency,
+                "monthly": None,
+                "yearly": Decimal(str(yearly)) if configured else None,
+                "tax_note": region_data.get("tax_note", ""),
+            }
         fallback_regions = [pricing_region]
         if pricing_region == self.USD_PRICING_REGION:
             fallback_regions.append(self.CARIBBEAN_INTERNATIONAL_PRICING_REGION)
@@ -592,6 +635,17 @@ class ClarivoPlan(TimeStampedModel):
         yearly = pricing_data["yearly"]
         currency = pricing_data["currency"]
 
+        if self.is_logistics_capacity_tier:
+            return {
+                **pricing_data,
+                "monthly_display": "Annual billing only",
+                "yearly_display": (
+                    self._format_plan_price(yearly, currency)
+                    if yearly is not None
+                    else "Not configured"
+                ),
+            }
+
         return {
             **pricing_data,
             "monthly_display": self._format_plan_price(monthly, currency),
@@ -626,6 +680,7 @@ class ClarivoPlan(TimeStampedModel):
         if self.family == self.Family.LOGISTICS:
             if not vertical_has_capability(self.family, normalized_name):
                 return False
+            normalized_name = plan_module_name(normalized_name)
             return self.allow_invoicing if normalized_name == "invoicing" else True
         if normalized_name in self.CORE_MODULES:
             return True
@@ -635,6 +690,18 @@ class ClarivoPlan(TimeStampedModel):
             return False
 
         return bool(getattr(self, flag_name))
+
+    @property
+    def is_logistics_capacity_tier(self) -> bool:
+        return self.family == self.Family.LOGISTICS and self.slug in LOGISTICS_TIER_SLUGS
+
+    @property
+    def has_complete_logistics_capacity(self) -> bool:
+        # Null is an established unlimited legacy allowance. New capacity tiers
+        # must carry explicit values before they can grant effective access.
+        return not self.is_logistics_capacity_tier or all(
+            getattr(self, field) is not None for field in LOGISTICS_TIER_CAPACITY_FIELDS
+        )
 
 
 class BusinessSubscription(TimeStampedModel):
@@ -697,6 +764,7 @@ class BusinessSubscription(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="subscription",
     )
+    logistics_monthly_usage = models.JSONField(null=True, blank=True, editable=False)
     plan = models.ForeignKey(
         ClarivoPlan,
         on_delete=models.PROTECT,
@@ -829,6 +897,8 @@ class BusinessSubscription(TimeStampedModel):
 
     def effective_access_state_at(self, at_time) -> SubscriptionAccessState:
         at_time = self._normalize_evaluation_time(at_time)
+        offering = billing_offering(self.plan.slug)
+        historical_only = bool(offering and offering.historical_only)
 
         if (
             self.business.vertical == Business.Vertical.LOGISTICS
@@ -870,7 +940,7 @@ class BusinessSubscription(TimeStampedModel):
                 self.AccessCode.LOCAL_LOGISTICS_BILLING_BYPASS,
                 has_access=True,
                 billing_attention_required=False,
-                can_resume_checkout=True,
+                can_resume_checkout=not historical_only,
             )
 
         if not self.plan.is_active:
@@ -886,7 +956,7 @@ class BusinessSubscription(TimeStampedModel):
                 self.AccessCode.PENDING_CHECKOUT,
                 has_access=False,
                 billing_attention_required=True,
-                can_resume_checkout=True,
+                can_resume_checkout=not historical_only,
             )
 
         if self.status == self.Status.TRIALING:
@@ -976,8 +1046,11 @@ class BusinessSubscription(TimeStampedModel):
         if not plan_matches_business(self.business, self.plan):
             return False
         if self.plan.family == ClarivoPlan.Family.LOGISTICS:
+            offering = billing_offering(self.plan.slug)
             return (
-                is_stripe_billable_plan(self.plan)
+                offering is not None
+                and offering.family == self.plan.family
+                and self.plan.has_complete_logistics_capacity
                 and offering_allows_interval(self.plan.slug, self.billing_interval)
                 and self.status != self.Status.TRIALING
                 and self.trial_start is None
@@ -995,6 +1068,18 @@ class BusinessSubscription(TimeStampedModel):
     def save(self, *args, **kwargs):
         # Validate only the new offering boundary; do not change SERVICE field validation.
         self.clean()
+        if not self._state.adding and not kwargs.get("force_insert"):
+            # Billing/admin saves must never overwrite metering with a stale
+            # subscription instance. The locked quota boundary writes this field.
+            fields = kwargs.get("update_fields")
+            if fields is None:
+                kwargs["update_fields"] = {
+                    field.name
+                    for field in self._meta.concrete_fields
+                    if not field.primary_key and field.name != "logistics_monthly_usage"
+                }
+            elif "logistics_monthly_usage" in fields:
+                raise ValidationError("Monthly usage is maintained by the quota service.")
         return super().save(*args, **kwargs)
 
     def _has_recoverable_stripe_identity(self) -> bool:
@@ -1226,6 +1311,7 @@ class BillingProviderWebhookEvent(TimeStampedModel):
 
 class SubscriptionNotification(TimeStampedModel):
     class NotificationType(models.TextChoices):
+        LOGISTICS_CAPACITY_WARNING = "logistics_capacity_warning", "Logistics Capacity Warning"
         TRIAL_STARTED = "trial_started", "Trial Started"
         SUBSCRIPTION_ACTIVATED = "subscription_activated", "Subscription Activated"
         PAYMENT_GRACE_STARTED = "payment_grace_started", "Payment Grace Started"
@@ -1289,6 +1375,7 @@ class SubscriptionNotification(TimeStampedModel):
             models.Index(fields=["status", "available_at"]),
             models.Index(fields=["business", "notification_type", "status"]),
             models.Index(fields=["subscription", "notification_type"]),
+            models.Index(fields=["business", "status", "sent_at"], name="business_email_usage_idx"),
         ]
 
     def __str__(self) -> str:
@@ -1297,6 +1384,12 @@ class SubscriptionNotification(TimeStampedModel):
 
 
 class BusinessUser(TimeStampedModel):
+    objects = CapacityQuerySet.as_manager()
+
+    @capacity_guard
+    def save(self, *args, **kwargs):
+        return super().save(*args, **kwargs)
+
     class Role(models.TextChoices):
         OWNER = "owner", "Owner"
         ADMIN = "admin", "Admin"
@@ -1371,6 +1464,8 @@ class UserOnboardingState(TimeStampedModel):
 
 
 class BusinessInvitation(TimeStampedModel):
+    objects = CapacityQuerySet.as_manager()
+
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         ACCEPTED = "accepted", "Accepted"
@@ -1383,6 +1478,13 @@ class BusinessInvitation(TimeStampedModel):
         related_name="invitations",
     )
     email = models.EmailField()
+    location = models.ForeignKey(
+        "logistics.LogisticsLocation",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="team_invitations",
+    )
     role = models.CharField(
         max_length=20,
         choices=BusinessUser.Role.choices,
@@ -1417,6 +1519,19 @@ class BusinessInvitation(TimeStampedModel):
     def __str__(self) -> str:
         return f"{self.email} -> {self.business} ({self.get_status_display()})"
 
+    def clean(self):
+        super().clean()
+        if self.location_id:
+            from apps.logistics.models import LogisticsLocation
+
+            if not LogisticsLocation.objects.filter(
+                pk=self.location_id,
+                business_id=self.business_id,
+                business__vertical=Business.Vertical.LOGISTICS,
+            ).exists():
+                raise ValidationError({"location": "Select a Logistics location in this workspace."})
+
+    @capacity_guard
     def save(self, *args, **kwargs):
         self.email = (self.email or "").strip().lower()
         if not self.token:

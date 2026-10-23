@@ -146,13 +146,13 @@
         </div>
       </form>
 
-      <div class="table-responsive scrollbar mx-n1 px-1">
-        <table class="table fs-9 mb-0 leads-table border-top border-translucent">
+      <div class="logistics-mobile-table-wrap table-responsive scrollbar mx-n1 px-1">
+        <table class="table logistics-mobile-table fs-9 mb-0 leads-table border-top border-translucent">
           <thead>
             <tr>
               <th class="white-space-nowrap fs-9 align-middle ps-0" style="max-width:20px; width:18px;">
                 <div class="form-check mb-0 fs-8">
-                  <input class="form-check-input" type="checkbox" data-bulk-select='{"body":"clients-tables-body"}' />
+                  <label class="form-check-label"><span class="visually-hidden">Select all clients</span><input class="form-check-input" type="checkbox" aria-label="Select all clients" data-bulk-select='{"body":"clients-tables-body"}' /></label>
                 </div>
               </th>
 
@@ -205,7 +205,7 @@
             <tr class="hover-actions-trigger btn-reveal-trigger position-static">
               <td class="fs-9 align-middle">
                 <div class="form-check mb-0 fs-8">
-                  <input class="form-check-input" type="checkbox" />
+                  <label class="form-check-label"><span class="visually-hidden">Select {{ client.first_name }} {{ client.last_name }}</span><input class="form-check-input" type="checkbox" aria-label="Select {{ client.first_name }} {{ client.last_name }}" /></label>
                 </div>
               </td>
 
@@ -268,7 +268,7 @@
 
               <td class="align-middle white-space-nowrap text-end pe-0 ps-4">
                 <div class="btn-reveal-trigger position-static">
-                  <button class="btn btn-sm dropdown-toggle dropdown-caret-none transition-none btn-reveal fs-10" type="button" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent">
+                  <button class="btn btn-sm dropdown-toggle dropdown-caret-none transition-none btn-reveal fs-10" type="button" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent" aria-label="Actions for {{ client.first_name }} {{ client.last_name }}">
                     <span class="fas fa-ellipsis-h fs-10"></span>
                   </button>
                   <div class="dropdown-menu dropdown-menu-end py-2">
@@ -303,9 +303,9 @@
           <a class="fw-semibold d-none" href="#!" data-list-view="less">View Less<span class="fas fa-angle-right ms-1" data-fa-transform="down-1"></span></a>
         </div>
         <div class="col-auto d-flex">
-          <button class="page-link" data-list-pagination="prev"><span class="fas fa-chevron-left"></span></button>
+          <button class="page-link" data-list-pagination="prev" aria-label="Previous clients"><span class="fas fa-chevron-left"></span></button>
           <ul class="mb-0 pagination"></ul>
-          <button class="page-link pe-0" data-list-pagination="next"><span class="fas fa-chevron-right"></span></button>
+          <button class="page-link pe-0" data-list-pagination="next" aria-label="Next clients"><span class="fas fa-chevron-right"></span></button>
         </div>
       </div>
     </div>

@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from apps.businesses.localization import format_crm_address, format_crm_address_lines
+from apps.businesses.usage_limits import CapacityQuerySet, capacity_guard
 
 
 class TimeStampedModel(models.Model):
@@ -211,6 +212,7 @@ class ServiceCategory(TimeStampedModel):
 
 
 class BusinessService(TimeStampedModel):
+    objects = CapacityQuerySet.as_manager()
     business = models.ForeignKey(
         "businesses.Business",
         on_delete=models.CASCADE,
@@ -293,7 +295,9 @@ class BusinessService(TimeStampedModel):
             errors["category"] = "Selected service category must belong to the current workspace."
 
         if self.default_duration_minutes is not None and self.default_duration_minutes <= 0:
-            errors["default_duration_minutes"] = "Default booking duration must be greater than zero."
+            errors["default_duration_minutes"] = (
+                "Default booking duration must be greater than zero."
+            )
 
         if self.booking_buffer_minutes is not None and self.booking_buffer_minutes < 0:
             errors["booking_buffer_minutes"] = "Booking buffer cannot be negative."
@@ -301,6 +305,7 @@ class BusinessService(TimeStampedModel):
         if errors:
             raise ValidationError(errors)
 
+    @capacity_guard
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
@@ -358,26 +363,42 @@ class Lead(TimeStampedModel):
         blank=True,
         related_name="leads",
     )
-    lead_type           = models.CharField(max_length=20, choices=LeadType.choices, db_index=True)
-    status              = models.CharField(max_length=20,choices=Status.choices,default=Status.NEW, db_index=True)
-    category            = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="leads",)
-    requested_service   = models.ForeignKey(BusinessService, on_delete=models.SET_NULL, null=True, blank=True, related_name="requested_leads")
+    lead_type = models.CharField(max_length=20, choices=LeadType.choices, db_index=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.NEW, db_index=True
+    )
+    category = models.ForeignKey(
+        ServiceCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="leads",
+    )
+    requested_service = models.ForeignKey(
+        BusinessService,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="requested_leads",
+    )
     preferred_start_time = models.DateTimeField(null=True, blank=True)
-    preferred_end_time  = models.DateTimeField(null=True, blank=True)
-    request_source      = models.CharField(max_length=40, choices=RequestSource.choices, blank=True, default="")
-    first_name          = models.CharField(max_length=80)
-    last_name           = models.CharField(max_length=80)
-    email               = models.EmailField()
-    phone               = models.CharField(max_length=40)
-    company_name        = models.CharField(max_length=120)
-    message             = models.TextField(blank=True)
-    street_address      = models.CharField(max_length=255, blank=True)
-    district            = models.CharField(max_length=100, blank=True)
-    country             = models.CharField(max_length=100, blank=True, default="Sint Maarten")
-    postal_code         = models.CharField(max_length=20, blank=True, default="N/A")
-    notes               = models.TextField(blank=True)
-    consent_to_contact  = models.BooleanField(default=True)
-    is_active           = models.BooleanField(default=True)
+    preferred_end_time = models.DateTimeField(null=True, blank=True)
+    request_source = models.CharField(
+        max_length=40, choices=RequestSource.choices, blank=True, default=""
+    )
+    first_name = models.CharField(max_length=80)
+    last_name = models.CharField(max_length=80)
+    email = models.EmailField()
+    phone = models.CharField(max_length=40)
+    company_name = models.CharField(max_length=120)
+    message = models.TextField(blank=True)
+    street_address = models.CharField(max_length=255, blank=True)
+    district = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=100, blank=True, default="Sint Maarten")
+    postal_code = models.CharField(max_length=20, blank=True, default="N/A")
+    notes = models.TextField(blank=True)
+    consent_to_contact = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -411,9 +432,7 @@ class Lead(TimeStampedModel):
         if not self.preferred_start_time or not self.preferred_end_time:
             return None
 
-        duration_seconds = (
-            self.preferred_end_time - self.preferred_start_time
-        ).total_seconds()
+        duration_seconds = (self.preferred_end_time - self.preferred_start_time).total_seconds()
         if duration_seconds <= 0:
             return None
         return int(duration_seconds // 60)
@@ -441,6 +460,11 @@ class Lead(TimeStampedModel):
 
 
 class Client(TimeStampedModel):
+    objects = CapacityQuerySet.as_manager()
+
+    @capacity_guard
+    def save(self, *args, **kwargs):
+        return super().save(*args, **kwargs)
 
     class DistrictChoices(models.TextChoices):
         MIDDLE_REGION = "MIDDLEREGION", "Middle Region"
@@ -580,6 +604,11 @@ class Client(TimeStampedModel):
 
     class Meta:
         ordering = ["first_name", "last_name"]
+        indexes = [
+            models.Index(
+                fields=["business", "is_active", "client_status"], name="crm_client_capacity_idx"
+            )
+        ]
 
     def __str__(self) -> str:
         name = f"{self.first_name} {self.last_name}".strip()
@@ -616,7 +645,11 @@ class ActivityLog(TimeStampedModel):
         STATUS_CHANGED = "STATUS_CHANGED", "Status Changed"
 
     actor = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="activity_logs",
     )
     business = models.ForeignKey(
         "businesses.Business",
@@ -625,8 +658,12 @@ class ActivityLog(TimeStampedModel):
         blank=True,
         related_name="activity_logs",
     )
-    lead = models.ForeignKey(Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs")
-    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs")
+    lead = models.ForeignKey(
+        Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs"
+    )
+    client = models.ForeignKey(
+        Client, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs"
+    )
 
     action_type = models.CharField(max_length=40, choices=ActionType.choices)
     summary = models.CharField(max_length=255, blank=True)
@@ -637,6 +674,3 @@ class ActivityLog(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.action_type} {self.created_at:%Y-%m-%d %H:%M}"
-    
-
-    

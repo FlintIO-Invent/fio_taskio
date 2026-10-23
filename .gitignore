@@ -8,6 +8,7 @@ __pycache__/
 .dist/
 .build/
 .venv/
+.heroku/age/
 
 # Data
 /data/raw/

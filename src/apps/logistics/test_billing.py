@@ -27,6 +27,22 @@ class LogisticsBillingTests(TestCase):
     parcel = fixtures.ShipmentTests.parcel
     shipment = fixtures.ShipmentTests.shipment
 
+    def test_charge_quantity_uses_whole_units(self):
+        data = {
+            "charge_type": "custom",
+            "description": "Handling",
+            "unit_price": "10",
+            "quantity": "1",
+            "idempotency_key": uuid.uuid4(),
+        }
+        form = LogisticsChargeForm(data, business=self.business)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.fields["quantity"].widget.attrs["step"], "1")
+        for quantity in ("0", "0.01", "1.5"):
+            form = LogisticsChargeForm({**data, "quantity": quantity}, business=self.business)
+            self.assertFalse(form.is_valid())
+            self.assertIn("quantity", form.errors)
+
     def saved_service(self, business=None, **fields):
         return BusinessService.objects.create(
             business=business or self.business,
@@ -129,7 +145,7 @@ class LogisticsBillingTests(TestCase):
         self.assertEqual(line.parcel_id, parcel.pk)
         self.assertEqual(line.service_id, service.pk)
         self.assertIn("MM-P-00124", line.description)
-        self.assertIn("MM-P-00124", render_invoice_pdf_html(invoice))
+        self.assertIn("MM-P-00124", render_invoice_pdf_html(invoice, actor=self.user))
         with self.assertRaises(ProtectedError):
             service.delete()
 
@@ -137,7 +153,12 @@ class LogisticsBillingTests(TestCase):
         service = self.saved_service()
         parcel = self.parcel()
         standard = self.charge(parcel=parcel, service=service, description="", unit_price=None)
-        override = self.charge(parcel=parcel, service=service, unit_price=Decimal("20"))
+        override = self.charge(
+            parcel=parcel,
+            service=service,
+            unit_price=Decimal("20"),
+            occurrence_reference="override-job",
+        )
         custom = self.charge(parcel=parcel)
         invoice = self.bill(standard, override, custom)
         self.assertEqual(invoice.lines.count(), 3)
@@ -316,10 +337,13 @@ class LogisticsBillingTests(TestCase):
 
     def test_permissions_reuse_billing_roles_and_subscription(self):
         parcel = self.parcel()
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership, parcel=parcel)
         for role in ("staff", "accountant"):
             self.membership.role = role
             self.membership.save()
-            self.charge(parcel=parcel)
+            self.charge(parcel=parcel, occurrence_reference=role)
         self.membership.role = "viewer"
         self.membership.save()
         with self.assertRaises(PermissionDenied):
@@ -385,7 +409,9 @@ class LogisticsBillingTests(TestCase):
         )
         self.assertEqual(
             list(
-                ChargeInvoiceForm(business=self.business, target=parcel, client=self.customer)
+                ChargeInvoiceForm(
+                    business=self.business, target=parcel, client=self.customer, actor=self.user
+                )
                 .fields["invoice"]
                 .queryset
             ),

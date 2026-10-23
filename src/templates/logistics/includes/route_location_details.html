@@ -1,0 +1,11 @@
+{% if item.location_review_required %}<p class="text-body-secondary small">Saved route text needs location review. Select verified geography or registered facilities when editing.</p>{% endif %}
+{% if item.origin_country_code or item.destination_country_code or item.origin_location or item.destination_location or item.origin_reference_code or item.destination_reference_code %}
+<dl class="row small mb-3">
+  {% if item.origin_country_code %}<dt class="col-5">Origin country / territory</dt><dd class="col-7">{{ item.get_origin_country_code_display }}</dd>{% endif %}
+  {% if item.destination_country_code %}<dt class="col-5">Destination country / territory</dt><dd class="col-7">{{ item.get_destination_country_code_display }}</dd>{% endif %}
+  {% if item.origin_location %}<dt class="col-5">Origin facility</dt><dd class="col-7 text-break">{{ item.origin_location }}</dd>{% endif %}
+  {% if item.destination_location %}<dt class="col-5">Destination facility</dt><dd class="col-7 text-break">{{ item.destination_location }}</dd>{% endif %}
+  {% if item.origin_reference_code %}<dt class="col-5">Origin port / airport</dt><dd class="col-7 text-break">{{ item.get_origin_reference_code_display }}</dd>{% endif %}
+  {% if item.destination_reference_code %}<dt class="col-5">Destination port / airport</dt><dd class="col-7 text-break">{{ item.get_destination_reference_code_display }}</dd>{% endif %}
+</dl>
+{% endif %}

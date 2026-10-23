@@ -1,9 +1,11 @@
 import logging
 
+from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,7 +13,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_safe
 
-from apps.businesses.models import BusinessUser
+from apps.businesses.models import Business, BusinessUser
 from apps.businesses.stripe_checkout import StripeCheckoutAlreadyCompleted, StripeCheckoutError
 from apps.businesses.stripe_config import StripeConfigurationError
 from apps.businesses.utils import (
@@ -34,9 +36,17 @@ from .forms import (
     ParcelMetadataForm,
     ParcelRegistrationForm,
 )
+from .location_access import can_operate_record, lock_actor_membership, membership_for
 from .models import LogisticsApplication, ParcelEvent
 from .parcel_policy import PARCEL_MANAGE_ROLES, PARCEL_VIEW_ROLES
-from .parcel_services import edit_parcel, parcels_for_business, record_parcel_event, register_parcel
+from .parcel_services import (
+    edit_parcel,
+    parcels_for_business,
+    record_parcel_event,
+    register_and_receive_parcel,
+    register_parcel,
+    require_parcel_intake_site,
+)
 from .shipment_policy import ASSIGNABLE_PARCEL_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -199,7 +209,7 @@ def application_checkout(request, application_id):
 def parcel_list(request):
     parcels = parcels_for_business(
         business=request.current_business, actor=request.user
-    ).select_related("client")
+    ).select_related("client", "shipment")
     filters = ParcelFilterForm(request.GET, business=request.current_business)
     if filters.is_valid():
         query = filters.cleaned_data["q"]
@@ -222,12 +232,25 @@ def parcel_list(request):
         parcels = parcels.none()
     pagination_query = request.GET.copy()
     pagination_query.pop("page", None)
+    from .workflow_summary import resolve_parcel_workflows
+
+    page = Paginator(parcels, 50).get_page(request.GET.get("page"))
+    parcels_on_page = list(page.object_list)
+    summaries = resolve_parcel_workflows(
+        business=request.current_business,
+        actor=request.user,
+        parcel_ids=[parcel.pk for parcel in parcels_on_page],
+        include_history=False,
+    ).by_parcel_id
+    for parcel in parcels_on_page:
+        parcel.workflow_summary = summaries[parcel.pk]
     return render(
         request,
         "logistics/parcel_list.html",
         {
-            "page_obj": Paginator(parcels, 50).get_page(request.GET.get("page")),
+            "page_obj": page,
             "filter_form": filters,
+            "visible_shipment_ids": _visible_shipment_ids(request),
             "filters_active": any(request.GET.get(key) for key in ("q", "status", "client")),
             "pagination_query": pagination_query.urlencode(),
         },
@@ -252,8 +275,15 @@ def parcel_detail(request, parcel_id):
     )
     from .billing_views import billing_context
     from .shipment_services import shipments_for_business
+    from .workflow_summary import resolve_parcel_workflow
 
-    metadata_form = ParcelMetadataForm(instance=parcel, business=request.current_business)
+    workflow = resolve_parcel_workflow(
+        business=request.current_business, actor=request.user, parcel=parcel
+    )
+
+    metadata_form = ParcelMetadataForm(
+        instance=parcel, business=request.current_business, actor=request.user
+    )
     detail_sections = []
     for section in metadata_form.sections:
         fields = []
@@ -280,9 +310,18 @@ def parcel_detail(request, parcel_id):
         request,
         "logistics/parcel_detail.html",
         {
-            **billing_context(request, parcel),
+            **(
+                billing_context(request, parcel)
+                if workflow.financial["visibility"] == "DETAILED"
+                else {}
+            ),
+            "workflow_summary": workflow,
             "parcel": parcel,
+            "can_operate_parcel": can_operate_record(
+                parcel, business=request.current_business, actor=request.user
+            ),
             "events": events,
+            "recent_events": list(reversed(events))[:3],
             "shipment": shipment,
             "detail_sections": detail_sections,
             "latest_location": next((event for event in reversed(events) if event.location), None),
@@ -292,6 +331,8 @@ def parcel_detail(request, parcel_id):
             "can_view_client": can_view_module(request.current_business, "crm"),
             "parcel_can_be_assigned": parcel.shipment_id is None
             and parcel.current_status in ASSIGNABLE_PARCEL_STATUSES,
+            "cancellation_can_manage": membership_for(request.current_business, request.user).role
+            in ("owner", "admin", "accountant"),
         },
     )
 
@@ -311,6 +352,7 @@ def parcel_edit(request, parcel_id):
         request.POST if request.method == "POST" else None,
         instance=parcel,
         business=request.current_business,
+        actor=request.user,
         initial={"expected_updated_at": parcel.updated_at.isoformat()},
     )
     if request.method == "POST" and form.is_valid():
@@ -333,6 +375,7 @@ def parcel_edit(request, parcel_id):
             "parcel": parcel,
             "title": "Edit parcel",
             "editing_metadata": True,
+            "can_prefill_shipping": can_view_module(request.current_business, "crm"),
         },
     )
 
@@ -347,6 +390,7 @@ def parcel_register(request):
     form = ParcelRegistrationForm(
         request.POST if request.method == "POST" else None,
         business=request.current_business,
+        actor=request.user,
         initial={"idempotency_key": uuid.uuid4()},
     )
     if request.method == "GET" and request.GET.get("client"):
@@ -356,22 +400,49 @@ def parcel_register(request):
             raise Http404("Client is unavailable in this workspace.") from exc
     if request.method == "POST" and form.is_valid():
         try:
-            parcel = register_parcel(
-                business=request.current_business, actor=request.user, **form.cleaned_data
-            )
+            with transaction.atomic():
+                business = Business.objects.select_for_update().get(pk=request.current_business.pk)
+                lock_actor_membership(business, request.user)
+                try:
+                    intake_site = require_parcel_intake_site(business=business, actor=request.user)
+                except PermissionDenied:
+                    intake_site = None
+                # Choose intake under the same locks as registration, so a work-site
+                # change cannot silently turn physical hub receipt into pre-advice.
+                receive_at_hub = bool(intake_site) or request.POST.get("save_and_receive") == "1"
+                create = register_and_receive_parcel if receive_at_hub else register_parcel
+                parcel = create(business=business, actor=request.user, **form.cleaned_data)
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
+            messages.success(
+                request,
+                (
+                    "Parcel registered and received. Preview, print or download its shipping label below."
+                    if receive_at_hub
+                    else "Parcel registered. Preview, print or download its shipping label below."
+                ),
+            )
+            if request.POST.get("continue_registration") == "1":
+                return redirect("logistics_parcel_registration", parcel_id=parcel.pk)
             return redirect("logistics_parcel_detail", parcel_id=parcel.pk)
+    try:
+        intake_site = require_parcel_intake_site(
+            business=request.current_business, actor=request.user
+        )
+    except PermissionDenied:
+        intake_site = None
     return render(
         request,
         "logistics/parcel_form.html",
         {
             "form": form,
             "title": "Register parcel",
+            "intake_site": intake_site,
             "quick_client_form": QuickClientForm(prefix="new_client"),
             "has_clients": form.fields["client"].queryset.exists(),
             "can_add_client": can_use_module(request.current_business, "crm"),
+            "can_prefill_shipping": can_view_module(request.current_business, "crm"),
         },
     )
 
@@ -389,16 +460,40 @@ def parcel_update(request, parcel_id):
     form = ParcelEventForm(
         request.POST if request.method == "POST" else None,
         parcel=parcel,
+        actor=request.user,
         initial={"idempotency_key": uuid.uuid4(), "expected_status": parcel.current_status},
     )
     if request.method == "POST" and form.is_valid():
         try:
-            record_parcel_event(
-                business=request.current_business,
-                parcel=parcel,
-                actor=request.user,
-                **{**form.cleaned_data, "status": form.cleaned_data["status"] or None},
-            )
+            with transaction.atomic():
+                current = Business.objects.select_for_update().get(pk=request.current_business.pk)
+                lock_actor_membership(current, request.user)
+                status = form.cleaned_data["status"] or None
+                replay = ParcelEvent.objects.filter(
+                    business=current, idempotency_key=form.cleaned_data["idempotency_key"]
+                ).exists()
+                if status in ("IN_TRANSIT", "DELIVERED") and not replay:
+                    from .workflow_summary import resolve_parcel_workflow
+
+                    workflow = resolve_parcel_workflow(
+                        business=current, actor=request.user, parcel=parcel
+                    )
+                    # The event service validates the submitted site/role and any
+                    # explicit audited route override. Summary capabilities use
+                    # the default route; an override never relaxes clearance.
+                    if not (
+                        workflow.financial["clearance"]["cleared"]
+                        and workflow.operational["evidence_complete"]
+                    ):
+                        raise ValidationError(
+                            "Current workflow evidence, financial clearance or site access does not permit this action."
+                        )
+                record_parcel_event(
+                    business=current,
+                    parcel=parcel,
+                    actor=request.user,
+                    **{**form.cleaned_data, "status": status},
+                )
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
         else:
@@ -408,3 +503,16 @@ def parcel_update(request, parcel_id):
         "logistics/parcel_form.html",
         {"form": form, "parcel": parcel, "title": "Record parcel update"},
     )
+
+
+def _visible_shipment_ids(request):
+    from .shipment_services import shipments_for_business
+
+    try:
+        return set(
+            shipments_for_business(
+                business=request.current_business, actor=request.user
+            ).values_list("pk", flat=True)
+        )
+    except PermissionDenied:
+        return set()

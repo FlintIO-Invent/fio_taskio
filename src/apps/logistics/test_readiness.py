@@ -151,6 +151,9 @@ class LogisticsReadinessFlowTests(LogisticsCheckoutFixture, TestCase):
             transport_mode="ROAD",
         )
         assign_parcel(business=self.business, shipment=shipment, parcel=parcel, actor=self.user)
+        from .financial_test_support import clear_test_parcel
+
+        clear_test_parcel(business=self.business, actor=self.user, parcel=parcel)
         for state in ("READY", "IN_TRANSIT", "ARRIVED"):
             change_shipment_status(
                 business=self.business, shipment=shipment, actor=self.user, status=state
@@ -353,6 +356,17 @@ class LogisticsDeploymentChecksTests(TestCase):
             for currency in ("usd", "eur")
         }
         plan.save(update_fields=["is_active", "regional_prices"])
+        business = Business.objects.create(
+            name="Legacy billing check fixture", slug="legacy-billing-check", vertical="LOGISTICS"
+        )
+        BusinessSubscription.objects.create(
+            business=business,
+            plan=plan,
+            status="pending_checkout",
+            payment_provider="stripe",
+            billing_interval="yearly",
+            billing_currency="eur",
+        )
 
     def checks(self):
         # Availability of the optional client dependency is tested separately;
@@ -379,10 +393,6 @@ class LogisticsDeploymentChecksTests(TestCase):
         cases = (
             ({"STRIPE_ENABLED": False}, "logistics.E001"),
             ({"STRIPE_SECRET_KEY": ""}, "logistics.E002"),
-            (
-                {"STRIPE_PRICE_ID_MAP": stripe_settings(logistics=False)["STRIPE_PRICE_ID_MAP"]},
-                "logistics.E011",
-            ),
         )
         for settings_change, code in cases:
             with self.subTest(code=code), override_settings(**settings_change):
@@ -392,7 +402,7 @@ class LogisticsDeploymentChecksTests(TestCase):
 
     def test_unpriced_currency_and_pending_migrations_are_reported(self):
         ClarivoPlan.objects.filter(slug="logistics").update(regional_prices={})
-        self.assertIn("logistics.E012", {issue.id for issue in self.checks()})
+        self.assertNotIn("logistics.E012", {issue.id for issue in self.checks()})
         with patch(
             "django.db.migrations.executor.MigrationExecutor.migration_plan",
             return_value=[object()],

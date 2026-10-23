@@ -100,6 +100,10 @@ class Command(BaseCommand):
             action="store_true",
             help="Preview removal of tracked demo records; add --execute to delete them.",
         )
+        parser.add_argument("--origin-location-id", type=int, help="LOGISTICS origin facility.")
+        parser.add_argument(
+            "--destination-location-id", type=int, help="LOGISTICS destination facility."
+        )
 
     def handle(self, *args, **options):
         business_id = options.get("business_id")
@@ -153,10 +157,18 @@ class Command(BaseCommand):
                 business_id=business.pk,
                 execute=bool(options["execute"]),
                 reset_demo=reset_demo,
+                origin_location_id=options.get("origin_location_id"),
+                destination_location_id=options.get("destination_location_id"),
                 stdout=self.stdout,
                 stderr=self.stderr,
             )
             return
+
+        if any(
+            options.get(name) is not None
+            for name in ("origin_location_id", "destination_location_id")
+        ):
+            raise CommandError("Operating-site options are only supported for LOGISTICS.")
 
         if reset_demo:
             self._handle_reset(business=business, execute=bool(options["execute"]))

@@ -137,7 +137,8 @@ def check_logistics_plan(app_configs, **kwargs):
         return []
     from django.db.migrations.executor import MigrationExecutor
 
-    from apps.businesses.models import ClarivoPlan
+    from apps.businesses.models import BusinessSubscription, ClarivoPlan
+    from apps.businesses.plan_catalog import LOGISTICS_TIER_SLUGS
 
     from .billing import configured_annual_price
     from .models import LogisticsApplication
@@ -153,40 +154,32 @@ def check_logistics_plan(app_configs, **kwargs):
                 )
             # Probe the new retention schema even when recorder history is inconsistent.
             LogisticsApplication.objects.using(alias).values("business_id_snapshot").first()
-            plan = (
-                ClarivoPlan.objects.using(alias)
-                .filter(slug="logistics", family="LOGISTICS")
-                .first()
+            legacy_subscriptions = BusinessSubscription.objects.using(alias).filter(
+                plan__slug="logistics"
             )
-            if plan is None or not plan.is_active:
+            plan = ClarivoPlan.objects.using(alias).filter(slug="logistics").first()
+            if legacy_subscriptions.exists() and (
+                plan is None or plan.family != "LOGISTICS" or not plan.is_active
+            ):
                 issues.append(
                     Error(
-                        "Configure and activate the Logistics plan before pilot.",
+                        "Existing legacy Logistics subscriptions require their active Logistics plan.",
                         id="logistics.E010",
                     )
                 )
-                continue
-            mapping = settings.STRIPE_PRICE_ID_MAP
-            currencies = [
-                currency
-                for currency in ("usd", "eur")
-                if mapping.get(("logistics", "yearly", currency))
-            ]
-            if not currencies:
-                issues.append(
-                    Error(
-                        "Configure at least one Logistics yearly USD/EUR Stripe Price ID.",
-                        id="logistics.E011",
-                    )
-                )
-            for currency in currencies:
+            # Retired contracts retain their plan and stored provider identity.
+            # Optional legacy mappings are only used when handling old events;
+            # they are never a prerequisite for startup or current tier billing.
+            for tier in ClarivoPlan.objects.using(alias).filter(
+                slug__in=LOGISTICS_TIER_SLUGS, is_active=True
+            ):
                 try:
-                    configured_annual_price(plan, currency)
+                    configured_annual_price(tier, "eur")
                 except StripeConfigurationError:
                     issues.append(
                         Error(
-                            f"Configure a positive matching Logistics annual {currency.upper()} price and Price mapping.",
-                            id="logistics.E012",
+                            f"Active {tier.slug} requires complete capacities and eligible annual EUR TEST configuration.",
+                            id="logistics.E016",
                         )
                     )
         except DatabaseError:

@@ -1,0 +1,66 @@
+<div data-scan-panel{% if scan_confirmation %} data-scan-action-success{% endif %}>
+  <div id="scan-feedback" aria-live="polite" aria-atomic="true">
+    {% if scan_error %}<div class="alert alert-danger" role="alert" data-scan-error>{{ scan_error }}</div>{% endif %}
+    {% if scan_confirmation %}<div class="alert alert-success" role="status">{{ scan_confirmation }}</div>{% endif %}
+  </div>
+  {% if parcel %}
+  <article class="card" data-scan-parcel="{{ parcel.pk }}">
+    <div class="card-header border-bottom border-translucent p-3 text-break">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        {% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}
+        {% if shipment %}{% include 'logistics/includes/transport_mode_badge.html' with mode=shipment.transport_mode label=shipment.get_transport_mode_display %}{% endif %}
+      </div>
+      <p class="text-body-secondary fs-9 mb-1">Parcel tracking code</p>
+      <h3 class="font-monospace scan-tracking-code mb-0">{{ parcel.tracking_code }}</h3>
+    </div>
+    <div class="card-body p-3 text-break">
+      <dl class="row g-3 mb-3">
+        <div class="col-12 col-sm-6">
+          <dt class="text-body-secondary fs-9 fw-normal mb-1">Client</dt>
+          <dd class="fw-semibold mb-0">{{ parcel.client }}</dd>
+        </div>
+        <div class="col-12 col-sm-6">
+          <dt class="text-body-secondary fs-9 fw-normal mb-1">Route</dt>
+          <dd class="fw-semibold mb-0">{{ parcel.origin }} <span class="text-body-tertiary mx-1" aria-label="to">→</span> {{ parcel.destination }}</dd>
+        </div>
+        <div class="col-12">
+          <dt class="text-body-secondary fs-9 fw-normal mb-1">Shipment</dt>
+          <dd class="mb-0">{% if shipment %}<a class="fw-semibold" href="{% url 'logistics_shipment_detail' shipment.pk %}">{{ shipment.reference }}</a><span class="text-body-secondary"> · {{ shipment.get_status_display }}</span>{% else %}<span class="text-body-secondary">No accessible shipment</span>{% endif %}</dd>
+        </div>
+      </dl>
+      <div class="scan-workflow-summary">{% include 'logistics/includes/workflow_summary.html' %}</div>
+      <h4 class="fs-8 mb-3">Parcel actions</h4>
+      {% if scan_actions %}
+      <form method="post" action="{% url 'logistics_parcel_scan_action' parcel.pk %}" data-scan-action data-cancel-confirmation="Cancel this parcel?">
+        {% csrf_token %}
+        {% for hidden in action_form.hidden_fields %}<input type="hidden" name="{{ hidden.name }}" value="{{ hidden.value }}">{% endfor %}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% for value, label in scan_actions %}
+          <button type="submit" name="status" value="{{ value }}" class="btn {% if value == 'CANCELLED' %}btn-outline-danger{% elif value == 'HOLD' %}btn-phoenix-warning{% else %}btn-primary{% endif %}">{% if value == 'CANCELLED' %}Cancel Parcel{% elif value == 'HOLD' %}Place on Hold{% else %}Mark {{ label }}{% endif %}</button>
+          {% endfor %}
+        </div>
+      </form>
+      {% else %}<p class="text-body-secondary fs-9 mb-3">No status actions are available for this parcel with your current access.</p>{% endif %}
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-phoenix-primary" href="{% url 'logistics_parcel_registration' parcel.pk %}">Continue Registration</a>
+        <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_detail' parcel.pk %}">Open Full Parcel</a>
+      </div>
+      {% if recent_event %}<div class="border-top border-translucent pt-3 mt-3 fs-9">
+        <h4 class="fs-8 mb-2">Latest event</h4>
+        <p class="mb-1">{{ recent_event.get_status_display|default:recent_event.get_event_type_display }} · {{ recent_event.timestamp }}</p>
+        {% if recent_event.operational_location %}<p class="mb-1">Authorized work site: {{ recent_event.operational_location }} · {{ recent_event.actor|default:'—' }}</p>{% endif %}
+        {% if recent_event.location %}<p class="mb-1">{{ recent_event.location }}</p>{% endif %}
+        {% if recent_event.public_message %}<p class="mb-0">{{ recent_event.public_message }}</p>{% endif %}
+      </div>{% endif %}
+    </div>
+  </article>
+  {% elif not scan_error %}
+  <div class="card">
+    <div class="card-body text-center px-3 py-5">
+      <div class="icon-item icon-item-lg bg-primary-subtle text-primary mb-3 mx-auto"><span class="fa-solid fa-box-open" aria-hidden="true"></span></div>
+      <h3 class="fs-7 mb-2">Ready to scan</h3>
+      <p class="text-body-secondary mb-0">Find a parcel to see its details, latest event and available actions.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>

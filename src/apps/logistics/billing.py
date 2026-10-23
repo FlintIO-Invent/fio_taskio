@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.db import transaction
 
+from apps.businesses.billing_policy import billing_offering
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.businesses.stripe_checkout import StripeCheckoutError, resume_trial_checkout_session
 from apps.businesses.stripe_config import (
@@ -19,9 +20,19 @@ from apps.businesses.stripe_config import (
 
 from .checkout_approval import approval_metadata, current_checkout_application
 from .models import LogisticsApplication
+from .stripe_prices import (
+    TIER_YEARLY_EUR_CENTS,
+    require_tier_test_mode,
+    validate_tier_stripe_price,
+)
 
 
 def require_checkout_enrollment(subscription, user):
+    if subscription.plan.slug == "logistics":
+        raise StripeCheckoutError(
+            "Legacy Logistics is retired from Checkout. Select Core, Growth or Scale.",
+            code="logistics_legacy_retired",
+        )
     application = current_checkout_application(subscription)
     if application is None or approval_metadata(application) is None:
         raise StripeCheckoutError(
@@ -48,7 +59,7 @@ def require_checkout_enrollment(subscription, user):
     if (
         subscription.business.vertical != Business.Vertical.LOGISTICS
         or subscription.plan.family != ClarivoPlan.Family.LOGISTICS
-        or subscription.plan.slug != "logistics"
+        or subscription.plan.slug not in TIER_YEARLY_EUR_CENTS
         or subscription.status != BusinessSubscription.Status.PENDING_CHECKOUT
         or subscription.payment_provider != BusinessSubscription.PaymentProvider.STRIPE
         or subscription.billing_interval != BusinessSubscription.BillingInterval.YEARLY
@@ -66,11 +77,43 @@ def require_checkout_enrollment(subscription, user):
             "The Logistics offering is inactive. Contact Motionmate for configuration.",
             code="logistics_offering_inactive",
         )
+    if subscription.plan.is_logistics_capacity_tier:
+        configured_annual_price(subscription.plan, subscription.billing_currency)
     return application
 
 
 def configured_annual_price(plan, currency):
     """No zero or fallback commercial price; use the existing regional pricing pattern."""
+    if plan.slug in TIER_YEARLY_EUR_CENTS:
+        require_tier_test_mode()
+        offering = billing_offering(plan.slug)
+        if (
+            plan.family != ClarivoPlan.Family.LOGISTICS
+            or not plan.is_active
+            or not plan.has_complete_logistics_capacity
+            or currency != "eur"
+            or offering is None
+            or offering.family != ClarivoPlan.Family.LOGISTICS
+            or offering.intervals != ("yearly",)
+            or not offering.test_checkout_enabled
+            or offering.checkout_enabled
+        ):
+            raise StripeConfigurationError(
+                "Select an active, fully configured annual EUR Logistics tier."
+            )
+        try:
+            pricing = plan.get_pricing_data(region="eur")
+            amount = Decimal(str(pricing["yearly"])) * 100
+            if pricing["currency"].lower() != "eur" or amount != TIER_YEARLY_EUR_CENTS[plan.slug]:
+                raise ValueError
+        except (InvalidOperation, ValueError, TypeError, KeyError, AttributeError) as exc:
+            raise StripeConfigurationError(
+                "Logistics tier display amount does not match its approved EUR price."
+            ) from exc
+        return (
+            get_stripe_price_id(plan_slug=plan.slug, billing_interval="yearly", currency=currency),
+            TIER_YEARLY_EUR_CENTS[plan.slug],
+        )
     if plan.family != ClarivoPlan.Family.LOGISTICS or plan.slug != "logistics":
         raise StripeConfigurationError("Select the Logistics offering before activation.")
     if not is_stripe_enabled():
@@ -113,6 +156,11 @@ def configured_annual_price(plan, currency):
 
 
 def validate_annual_stripe_price(*, plan, currency, stripe_client):
+    if plan.is_logistics_capacity_tier:
+        configured_annual_price(plan, currency)
+        return validate_tier_stripe_price(
+            plan_slug=plan.slug, currency=currency, stripe_client=stripe_client
+        )
     price_id, expected_amount = configured_annual_price(plan, currency)
     try:
         price = stripe_client.Price.retrieve(price_id)
@@ -153,7 +201,13 @@ def validate_annual_stripe_price(*, plan, currency, stripe_client):
 
 
 def validate_offering_activation(plan):
-    """Admin activation requires at least one completely configured annual currency."""
+    """Tier activation is independent EUR TEST; legacy retains its currency checks."""
+    if plan.slug in TIER_YEARLY_EUR_CENTS:
+        configured_annual_price(plan, "eur")
+        validate_annual_stripe_price(
+            plan=plan, currency="eur", stripe_client=configure_stripe_sdk()
+        )
+        return
     currencies = []
     for currency in ("usd", "eur"):
         try:

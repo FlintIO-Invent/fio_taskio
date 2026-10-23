@@ -1,0 +1,34 @@
+.logistics-workspace .logistics-scan .scan-tracking-code { overflow-wrap: anywhere; font-size: 1rem; }
+.logistics-workspace .logistics-scan [data-scan-input] { min-height: 56px; font-size: 1rem; }
+.logistics-workspace .logistics-scan [data-scan-input]:focus { outline: 3px solid var(--phoenix-primary); outline-offset: 2px; }
+.logistics-workspace .logistics-scan .btn { min-height: 48px; white-space: normal; }
+.logistics-workspace .logistics-scan .btn-primary {
+  --phoenix-btn-bg: var(--phoenix-primary-text-emphasis);
+  --phoenix-btn-border-color: var(--phoenix-primary-text-emphasis);
+  --phoenix-btn-color: var(--phoenix-emphasis-bg);
+}
+.logistics-workspace .logistics-scan .btn-outline-danger {
+  --phoenix-btn-color: var(--phoenix-danger-text-emphasis);
+  --phoenix-btn-hover-bg: var(--phoenix-danger-text-emphasis);
+  --phoenix-btn-hover-border-color: var(--phoenix-danger-text-emphasis);
+  --phoenix-btn-hover-color: var(--phoenix-emphasis-bg);
+}
+.logistics-workspace .logistics-scan .btn-phoenix-warning {
+  --phoenix-btn-color: var(--phoenix-warning-text-emphasis);
+  --phoenix-btn-hover-color: var(--phoenix-warning-text-emphasis);
+}
+.logistics-workspace .logistics-scan [aria-busy="true"] { opacity: .75; }
+.logistics-workspace .logistics-scan [data-scan-action] .btn { flex: 1 1 140px; }
+.logistics-workspace .logistics-scan .scan-camera-preview {
+  display: block;
+  width: 100%;
+  max-height: 42vh;
+  object-fit: contain;
+  background: #000;
+  border-radius: .5rem;
+}
+.logistics-workspace .logistics-scan .scan-camera-panel { min-width: 0; }
+.logistics-workspace .logistics-scan .row > * { min-width: 0; }
+.logistics-workspace .logistics-scan .scan-workflow-summary > .card { padding: 0; }
+.logistics-workspace .logistics-scan .scan-workflow-summary > .card > .card-body { padding: 1rem; }
+.logistics-workspace .logistics-scan .scan-workflow-summary h3 { font-size: 1rem; }

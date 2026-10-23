@@ -153,6 +153,9 @@ class LogisticsWorkflowTests(TestCase):
             ).status_code,
             404,
         )
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership, parcel=parcel)
         self.membership.role = BusinessUser.Role.VIEWER
         self.membership.save(update_fields=["role"])
         response = self.client.get(reverse("staff_client_detail", args=[self.customer.pk]))
@@ -416,6 +419,9 @@ class LogisticsWorkflowTests(TestCase):
         self.assertEqual(
             response.context["form"].fields["status"].choices, [("", "Tracking note (keep status)")]
         )
+        from .location_test_support import approve_test_site
+
+        approve_test_site(business=self.business, membership=self.membership, parcel=parcel)
         self.membership.role = BusinessUser.Role.VIEWER
         self.membership.save(update_fields=["role"])
         response = self.client.get(reverse("logistics_parcel_detail", args=[parcel.pk]))

@@ -1,8 +1,9 @@
 # Anonymous parcel tracking (Block 7)
 
 `GET /logistics/track/` displays an anonymous form; CSRF-protected POST accepts
-only an exact existing 48-character uppercase tracking code. Codes are bearer
-secrets with 192 random bits. No PK, UUID, tenant selection, query-string lookup,
+only an exact existing uppercase tracking code: legacy 48-character hex or V2
+`MM-PCL-` plus 39 readable characters. Codes are bearer secrets with at least
+192 random bits. No PK, UUID, tenant selection, query-string lookup,
 search, API or customer account is supported. POST keeps codes out of normal
 access-log URLs. Never configure request-body logging on this endpoint.
 

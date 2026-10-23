@@ -1,0 +1,9 @@
+{% load static %}
+<link rel="manifest" href="{% url 'pwa_manifest' %}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Motionmate">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="{% static 'assets/css/pwa.css' %}">
+<script defer src="{% static 'assets/js/pwa.js' %}"
+        data-worker="{% url 'pwa_service_worker' %}" data-scope="{% url 'pwa_scope' %}"
+        data-private="{{ request.user.is_authenticated|yesno:'true,false' }}"></script>

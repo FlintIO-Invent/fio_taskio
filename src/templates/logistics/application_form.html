@@ -117,5 +117,8 @@
     .logistics-application .nav-item-title { font-size: 0.65rem !important; }
   }
 </style>
+<link href="{% static 'vendors/choices/choices.min.css' %}" rel="stylesheet">
+<script src="{% static 'vendors/choices/choices.min.js' %}"></script>
+{% include 'logistics/includes/scripts.html' %}
 <script src="{% static 'assets/js/logistics-application.js' %}" defer></script>
 {% endblock %}

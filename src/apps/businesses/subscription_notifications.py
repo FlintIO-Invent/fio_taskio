@@ -214,7 +214,9 @@ def deliver_subscription_notification(
     *,
     retry_failed: bool = True,
 ) -> SubscriptionNotificationDeliveryResult:
-    notification_id = notification.pk if isinstance(notification, SubscriptionNotification) else int(notification)
+    notification_id = (
+        notification.pk if isinstance(notification, SubscriptionNotification) else int(notification)
+    )
     claimed = _claim_notification(notification_id, retry_failed=retry_failed)
     if claimed is None:
         current_status = (
@@ -233,6 +235,21 @@ def deliver_subscription_notification(
             claimed.pk,
             "Delivery cancelled because workspace is inactive.",
         )
+
+    if (
+        claimed.notification_type
+        == SubscriptionNotification.NotificationType.LOGISTICS_CAPACITY_WARNING
+    ):
+        from apps.logistics.usage_warnings import obsolete_usage_warning
+
+        try:
+            reason = obsolete_usage_warning(claimed)
+        except Exception:
+            return _mark_delivery_failed(
+                claimed.pk, "Capacity warning could not be verified. Retry after reviewing usage."
+            )
+        if reason:
+            return _mark_delivery_cancelled(claimed.pk, reason)
 
     cancelled = _cancel_obsolete_reminder_before_delivery(claimed)
     if cancelled is not None:
@@ -271,6 +288,11 @@ def deliver_subscription_notification(
         locked.sent_at = now
         locked.last_error = ""
         locked.save(update_fields=["status", "sent_at", "last_error", "updated_at"])
+
+    if claimed.business.vertical == "LOGISTICS":
+        from apps.logistics.monitoring import record_signal
+
+        record_signal("email_backend_accepted", business_id=claimed.business_id)
 
     return SubscriptionNotificationDeliveryResult(
         notification_id=claimed.pk,
@@ -361,6 +383,22 @@ def _type_email_context(
     billing_interval_label: str,
     display_timezone,
 ) -> dict[str, Any]:
+    if notification_type == SubscriptionNotification.NotificationType.LOGISTICS_CAPACITY_WARNING:
+        return {
+            "email_subject": f"Motionmate Logistics: {summary['metric_label']} at {summary['threshold']}%",
+            "email_title": "Review workspace capacity",
+            "body_intro": f"At the last usage check, {summary['metric_label']}: {summary['used']} of {summary['allowance']} on {plan_name}.",
+            "body_lines": [
+                f"The {summary['threshold']}% capacity threshold has been reached for {summary['period']}.",
+                (
+                    f"Monthly usage resets on {summary['reset_display']}."
+                    if summary.get("monthly")
+                    else "Active-record capacity does not reset each month."
+                ),
+                "Existing records remain available. Necessary Parcel and Shipment operations can continue under their existing permissions.",
+                "Review workspace capacity before adding more records. No plan or billing change has been made.",
+            ],
+        }
     if notification_type == SubscriptionNotification.NotificationType.TRIAL_STARTED:
         trial_end = _display_datetime(summary.get("trial_end"), display_timezone)
         title = f"Your Motionmate {plan_name} trial has started"
@@ -754,7 +792,9 @@ def _obsolete_restricted_reminder_reason(
 
 def _subscription_for_enqueue(subscription: BusinessSubscription) -> BusinessSubscription:
     if not hasattr(subscription, "business") or not hasattr(subscription, "plan"):
-        return BusinessSubscription.objects.select_related("business", "plan").get(pk=subscription.pk)
+        return BusinessSubscription.objects.select_related("business", "plan").get(
+            pk=subscription.pk
+        )
     return subscription
 
 
@@ -841,7 +881,8 @@ def _context_snapshot(
     snapshot = {
         "notification_type": notification_type,
         "business_name": subscription.business.name,
-        "business_timezone": subscription.business.timezone or getattr(settings, "TIME_ZONE", "UTC"),
+        "business_timezone": subscription.business.timezone
+        or getattr(settings, "TIME_ZONE", "UTC"),
         "plan_name": subscription.plan.name,
         "plan_slug": subscription.plan.slug,
         "billing_interval": subscription.billing_interval,

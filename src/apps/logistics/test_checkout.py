@@ -45,6 +45,7 @@ from .checkout_approval import approval_metadata
 from .enrollment import enroll_application, issue_enrollment_link
 from .models import LogisticsApplication, LogisticsEnrollmentToken
 from .test_enrollment import PASSWORD, approve, reviewer
+from .test_stripe_prices import provider_price, tier_map
 from .tests import PILOT_POLICY, application_data
 
 # Test-only amounts. No production commercial prices are introduced.
@@ -65,14 +66,28 @@ def annual_price(price_id):
 
 
 class LogisticsCheckoutFixture:
+    legacy_billing_fixture = False
+
     def create_application(self):
         return LogisticsApplication.objects.create(**application_data())
 
     def setUp(self):
+        from .registration_test_support import activate_logistics_tiers
+
+        activate_logistics_tiers()
+        if not self.legacy_billing_fixture:
+            self.enterContext(override_settings(STRIPE_LOGISTICS_TIER_PRICE_ID_MAP=tier_map()))
         self.actor = reviewer()
         self.application = self.create_application()
         token = issue_enrollment_link(self.application.pk, actor=self.actor, expected_revision=1)
         result = enroll_application(token, password=PASSWORD)
+        # This fixture exercises already-converted legacy billing, not admission.
+        if self.legacy_billing_fixture:
+            from .registration_test_support import restore_legacy_fixture
+
+            self.application.refresh_from_db()
+            restore_legacy_fixture(self.application)
+            result.subscription.refresh_from_db()
         self.user, self.business, self.subscription = (
             result.user,
             result.business,
@@ -85,6 +100,8 @@ class LogisticsCheckoutFixture:
             currency: {"currency": currency.upper(), "yearly": str(TEST_PRICE)}
             for currency in ("usd", "eur")
         }
+        if self.plan.is_logistics_capacity_tier:
+            self.plan.regional_prices = {"eur": {"currency": "EUR", "yearly": "1700.00"}}
         self.plan.is_active = True
         self.plan.save(update_fields=["regional_prices", "is_active"])
         self.now = timezone.now()
@@ -100,7 +117,7 @@ class LogisticsCheckoutFixture:
         self.sessions.retrieve.side_effect = lambda *args, **kwargs: self.remote_session()
         self.sdk = SimpleNamespace(
             checkout=SimpleNamespace(Session=self.sessions),
-            Price=SimpleNamespace(retrieve=mock.Mock(side_effect=annual_price)),
+            Price=SimpleNamespace(retrieve=mock.Mock(side_effect=self.price)),
             Subscription=SimpleNamespace(
                 retrieve=mock.Mock(side_effect=lambda *args, **kwargs: self.remote_subscription())
             ),
@@ -118,6 +135,32 @@ class LogisticsCheckoutFixture:
                 "apps.businesses.stripe_webhooks.configure_stripe_sdk", return_value=self.sdk
             )
         )
+
+    def price(self, price_id):
+        if self.plan.is_logistics_capacity_tier:
+            return provider_price(self.plan.slug, id=price_id, metadata={})
+        return annual_price(price_id)
+
+    def historical_checkout(self):
+        """Reconstruct a stored pre-retirement session; never call Checkout."""
+        self.subscription.provider_price_id = "price_logistics_yearly_eur"
+        self.subscription.provider_checkout_session_id = "cs_logistics_1"
+        self.subscription.save(update_fields=["provider_price_id", "provider_checkout_session_id"])
+
+    def historical_approval_checkout(self):
+        from .registration_test_support import restore_legacy_fixture
+
+        restore_legacy_fixture(self.application)
+        self.subscription.refresh_from_db()
+        self.plan = self.subscription.plan
+        self.plan.is_active = True
+        self.plan.regional_prices = {
+            currency: {"currency": currency.upper(), "yearly": str(TEST_PRICE)}
+            for currency in ("eur", "usd")
+        }
+        self.plan.save(update_fields=["is_active", "regional_prices"])
+        self.initial_approval_metadata = approval_metadata(self.application)
+        self.historical_checkout()
 
     def checkout(self):
         return checkout_for_application(
@@ -141,6 +184,11 @@ class LogisticsCheckoutFixture:
                 for key in self.initial_approval_metadata
             }
         return {
+            **(
+                {"logistics_price_id": f"price_{sub.plan.slug}"}
+                if sub.plan.is_logistics_capacity_tier
+                else {}
+            ),
             "motionmate_business_id": str(sub.business_id),
             "motionmate_subscription_id": str(sub.pk),
             "motionmate_user_id": str(self.user.pk),
@@ -154,6 +202,9 @@ class LogisticsCheckoutFixture:
         self.subscription.refresh_from_db()
         value = {
             "id": self.subscription.provider_checkout_session_id,
+            "livemode": False,
+            "currency": "eur",
+            "payment_status": "paid",
             "mode": "subscription",
             "status": "open",
             "url": "https://checkout.stripe.test/logistics",
@@ -163,7 +214,14 @@ class LogisticsCheckoutFixture:
             "customer": "cus_logistics",
             "subscription": "sub_logistics",
             "line_items": {
-                "data": [{"quantity": 1, "price": annual_price("price_logistics_yearly_eur")}]
+                "data": [
+                    {
+                        "quantity": 1,
+                        "price": self.price(
+                            self.subscription.provider_price_id or f"price_{self.plan.slug}"
+                        ),
+                    }
+                ]
             },
         }
         value.update(changes)
@@ -171,6 +229,8 @@ class LogisticsCheckoutFixture:
 
     def remote_subscription(self, **changes):
         value = {
+            "livemode": False,
+            "currency": "eur",
             "id": "sub_logistics",
             "customer": "cus_logistics",
             "status": "active",
@@ -181,7 +241,16 @@ class LogisticsCheckoutFixture:
             "current_period_end": int((self.now + timedelta(days=365)).timestamp()),
             "cancel_at_period_end": False,
             "canceled_at": None,
-            "items": {"data": [{"price": annual_price("price_logistics_yearly_eur")}]},
+            "items": {
+                "data": [
+                    {
+                        "quantity": 1,
+                        "price": self.price(
+                            self.subscription.provider_price_id or f"price_{self.plan.slug}"
+                        ),
+                    }
+                ]
+            },
         }
         value.update(changes)
         return value
@@ -193,6 +262,7 @@ class LogisticsCheckoutFixture:
         event_id="evt_logistics_paid",
         remote=None,
         offset=0,
+        client=None,
     ):
         if remote is not None:
             self.sdk.Subscription.retrieve.side_effect = None
@@ -217,7 +287,7 @@ class LogisticsCheckoutFixture:
         signature = hmac.new(
             b"whsec_logistics", f"{timestamp}.{body}".encode(), hashlib.sha256
         ).hexdigest()
-        return self.client.post(
+        return (client or self.client).post(
             reverse("stripe_billing_webhook"),
             data=body,
             content_type="application/json",
@@ -240,24 +310,22 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
         self.assertEqual(caught.exception.code, "logistics_test_mode_required")
         self.sessions.create.assert_not_called()
 
-    def test_production_uses_same_pipeline_with_live_price(self):
-        self.sdk.Price.retrieve.side_effect = lambda price_id: {
-            **annual_price(price_id),
-            "livemode": True,
-        }
-        with override_settings(
-            MOTIONMATE_ENVIRONMENT="production",
-            STRIPE_PUBLISHABLE_KEY="pk_live_fixture",
-            STRIPE_SECRET_KEY="sk_live_fixture",
+    def test_tier_checkout_remains_test_only_in_production(self):
+        with (
+            override_settings(
+                MOTIONMATE_ENVIRONMENT="production",
+                STRIPE_PUBLISHABLE_KEY="pk_live_fixture",
+                STRIPE_SECRET_KEY="sk_live_fixture",
+            ),
+            self.assertRaises(StripeConfigurationError),
         ):
             self.checkout()
-        self.assertEqual(
-            set(self.sessions.create.call_args.kwargs["subscription_data"]), {"metadata"}
-        )
+        self.sdk.Price.retrieve.assert_not_called()
+        self.sessions.create.assert_not_called()
 
     def test_price_mode_mismatch_rejected_before_session_creation(self):
         self.sdk.Price.retrieve.side_effect = lambda price_id: {
-            **annual_price(price_id),
+            **self.price(price_id),
             "livemode": True,
         }
         with self.assertRaises(StripeConfigurationError):
@@ -276,8 +344,8 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
                 verify_provider=True,
                 stdout=output,
             )
-        self.assertIn("both annual Stripe Prices verified", output.getvalue())
-        self.assertEqual(self.sdk.Price.retrieve.call_count, 2)
+        self.assertIn("annual Stripe Price verified", output.getvalue())
+        self.assertEqual(self.sdk.Price.retrieve.call_count, 1)
         self.sessions.create.assert_not_called()
         self.subscription.refresh_from_db()
         self.assertEqual(self.subscription.provider_checkout_session_id, "")
@@ -312,17 +380,17 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
         self.assertEqual(BillingProviderWebhookEvent.objects.count(), 1)
         self.assertEqual(SubscriptionNotification.objects.count(), 1)
 
-    def test_test_mode_sdk_checkout_uses_local_urls_and_both_annual_currencies(self):
+    def test_test_mode_sdk_checkout_uses_local_urls_and_only_annual_eur(self):
         # Exercise the real shared configuration/SDK adapter; mock only its HTTP
         # boundary. This does not claim to make a payment with a Stripe account.
         self.configure.side_effect = configure_stripe_sdk
         self.login()
         with (
             mock.patch.object(stripe, "api_key", None),
-            mock.patch.object(stripe.Price, "retrieve", side_effect=annual_price),
+            mock.patch.object(stripe.Price, "retrieve", side_effect=self.price),
             mock.patch.object(stripe.checkout.Session, "create", self.sessions.create),
         ):
-            for currency in ("eur", "usd"):
+            for currency in ("eur",):
                 with self.subTest(currency=currency):
                     LogisticsApplication.objects.filter(pk=self.application.pk).update(
                         preferred_currency=currency.upper()
@@ -340,7 +408,7 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
                     self.assertEqual(params["mode"], "subscription")
                     self.assertEqual(
                         params["line_items"],
-                        [{"price": f"price_logistics_yearly_{currency}", "quantity": 1}],
+                        [{"price": "price_logistics-core", "quantity": 1}],
                     )
                     self.assertEqual(
                         params["success_url"],
@@ -377,16 +445,16 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
     def test_operator_logs_zero_amount_missing_price_and_disabled_stripe(self):
         self.login()
         scenarios = (
-            ({"STRIPE_ENABLED": False}, "stripe_disabled"),
+            ({"STRIPE_ENABLED": False}, "logistics_test_mode_required"),
             (
-                {"STRIPE_PRICE_ID_MAP": stripe_settings(logistics=False)["STRIPE_PRICE_ID_MAP"]},
-                "motionmate_stripe.E008",
+                {"STRIPE_LOGISTICS_TIER_PRICE_ID_MAP": {}},
+                "logistics_tier_price_missing",
             ),
-            ({}, "logistics_annual_amount_invalid"),
+            ({}, "stripe_configuration_invalid"),
         )
         for overrides, reason in scenarios:
             with self.subTest(reason=reason):
-                if reason == "logistics_annual_amount_invalid":
+                if reason == "stripe_configuration_invalid":
                     self.plan.regional_prices = {}
                     self.plan.price_yearly = Decimal("0")
                     self.plan.save(update_fields=["regional_prices", "price_yearly"])
@@ -463,25 +531,23 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
     def test_converted_owner_enters_shared_annual_checkout_with_no_trial(self):
         self.assertEqual(self.checkout(), "https://checkout.stripe.test/logistics")
         params = self.sessions.create.call_args.kwargs
-        self.assertEqual(
-            params["line_items"], [{"price": "price_logistics_yearly_eur", "quantity": 1}]
-        )
+        self.assertEqual(params["line_items"], [{"price": "price_logistics-core", "quantity": 1}])
         self.assertNotIn("trial_period_days", params["subscription_data"])
         self.assertEqual(params["metadata"], self.metadata())
         self.assertEqual(params["subscription_data"]["metadata"], params["metadata"])
-        self.assertEqual(
-            params["idempotency_key"],
-            f"motionmate-checkout-{self.subscription.pk}-yearly-eur"
-            f"-approval-{self.initial_approval_metadata['logistics_approval_decision_id']}-new",
+        self.assertTrue(
+            params["idempotency_key"].startswith(
+                f"motionmate-tier-checkout-{self.subscription.pk}-"
+            )
         )
         self.assertIn(reverse("billing_checkout_success"), params["success_url"])
         self.subscription.refresh_from_db()
-        self.assertEqual(self.subscription.provider_price_id, "price_logistics_yearly_eur")
+        self.assertEqual(self.subscription.provider_price_id, "price_logistics-core")
         self.assertFalse(self.subscription.has_access)
 
     def test_checkout_accepts_installed_stripe_sdk_objects(self):
         self.sdk.Price.retrieve.side_effect = lambda price_id: stripe.Price.construct_from(
-            annual_price(price_id), "sk_test_fixture"
+            self.price(price_id), "sk_test_fixture"
         )
         self.sessions.create.side_effect = lambda **kwargs: stripe.checkout.Session.construct_from(
             {
@@ -549,8 +615,12 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
         BusinessUser.objects.filter(user=self.user).update(is_active=False)
         with self.assertRaises(StripeCheckoutError):
             self.checkout()
-        BusinessUser.objects.filter(user=self.user).update(
-            is_active=True, role=BusinessUser.Role.ADMIN
+        from django.db.models import QuerySet
+
+        QuerySet.update(
+            BusinessUser.objects.filter(user=self.user),
+            is_active=True,
+            role=BusinessUser.Role.ADMIN,
         )
         with self.assertRaises(StripeCheckoutError):
             self.checkout()
@@ -588,10 +658,8 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
 
     def test_missing_price_inactive_offering_and_placeholder_price_fail_closed(self):
         with (
-            override_settings(
-                STRIPE_PRICE_ID_MAP=stripe_settings(logistics=False)["STRIPE_PRICE_ID_MAP"]
-            ),
-            self.assertRaisesMessage(StripeConfigurationError, "not configured"),
+            override_settings(STRIPE_LOGISTICS_TIER_PRICE_ID_MAP={}),
+            self.assertRaisesMessage(StripeConfigurationError, "price_ ID"),
         ):
             self.checkout()
         self.plan.is_active = False
@@ -600,7 +668,8 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
             self.checkout()
         self.plan.is_active = True
         self.plan.regional_prices = {}
-        self.plan.save(update_fields=["is_active", "regional_prices"])
+        self.plan.price_yearly = Decimal("0")
+        self.plan.save(update_fields=["is_active", "regional_prices", "price_yearly"])
         with self.assertRaises(StripeConfigurationError):
             self.checkout()
         self.sessions.create.assert_not_called()
@@ -617,7 +686,7 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
             {"recurring": {"interval": "month", "interval_count": 1, "usage_type": "licensed"}},
             {"recurring": {"interval": "year", "interval_count": 2, "usage_type": "licensed"}},
         ):
-            remote = annual_price("price_logistics_yearly_eur")
+            remote = self.price("price_logistics-core")
             remote.update(changes)
             self.sdk.Price.retrieve.side_effect = None
             self.sdk.Price.retrieve.return_value = remote
@@ -634,10 +703,10 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
         self.sessions.create.assert_not_called()
 
     def test_service_price_alias_and_reverse_family_alias_reject(self):
-        mapping = dict(stripe_settings()["STRIPE_PRICE_ID_MAP"])
-        mapping[("logistics", "yearly", "eur")] = mapping[("pro", "yearly", "eur")]
+        mapping = tier_map()
+        mapping[("logistics-core", "yearly", "eur")] = "price_pro_yearly_eur"
         with (
-            override_settings(STRIPE_PRICE_ID_MAP=mapping),
+            override_settings(STRIPE_LOGISTICS_TIER_PRICE_ID_MAP=mapping),
             self.assertRaises(StripeConfigurationError),
         ):
             self.checkout()
@@ -651,7 +720,7 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
             billing_currency="eur",
         )
         mapping = dict(stripe_settings()["STRIPE_PRICE_ID_MAP"])
-        mapping[("pro", "yearly", "eur")] = mapping[("logistics", "yearly", "eur")]
+        mapping[("pro", "yearly", "eur")] = "price_logistics-core"
         with (
             override_settings(STRIPE_PRICE_ID_MAP=mapping),
             self.assertRaises(StripeConfigurationError),
@@ -664,10 +733,10 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
         self.sessions.create.assert_not_called()
 
     def test_missing_enrolled_currency_does_not_fall_back_to_another_price(self):
-        mapping = dict(stripe_settings()["STRIPE_PRICE_ID_MAP"])
-        del mapping[("logistics", "yearly", "eur")]
+        mapping = tier_map()
+        del mapping[("logistics-core", "yearly", "eur")]
         with (
-            override_settings(STRIPE_PRICE_ID_MAP=mapping),
+            override_settings(STRIPE_LOGISTICS_TIER_PRICE_ID_MAP=mapping),
             self.assertRaises(StripeConfigurationError),
         ):
             self.checkout()
@@ -712,13 +781,11 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
 
     def test_configuration_error_is_clear_in_browser(self):
         self.login()
-        with override_settings(
-            STRIPE_PRICE_ID_MAP=stripe_settings(logistics=False)["STRIPE_PRICE_ID_MAP"]
-        ):
+        with override_settings(STRIPE_LOGISTICS_TIER_PRICE_ID_MAP={}):
             response = self.client.post(
                 reverse("logistics_application_checkout", args=[self.application.pk])
             )
-        self.assertContains(response, "Stripe Price ID is not configured", status_code=503)
+        self.assertContains(response, "Configure a price_ ID", status_code=503)
 
     def test_open_pending_session_reused_without_duplicates(self):
         self.checkout()
@@ -738,11 +805,10 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
         expired = self.remote_session(status="expired")
         self.sessions.retrieve.side_effect = None
         self.sessions.retrieve.return_value = expired
+        first_key = self.sessions.create.call_args.kwargs["idempotency_key"]
         self.checkout()
         self.assertEqual(self.sessions.create.call_count, 2)
-        self.assertTrue(
-            self.sessions.create.call_args.kwargs["idempotency_key"].endswith("-cs_logistics_1")
-        )
+        self.assertNotEqual(self.sessions.create.call_args.kwargs["idempotency_key"], first_key)
         self.sessions.retrieve.side_effect = lambda *args, **kwargs: self.remote_session()
         self.checkout()
         self.assertEqual(self.sessions.create.call_count, 2)
@@ -970,12 +1036,10 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
         validate_offering_activation(self.plan)
         self.assertCountEqual(
             [call.args[0] for call in self.sdk.Price.retrieve.call_args_list],
-            ["price_logistics_yearly_usd", "price_logistics_yearly_eur"],
+            ["price_logistics-core"],
         )
         with (
-            override_settings(
-                STRIPE_PRICE_ID_MAP=stripe_settings(logistics=False)["STRIPE_PRICE_ID_MAP"]
-            ),
+            override_settings(STRIPE_LOGISTICS_TIER_PRICE_ID_MAP={}),
             self.assertRaises(StripeConfigurationError),
         ):
             validate_offering_activation(self.plan)
@@ -988,30 +1052,22 @@ class LogisticsCheckoutTests(LogisticsCheckoutFixture, TestCase):
             self.checkout()
 
     def test_admin_prevents_unconfigured_activation_and_preserves_service_form(self):
-        pricing = dict(self.plan.regional_prices)
+        from django.forms.models import model_to_dict
+
         data = {
-            "name": "Logistics",
-            "slug": "logistics",
-            "family": "LOGISTICS",
-            "price_monthly": "0",
-            "price_yearly": "0",
-            "regional_prices": "{}",
-            "is_active": "on",
+            **model_to_dict(self.plan),
+            "is_active": True,
+            "regional_prices": {"eur": {"currency": "EUR", "yearly": "0"}},
         }
-        form = CommercialPlanAdminForm(data=data, instance=self.plan)
-        self.assertFalse(form.is_valid())
-        self.assertIn("Configure a positive", str(form.errors))
-        data["regional_prices"] = json.dumps(pricing)
+        self.assertFalse(CommercialPlanAdminForm(data=data, instance=self.plan).is_valid())
+        self.plan.refresh_from_db()
+        data = {**model_to_dict(self.plan), "is_active": True}
         self.assertTrue(CommercialPlanAdminForm(data=data, instance=self.plan).is_valid())
         service = ClarivoPlan.objects.get(slug="pro")
-        data.update(
-            {
-                "name": "Pro",
-                "slug": "pro",
-                "family": "SERVICE",
-                "regional_prices": "{}",
-                "price_yearly": "490",
-                "price_monthly": "49",
-            }
-        )
+        data = {
+            **model_to_dict(service),
+            "price_yearly": "490",
+            "price_monthly": "49",
+            "regional_prices": {},
+        }
         self.assertTrue(CommercialPlanAdminForm(data=data, instance=service).is_valid())

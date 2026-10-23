@@ -39,6 +39,7 @@ from apps.businesses.views import (
     stripe_billing_webhook,
 )
 from apps.crm.views import public_booking, public_booking_thank_you
+from taskio import pwa
 
 
 def _selected_public_pricing_currency(request: HttpRequest) -> str:
@@ -89,7 +90,9 @@ def site_preview(request):
 
 
 urlpatterns = [
-    path("", RedirectView.as_view(pattern_name="home", permanent=False)),
+    path("", RedirectView.as_view(pattern_name="home", permanent=False), name="pwa_scope"),
+    path("service-worker.js", pwa.service_worker, name="pwa_service_worker"),
+    path("offline/", pwa.offline, name="pwa_offline"),
     path(
         "favicon.ico",
         RedirectView.as_view(
@@ -111,20 +114,8 @@ urlpatterns = [
             permanent=False,
         ),
     ),
-    path(
-        "manifest.json",
-        RedirectView.as_view(
-            url="/static/assets/img/favicons/manifest.json?v=motionmate-20260629",
-            permanent=False,
-        ),
-    ),
-    path(
-        "site.webmanifest",
-        RedirectView.as_view(
-            url="/static/assets/img/favicons/site.webmanifest?v=motionmate-20260629",
-            permanent=False,
-        ),
-    ),
+    path("manifest.json", pwa.manifest, name="pwa_manifest_legacy"),
+    path("site.webmanifest", pwa.manifest, name="pwa_manifest"),
     path(
         "browserconfig.xml",
         RedirectView.as_view(

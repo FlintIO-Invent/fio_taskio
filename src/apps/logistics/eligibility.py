@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from .policy import LogisticsEligibilityPolicy, normalized_identity
+from .location_reference import country_policy_identities
+from .policy import LogisticsEligibilityPolicy
 
 
 class ReasonCode(StrEnum):
@@ -66,7 +67,7 @@ def evaluate_eligibility(
         reasons.add(ReasonCode.POSSIBLE_DUPLICATE)
     if policy.registration_required_for_auto_approval and not inputs["registration_number"].strip():
         reasons.add(ReasonCode.INCOMPLETE_BUSINESS_REGISTRATION)
-    if normalized_identity(inputs["country"]) not in policy.supported_territories:
+    if not country_policy_identities(inputs["country"]).intersection(policy.supported_territories):
         reasons.add(ReasonCode.UNSUPPORTED_TERRITORY)
 
     # Standard tracking and manifests are ordinary Logistics requirements. Unknown

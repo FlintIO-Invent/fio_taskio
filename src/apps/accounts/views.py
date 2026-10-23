@@ -9,7 +9,7 @@ from django.contrib.auth.views import (
     PasswordResetConfirmView,
     PasswordResetView,
 )
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -49,6 +49,7 @@ from apps.businesses.utils import (
     create_default_trial_subscription,
     expire_business_invitation_if_needed,
     get_current_business,
+    get_current_business_membership,
     get_other_active_business_membership_for_user,
     set_current_business,
 )
@@ -685,6 +686,16 @@ def accept_business_invitation(request: HttpRequest, token: str) -> HttpResponse
                             user,
                         )
                         SaaSUserProfile.get_or_create_for_user(user)
+                except IntegrityError:
+                    # A simultaneous signup may have committed this email first.
+                    # Do not authenticate this request as that other account.
+                    if not TaskIOUser.objects.filter(email__iexact=invitation.email).exists():
+                        raise
+                    messages.info(
+                        request,
+                        "An account for this invited email already exists. Sign in with that account to continue.",
+                    )
+                    return redirect("accept_business_invitation", token=invitation.token)
                 except ValueError as exc:
                     messages.error(request, str(exc))
                     return redirect("accept_business_invitation", token=invitation.token)
@@ -732,55 +743,55 @@ def account_logout(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="business_login")
 @require_http_methods(["GET", "POST"])
 def saas_profile(request: HttpRequest) -> HttpResponse:
-    """
-    View and update the account profile plus legacy compatibility settings.
-    """
-    profile = SaaSUserProfile.get_or_create_for_user(request.user)
-    active_section = (request.GET.get("section") or "basic").strip().lower()
-
-    basic_form = SaaSBasicInfoForm(instance=request.user)
-    workspace_form = SaaSWorkspaceSettingsForm(instance=profile)
-    invoice_form = SaaSInvoiceSettingsForm(instance=profile)
-
+    """Compatibility endpoint; all visible settings live on Business Settings."""
+    section = (
+        request.POST.get("section") if request.method == "POST" else request.GET.get("section")
+    ) or "basic"
+    section = section.strip().lower()
+    membership = get_current_business_membership(request)
+    can_edit_business = bool(
+        membership
+        and membership.role in (BusinessUser.Role.OWNER, BusinessUser.Role.ADMIN)
+        and business_can_modify_workspace(get_current_business(request))
+    )
+    anchor = (
+        {
+            "workspace": "business-details",
+            "invoice": "invoice-defaults",
+            "security": "security",
+        }.get(section, "my-account")
+        if can_edit_business
+        else ("security" if section == "security" else "my-account")
+    )
     if request.method == "POST":
-        section = (request.POST.get("section") or "basic").strip().lower()
-        active_section = section
-
         if section == "basic":
-            basic_form = SaaSBasicInfoForm(request.POST, instance=request.user)
-            if basic_form.is_valid():
-                basic_form.save()
-                messages.success(request, "Basic profile details updated.")
-                return redirect(f"{reverse('saas_profile')}?section=basic")
-
-        elif section == "workspace":
-            workspace_form = SaaSWorkspaceSettingsForm(request.POST, instance=profile)
-            if workspace_form.is_valid():
-                workspace_form.save()
-                messages.success(request, "Legacy workspace contact settings updated.")
-                return redirect(f"{reverse('saas_profile')}?section=workspace")
-
-        elif section == "invoice":
-            invoice_form = SaaSInvoiceSettingsForm(request.POST, instance=profile)
-            if invoice_form.is_valid():
-                invoice_form.save()
-                messages.success(request, "Legacy invoice preferences updated.")
-                return redirect(f"{reverse('saas_profile')}?section=invoice")
-
-        logger.warning(
-            "SaaS profile update failed for user={} in section={}: basic={}, workspace={}, invoice={}",
-            request.user.email,
-            section,
-            basic_form.errors.as_json(),
-            workspace_form.errors.as_json(),
-            invoice_form.errors.as_json(),
-        )
-
-    context: dict[str, Any] = {
-        "active_section": active_section,
-        "basic_form": basic_form,
-        "workspace_form": workspace_form,
-        "invoice_form": invoice_form,
-        "profile": profile,
-    }
-    return render(request, "accounts/main/saas_profile.html", context)
+            form = SaaSBasicInfoForm(request.POST, instance=request.user)
+        elif section in ("workspace", "invoice"):
+            # Keep old submissions bound to the signed-in user's stored profile.
+            # They must never copy profile defaults into the active Business.
+            profile = SaaSUserProfile.get_or_create_for_user(request.user)
+            form_class = (
+                SaaSWorkspaceSettingsForm if section == "workspace" else SaaSInvoiceSettingsForm
+            )
+            form = form_class(request.POST, instance=profile)
+        else:
+            return HttpResponse("Unknown settings section.", status=400)
+        if form.is_valid():
+            form.save()
+            messages.success(
+                request,
+                (
+                    "Basic profile details updated."
+                    if section == "basic"
+                    else "Saved account preferences."
+                ),
+            )
+        else:
+            messages.error(
+                request,
+                "Settings were not saved. "
+                + " ".join(
+                    f"{name}: {error}" for name, errors in form.errors.items() for error in errors
+                ),
+            )
+    return redirect(f"{reverse('business_settings')}#{anchor}")

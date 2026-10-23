@@ -57,6 +57,11 @@ def current_business(request):
         "public_request_form": can_use_module(business, "public_booking"),
     }
     role_access = {
+        "can_view_logistics_usage": bool(
+            business
+            and business.vertical == "LOGISTICS"
+            and membership_has_any_role(membership, OWNER_ADMIN_ROLES)
+        ),
         "can_manage_business_settings": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_manage_team": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
         "can_remove_team_members": membership_has_any_role(membership, OWNER_ADMIN_ROLES),
@@ -79,7 +84,54 @@ def current_business(request):
         "can_import_data": membership_has_any_role(membership, CLIENT_MANAGE_ROLES),
     }
 
+    if business and business.vertical == "LOGISTICS" and membership and membership.role == "staff":
+        from apps.logistics.location_access import assignments_for
+
+        role_access["can_view_invoices"] &= assignments_for(business, request.user).exists()
+        # Generic Invoice creation/editing is accounting; Parcel clearance uses its own controls.
+        role_access["can_manage_invoices"] = False
+
+    logistics_context = {}
+    if (
+        business
+        and business.vertical == "LOGISTICS"
+        and membership
+        and (module_access["parcels"] or module_access["shipments"])
+    ):
+        from apps.logistics.location_access import assignments_for, has_wide_access, locations_for
+        from apps.logistics.models import LogisticsLocationAssignment
+
+        if has_wide_access(business, request.user):
+            sites = list(locations_for(business, request.user))
+            current_site = (
+                LogisticsLocationAssignment.objects.filter(
+                    business=business,
+                    membership=membership,
+                    is_current=True,
+                    location__business=business,
+                    location__is_active=True,
+                )
+                .values_list("location_id", flat=True)
+                .first()
+            )
+            logistics_context = {
+                "logistics_administrator": True,
+                "logistics_work_locations": sites,
+                "logistics_current_location_id": current_site,
+            }
+
+        if not has_wide_access(business, request.user):
+            assignments = list(assignments_for(business, request.user))
+            writable = any(item.is_current and item.can_operate for item in assignments)
+            role_access["can_manage_parcels"] &= writable
+            role_access["can_manage_shipments"] &= writable
+            logistics_context = {
+                "logistics_worker": True,
+                "logistics_work_assignments": assignments,
+                "logistics_has_current_location": any(item.is_current for item in assignments),
+            }
     return {
+        **logistics_context,
         "current_business": business,
         "current_business_membership": membership,
         "current_subscription": subscription,

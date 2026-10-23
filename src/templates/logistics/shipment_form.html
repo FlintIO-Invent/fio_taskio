@@ -10,6 +10,7 @@
   </nav>
   <div class="mb-4">
     <h2 class="mb-2 text-body-emphasis">{{ title|title }}</h2>
+    {% if registration_url %}<p><a href="{{ registration_url }}">Continue Registration</a> · The registered Parcel is preselected.</p>{% endif %}
     <p class="mb-0 text-body-secondary small"><span class="text-danger">*</span> Required fields</p>
   </div>
   <form method="post" class="mb-5" data-logistics-shipment-form>
@@ -17,22 +18,23 @@
     {% include 'logistics/includes/form_errors.html' %}
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
     <div class="row g-4">
-      <div class="col-12 col-xl-8">
-        <div class="card mb-4">
+      <div class="col-12 col-xl-8 mobile-shipment-fields">
+        <div class="card mb-4 mobile-shipment-route">
           <div class="card-body">
             <h4 class="mb-3">Route</h4>
             <div class="row g-3">
-              {% include 'logistics/includes/form_field.html' with field=form.origin column_class='col-12 col-md-6' %}
-              {% include 'logistics/includes/form_field.html' with field=form.destination column_class='col-12 col-md-6' %}
+              {% include 'logistics/includes/form_field.html' with field=form.transport_mode column_class='col-12' %}
+          {% include 'logistics/includes/route_location_fields.html' %}
             </div>
           </div>
         </div>
-        <div class="card mb-4">
+        <details class="mb-4" data-additional-details><summary class="fw-semibold mb-3">Additional details</summary>
+        <div class="card mb-4 mobile-shipment-transport">
           <div class="card-body">
-            <h4 class="mb-3">Transportation details</h4>
-            <p class="text-body-secondary fs-9">References are optional. Use the fields for the selected transportation mode.</p>
+            <h4 class="mb-3">Transport references</h4>
+
             <div class="row g-3">
-              {% include 'logistics/includes/form_field.html' with field=form.transport_mode column_class='col-12 col-md-6' %}
+              {% for field in form.route_reference_fields %}{% include 'logistics/includes/form_field.html' with column_class='col-12 col-md-6' %}{% endfor %}
               {% include 'logistics/includes/form_field.html' with field=form.carrier_name column_class='col-12 col-md-6' %}
             </div>
             <noscript><p class="mt-3 mb-2 text-body-secondary fs-9">After changing the mode, update the fields before saving. Your entries will be kept.</p><button class="btn btn-phoenix-secondary" type="submit" name="refresh_transport_fields" value="1" formnovalidate>Update transportation fields</button></noscript>
@@ -46,7 +48,7 @@
             </div>
           </div>
         </div>
-        <div class="card mb-4">
+        <div class="card mb-4 mobile-shipment-schedule">
           <div class="card-body">
             <h4 class="mb-3">Schedule</h4>
             <div class="row g-3">
@@ -55,7 +57,7 @@
             </div>
           </div>
         </div>
-        <div class="card mb-4">
+        <div class="card mb-4 mobile-shipment-notes">
           <div class="card-body">
             <h4 class="mb-3">Notes</h4>
             <div class="row g-3">
@@ -63,8 +65,9 @@
             </div>
           </div>
         </div>
+        </details>
         {% if form.parcel %}
-        <div class="card mb-4">
+        <div class="card mb-4 mobile-shipment-assignment">
           <div class="card-body">
             <h4 class="mb-3">Parcel assignment</h4>
             {% if has_eligible_parcels or form.parcel.errors %}
@@ -78,9 +81,9 @@
           </div>
         </div>
         {% endif %}
-        <div class="d-flex flex-wrap gap-2">
+        <div class="d-flex flex-wrap gap-2 mobile-form-actions">
           <button class="btn btn-primary" type="submit">Save Shipment</button>
-          <a class="btn btn-phoenix-secondary" href="{% if form.instance.pk %}{% url 'logistics_shipment_detail' form.instance.pk %}{% else %}{% url 'logistics_shipment_list' %}{% endif %}">Cancel</a>
+          <a class="btn btn-phoenix-secondary" href="{% if registration_url %}{{ registration_url }}{% elif form.instance.pk %}{% url 'logistics_shipment_detail' form.instance.pk %}{% else %}{% url 'logistics_shipment_list' %}{% endif %}">Cancel</a>
         </div>
       </div>
     </div>
