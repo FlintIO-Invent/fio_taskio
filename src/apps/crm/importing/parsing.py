@@ -9,7 +9,7 @@ from typing import BinaryIO
 
 from .constants import DEFAULT_CSV_LIMITS, FORBIDDEN_CSV_COLUMNS, CSVLimits
 from .schemas import ImportSchema, normalize_header
-from .types import CSVRow, ImportIssue, IssueSeverity, ParsedImportFile
+from .types import CSVRow, ImportIssue, ImportType, IssueSeverity, ParsedImportFile
 
 
 def _issue(
@@ -191,6 +191,23 @@ def parse_csv_upload(
             )
 
     header_set = set(headers)
+    if not set(schema.required_columns).issubset(header_set):
+        detected_type = None
+        if "lead_type" in header_set:
+            detected_type = ImportType.LEADS
+        elif {"first_name", "last_name", "email"}.issubset(header_set):
+            detected_type = ImportType.CLIENTS
+        elif {"name", "unit_price"}.issubset(header_set):
+            detected_type = ImportType.SERVICES
+        if detected_type is not None and detected_type != schema.import_type:
+            issues.append(
+                _issue(
+                    "wrong_import_type",
+                    f"This looks like a {detected_type.value.title()} CSV. "
+                    f"Use Import {detected_type.value.title()} on the Data Import page, "
+                    f"rather than Import {schema.import_type.value.title()}.",
+                )
+            )
     for required_column in sorted(set(schema.required_columns) - header_set):
         issues.append(
             _issue(

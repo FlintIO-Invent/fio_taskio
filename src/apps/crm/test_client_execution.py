@@ -131,6 +131,46 @@ class ClientExecutionTestMixin:
 
 
 class ClientImportExecutionSuccessTests(ClientExecutionTestMixin, TestCase):
+    def test_inactive_and_archived_imports_do_not_use_active_client_slots(self):
+        self.plan.max_clients = 1
+        self.plan.save(update_fields=["max_clients"])
+        self.existing_client()
+        rows = [
+            {
+                **self.valid_row,
+                "email": f"{status.lower()}@example.com",
+                "phone": f"17215550{index:03d}",
+                "client_status": status,
+            }
+            for index, status in enumerate((Client.ClientStatus.INACTIVE, Client.ClientStatus.ARCHIVED))
+        ]
+        job = self.ready_job(rows)
+        capacity = job.preview_payload["metadata"]["capacity"]
+        self.assertEqual(capacity["new_importable_clients"], 2)
+        self.assertEqual(capacity["new_active_clients"], 0)
+        self.assertEqual(self.execute(job).clients_created, 2)
+        self.assertEqual(Client.objects.filter(business=self.business).count(), 3)
+
+    def test_mixed_client_statuses_use_only_their_active_capacity(self):
+        self.plan.max_clients = 3
+        self.plan.save(update_fields=["max_clients"])
+        rows = [
+            {
+                **self.valid_row,
+                "email": f"{status.lower()}@example.com",
+                "phone": f"17215550{index:03d}",
+                "client_status": status,
+            }
+            for index, status in enumerate(Client.ClientStatus.values)
+        ]
+        job = self.ready_job(rows)
+        self.assertEqual(job.preview_payload["metadata"]["capacity"]["new_active_clients"], 3)
+        self.assertEqual(self.execute(job).clients_created, 5)
+        self.assertEqual(
+            set(Client.objects.values_list("client_status", flat=True)),
+            set(Client.ClientStatus.values),
+        )
+
     def test_one_client_uses_normalized_defaults_and_forced_business_fields(self):
         job = self.ready_job([self.valid_row])
         result = self.execute(job)

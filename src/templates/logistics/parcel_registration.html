@@ -19,7 +19,7 @@
         <ol class="nav nav-wizard parcel-wizard-nav justify-content-between">
           {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-parcel' number='1' label='Parcel' %}
           {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-billing' number='2' label='Charges' %}
-          {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-payment' number='3' label='Payment' %}
+          {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-payment' number='3' label='Invoice & payment' %}
           {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-shipment' number='4' label='Shipment' %}
           {% include 'logistics/includes/parcel_wizard_step.html' with target='registration-summary' number='5' label='Summary' %}
         </ol>
@@ -52,15 +52,37 @@
     </div>
   </section>
   <section id="registration-payment" data-parcel-wizard-panel aria-labelledby="registration-payment-title">
-    <h3 class="fs-7 mb-4" id="registration-payment-title" tabindex="-1">Customer payment decision</h3>
+    <h3 class="fs-7 mb-2" id="registration-payment-title" tabindex="-1">Invoice &amp; payment</h3>
+    <p class="text-body-secondary mb-4">Review and issue the Invoice first, then record the customer’s payment decision.</p>
+    <h4 class="fs-8 mb-3">1. Review and issue Invoice</h4>
     {% for invoice in invoices %}
       <div class="border rounded-3 p-3 p-sm-4 mb-3">
         <p class="text-break mb-0"><a class="fw-semibold" href="{% url 'invoice_detail' invoice.id %}">{{ invoice.number }}</a>{% if not invoice.restricted %} · {{ invoice.lifecycle_status }} · Outstanding {{ invoice.currency }} {{ invoice.outstanding|floatformat:2 }}{% if invoice.shared %} · Full shared Invoice balance{% endif %}{% endif %}</p>
+        {% if invoice.can_issue or invoice.can_pay %}
+        <div class="row row-cols-1 row-cols-md-2 g-3 mt-1">
+        {% if invoice.can_issue %}
+          <div class="col">
+            <form method="post" class="h-100">
+              {% csrf_token %}<input type="hidden" name="action" value="issue"><input type="hidden" name="invoice" value="{{ invoice.id }}">
+              <button class="btn btn-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" type="submit">Issue Invoice {{ invoice.number }}</button>
+            </form>
+          </div>
+        {% endif %}
+        {% if invoice.can_pay %}
+          <div class="col">
+            <a class="btn btn-phoenix-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="?payment={{ invoice.id }}#registration-payment">Record payment {{ invoice.number }}</a>
+          </div>
+        {% endif %}
+        </div>
+        {% endif %}
       </div>
     {% empty %}
       <p class="text-body-secondary mb-4">An issued Invoice and verified receipts are needed for financial clearance. Authorized accounting colleagues can complete this later.</p>
+      {% if financial_actions %}<a class="btn btn-phoenix-primary mb-3" href="#registration-billing">Review charges and create Invoice</a>{% endif %}
     {% endfor %}
-    {% if can_decide_payment %}<form id="registration-payment-form" data-payment-decision-form data-payment-complete="{{ payment_decision_complete|yesno:'true,false' }}" method="post" class="border rounded-3 p-3 p-sm-4 mt-4" novalidate>
+    <h4 class="fs-8 mt-4 mb-3">2. Customer payment decision</h4>
+    {% if not paid_available %}<p class="text-body-secondary mb-3" id="payment-invoice-guidance">Create and issue an Invoice above to enable Paid. Choose Unpaid to continue without recording a payment.</p>{% endif %}
+    {% if can_decide_payment %}<form id="registration-payment-form" data-payment-decision-form data-payment-complete="{{ payment_decision_complete|yesno:'true,false' }}" method="post" class="border rounded-3 p-3 p-sm-4"{% if not paid_available %} aria-describedby="payment-invoice-guidance"{% endif %} novalidate>
       {% csrf_token %}<input type="hidden" name="action" value="payment"><input type="hidden" name="invoice" value="{{ payment_invoice.pk }}">
       <fieldset class="mb-4"><legend class="fs-8">Customer payment decision</legend>{{ payment_decision_form.decision }}{{ payment_decision_form.decision.errors }}<p class="text-body-secondary mb-0">Choose explicitly, then press Continue. Unpaid keeps the existing outstanding balance and does not grant clearance.</p></fieldset>
       {% if payment_form %}<div data-payment-receipt-fields>
@@ -79,26 +101,9 @@
           {% endif %}
         {% endfor %}
       </div>
-      </div>{% else %}<p class="text-body-secondary">To record a new payment, first create and issue an Invoice. If the balance is already cleared, Paid confirms the saved receipts.</p>{% endif %}
+      </div>{% elif paid_available %}<p class="text-body-secondary">The balance is already cleared. Paid confirms the saved receipts.</p>{% endif %}
       <button class="btn btn-primary mt-3 w-100" type="submit">Continue</button>
     </form>{% else %}<p class="text-body-secondary">An authorized operational or accounting colleague must record the payment decision.</p>{% endif %}
-    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 mt-1">
-      {% for invoice in invoices %}
-        {% if invoice.can_issue %}
-          <div class="col">
-            <form method="post" class="h-100">
-              {% csrf_token %}<input type="hidden" name="action" value="issue"><input type="hidden" name="invoice" value="{{ invoice.id }}">
-              <button class="btn btn-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" type="submit">Issue Invoice {{ invoice.number }}</button>
-            </form>
-          </div>
-        {% endif %}
-        {% if invoice.can_pay %}
-          <div class="col">
-            <a class="btn btn-phoenix-primary d-flex align-items-center justify-content-center w-100 h-100 p-3" href="?payment={{ invoice.id }}#registration-payment">Record payment {{ invoice.number }}</a>
-          </div>
-        {% endif %}
-      {% endfor %}
-    </div>
   </section>
   <section id="registration-shipment" data-parcel-wizard-panel aria-labelledby="registration-shipment-title">
     <h3 class="fs-7 mb-4" id="registration-shipment-title" tabindex="-1">Shipment · optional</h3>
