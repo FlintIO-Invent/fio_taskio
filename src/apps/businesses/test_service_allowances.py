@@ -169,6 +169,25 @@ class ServicesFixture:
 
 
 class ServiceAllowanceTests(ServicesFixture, TestCase):
+    def test_starter_description_migration_preserves_custom_and_protected_values(self):
+        copy_rollout = import_module("apps.businesses.migrations.0036_services_starter_description")
+        for description in (
+            copy_rollout.BASELINE_DESCRIPTION,
+            "A customized Starter description",
+            copy_rollout.APPROVED_DESCRIPTION,
+        ):
+            with self.subTest(description=description):
+                ClarivoPlan.objects.filter(slug="starter").update(description=description)
+                expected = list(ClarivoPlan.objects.order_by("pk").values())
+                if description == copy_rollout.BASELINE_DESCRIPTION:
+                    for row in expected:
+                        if row["slug"] == "starter":
+                            row["description"] = copy_rollout.APPROVED_DESCRIPTION
+                copy_rollout.update_starter_description(
+                    apps, type("Editor", (), {"connection": connection})()
+                )
+                self.assertEqual(expected, list(ClarivoPlan.objects.order_by("pk").values()))
+
     def test_commercial_and_beta_catalog_and_prices(self):
         for slug, (_, expected) in ROLLOUT.CONFIGURATIONS.items():
             plan = ClarivoPlan.objects.get(slug=slug)

@@ -302,6 +302,7 @@
   {% endif %}
 
   {% if not logistics_usage %}
+  {% include 'businesses/includes/services_plan_features.html' %}
   <div class="row g-4">
     {% for plan in available_plans %}
       <div class="col-12 col-lg-4">
@@ -377,13 +378,7 @@
                 <span class="badge badge-phoenix {% if plan.allow_invoicing %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Invoicing</span>
                 <span class="badge badge-phoenix {% if plan.allow_appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Appointments</span>
                 <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Online Booking</span>
-                {% if plan.slug == "starter" %}
-                  <span class="badge badge-phoenix badge-phoenix-secondary">Owner, Admin, Staff</span>
-                {% elif plan.slug == "pro" %}
-                  <span class="badge badge-phoenix badge-phoenix-secondary">Owner, Admin, Staff, Accountant</span>
-                {% elif plan.slug == "business" %}
-                  <span class="badge badge-phoenix badge-phoenix-secondary">Advanced Team Roles</span>
-                {% endif %}
+                <span class="badge badge-phoenix badge-phoenix-secondary">Team roles and permissions</span>
               </div>
               <p class="fs-10 text-body-tertiary mt-2 mb-0">
                 Book now schedules an appointment immediately. Contact-first requests can be scheduled later by your team.

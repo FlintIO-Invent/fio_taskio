@@ -33,7 +33,7 @@ A separate technical throttle uses the existing tracking endpoint's atomic cache
 5. Rerun the read-only inspection. Compare the protected snapshots, confirm exact allowances and unchanged subscriptions/prices/Logistics, and review reported historical months/links without automatic changes.
 6. Verify shared cache/proxy behavior across workers. Smoke-test EUR/USD, monthly/yearly trial destinations, internal/public scheduling, contact-first, retries, imports and invitation acceptance on mobile/desktop. No Stripe price changes or subscription reassignment are needed.
 
-Local development data is not migrated as part of implementation. All automated migration, concurrency and browser evidence is produced on disposable databases.
+The original implementation did not migrate local development data. Its automated migration, concurrency and browser evidence used disposable databases. The authorized application-database rollout is recorded below.
 
 ## Isolated verification
 
@@ -92,3 +92,60 @@ Final verification:
 - Django checks, `makemigrations --check --dry-run`, Ruff on audit-changed Python, Black on audit-changed production/new test modules, and `git diff --check` passed. No new schema/model change was needed for these corrections.
 
 All audit databases used a fresh disposable PostgreSQL 14 cluster on loopback port 56449, stopped after verification. No application database migration, application business update, live Stripe call/configuration change, commit, push or deployment was performed. Shared retry schema still requires the planned worker maintenance window; customized canonical plans can intentionally block the Services data migration, so complete its preflight before deploying this combined code. No live-provider, deployed cache/proxy or load-performance verification is claimed.
+
+## Authorized local application rollout — 24 October 2026
+
+### Root cause and instance
+
+The actual local server was the runserver parent PID 80813 and worker PID 2038474, listening on `127.0.0.1:8000`, from `/home/mzero/main/repo/fio_projects/caribbean_automated_systems/fio_taskio`. Its interpreter was this checkout's `.venv/bin/python`, settings were `taskio.settings`, environment was `local`, and DEBUG was enabled. The management commands below inherited that process's environment rather than the invoking shell's environment.
+
+The database connection was confirmed as PostgreSQL `taskio_database_dev`, with server address `127.0.0.1` and port 5432. No remote environment was selected. Only the three approved rollout migrations were pending before the copy correction was added: `businesses.0035`, `appointments.0003`, and `crm.0018`.
+
+Both real view contexts selected canonical plan IDs 1/2/3 and contained the old allowance tuples. The authenticated Services owner session selected Business 13 on the Business plan (ID 3): its live usage context was 3/10 users, 15/150 clients, 0/500 monthly invoices and 0/400 monthly appointments. Fresh Chromium requests reproduced the old values. The original isolated tests initialized their own migrated database; they did not establish application-database rollout completion. The new booking wording was template code and therefore appeared independently of the missing data migration. No cache failure or stale response was needed to explain the mismatch.
+
+### Database operations and protected data
+
+The existing read-only `inspect_services_allowances` passed: all four targets were `baseline`; no over-limit months or multiple-appointment request links were reported. No unexpected customized target was found. A private full PostgreSQL backup and protected-row digests were captured before changes. The server was stopped before applying migrations and restarted afterward in the same checkout with its original environment.
+
+Applied successfully in this dependency-valid order, using the existing management entrypoint:
+
+```text
+.venv/bin/python src/manage.py migrate businesses 0035 --noinput
+.venv/bin/python src/manage.py migrate appointments 0003 --noinput
+.venv/bin/python src/manage.py migrate crm 0018 --noinput
+.venv/bin/python src/manage.py migrate businesses 0036 --noinput
+```
+
+`0035` changed only the four approved allowance fields on Starter, Pro, Business and Beta. The two existing retry migrations added their nullable keys, fingerprints and uniqueness constraints without backfilling historical requests or appointments. New migration `0036_services_starter_description` replaces only the exact original Starter description on the SERVICE-family canonical row, removing “solo owners and”. It preserves customized descriptions, all other plans and all other fields. No existing applied migration was edited, no migration history was faked, and no reconciliation command was needed.
+
+Before/after digests matched for 52 tables containing 1,585 rows, excluding only the explicitly permitted allowance fields, Starter description, migration history, browser sessions and empty newly added retry fields. All remaining plan fields, regional prices, Stripe mappings, subscription states, customer records, role permissions, custom plans, business settings and Logistics records/configuration were preserved. The protected snapshot still matched after browser verification.
+
+Final database and rendered allowances:
+
+| Allowance | Starter | Pro | Business | Internal Beta |
+| --- | --- | --- | --- | --- |
+| Total users including owner | 5 | 10 | 15 | 10 |
+| Staff accounts alongside owner | 4 | 9 | 14 | 9 |
+| Clients | Unlimited | Unlimited | Unlimited | Unlimited |
+| Invoices/month | 200 | 500 | 2,000 | 500 |
+| Appointments/month | 250 | 750 | 3,000 | 750 |
+| Online booking | Included | Included | Included | Included |
+
+Beta remains active and free with unchanged access configuration. There are no Beta subscriptions in this local database. Business pricing remains USD 159/1590 and EUR 149/1490; Starter and Pro prices are also unchanged. The legacy `max_public_bookings_per_month` storage is deliberately preserved: Services admission ignores that retired quota, Services usage/comparison contexts omit it, and scheduled appointments share the appointment allowance. The generic legacy scalar resolver still exposes that stored field if explicitly queried; it is not a Services admission limit.
+
+### Copy and actual browser verification
+
+Both routed templates now include `businesses/includes/services_plan_features.html`, visibly listing clients/enquiries; appointments/online booking; services/prices/categories; invoices/payment recording; team roles/permissions; dashboard; client/service imports; business settings; and guided onboarding. Starter's card positioning now refers to small service teams. The subscription page uses one neutral team-roles chip across tiers; permission code is unchanged. All displayed allowance numbers continue to come from database plans.
+
+The restarted runserver parent PID is 2080290, initially serving through worker PID 2080301 at the same loopback URL. Fresh Chromium contexts made actual HTTP requests to `/home/` and `/businesses/subscription/`, using an existing local owner session rather than test fixtures or a disposable live server.
+
+- Desktop 1440 px and mobile 390 px passed for both pages, including usage and all plan comparisons.
+- All eight homepage viewport/currency/interval combinations passed: EUR/USD and monthly/yearly. The real currency links and interval switch were exercised. Prices and trial-link plan/currency/interval parameters matched each selection.
+- All nine shared features were visibly present on both pages. No stale solo-owner positioning, tier-exclusive role chips, separate booking quota, horizontal overflow or page JavaScript exception was found.
+- Current Business usage is 3/15 users, 15/Unlimited clients, 0/2000 invoices and 0/3000 appointments; staff availability is 12 of 14. Actual effective user/client/invoice/appointment entitlements match the refreshed plan.
+- The focused Services suite passed 31 tests on a separate disposable PostgreSQL instance on loopback port 56459, subsequently stopped. The added regression covers the description migration's baseline, custom-description and repeatability cases while comparing every plan field.
+- Django system checks, migration drift check and `git diff --check` passed. `migrate --plan` reports no pending operations. The post-rollout preflight reports all four plans `approved`, with no reported historical anomalies. Ruff and Black pass for the changed test file; the new applied migration has whitespace-only formatting findings and was left unchanged after application.
+
+Fresh evidence, logs and sanitized snapshots are in `/tmp/services-local-rollout/`: `home-{usd,eur}-{monthly,yearly}-{1440,390}.png`, `subscription-{1440,390}.png`, `subscription-usage-{1440,390}.png`, `browser-results.json`, `browser.log`, `tests.log`, `context-before.json`, `context-after.json`, `preflight-before.json`, `preflight-after.json`, `final-database.json`, and `protected-{before,after}.json`. The database backup remains private. Browser credentials and the copied runtime environment were removed after verification.
+
+No local copy or database rollout step remains. Staging/production rollout and deployed shared-cache/proxy/provider checks were not performed or authorized by this local task. No Stripe mutation, commit, push or deployment was performed.

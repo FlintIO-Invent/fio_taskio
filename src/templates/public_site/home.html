@@ -2563,7 +2563,7 @@
                 {% if plan.slug == "starter" %}
                   <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
                     <i class="bx bx-check fs-xl {% if plan.is_recommended %}me-1{% else %}text-primary me-1{% endif %}"></i>
-                    <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>Best for solo owners getting organized</span>
+                    <span {% if plan.is_recommended %}class="opacity-90"{% endif %}>For small service teams getting organized</span>
                   </li>
                 {% elif plan.slug == "pro" %}
                   <li class="d-flex mb-2 {% if plan.is_recommended %}text-light{% endif %}">
@@ -2600,6 +2600,7 @@
       {% endfor %}
     </div>
   </div>
+  {% include 'businesses/includes/services_plan_features.html' %}
 </section>
 
 <script>
