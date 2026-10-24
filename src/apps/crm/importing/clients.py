@@ -168,6 +168,13 @@ class ValidatedClientRow:
     communication_notes: str
     is_active: bool = True
 
+    @property
+    def uses_active_capacity(self) -> bool:
+        return self.is_active and self.client_status not in (
+            Client.ClientStatus.INACTIVE,
+            Client.ClientStatus.ARCHIVED,
+        )
+
     def as_client_fields(self) -> dict[str, Any]:
         """Return the fixed future-executor allowlist, never arbitrary CSV keys."""
 

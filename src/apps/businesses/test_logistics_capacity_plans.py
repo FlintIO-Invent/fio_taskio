@@ -345,12 +345,21 @@ class LogisticsCapacityMigrationTests(TransactionTestCase):
         try:
             executor.migrate(before)
             historical = executor.loader.project_state(before).apps
+            HistoricalBusiness = historical.get_model("businesses", "Business")
+            HistoricalPlan = historical.get_model("businesses", "ClarivoPlan")
             HistoricalSubscription = historical.get_model("businesses", "BusinessSubscription")
             HistoricalMembership = historical.get_model("businesses", "BusinessUser")
             HistoricalLocation = executor.loader.project_state(latest).apps.get_model(
                 "logistics", "LogisticsLocation"
             )
-            legacy, _ = ClarivoPlan.objects.get_or_create(
+            # Transaction suites flush seed rows. Own the canonical prerequisites
+            # needed when restoring today's guarded Services migration.
+            service_data = import_module("apps.businesses.migrations.0013_motionmate_final_tiers").PLAN_DATA
+            for slug, defaults in service_data.items():
+                HistoricalPlan.objects.get_or_create(slug=slug, defaults=defaults)
+            beta_defaults = {**service_data["pro"], "name": "Beta", "price_monthly": 0, "price_yearly": 0, "regional_prices": {}}
+            HistoricalPlan.objects.get_or_create(slug="beta", defaults=beta_defaults)
+            legacy, _ = HistoricalPlan.objects.get_or_create(
                 slug="logistics", defaults={"name": "Legacy Logistics", "family": "LOGISTICS"}
             )
             legacy.is_active = True
@@ -359,7 +368,7 @@ class LogisticsCapacityMigrationTests(TransactionTestCase):
             legacy.save()
             # Environment-specific IDs are fixtures only, never application policy.
             for identifier in (11, 166):
-                business = Business.objects.create(
+                business = HistoricalBusiness.objects.create(
                     pk=identifier,
                     name="Existing lab",
                     slug=f"existing-lab-{identifier}",
@@ -397,8 +406,8 @@ class LogisticsCapacityMigrationTests(TransactionTestCase):
                         city="Philipsburg",
                     )
             models = (
-                ClarivoPlan,
-                Business,
+                HistoricalPlan,
+                HistoricalBusiness,
                 HistoricalSubscription,
                 HistoricalMembership,
                 TaskIOUser,
@@ -408,7 +417,7 @@ class LogisticsCapacityMigrationTests(TransactionTestCase):
             MigrationExecutor(connection).migrate(after)
             for model in models:
                 actual = model.objects.order_by("pk")
-                if model is ClarivoPlan:
+                if model is HistoricalPlan:
                     actual = actual.exclude(slug__in=LOGISTICS_TIER_SLUGS)
                 self.assertEqual(list(actual.values()), snapshots[model], model.__name__)
             self.assertEqual(ClarivoPlan.objects.filter(slug__in=LOGISTICS_TIER_SLUGS).count(), 3)

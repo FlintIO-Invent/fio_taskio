@@ -230,7 +230,7 @@ class EnrollmentTests(TestCase):
     def test_active_workspace_conflict_blocks_without_partial_conversion(self):
         user = TaskIOUser.objects.create_user(email=self.application.email, password=PASSWORD)
         business = Business.objects.create(name="Existing", slug="existing")
-        BusinessUser.objects.create(user=user, business=business, role="OWNER")
+        BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.OWNER)
         with self.assertRaisesMessage(ValidationError, "active workspace"):
             self.enroll(authenticated_user=user)
         self.assertEqual(Business.objects.count(), 1)
@@ -240,8 +240,10 @@ class EnrollmentTests(TestCase):
 
     def test_inactive_business_membership_does_not_change_current_conflict_policy(self):
         user = TaskIOUser.objects.create_user(email=self.application.email, password=PASSWORD)
-        business = Business.objects.create(name="Inactive", slug="inactive", is_active=False)
-        BusinessUser.objects.create(user=user, business=business, role="OWNER")
+        business = Business.objects.create(name="Inactive", slug="inactive")
+        BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.OWNER)
+        business.is_active = False
+        business.save(update_fields=["is_active"])
         self.assertIsNotNone(self.enroll(authenticated_user=user).business)
 
     def test_authenticated_retry_reuses_every_record_and_anonymous_replay_rejects(self):

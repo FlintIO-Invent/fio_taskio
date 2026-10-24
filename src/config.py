@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     and optional `.env` files.
     """
 
+    services_booking_cache_alias: str = "default"
+    services_booking_client_ip_mode: Literal["direct", "heroku"] = "direct"
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR.parent / ".env",
         env_file_encoding="utf-8",

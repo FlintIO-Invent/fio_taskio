@@ -12,11 +12,9 @@ from apps.billings.models import Invoice
 from apps.businesses.utils import (
     APPOINTMENT_MANAGE_ROLES,
     APPOINTMENT_VIEW_ROLES,
-    business_limit_reached,
     business_module_required,
     business_role_required,
     can_view_module,
-    get_business_limit_reached_message,
 )
 from apps.crm.models import BusinessService, Client, Lead
 from apps.crm.services import (
@@ -28,6 +26,7 @@ from apps.notifications.emails import send_appointment_confirmation_email
 
 from .forms import AppointmentForm
 from .models import Appointment
+from .operations import create_appointment_operation
 
 STATUS_TRANSITIONS: dict[str, set[str]] = {
     Appointment.Status.SCHEDULED: {
@@ -74,18 +73,6 @@ def _client_queryset_for_business(current_business):
     ).order_by("first_name", "last_name", "pk")
 
 
-def _redirect_when_appointment_limit_reached(request: HttpRequest) -> HttpResponse | None:
-    current_business = request.current_business
-    if not business_limit_reached(current_business, "appointments_per_month"):
-        return None
-
-    messages.error(
-        request,
-        get_business_limit_reached_message(current_business, "appointments_per_month"),
-    )
-    return redirect("appointment_list")
-
-
 def _requested_service_is_valid_for_request(lead: Lead) -> bool:
     return lead.has_valid_requested_service
 
@@ -115,9 +102,7 @@ def _display_name_for_request_client(lead: Lead, client) -> str:
     if client.company_name:
         return client.company_name
 
-    full_name = " ".join(
-        part for part in [client.first_name, client.last_name] if part
-    ).strip()
+    full_name = " ".join(part for part in [client.first_name, client.last_name] if part).strip()
     if full_name:
         return full_name
 
@@ -172,9 +157,10 @@ def _display_name_for_client(client: Client) -> str:
     if client.company_name:
         return client.company_name
 
-    return " ".join(
-        part for part in [client.first_name, client.last_name] if part
-    ).strip() or client.email
+    return (
+        " ".join(part for part in [client.first_name, client.last_name] if part).strip()
+        or client.email
+    )
 
 
 def _build_location_from_client(client: Client) -> str:
@@ -306,16 +292,12 @@ def appointment_detail(request: HttpRequest, appointment_id: int) -> HttpRespons
 @require_http_methods(["GET", "POST"])
 def appointment_create(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
-    limit_response = _redirect_when_appointment_limit_reached(request)
-    if limit_response is not None:
-        return limit_response
-
     source_client = _get_source_client_for_create(request, current_business)
 
     if request.method == "POST":
         form = AppointmentForm(request.POST, current_business=current_business)
         if form.is_valid():
-            appointment = form.save()
+            appointment, _created = create_appointment_operation(request, form)
             messages.success(request, "Appointment created successfully.")
             return redirect("appointment_detail", appointment_id=appointment.id)
         messages.error(request, "Please correct the errors below.")
@@ -345,10 +327,6 @@ def appointment_create(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def appointment_create_from_request(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
-    limit_response = _redirect_when_appointment_limit_reached(request)
-    if limit_response is not None:
-        return limit_response
-
     lead = get_object_or_404(
         _request_lead_queryset_for_business(current_business),
         pk=lead_id,
@@ -365,10 +343,8 @@ def appointment_create_from_request(request: HttpRequest, lead_id: int) -> HttpR
     if request.method == "POST":
         form = AppointmentForm(request.POST, current_business=current_business)
         if form.is_valid():
-            appointment = form.save(commit=False)
-            appointment.source_lead = lead
-            appointment.save()
-            if lead.is_public_booking_request:
+            appointment, created = create_appointment_operation(request, form, source_lead=lead)
+            if created and lead.is_public_booking_request:
                 send_appointment_confirmation_email(appointment)
             messages.success(request, "Appointment created successfully from service request.")
             return redirect("appointment_detail", appointment_id=appointment.id)

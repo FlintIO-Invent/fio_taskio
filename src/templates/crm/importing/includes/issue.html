@@ -1,0 +1,1 @@
+{% if issue.column %}<strong><code>{{ issue.column }}</code>:</strong> {% endif %}{{ issue.message }}{% if issue.code == 'wrong_import_type' %} <a href="{% url 'data_import' %}">Choose the matching import</a>.{% endif %}

@@ -4,6 +4,7 @@ import stripe
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -20,6 +21,8 @@ from .forms import (
     BusinessInvitationForm,
     BusinessSettingsForm,
     BusinessSubscriptionPlanForm,
+    LogisticsTransportNameActionForm,
+    LogisticsTransportNameForm,
     WeeklyAvailabilityBulkForm,
     WeeklyAvailabilityForm,
 )
@@ -358,6 +361,11 @@ def business_settings(request: HttpRequest) -> HttpResponse:
     can_edit_business = manages_business and business_can_modify_workspace(business)
     account_form = PersonalAccountForm(instance=request.user, prefix="account")
     form = BusinessSettingsForm(instance=business) if can_edit_business else None
+    transport_form = (
+        LogisticsTransportNameForm(business=business, prefix="transport")
+        if can_edit_business and business.vertical == Business.Vertical.LOGISTICS else None
+    )
+    transport_action_form = None
 
     if request.method == "POST":
         section = request.POST.get("section", "business")
@@ -379,6 +387,29 @@ def business_settings(request: HttpRequest) -> HttpResponse:
                 form.save()
                 messages.success(request, "Business settings updated.")
                 return redirect("business_settings")
+        elif section == "logistics_transport":
+            if not manages_business:
+                raise PermissionDenied("Only owners and admins can update business settings.")
+            if not can_edit_business:
+                return redirect_for_unavailable_workspace_access(request)
+            if business.vertical != Business.Vertical.LOGISTICS:
+                raise PermissionDenied("Transport names are only available for Logistics businesses.")
+            with transaction.atomic():
+                business = Business.objects.select_for_update().get(pk=business.pk)
+                if request.POST.get("action") == "add":
+                    transport_form = LogisticsTransportNameForm(
+                        request.POST, business=business, prefix="transport"
+                    )
+                    submitted_form = transport_form
+                else:
+                    transport_action_form = LogisticsTransportNameActionForm(
+                        request.POST, business=business
+                    )
+                    submitted_form = transport_action_form
+                if submitted_form.is_valid():
+                    submitted_form.save()
+                    messages.success(request, "Logistics names updated.")
+                    return redirect(f"{reverse('business_settings')}#logistics-defaults")
         else:
             return HttpResponse("Unknown settings section.", status=400)
 
@@ -387,6 +418,8 @@ def business_settings(request: HttpRequest) -> HttpResponse:
         "membership": membership,
         "form": form,
         "account_form": account_form,
+        "transport_form": transport_form,
+        "transport_action_form": transport_action_form,
         "can_edit_business_settings": can_edit_business,
         "booking_availability_allowed": bool(
             business and business.has_capability("booking_availability")
@@ -396,6 +429,17 @@ def business_settings(request: HttpRequest) -> HttpResponse:
         from apps.logistics.models import LogisticsProfile
 
         context["logistics_profile"] = LogisticsProfile.objects.filter(business=business).first()
+        context["transport_names"] = [
+            {
+                "kind": kind,
+                "label": kind.title(),
+                "name": name,
+                "is_default": name == getattr(business, f"logistics_default_{kind}"),
+            }
+            for kind in ("carrier", "vessel")
+            for name in getattr(business, f"logistics_{kind}_names").splitlines()
+            if name
+        ]
     if can_edit_business and business.has_capability("services"):
         context.update(
             {

@@ -5996,11 +5996,11 @@ class MotionmatePlanCatalogTests(TestCase):
                 "eur_monthly": Decimal("39.00"),
                 "usd_yearly": Decimal("390.00"),
                 "eur_yearly": Decimal("390.00"),
-                "users": 2,
-                "staff": 1,
-                "clients": 15,
-                "invoices": 50,
-                "appointments": 35,
+                "users": 5,
+                "staff": 4,
+                "clients": None,
+                "invoices": 200,
+                "appointments": 250,
                 "public_bookings": 50,
             },
             "pro": {
@@ -6008,11 +6008,11 @@ class MotionmatePlanCatalogTests(TestCase):
                 "eur_monthly": Decimal("79.00"),
                 "usd_yearly": Decimal("790.00"),
                 "eur_yearly": Decimal("790.00"),
-                "users": 5,
-                "staff": 4,
-                "clients": 60,
-                "invoices": 200,
-                "appointments": 150,
+                "users": 10,
+                "staff": 9,
+                "clients": None,
+                "invoices": 500,
+                "appointments": 750,
                 "public_bookings": 250,
             },
             "business": {
@@ -6020,11 +6020,11 @@ class MotionmatePlanCatalogTests(TestCase):
                 "eur_monthly": Decimal("149.00"),
                 "usd_yearly": Decimal("1590.00"),
                 "eur_yearly": Decimal("1490.00"),
-                "users": 10,
-                "staff": 9,
-                "clients": 150,
-                "invoices": 500,
-                "appointments": 400,
+                "users": 15,
+                "staff": 14,
+                "clients": None,
+                "invoices": 2000,
+                "appointments": 3000,
                 "public_bookings": 750,
             },
         }
@@ -6157,7 +6157,7 @@ class MotionmatePlanCatalogTests(TestCase):
         BusinessUser.objects.create(user=owner, business=business, role=BusinessUser.Role.OWNER)
         BusinessUser.objects.create(user=staff, business=business, role=BusinessUser.Role.STAFF)
 
-        self.assertTrue(business_limit_reached(business, "users"))
+        self.assertFalse(business_limit_reached(business, "users"))
         self.assertFalse(business_limit_reached(business, "clients"))
         self.assertFalse(business_limit_reached(business, "appointments_per_month"))
         self.assertFalse(business_limit_reached(business, "public_bookings_per_month"))
@@ -6297,7 +6297,7 @@ class MotionmatePlanCatalogTests(TestCase):
 
         self.assertTrue(business_limit_reached(business, "invoices_per_month"))
         self.assertTrue(business_limit_reached(business, "appointments_per_month"))
-        self.assertTrue(business_limit_reached(business, "public_bookings_per_month"))
+        self.assertFalse(business_limit_reached(business, "public_bookings_per_month"))
 
     def test_public_pricing_page_defaults_to_usd_prices_and_no_growth_plan(self):
         ClarivoPlan.objects.create(
@@ -6326,7 +6326,7 @@ class MotionmatePlanCatalogTests(TestCase):
         self.assertContains(response, "Recommended")
         self.assertContains(response, "Client CRM")
         self.assertContains(response, "Online Booking")
-        self.assertContains(response, "2 total users: owner + 1 staff account")
+        self.assertContains(response, "5 total users: owner + 4 staff accounts")
         self.assertNotContains(response, "€39")
         self.assertNotContains(response, "€79")
         self.assertNotContains(response, "€149")
@@ -7353,6 +7353,7 @@ class BusinessSubscriptionViewTests(TestCase):
         self.starter_plan = ClarivoPlan.objects.get(slug="starter")
         self.pro_plan = ClarivoPlan.objects.get(slug="pro")
         self.business_plan = ClarivoPlan.objects.get(slug="business")
+        BusinessUser.objects.create(user=self.user, business=self.business, role=BusinessUser.Role.OWNER)
 
     def _login_with_role(self, role: str):
         BusinessUser.objects.update_or_create(
@@ -8134,11 +8135,7 @@ class BusinessSubscriptionViewTests(TestCase):
     def test_restricted_workspace_allows_read_pages_and_hides_mutation_controls(self):
         self._login_with_role(BusinessUser.Role.OWNER)
         now = timezone.now()
-        self._stripe_subscription(
-            status=BusinessSubscription.Status.PAST_DUE,
-            past_due_since=now - timedelta(days=10),
-            grace_period_ends_at=now - timedelta(days=3),
-        )
+        subscription = self._stripe_subscription()
         client = Client.objects.create(
             business=self.business,
             first_name="Read",
@@ -8164,6 +8161,11 @@ class BusinessSubscriptionViewTests(TestCase):
             name="Read-only service",
             unit_price=Decimal("25.00"),
         )
+
+        subscription.status = BusinessSubscription.Status.PAST_DUE
+        subscription.past_due_since = now - timedelta(days=10)
+        subscription.grace_period_ends_at = now - timedelta(days=3)
+        subscription.save()
 
         responses = {
             "dashboard": self.client.get(reverse("agent_dashboard")),
@@ -8193,11 +8195,7 @@ class BusinessSubscriptionViewTests(TestCase):
     def test_restricted_workspace_denies_direct_mutation_routes_and_json_actions(self):
         self._login_with_role(BusinessUser.Role.OWNER)
         now = timezone.now()
-        self._stripe_subscription(
-            status=BusinessSubscription.Status.PAST_DUE,
-            past_due_since=now - timedelta(days=10),
-            grace_period_ends_at=now - timedelta(days=3),
-        )
+        subscription = self._stripe_subscription()
         client = Client.objects.create(
             business=self.business,
             first_name="Blocked",
@@ -8211,6 +8209,11 @@ class BusinessSubscriptionViewTests(TestCase):
             invoice_number="MM-BLOCKED-1",
             status=Invoice.Status.DRAFT,
         )
+
+        subscription.status = BusinessSubscription.Status.PAST_DUE
+        subscription.past_due_since = now - timedelta(days=10)
+        subscription.grace_period_ends_at = now - timedelta(days=3)
+        subscription.save()
 
         create_response = self.client.get(reverse("staff_client_create"), follow=True)
         invite_response = self.client.post(
@@ -8420,13 +8423,13 @@ class BusinessSubscriptionViewTests(TestCase):
 
     def test_over_quota_downgrade_requires_confirmation_before_plan_changes(self):
         self._login_with_role(BusinessUser.Role.OWNER)
-        self._add_business_member("staff-one@example.com")
-        self._add_business_member("staff-two@example.com")
         subscription = BusinessSubscription.objects.create(
             business=self.business,
             plan=self.business_plan,
             status=BusinessSubscription.Status.ACTIVE,
         )
+        for number in range(5):
+            self._add_business_member(f"downgrade-staff-{number}@example.com")
 
         response = self.client.post(
             reverse("business_subscription"),
@@ -8439,18 +8442,18 @@ class BusinessSubscriptionViewTests(TestCase):
         self.assertContains(response, "Review the limits before changing to Starter.")
         self.assertContains(response, "Confirm change to Starter")
         self.assertContains(response, "Over Starter quota")
-        self.assertContains(response, "Total users/seats: using 3, Starter allows 2.")
+        self.assertContains(response, "Total users/seats: using 6, Starter allows 5.")
         self.assertNotContains(response, "Workspace plan updated to Starter")
 
     def test_confirmed_over_quota_downgrade_keeps_records_and_updates_plan(self):
         self._login_with_role(BusinessUser.Role.OWNER)
-        self._add_business_member("staff-one@example.com")
-        self._add_business_member("staff-two@example.com")
         subscription = BusinessSubscription.objects.create(
             business=self.business,
             plan=self.business_plan,
             status=BusinessSubscription.Status.ACTIVE,
         )
+        for number in range(5):
+            self._add_business_member(f"downgrade-staff-{number}@example.com")
 
         response = self.client.post(
             reverse("business_subscription"),
@@ -8464,7 +8467,7 @@ class BusinessSubscriptionViewTests(TestCase):
         subscription.refresh_from_db()
         self.assertRedirects(response, reverse("business_subscription"))
         self.assertEqual(subscription.plan, self.starter_plan)
-        self.assertEqual(self.business.memberships.filter(is_active=True).count(), 3)
+        self.assertEqual(self.business.memberships.filter(is_active=True).count(), 6)
         self.assertTrue(business_limit_reached(self.business, "users"))
         self.assertContains(response, "Workspace plan updated to Starter")
         self.assertContains(response, "Existing records were kept")
@@ -8606,7 +8609,7 @@ class BusinessInvitationViewTests(TestCase):
         self.assertIn(BusinessUser.Role.VIEWER, business_roles)
 
     def test_restricted_workspace_invitation_acceptance_is_read_only(self):
-        self._enable_restricted_subscription()
+        subscription = self._enable_team_subscription()
         invitation = BusinessInvitation.objects.create(
             business=self.business,
             email="restricted-invitee@example.com",
@@ -8614,6 +8617,17 @@ class BusinessInvitationViewTests(TestCase):
             token="restricted-invite-token",
             invited_by=self.owner,
         )
+
+        now = timezone.now()
+        subscription.status = BusinessSubscription.Status.PAST_DUE
+        subscription.payment_provider = BusinessSubscription.PaymentProvider.STRIPE
+        subscription.provider_customer_id = "cus_invite_restricted"
+        subscription.provider_subscription_id = "sub_invite_restricted"
+        subscription.billing_interval = "monthly"
+        subscription.billing_currency = "usd"
+        subscription.past_due_since = now - timedelta(days=10)
+        subscription.grace_period_ends_at = now - timedelta(days=3)
+        subscription.save()
 
         get_response = self.client.get(
             reverse("accept_business_invitation", args=[invitation.token])
@@ -8835,6 +8849,7 @@ class BusinessInvitationViewTests(TestCase):
             email="hello@legacy.test",
             country="Curacao",
         )
+        BusinessSubscription.objects.create(business=other_business, plan=ClarivoPlan.objects.get(slug="starter"), status="active")
         BusinessUser.objects.create(
             user=other_workspace_user,
             business=other_business,

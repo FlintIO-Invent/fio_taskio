@@ -247,6 +247,7 @@ def execute_client_import(
                 capacity = project_client_capacity(
                     business=locked_business,
                     new_importable_clients=len(trusted_rows),
+                    new_active_clients=sum(row.uses_active_capacity for row in trusted_rows),
                 )
                 if not capacity.available or not capacity.allowed:
                     raise CapacityStateChanged

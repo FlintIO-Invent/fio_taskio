@@ -44,7 +44,7 @@
     <div class="alert alert-danger" role="alert">
       <h3 class="h5 alert-heading">Blocking file issues</h3>
       <ul class="mb-0">
-        {% for issue in file_issues %}<li>{{ issue.message }}</li>{% endfor %}
+        {% for issue in file_issues %}<li>{% include "crm/importing/includes/issue.html" with issue=issue only %}</li>{% endfor %}
       </ul>
       <p class="mt-2 mb-0">Download the current template, copy your data beneath its headers, and upload the corrected CSV.</p>
     </div>
@@ -74,6 +74,7 @@
         <div class="col-md-3"><span class="text-body-tertiary">Remaining capacity</span><div class="fw-semibold">{% if capacity.available %}{{ capacity.remaining_capacity|default_if_none:"Unlimited" }}{% else %}Unavailable{% endif %}</div></div>
         <div class="col-md-3"><span class="text-body-tertiary">New importable clients</span><div class="fw-semibold">{{ capacity.new_importable_clients }}</div></div>
       </div>
+      {% if capacity.new_active_clients != None %}<p class="text-body-tertiary small mt-3 mb-0">{{ capacity.new_active_clients }} new active clients will use plan capacity. Clients with an INACTIVE or ARCHIVED status do not use active-client slots.</p>{% endif %}
     </div>
   </div>
 
@@ -83,7 +84,7 @@
       <div class="table-responsive">
         <table class="table table-hover mb-0">
           <caption class="visually-hidden">Client import row-by-row results</caption>
-          <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Phone</th><th scope="col">Status</th><th scope="col">Issue</th></tr></thead>
+          <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Phone</th><th scope="col">Validation status</th><th scope="col">Issues</th></tr></thead>
           <tbody>
             {% for row in preview_rows %}
               <tr>
@@ -92,7 +93,7 @@
                 <td>{{ row.display.email }}</td>
                 <td>{{ row.display.phone }}</td>
                 <td>{% include "crm/importing/includes/status_badge.html" with status=row.status %}</td>
-                <td>{% for issue in row.issues %}<div>{{ issue.message }}</div>{% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
+                <td>{% for issue in row.issues %}<div>{% include "crm/importing/includes/issue.html" with issue=issue only %}</div>{% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
               </tr>
             {% empty %}
               <tr><td colspan="6" class="text-center text-body-tertiary py-4">No previewable rows.</td></tr>

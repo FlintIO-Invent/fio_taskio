@@ -8,7 +8,6 @@ from typing import Any
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 
-from apps.businesses.models import Business
 from apps.businesses.utils import (
     get_business_usage_count,
     resolve_business_plan_limit,
@@ -44,6 +43,7 @@ class ClientCapacityProjection:
     plan_limit: int | None
     remaining_capacity: int | None
     new_importable_clients: int
+    new_active_clients: int
 
 
 @dataclass(frozen=True)
@@ -225,20 +225,20 @@ def classify_validated_client_rows(
     return classified
 
 
-def project_client_capacity(*, business, new_importable_clients: int) -> ClientCapacityProjection:
+def project_client_capacity(
+    *, business, new_importable_clients: int, new_active_clients: int | None = None
+) -> ClientCapacityProjection:
+    if new_active_clients is None:
+        new_active_clients = new_importable_clients
     current_active_clients = get_business_usage_count(business, "clients")
     entitlement = resolve_business_plan_limit(business, "clients")
     plan_limit = entitlement.limit
 
-    # Preserve SERVICE import policy. Only a valid Logistics entitlement may
-    # interpret a null plan limit as the legacy unlimited allowance.
-    if not entitlement.available or (
-        plan_limit is None and business.vertical != Business.Vertical.LOGISTICS
-    ):
+    if not entitlement.available:
         decision = check_import_capacity(
             business=business,
             import_type=ImportType.CLIENTS,
-            requested_rows=new_importable_clients,
+            requested_rows=new_active_clients,
             capacity_checker=lambda **_kwargs: ImportAccessDecision(
                 False,
                 "client_capacity_unavailable",
@@ -254,6 +254,7 @@ def project_client_capacity(*, business, new_importable_clients: int) -> ClientC
             plan_limit=None,
             remaining_capacity=None,
             new_importable_clients=new_importable_clients,
+            new_active_clients=new_active_clients,
         )
 
     remaining_capacity = None if plan_limit is None else max(plan_limit - current_active_clients, 0)
@@ -266,7 +267,7 @@ def project_client_capacity(*, business, new_importable_clients: int) -> ClientC
             False,
             "client_capacity_exceeded",
             (
-                f"The preview contains {requested_rows} new clients but only "
+                f"The preview contains {requested_rows} new active clients but only "
                 f"{remaining_capacity} client slots remain."
             ),
         )
@@ -274,7 +275,7 @@ def project_client_capacity(*, business, new_importable_clients: int) -> ClientC
     decision = check_import_capacity(
         business=business,
         import_type=ImportType.CLIENTS,
-        requested_rows=new_importable_clients,
+        requested_rows=new_active_clients,
         capacity_checker=capacity_checker,
     )
     return ClientCapacityProjection(
@@ -286,6 +287,7 @@ def project_client_capacity(*, business, new_importable_clients: int) -> ClientC
         plan_limit=plan_limit,
         remaining_capacity=remaining_capacity,
         new_importable_clients=new_importable_clients,
+        new_active_clients=new_active_clients,
     )
 
 
@@ -341,6 +343,11 @@ def build_client_preview(
     capacity = project_client_capacity(
         business=business,
         new_importable_clients=summary.new_count,
+        new_active_clients=sum(
+            row.uses_active_capacity
+            for row in validation.validated_rows
+            if classified[row.source_row_number].status == ClientPreviewStatus.NEW
+        ),
     )
     ready = (
         not validation.has_errors

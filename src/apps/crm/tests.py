@@ -2407,6 +2407,13 @@ class CRMBusinessScopingTests(TestCase):
 
 class PublicBookingTests(TestCase):
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        original_post = self.client.post
+        def post_with_committed_callbacks(*args, **kwargs):
+            with self.captureOnCommitCallbacks(execute=True):
+                return original_post(*args, **kwargs)
+        self.client.post = post_with_committed_callbacks
         self.business = Business.objects.create(
             name="Motionmate Booking",
             slug="motionmate-booking",
@@ -2704,7 +2711,7 @@ class PublicBookingTests(TestCase):
         self.assertIn(str(self.staff_user.pk), slot_picker_data["staff"])
         self.assertTrue(slot_picker_data["availability"]["business"])
 
-    def test_public_booking_page_blocks_new_requests_when_monthly_limit_reached(self):
+    def test_public_booking_ignores_legacy_request_quota(self):
         self.public_booking_plan.max_public_bookings_per_month = 1
         self.public_booking_plan.save(
             update_fields=["max_public_bookings_per_month", "updated_at"],
@@ -2726,16 +2733,10 @@ class PublicBookingTests(TestCase):
             data=self._booking_payload(email="limit-blocked-booking@example.com"),
         )
 
-        self.assertEqual(response.status_code, 403)
-        self.assertContains(response, "Online Booking Unavailable", status_code=403)
-        self.assertContains(
-            response,
-            "Public Booking Enabled plan limit of 1 online bookings this month",
-            status_code=403,
-        )
-        self.assertFalse(Lead.objects.filter(email="limit-blocked-booking@example.com").exists())
+        self.assertRedirects(response, reverse("public_booking_thank_you", args=[self.business.slug]))
+        self.assertTrue(Lead.objects.filter(email="limit-blocked-booking@example.com").exists())
 
-    def test_public_book_now_is_hidden_and_rejected_when_appointment_limit_reached(self):
+    def test_public_book_now_uses_submitted_month_and_rejects_at_capacity(self):
         self.public_booking_plan.max_appointments_per_month = 1
         self.public_booking_plan.save(
             update_fields=["max_appointments_per_month", "updated_at"],
@@ -2765,14 +2766,15 @@ class PublicBookingTests(TestCase):
                 booking_intent=PublicBookingForm.BOOK_NOW,
                 staff_member=self.staff_user.pk,
                 email="appointment-limit-book-now@example.com",
+                preferred_time=(self.valid_start + timedelta(hours=1)).strftime("%H:%M"),
             ),
         )
 
         self.assertEqual(get_response.status_code, 200)
-        self.assertNotContains(get_response, "Book an appointment now")
+        self.assertContains(get_response, "Book an appointment now")
         self.assertContains(get_response, "Contact me before booking")
-        self.assertEqual(post_response.status_code, 200)
-        self.assertContains(post_response, "book_now is not one of the available choices.")
+        self.assertEqual(post_response.status_code, 409)
+        self.assertContains(post_response, "allowance of 1 appointments for", status_code=409)
         self.assertFalse(
             Lead.objects.filter(email="appointment-limit-book-now@example.com").exists()
         )
@@ -3236,7 +3238,7 @@ class PublicBookingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Booking Request")
         self.assertContains(response, self.service.name)
-        self.assertContains(response, lead.preferred_start_time.strftime("%b"))
+        self.assertContains(response, lead.preferred_start_time.astimezone(self.business_timezone).strftime("%b"))
         self.assertContains(response, "Preferred")
 
     def test_booking_request_detail_shows_booking_context_and_confirm_action_for_manage_roles(self):
@@ -3366,8 +3368,8 @@ class PublicBookingTests(TestCase):
                 "service": self.service.pk,
                 "staff_member": self.staff_user.pk,
                 "title": "Confirmed online consultation",
-                "start_time": lead.preferred_start_time.strftime("%Y-%m-%dT%H:%M"),
-                "end_time": lead.preferred_end_time.strftime("%Y-%m-%dT%H:%M"),
+                "start_time": lead.preferred_start_time.astimezone(self.business_timezone).strftime("%Y-%m-%dT%H:%M"),
+                "end_time": lead.preferred_end_time.astimezone(self.business_timezone).strftime("%Y-%m-%dT%H:%M"),
                 "location": "45 Front Street, Philipsburg, Sint Maarten, 00000",
                 "notes": "Confirmed from booking request.",
             },
@@ -3401,8 +3403,8 @@ class PublicBookingTests(TestCase):
                 "service": self.service.pk,
                 "staff_member": self.staff_user.pk,
                 "title": "Confirmed online consultation",
-                "start_time": lead.preferred_start_time.strftime("%Y-%m-%dT%H:%M"),
-                "end_time": lead.preferred_end_time.strftime("%Y-%m-%dT%H:%M"),
+                "start_time": lead.preferred_start_time.astimezone(self.business_timezone).strftime("%Y-%m-%dT%H:%M"),
+                "end_time": lead.preferred_end_time.astimezone(self.business_timezone).strftime("%Y-%m-%dT%H:%M"),
                 "location": "45 Front Street, Philipsburg, Sint Maarten, 00000",
                 "notes": "Confirmed from booking request.",
             },

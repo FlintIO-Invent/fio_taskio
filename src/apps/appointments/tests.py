@@ -28,6 +28,8 @@ class AppointmentModelAndFormTests(TestCase):
             name="Bravo Workspace",
             slug="bravo-workspace",
         )
+        for business in (self.business, self.other_business):
+            BusinessSubscription.objects.create(business=business, plan=ClarivoPlan.objects.get(slug="business"), status="active")
         self.owner = TaskIOUser.objects.create_user(
             email="owner@example.com",
             password="testpass123",
@@ -917,7 +919,7 @@ class AppointmentViewTests(TestCase):
         self.assertRedirects(status_response, reverse("appointment_detail", args=[appointment.id]))
         self.assertEqual(appointment.status, Appointment.Status.NO_SHOW)
 
-    def test_appointment_create_redirects_when_monthly_plan_limit_reached(self):
+    def test_appointment_create_rejects_when_scheduled_month_limit_reached(self):
         self.appointments_plan.max_appointments_per_month = 1
         self.appointments_plan.save(
             update_fields=["max_appointments_per_month", "updated_at"],
@@ -930,11 +932,8 @@ class AppointmentViewTests(TestCase):
             follow=True,
         )
 
-        self.assertRedirects(response, reverse("appointment_list"))
-        self.assertContains(
-            response,
-            "Appointments Enabled plan limit of 1 appointments this month",
-        )
+        self.assertEqual(response.status_code, 409)
+        self.assertContains(response, "allowance of 1 appointments for", status_code=409)
         self.assertFalse(Appointment.objects.filter(title="Limit blocked visit").exists())
 
     def test_accountant_can_view_but_cannot_create_update_or_change_status(self):

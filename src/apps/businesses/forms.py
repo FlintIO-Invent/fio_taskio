@@ -110,6 +110,93 @@ def _plan_allowed_invitation_roles(business: Business | None) -> set[str]:
     )
 
 
+class LogisticsTransportNameForm(forms.Form):
+    carrier_name = forms.CharField(
+        required=False,
+        max_length=160,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. Caribbean Cargo"}),
+    )
+    vessel_name = forms.CharField(
+        required=False,
+        max_length=160,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. MV Island Express"}),
+    )
+
+    def __init__(self, *args, business, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.business = business
+
+    def clean(self):
+        cleaned = super().clean()
+        if not self.errors and not any(cleaned.values()):
+            raise ValidationError("Enter a carrier name, a vessel name, or both.")
+        for kind in ("carrier", "vessel"):
+            name = cleaned.get(f"{kind}_name", "")
+            if not name:
+                continue
+            if len(name.splitlines()) != 1:
+                self.add_error(f"{kind}_name", "Enter one name at a time.")
+                continue
+            names = getattr(self.business, f"logistics_{kind}_names").splitlines()
+            if name.casefold() in {saved.casefold() for saved in names}:
+                self.add_error(f"{kind}_name", "This name is already saved for this business.")
+            elif len(names) >= 100:
+                self.add_error(f"{kind}_name", f"You can save up to 100 {kind} names.")
+        return cleaned
+
+    def save(self):
+        # The caller locks the Business while validating and saving so simultaneous
+        # additions cannot replace each other's names.
+        changed = []
+        for kind in ("carrier", "vessel"):
+            name = self.cleaned_data.get(f"{kind}_name")
+            if name:
+                key = f"logistics_{kind}_names"
+                names = getattr(self.business, key).splitlines()
+                setattr(self.business, key, "\n".join([*names, name]))
+                changed.append(key)
+        self.business.save(update_fields=[*changed, "updated_at"])
+
+
+class LogisticsTransportNameActionForm(forms.Form):
+    action = forms.ChoiceField(choices=[(value, value) for value in ("remove", "default", "clear_default")])
+    kind = forms.ChoiceField(choices=[("carrier", "Carrier"), ("vessel", "Vessel")])
+    name = forms.CharField(max_length=160)
+
+    def __init__(self, *args, business, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.business = business
+
+    def clean(self):
+        cleaned = super().clean()
+        kind, name = cleaned.get("kind"), cleaned.get("name")
+        if kind and name and name not in getattr(self.business, f"logistics_{kind}_names").splitlines():
+            raise ValidationError("This name is no longer saved for this business. Refresh and try again.")
+        if (
+            cleaned.get("action") == "clear_default"
+            and kind and name
+            and name != getattr(self.business, f"logistics_default_{kind}")
+        ):
+            raise ValidationError("The default has changed. Refresh and try again.")
+        return cleaned
+
+    def save(self):
+        kind, name, action = (self.cleaned_data[key] for key in ("kind", "name", "action"))
+        names_key, default_key = f"logistics_{kind}_names", f"logistics_default_{kind}"
+        changed = []
+        if action == "remove":
+            names = getattr(self.business, names_key).splitlines()
+            setattr(self.business, names_key, "\n".join(saved for saved in names if saved != name))
+            changed.append(names_key)
+        if action == "default":
+            setattr(self.business, default_key, name)
+            changed.append(default_key)
+        elif action == "clear_default" or getattr(self.business, default_key) == name:
+            setattr(self.business, default_key, "")
+            changed.append(default_key)
+        self.business.save(update_fields=[*changed, "updated_at"])
+
+
 class BusinessSettingsForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

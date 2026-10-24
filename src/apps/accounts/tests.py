@@ -782,7 +782,7 @@ class BusinessRegistrationViewTests(TestCase):
                 self.assertTrue(can_use_module(business, "appointments"))
 
     def test_selected_public_pricing_plan_is_preserved_through_trial_signup(self):
-        pro_client_limit = ClarivoPlan.objects.get(slug="pro").max_clients
+        pro_user_limit = ClarivoPlan.objects.get(slug="pro").max_users
 
         for slug in PUBLIC_PAID_PLAN_SLUGS:
             with self.subTest(plan=slug):
@@ -813,7 +813,7 @@ class BusinessRegistrationViewTests(TestCase):
                 )
                 self.assertEqual(subscription.plan.max_clients, plan.max_clients)
                 if slug != "pro":
-                    self.assertNotEqual(subscription.plan.max_clients, pro_client_limit)
+                    self.assertNotEqual(subscription.plan.max_users, pro_user_limit)
                 self.client.logout()
 
     def test_validation_errors_preserve_selected_public_plan_summary(self):
@@ -2112,6 +2112,7 @@ class BusinessInvitationAcceptanceTests(TestCase):
             email="hello@otherworkspace.com",
             country="Aruba",
         )
+        BusinessSubscription.objects.create(business=other_business, plan=ClarivoPlan.objects.get(slug="starter"), status="active")
         BusinessUser.objects.create(
             user=existing_user,
             business=other_business,

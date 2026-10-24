@@ -379,6 +379,7 @@ def parcel_registration(request, parcel_id):
     saved_decision = request.session.get(
         f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
     )
+    paid_available = any(row["can_pay"] for row in invoices) or summary.financial["clearance"]["cleared"]
     return render(
         request,
         "logistics/parcel_registration.html",
@@ -398,7 +399,9 @@ def parcel_registration(request, parcel_id):
                     else None
                 ),
                 initial={"decision": saved_decision} if saved_decision else None,
+                paid_available=paid_available,
             ),
+            "paid_available": paid_available,
             "payment_decision_complete": bool(saved_decision) and request.method != "POST",
             "can_decide_payment": _can_decide_payment(request, parcel),
             "error": error,

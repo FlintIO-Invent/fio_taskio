@@ -550,6 +550,11 @@ def get_business_plan_usage_summary(
 ) -> list[dict[str, Any]]:
     usage_summary = []
     for limit_name in PLAN_USAGE_LIMIT_NAMES:
+        if (
+            (plan is not None and plan.family == ClarivoPlan.Family.SERVICE)
+            or (business is not None and business.vertical == Business.Vertical.SERVICE)
+        ) and limit_name == "public_bookings_per_month":
+            continue
         limit = get_plan_limit(plan, limit_name)
         usage_count = get_business_usage_count(
             business,
@@ -613,6 +618,12 @@ def business_limit_reached(
     *,
     include_pending_invitations: bool = False,
 ) -> bool:
+    if (
+        business is not None
+        and business.vertical == Business.Vertical.SERVICE
+        and _normalize_plan_limit_name(limit_name) == "public_bookings_per_month"
+    ):
+        return False
     if _normalize_plan_limit_name(limit_name) in MONITORING_PLAN_LIMITS | {"storage_gb"}:
         return False
     limit = get_business_plan_limit(business, limit_name)
@@ -629,6 +640,12 @@ def business_limit_reached(
 
 def get_business_limit_reached_message(business: Business | None, limit_name: str) -> str:
     normalized_name = _normalize_plan_limit_name(limit_name)
+    if (
+        business is not None
+        and business.vertical == Business.Vertical.SERVICE
+        and normalized_name == "public_bookings_per_month"
+    ):
+        return "Online booking shares your monthly appointment allowance. Each appointment counts once."
     limit = get_business_plan_limit(business, normalized_name)
     subscription = get_business_subscription(business)
     plan_name = subscription.plan.name if subscription is not None else "current"
@@ -1125,9 +1142,11 @@ def _validated_invitation_location(business, location):
         return None
     from apps.logistics.models import LogisticsLocation
 
-    site = LogisticsLocation.objects.select_for_update().filter(
-        pk=getattr(location, "pk", location), business=business, is_active=True
-    ).first()
+    site = (
+        LogisticsLocation.objects.select_for_update()
+        .filter(pk=getattr(location, "pk", location), business=business, is_active=True)
+        .first()
+    )
     if business.vertical != Business.Vertical.LOGISTICS or site is None:
         raise ValueError("Select an active Logistics location in this workspace.")
     return site
@@ -1144,7 +1163,7 @@ def create_or_refresh_business_invitation(
     location=None,
 ) -> tuple[BusinessInvitation, bool]:
     normalized_email = email.strip().lower()
-    if business.vertical == Business.Vertical.LOGISTICS:
+    if business.vertical in (Business.Vertical.SERVICE, Business.Vertical.LOGISTICS):
         from .usage_limits import lock_capacity_scope
 
         lock_capacity_scope(business.pk)
@@ -1168,7 +1187,9 @@ def create_or_refresh_business_invitation(
         invitation.invited_by = invited_by
         invitation.expires_at = expires_at
         invitation.location = location
-        invitation.save(update_fields=["role", "invited_by", "expires_at", "location", "updated_at"])
+        invitation.save(
+            update_fields=["role", "invited_by", "expires_at", "location", "updated_at"]
+        )
         return invitation, False
 
     invitation = BusinessInvitation.objects.create(
@@ -1189,7 +1210,7 @@ def accept_business_invitation_for_user(
     invitation: BusinessInvitation,
     user,
 ) -> tuple[BusinessUser, bool, bool]:
-    if invitation.business.vertical == Business.Vertical.LOGISTICS:
+    if invitation.business.vertical in (Business.Vertical.SERVICE, Business.Vertical.LOGISTICS):
         from .usage_limits import lock_capacity_scope
 
         business, _ = lock_capacity_scope(invitation.business_id)
@@ -1224,12 +1245,14 @@ def accept_business_invitation_for_user(
     if membership is None:
         if other_active_membership is not None:
             raise ValueError(MULTI_WORKSPACE_EMAIL_MESSAGE)
-        membership = BusinessUser.objects.create(
+        membership = BusinessUser(
             user=user,
             business=invitation.business,
             role=invitation.role,
             is_active=True,
         )
+        membership._service_reservation_id = invitation.pk
+        membership.save()
         created = True
     elif membership.is_active:
         already_member = True
@@ -1238,6 +1261,7 @@ def accept_business_invitation_for_user(
             raise ValueError(MULTI_WORKSPACE_EMAIL_MESSAGE)
         membership.role = invitation.role
         membership.is_active = True
+        membership._service_reservation_id = invitation.pk
         membership.save(update_fields=["role", "is_active", "updated_at"])
 
     if location is not None and not already_member:
