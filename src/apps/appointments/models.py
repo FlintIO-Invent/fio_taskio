@@ -5,10 +5,14 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.businesses.models import BusinessUser
+from apps.businesses.service_limits import ServiceCapacityQuerySet
+from apps.businesses.usage_limits import capacity_guard
 from apps.crm.models import BusinessService, Client, TimeStampedModel
 
 
 class Appointment(TimeStampedModel):
+    objects = ServiceCapacityQuerySet.as_manager()
+
     class Status(models.TextChoices):
         SCHEDULED = "scheduled", "Scheduled"
         COMPLETED = "completed", "Completed"
@@ -58,8 +62,15 @@ class Appointment(TimeStampedModel):
     )
     location = models.CharField(max_length=255, blank=True, default="")
     notes = models.TextField(blank=True)
+    submission_key = models.UUIDField(null=True, blank=True, editable=False)
+    submission_fingerprint = models.CharField(max_length=64, blank=True, editable=False)
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "submission_key"], name="appointment_submission_unique"
+            )
+        ]
         ordering = ["start_time", "pk"]
         indexes = [
             models.Index(fields=["business", "start_time"]),
@@ -108,9 +119,7 @@ class Appointment(TimeStampedModel):
                     "Linked service request must belong to the current workspace."
                 )
             elif self.source_lead.lead_type != self.source_lead.LeadType.REQUEST:
-                errors["source_lead"] = (
-                    "Only service requests can be linked to appointments."
-                )
+                errors["source_lead"] = "Only service requests can be linked to appointments."
 
         if self.staff_member_id is not None:
             has_membership = BusinessUser.objects.filter(
@@ -142,6 +151,7 @@ class Appointment(TimeStampedModel):
         if not self.service_name or previous_service_id != self.service_id:
             self.service_name = self.service.name
 
+    @capacity_guard
     def save(self, *args, **kwargs):
         self._apply_service_snapshot()
         self.full_clean()

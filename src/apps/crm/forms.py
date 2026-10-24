@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -152,8 +153,7 @@ def _public_country_choices_with_business(business) -> list[tuple[str, str]]:
 def _public_booking_address_style_data() -> dict:
     return {
         "districtChoices": [
-            {"value": value, "label": label}
-            for value, label in _district_choices_with_current("")
+            {"value": value, "label": label} for value, label in _district_choices_with_current("")
         ],
         "netherlandsCountries": sorted(NETHERLANDS_ADDRESS_COUNTRIES),
         "sintMaartenCountries": sorted(SINT_MAARTEN_ADDRESS_COUNTRIES),
@@ -220,22 +220,21 @@ class CRMAddressStyleMixin:
 
         if "postal_code" in self.fields:
             self.fields["postal_code"].required = False
-            if not self.is_bound and _initial_or_posted_value(self, "postal_code").lower() in {"n/a", "na"}:
+            if not self.is_bound and _initial_or_posted_value(self, "postal_code").lower() in {
+                "n/a",
+                "na",
+            }:
                 self.fields["postal_code"].initial = ""
 
         if uses_netherlands_address_format(country):
             self.fields["street_address"].label = "Street and house number"
-            self.fields["street_address"].widget.attrs.update(
-                {"placeholder": "Herengracht 101"}
-            )
+            self.fields["street_address"].widget.attrs.update({"placeholder": "Herengracht 101"})
             self.fields["district"] = forms.CharField(
                 max_length=100,
                 required=False,
                 label="City",
                 initial=current_district,
-                widget=forms.TextInput(
-                    attrs={"class": "form-control", "placeholder": "Amsterdam"}
-                ),
+                widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Amsterdam"}),
             )
             self.fields["country"].label = "Country"
             self.fields["country"].widget.attrs.update({"placeholder": "Netherlands"})
@@ -244,9 +243,7 @@ class CRMAddressStyleMixin:
             self.fields["postal_code"].help_text = "Dutch format: 1234 AB."
         elif uses_sint_maarten_districts(country):
             self.fields["street_address"].label = "Street address"
-            self.fields["street_address"].widget.attrs.update(
-                {"placeholder": "Front Street 12"}
-            )
+            self.fields["street_address"].widget.attrs.update({"placeholder": "Front Street 12"})
             self.fields["district"] = forms.ChoiceField(
                 choices=_district_choices_with_current(current_district),
                 required=False,
@@ -269,9 +266,7 @@ class CRMAddressStyleMixin:
                 required=False,
                 label="City / district / island",
                 initial=current_district,
-                widget=forms.TextInput(
-                    attrs={"class": "form-control", "placeholder": "Locality"}
-                ),
+                widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Locality"}),
             )
             self.fields["postal_code"].label = "Postal code (optional)"
             self.fields["postal_code"].widget.attrs.update({"placeholder": "Optional"})
@@ -720,6 +715,7 @@ class PublicLeadForm(CRMAddressStyleMixin, forms.ModelForm):
 
 
 class PublicBookingForm(CRMAddressStyleMixin, forms.Form):
+    operation_key = forms.UUIDField(required=False, initial=uuid.uuid4, widget=forms.HiddenInput)
     BOOK_NOW = "book_now"
     BOOK_LATER = "book_later"
     BOOKING_INTENT_CHOICES = (
@@ -934,11 +930,14 @@ class PublicBookingForm(CRMAddressStyleMixin, forms.Form):
             return cleaned_data
 
         business_tz = _timezone_for_business(business)
-        preferred_start_time = datetime.combine(
-            preferred_date,
-            preferred_time,
-            tzinfo=business_tz,
-        )
+        try:
+            with timezone.override(business_tz):
+                preferred_start_time = forms.DateTimeField().clean(
+                    datetime.combine(preferred_date, preferred_time)
+                )
+        except forms.ValidationError as exc:
+            self.add_error("preferred_time", exc)
+            return cleaned_data
         duration_minutes = (
             service.default_duration_minutes or booking_settings.default_duration_minutes
         )
@@ -1109,6 +1108,7 @@ class LeadClientConversionForm(CRMAddressStyleMixin, forms.ModelForm):
             "postal_code": "Postal code",
             "consent_to_contact": "Client contact consent confirmed",
         }
+
 
 class ServiceCategoryForm(forms.ModelForm):
     class Meta:

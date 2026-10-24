@@ -28,7 +28,8 @@ from .plan_catalog import (
     PUBLIC_PAID_PLAN_SLUGS,
     PUBLIC_PRICING_CURRENCIES,
 )
-from .usage_limits import CapacityQuerySet, capacity_guard
+from .service_limits import ServiceCapacityQuerySet
+from .usage_limits import capacity_guard
 
 
 def default_business_invitation_expiry():
@@ -1384,7 +1385,7 @@ class SubscriptionNotification(TimeStampedModel):
 
 
 class BusinessUser(TimeStampedModel):
-    objects = CapacityQuerySet.as_manager()
+    objects = ServiceCapacityQuerySet.as_manager()
 
     @capacity_guard
     def save(self, *args, **kwargs):
@@ -1464,7 +1465,7 @@ class UserOnboardingState(TimeStampedModel):
 
 
 class BusinessInvitation(TimeStampedModel):
-    objects = CapacityQuerySet.as_manager()
+    objects = ServiceCapacityQuerySet.as_manager()
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -1529,7 +1530,9 @@ class BusinessInvitation(TimeStampedModel):
                 business_id=self.business_id,
                 business__vertical=Business.Vertical.LOGISTICS,
             ).exists():
-                raise ValidationError({"location": "Select a Logistics location in this workspace."})
+                raise ValidationError(
+                    {"location": "Select a Logistics location in this workspace."}
+                )
 
     @capacity_guard
     def save(self, *args, **kwargs):

@@ -8,7 +8,6 @@ from typing import Any
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 
-from apps.businesses.models import Business
 from apps.businesses.utils import (
     get_business_usage_count,
     resolve_business_plan_limit,
@@ -235,11 +234,7 @@ def project_client_capacity(
     entitlement = resolve_business_plan_limit(business, "clients")
     plan_limit = entitlement.limit
 
-    # Preserve SERVICE import policy. Only a valid Logistics entitlement may
-    # interpret a null plan limit as the legacy unlimited allowance.
-    if not entitlement.available or (
-        plan_limit is None and business.vertical != Business.Vertical.LOGISTICS
-    ):
+    if not entitlement.available:
         decision = check_import_capacity(
             business=business,
             import_type=ImportType.CLIENTS,

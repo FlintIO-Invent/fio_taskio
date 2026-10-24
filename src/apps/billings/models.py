@@ -10,11 +10,12 @@ from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 
-from apps.businesses.usage_limits import CapacityQuerySet, capacity_guard
+from apps.businesses.service_limits import ServiceCapacityQuerySet
+from apps.businesses.usage_limits import capacity_guard
 from apps.crm.models import Client, TimeStampedModel
 
 
-class InvoiceQuerySet(CapacityQuerySet):
+class InvoiceQuerySet(ServiceCapacityQuerySet):
     def delete(self):
         if self.filter(payments__isnull=False).exists():
             raise ProtectedError("Customer payment history must be retained.", list(self))

@@ -245,6 +245,8 @@ LOGISTICS_DEPLOYMENT_CHECKS_ENABLED = settings.logistics_deployment_checks_enabl
 LOGISTICS_TRACKING_CACHE_ALIAS = settings.logistics_tracking_cache_alias
 LOGISTICS_TRACKING_CLIENT_IP_MODE = settings.logistics_tracking_client_ip_mode
 LOGISTICS_TRACKING_REQUIRE_SHARED_CACHE = not DEBUG
+SERVICES_BOOKING_CACHE_ALIAS = settings.services_booking_cache_alias
+SERVICES_BOOKING_CLIENT_IP_MODE = settings.services_booking_client_ip_mode
 # A dedicated tracking cache leaves SERVICE cache behavior unchanged.
 CACHES = {
     "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},

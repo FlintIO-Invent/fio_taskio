@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db import transaction
 from django.utils import timezone
 
 from .models import ActivityLog, Client, Lead
@@ -45,7 +46,9 @@ def _default_client_company_name(lead: Lead) -> str:
         return company_name
 
     full_name = " ".join(
-        part for part in [_normalized_text(lead.first_name), _normalized_text(lead.last_name)] if part
+        part
+        for part in [_normalized_text(lead.first_name), _normalized_text(lead.last_name)]
+        if part
     )
     return full_name or _normalized_text(lead.email)
 
@@ -86,9 +89,7 @@ def _request_context_block(lead: Lead) -> str:
         preferred_time_label = f"Preferred start: {preferred_start_time:%Y-%m-%d %H:%M}"
         if lead.preferred_end_time:
             preferred_end_time = timezone.localtime(lead.preferred_end_time)
-            preferred_time_label = (
-                f"{preferred_time_label}-{preferred_end_time:%H:%M}"
-            )
+            preferred_time_label = f"{preferred_time_label}-{preferred_end_time:%H:%M}"
         lines.append(preferred_time_label)
     if _normalized_text(lead.message):
         lines.append(f"Message: {lead.message.strip()}")
@@ -202,6 +203,16 @@ def sync_client_from_lead(lead: Lead) -> tuple[Client, bool]:
     if lead.business_id is None:
         raise ValueError("Lead must belong to a business before syncing a client.")
 
+    if lead.business.vertical == "SERVICE":
+        from apps.crm.client_capacity import lock_client_capacity_scope
+
+        with transaction.atomic():
+            lead.business = lock_client_capacity_scope(lead.business)
+            return _sync_client_from_lead(lead)
+    return _sync_client_from_lead(lead)
+
+
+def _sync_client_from_lead(lead: Lead) -> tuple[Client, bool]:
     create_defaults = _build_client_create_defaults_from_lead(lead)
     update_values = _build_client_update_values_from_lead(lead)
     client = find_matching_client_for_lead(lead)
