@@ -359,6 +359,7 @@ class LogisticsQuotaTests(QuotaFixture, TestCase):
         self.customer.business = other
         with self.assertRaises(QuotaError):
             self.customer.save(update_fields=["business"])
+        BusinessSubscription.objects.create(business=other, plan=ClarivoPlan.objects.get(slug="starter"), status="active")
         outsider = Client.objects.create(business=other, first_name="Other", last_name="Tenant")
         with self.assertRaises(QuotaError):
             Client.objects.filter(pk=outsider.pk).update(business=self.business)
@@ -504,7 +505,7 @@ class LogisticsQuotaTests(QuotaFixture, TestCase):
                 self.customer.save(update_fields=["first_name"])
                 self.assertTrue(Parcel.objects.filter(pk=parcel.pk).exists())
 
-    def test_legacy_unlimited_and_service_orm_behavior_are_unchanged(self):
+    def test_legacy_unlimited_is_unchanged_and_services_use_their_own_guard(self):
         legacy = ClarivoPlan.objects.get(slug="logistics")
         legacy.is_active = True
         legacy.save(update_fields=["is_active"])
@@ -522,9 +523,9 @@ class LogisticsQuotaTests(QuotaFixture, TestCase):
             Client(business=self.business, first_name="Service", last_name=str(i)) for i in range(3)
         ]
         Client.objects.bulk_create(rows)
-        self.assertEqual(
-            Client.objects.filter(pk__in=[r.pk for r in rows]).update(is_active=F("is_active")), 3
-        )
+        with self.assertRaises(QuotaError):
+            Client.objects.filter(pk__in=[r.pk for r in rows]).update(is_active=F("is_active"))
+        self.assertEqual(Client.objects.filter(pk__in=[r.pk for r in rows]).update(is_active=True), 3)
 
     def test_retry_scan_and_event_over_budget_never_consume_again_or_block_status(self):
         self.limit("parcels_per_month", 1)

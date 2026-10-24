@@ -306,11 +306,11 @@
                                         <li class="collapsed-nav-item-title d-none">Online Booking</li>
                                         <li class="nav-item">
                                             <a class="nav-link" href="{% url 'staff_lead_list' %}" data-onboarding-target="service-requests">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Service Requests</span></div>
+                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Bookings</span></div>
                                             </a>
                                             {% if role_access.can_manage_leads and workspace_can_modify %}
                                                 <a class="nav-link" href="{% url 'staff_lead_create' %}">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Service Request</span></div>
+                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Booking</span></div>
                                                 </a>
                                                 <a class="nav-link" href="{% url 'lead_import_upload' %}">
                                                     <div class="d-flex align-items-center"><span class="nav-link-text">Import Lead CSV</span></div>
@@ -323,7 +323,7 @@
                                                 {% elif current_business.booking_settings.booking_enabled %}
                                                     <span class="badge badge-phoenix badge-phoenix-success">ENABLED</span>
                                                 {% else %}
-                                                    <span class="badge badge-phoenix badge-phoenix-secondary">OFF</span>
+                                                    <span class="badge badge-phoenix badge-phoenix-secondary">DISABLED</span>
                                                 {% endif %}
                                             </span>
                                             {% if module_capabilities.public_booking and role_access.can_manage_booking_availability and workspace_can_modify %}

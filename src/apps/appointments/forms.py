@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import uuid
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -12,6 +15,8 @@ from .models import Appointment
 
 
 class AppointmentForm(forms.ModelForm):
+    operation_key = forms.UUIDField(required=False, initial=uuid.uuid4, widget=forms.HiddenInput)
+
     class Meta:
         model = Appointment
         fields = [
@@ -55,6 +60,30 @@ class AppointmentForm(forms.ModelForm):
 
         if current_business is not None:
             self.instance.business = current_business
+
+            # Parse datetime-local input in the workspace timezone, including DST
+            # ambiguity/nonexistence validation supplied by Django's field.
+            from django.utils import timezone
+
+            try:
+                business_tz = ZoneInfo(current_business.timezone)
+            except ZoneInfoNotFoundError:
+                business_tz = timezone.get_default_timezone()
+            for name in ("start_time", "end_time"):
+                original_clean = self.fields[name].clean
+
+                def clean_local(value, original_clean=original_clean):
+                    with timezone.override(business_tz):
+                        return original_clean(value)
+
+                self.fields[name].clean = clean_local
+                original_prepare = self.fields[name].prepare_value
+
+                def prepare_local(value, original_prepare=original_prepare):
+                    with timezone.override(business_tz):
+                        return original_prepare(value)
+
+                self.fields[name].prepare_value = prepare_local
 
         self.fields["service"].required = False
         self.fields["staff_member"].required = False

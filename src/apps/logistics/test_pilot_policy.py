@@ -192,7 +192,7 @@ class PilotApprovalTests(TestCase):
     def test_existing_identity_and_workspace_conflicts_still_block_enrollment(self):
         user = TaskIOUser.objects.create_user(email="applicant@example.com", password=PASSWORD)
         business = Business.objects.create(name="Existing", slug="existing")
-        BusinessUser.objects.create(user=user, business=business, role="OWNER")
+        BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Role.OWNER)
         application = self.submit()
         self.assertEqual(application.status, "APPROVED")
         self.assertIn("EXISTING_MOTIONMATE_RELATIONSHIP", application.reason_codes)

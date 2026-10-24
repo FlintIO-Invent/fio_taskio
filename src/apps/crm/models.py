@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from apps.businesses.localization import format_crm_address, format_crm_address_lines
+from apps.businesses.service_limits import ServiceCapacityQuerySet
 from apps.businesses.usage_limits import CapacityQuerySet, capacity_guard
 
 
@@ -400,10 +401,18 @@ class Lead(TimeStampedModel):
     consent_to_contact = models.BooleanField(default=True)
     is_active = models.BooleanField(default=True)
 
+    submission_key = models.UUIDField(null=True, blank=True, editable=False)
+    submission_fingerprint = models.CharField(max_length=64, blank=True, editable=False)
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["status", "created_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "submission_key"], name="lead_submission_unique"
+            )
         ]
 
     def __str__(self) -> str:
@@ -460,7 +469,7 @@ class Lead(TimeStampedModel):
 
 
 class Client(TimeStampedModel):
-    objects = CapacityQuerySet.as_manager()
+    objects = ServiceCapacityQuerySet.as_manager()
 
     @capacity_guard
     def save(self, *args, **kwargs):

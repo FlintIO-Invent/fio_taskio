@@ -158,7 +158,7 @@ def monthly_usage(
     return query.count()
 
 
-def _check(business, metric, usage, *, increase=1):
+def _check(business, metric, usage, *, increase=1, label=None):
     from .utils import PLAN_LIMIT_LABELS, resolve_business_plan_limit
 
     entitlement = resolve_business_plan_limit(business, metric)
@@ -168,7 +168,7 @@ def _check(business, metric, usage, *, increase=1):
             code="quota_unavailable",
         )
     if entitlement.limit is not None and usage + increase > entitlement.limit:
-        label = PLAN_LIMIT_LABELS.get(metric, metric.replace("_", " "))
+        label = label or PLAN_LIMIT_LABELS.get(metric, metric.replace("_", " "))
         raise QuotaError(
             f"This workspace has reached its allowance of {entitlement.limit} {label}. "
             "Please ask the workspace owner to review capacity before adding more.",
@@ -345,16 +345,21 @@ def capacity_guard(save):
             options = {**dict(zip(names, args, strict=False)), **kwargs}
         else:
             options = kwargs
-        with _save_scope(instance, options):
-            return save(instance, *args, **kwargs)
+        from .service_limits import service_write_scope
+
+        with service_write_scope(instance, options):
+            with _save_scope(instance, options):
+                return save(instance, *args, **kwargs)
 
     return guarded
 
 
 class CapacityQuerySet(models.QuerySet):
-    """Ordinary bulk writes cooperate with model guards; SERVICE keeps SQL paths."""
+    """Guard registered Logistics models; Services-only models keep Logistics SQL paths."""
 
     def _tier_ids(self):
+        if self.model._meta.label_lower not in MODEL_METRICS:
+            return self.none().values_list("pk", flat=True)
         return self.filter(
             business__vertical="LOGISTICS",
             business__subscription__plan__slug__in=LOGISTICS_TIER_SLUGS,
@@ -363,6 +368,8 @@ class CapacityQuerySet(models.QuerySet):
     def _tier_business_ids(self, objs):
         from .models import Business
 
+        if self.model._meta.label_lower not in MODEL_METRICS:
+            return set()
         ids = {obj.business_id for obj in objs if obj.business_id is not None}
         return set(
             Business.objects.using(self.db)
@@ -414,7 +421,9 @@ class CapacityQuerySet(models.QuerySet):
         return objs
 
     def update(self, **kwargs):
-        if not PROTECTED_FIELDS.intersection(kwargs):
+        if self.model._meta.label_lower not in MODEL_METRICS or not PROTECTED_FIELDS.intersection(
+            kwargs
+        ):
             return super().update(**kwargs)
         ids = list(self._tier_ids())
         # Moving ordinary records into a managed tenant must not evade the guard.

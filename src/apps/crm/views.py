@@ -20,6 +20,7 @@ from django.views.decorators.http import require_http_methods
 from loguru import logger
 
 from apps.appointments.models import Appointment
+from apps.appointments.operations import completed_operation, operation_fingerprint, operation_key
 from apps.billings.models import Invoice
 from apps.businesses.localization import (
     localized_price_input_example,
@@ -38,6 +39,7 @@ from apps.businesses.onboarding import (
     get_onboarding_status,
     get_or_create_user_onboarding_state,
 )
+from apps.businesses.usage_limits import lock_capacity_scope
 from apps.businesses.utils import (
     ALL_WORKSPACE_ROLES,
     APPOINTMENT_VIEW_ROLES,
@@ -76,6 +78,7 @@ from apps.notifications.emails import (
 )
 from helpers import build_public_url, upsert_client_from_lead
 
+from .booking_protection import allow_booking_submission
 from .client_capacity import lock_client_capacity_scope
 from .forms import (
     BusinessServiceCSVImportForm,
@@ -947,6 +950,7 @@ def public_request_entry(request: HttpRequest) -> HttpResponse:
 
 
 @require_http_methods(["GET", "POST"])
+@transaction.atomic
 def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
     """
     Compatibility endpoint for old public request links.
@@ -978,19 +982,8 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
             status=403,
         )
 
-    if business_limit_reached(business, "public_bookings_per_month"):
-        return render(
-            request,
-            "crm/success_fail/public_request_unavailable.html",
-            {
-                "public_business": business,
-                "availability_message": get_business_limit_reached_message(
-                    business,
-                    "public_bookings_per_month",
-                ),
-            },
-            status=403,
-        )
+    if not allow_booking_submission(request, business.pk):
+        return HttpResponse("Too many submissions. Please try again shortly.", status=429)
 
     if request.method == "POST":
         form = PublicLeadForm(request.POST, business=business)
@@ -1017,13 +1010,21 @@ def public_request(request: HttpRequest, business_slug: str) -> HttpResponse:
 
 
 @require_http_methods(["GET", "POST"])
+@transaction.atomic
 def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
     business = get_object_or_404(Business, slug=business_slug, is_active=True)
+    if request.method == "POST" and business.vertical == Business.Vertical.SERVICE:
+        if not allow_booking_submission(request, business.pk):
+            response = HttpResponse("Too many submissions. Please try again shortly.", status=429)
+            response["Retry-After"] = "60"
+            return response
+        business, _ = lock_capacity_scope(business.pk)
+        key = operation_key(request.POST)
+        fingerprint = operation_fingerprint(request)
+        if completed_operation(Lead, business, key, fingerprint):
+            return redirect("public_booking_thank_you", business_slug=business.slug)
     booking_settings = _public_booking_settings_for_business(business)
-    appointments_enabled = can_use_module(business, "appointments") and not business_limit_reached(
-        business,
-        "appointments_per_month",
-    )
+    appointments_enabled = can_use_module(business, "appointments")
 
     if not _public_booking_is_available(business, booking_settings):
         availability_message = (
@@ -1035,16 +1036,6 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
             request,
             business=business,
             availability_message=availability_message,
-        )
-
-    if business_limit_reached(business, "public_bookings_per_month"):
-        return _public_booking_unavailable_response(
-            request,
-            business=business,
-            availability_message=get_business_limit_reached_message(
-                business,
-                "public_bookings_per_month",
-            ),
         )
 
     selected_service_id = request.GET.get("service")
@@ -1071,6 +1062,8 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
                     preferred_start_time=form.cleaned_data["preferred_start_time"],
                     preferred_end_time=form.cleaned_data["preferred_end_time"],
                     request_source=Lead.RequestSource.PUBLIC_BOOKING,
+                    submission_key=key,
+                    submission_fingerprint=fingerprint if key else "",
                     first_name=form.cleaned_data["first_name"],
                     last_name=form.cleaned_data["last_name"],
                     company_name=form.cleaned_data["company_name"],
@@ -1110,10 +1103,12 @@ def public_booking(request: HttpRequest, business_slug: str) -> HttpResponse:
                 request=request,
             )
             if appointment is not None:
-                send_appointment_confirmation_email(appointment)
+                transaction.on_commit(lambda: send_appointment_confirmation_email(appointment))
             else:
-                send_public_booking_request_received_email(lead)
-            send_internal_booking_notification_email(lead, request_url=request_url)
+                transaction.on_commit(lambda: send_public_booking_request_received_email(lead))
+            transaction.on_commit(
+                lambda: send_internal_booking_notification_email(lead, request_url=request_url)
+            )
             return redirect("public_booking_thank_you", business_slug=business.slug)
     else:
         form = PublicBookingForm(
@@ -1607,6 +1602,7 @@ def staff_lead_update(request: HttpRequest, lead_id: int) -> HttpResponse:
 )
 @business_module_required("service_requests")
 @require_http_methods(["GET", "POST"])
+@transaction.atomic
 def staff_lead_convert_to_client(request: HttpRequest, lead_id: int) -> HttpResponse:
     current_business = request.current_business
     lead = get_object_or_404(

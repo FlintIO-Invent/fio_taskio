@@ -170,6 +170,7 @@ def create_invoice_for_client(
     return invoice
 
 
+@transaction.atomic
 def create_invoice_from_lead(*, actor, lead: Lead) -> Invoice:
     if lead.business and lead.business.vertical == Business.Vertical.LOGISTICS:
         from apps.logistics.financial_access import require_financial_access

@@ -44,6 +44,7 @@
 
               <form method="post" action="{% url 'public_booking' public_business.slug %}" data-public-booking-form novalidate>
                 {% csrf_token %}
+            {{ form.operation_key }}
 
                 {% if form.non_field_errors %}
                   <div class="alert alert-danger">

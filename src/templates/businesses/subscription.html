@@ -188,7 +188,7 @@
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
           <div>
             <h4 class="mb-1">Current Usage</h4>
-            <p class="text-body-tertiary mb-0">Usage counts active workspace records against the current {{ subscription.plan.name }} limits.</p>
+            <p class="text-body-tertiary mb-0">Appointments scheduled by your team and appointments booked online share the same monthly allowance. Each appointment counts once. Your user allowance includes the business owner.</p>
           </div>
           <span class="badge badge-phoenix badge-phoenix-secondary">{{ subscription.plan.user_limit_summary }}</span>
         </div>
@@ -302,6 +302,7 @@
   {% endif %}
 
   {% if not logistics_usage %}
+  {% include 'businesses/includes/services_plan_features.html' %}
   <div class="row g-4">
     {% for plan in available_plans %}
       <div class="col-12 col-lg-4">
@@ -354,19 +355,18 @@
               <div class="col-6">
                 <div class="rounded-3 border p-3 h-100">
                   <div class="fs-10 text-uppercase text-body-tertiary">Invoices / Month</div>
-                  <div class="fw-semibold">{{ plan.max_invoices_per_month|default_if_none:"Unlimited" }}</div>
+                  <div class="fw-semibold">{% if plan.max_invoices_per_month == None %}Unlimited{% else %}{{ plan.max_invoices_per_month|floatformat:"0g" }}{% endif %}</div>
                 </div>
               </div>
               <div class="col-6">
                 <div class="rounded-3 border p-3 h-100">
                   <div class="fs-10 text-uppercase text-body-tertiary">Appointments / Month</div>
-                  <div class="fw-semibold">{{ plan.max_appointments_per_month|default_if_none:"Unlimited" }}</div>
+                  <div class="fw-semibold">{% if plan.max_appointments_per_month == None %}Unlimited{% else %}{{ plan.max_appointments_per_month|floatformat:"0g" }}{% endif %}</div>
                 </div>
               </div>
               <div class="col-6">
                 <div class="rounded-3 border p-3 h-100">
-                  <div class="fs-10 text-uppercase text-body-tertiary">Online Bookings / Month</div>
-                  <div class="fw-semibold">{{ plan.max_public_bookings_per_month|default_if_none:"Unlimited" }}</div>
+                  <div class="fw-semibold">Online booking page — Included</div>
                 </div>
               </div>
             </div>
@@ -378,17 +378,10 @@
                 <span class="badge badge-phoenix {% if plan.allow_invoicing %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Invoicing</span>
                 <span class="badge badge-phoenix {% if plan.allow_appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Appointments</span>
                 <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Online Booking</span>
-                {% if plan.slug == "starter" %}
-                  <span class="badge badge-phoenix badge-phoenix-secondary">Owner, Admin, Staff</span>
-                {% elif plan.slug == "pro" %}
-                  <span class="badge badge-phoenix badge-phoenix-secondary">Owner, Admin, Staff, Accountant</span>
-                {% elif plan.slug == "business" %}
-                  <span class="badge badge-phoenix badge-phoenix-secondary">Advanced Team Roles</span>
-                  <span class="badge badge-phoenix badge-phoenix-info">Priority Support</span>
-                {% endif %}
+                <span class="badge badge-phoenix badge-phoenix-secondary">Team roles and permissions</span>
               </div>
               <p class="fs-10 text-body-tertiary mt-2 mb-0">
-                Online Booking is request-first; submitted times still require team review before an appointment is confirmed.
+                Book now schedules an appointment immediately. Contact-first requests can be scheduled later by your team.
               </p>
             </div>
 
