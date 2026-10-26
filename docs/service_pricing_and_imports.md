@@ -13,7 +13,11 @@ Service setup accepts regular decimal input such as `1234.56`. For comma-decimal
 
 New services default to the business tax rate from Business Settings when the service tax rate is left blank. Changing the business tax default affects new services only; existing services keep their current tax rate until edited manually.
 
-The service import page shows required columns, optional columns, sample rows, and copyable CSV text in the browser. Users can still download the sample CSV when they prefer a file.
+All CSV fields are optional for client, lead, and service imports. Users can omit columns or leave cells blank and use the template header names for the data they have. Supplied values still undergo validation, and entirely empty rows are skipped. Missing contact consent remains false; leads without a type default to `INTEREST`.
+
+New services missing a name or price are imported as inactive and unavailable for online booking. Missing names use `Imported service (row N)` and missing prices use zero; these defaults appear in preview. When `external_code` matches an existing service, omitted columns retain their current values, as do blank name and price cells.
+
+The service import page shows optional columns, sample rows, and copyable CSV text in the browser. Users can still download the sample CSV when they prefer a file.
 
 Current service setup supports:
 

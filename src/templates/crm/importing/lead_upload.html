@@ -41,9 +41,9 @@
           <p class="text-body-tertiary">Download the current schema with exact headers and a fictional example row.</p>
           <a class="btn btn-outline-primary" href="{% url 'lead_import_template' %}">Download Template</a>
           <hr>
-          <h4 class="h5">Required fields</h4>
-          <p class="small mb-2"><code>lead_type</code>, <code>first_name</code>, <code>last_name</code>, <code>email</code>, <code>phone</code>, and <code>company_name</code>.</p>
-          <p class="small text-body-tertiary mb-0">Save as CSV UTF-8. Use supported Lead types and status choices exactly as shown in the template. Email addresses are checked during preview.</p>
+          <h4 class="h5">All fields are optional</h4>
+          <p class="small mb-2">Upload the data you have. Leave cells blank or omit columns you do not need. Blank <code>lead_type</code> defaults to <code>INTEREST</code> and blank contact consent defaults to false.</p>
+          <p class="small text-body-tertiary mb-0">Save as CSV UTF-8 and use the template header names for the columns you include. Supplied email addresses, Lead types, and status choices are checked during preview. Empty rows are skipped.</p>
           <p class="small text-body-tertiary mt-2 mb-0">For <code>status</code>, use <code>NEW</code>, <code>CONTACTED</code>, or <code>CLOSED</code>. Blank status defaults to <code>NEW</code>. If you supply a category, it must already exist for this business.</p>
         </div>
       </div>

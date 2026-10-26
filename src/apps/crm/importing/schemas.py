@@ -42,8 +42,8 @@ class ImportSchema:
         ]
         if not self.version.strip():
             raise ValueError("Import schema version cannot be blank.")
-        if not required:
-            raise ValueError("Import schemas must declare at least one required column.")
+        if not declared_csv_columns:
+            raise ValueError("Import schemas must declare at least one CSV column.")
         if any(not column for column in declared_csv_columns + server_derived + forbidden_columns):
             raise ValueError("Import schema columns cannot be blank.")
         if duplicates:

@@ -16,6 +16,7 @@ from apps.crm.models import ImportJob, Lead, ServiceCategory
 from .lead_preview import LeadPreviewStatus, classify_validated_lead_rows
 from .leads import (
     LEAD_ALLOWED_STATUSES,
+    LEAD_CONTACT_FIELDS,
     LEAD_IMPORT_SCHEMA,
     ValidatedLeadRow,
     resolve_lead_category,
@@ -234,7 +235,8 @@ def _create_lead(row: ValidatedLeadRow, *, business) -> Lead:
         is_active=True,
         **row.as_lead_fields(),
     )
-    lead.full_clean()
+    # Only absent CSV contact details bypass the model's blank-field checks.
+    lead.full_clean(exclude=[name for name in LEAD_CONTACT_FIELDS if getattr(lead, name) == ""])
     lead.save()
     return lead
 
