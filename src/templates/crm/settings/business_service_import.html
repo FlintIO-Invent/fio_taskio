@@ -54,13 +54,12 @@
       <div class="card border-0 shadow-sm">
         <div class="card-body p-4">
           <h3 class="h4 mb-3">CSV format</h3>
-          <p class="text-body-tertiary mb-2">Required columns:</p>
+          <p class="text-body-tertiary mb-2">All fields are optional. Upload the data you have; leave cells blank or omit columns you do not need. Use the template header names for the columns you include. Empty rows are skipped.</p>
+          <p class="text-body-tertiary mb-2">New services with a missing name or price are imported as inactive and unavailable for online booking. A missing name uses <code>Imported service (row N)</code>; a missing price uses <code>0</code>. Complete their details before activating them.</p>
+          <p class="text-body-tertiary mb-2">Optional columns:</p>
           <ul class="mb-3">
             <li><code>name</code></li>
             <li><code>unit_price</code></li>
-          </ul>
-          <p class="text-body-tertiary mb-2">Optional columns:</p>
-          <ul class="mb-3">
             <li><code>description</code></li>
             <li><code>tax_rate</code></li>
             <li><code>category</code></li>
@@ -74,7 +73,7 @@
           </ul>
           <p class="text-body-tertiary mb-2">Prices are stored as decimals. Use <code>1234.56</code>, or <code>{{ price_input_example }}</code> for this workspace format.</p>
           <p class="text-body-tertiary mb-2">If <code>tax_rate</code> is blank, MotionMate uses the current workspace default {{ business.tax_label|default:"Tax" }} rate of {{ business.tax_rate|floatformat:2 }}%.</p>
-          <p class="text-body-tertiary mb-0">If booking columns are omitted, existing booking settings on matched services are left unchanged.</p>
+          <p class="text-body-tertiary mb-0">For services matched by <code>external_code</code>, omitted columns keep their current values. Blank name and price also keep their current values.</p>
         </div>
       </div>
     </div>

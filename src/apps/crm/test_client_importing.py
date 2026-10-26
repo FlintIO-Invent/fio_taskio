@@ -19,6 +19,7 @@ from apps.businesses.models import Business, BusinessUser
 
 from .importing.clients import (
     CLIENT_ADVANCED_FIELDS,
+    CLIENT_CONTACT_FIELDS,
     CLIENT_FORBIDDEN_FIELDS,
     CLIENT_IMPORT_DEFAULTS,
     CLIENT_IMPORT_SCHEMA,
@@ -144,18 +145,33 @@ class ClientImportValidationTests(TestCase):
         self.assertFalse(validated.consent_to_contact)
         self.assertTrue(validated.is_active)
 
-    def test_each_required_value_has_row_level_blocking_issue(self):
-        for field_name in CLIENT_REQUIRED_FIELDS:
+    def test_each_contact_value_can_be_blank(self):
+        for field_name in CLIENT_CONTACT_FIELDS:
             with self.subTest(field_name=field_name):
                 validation = validate_client_row(
                     CSVRow(2, {**self.valid_values, field_name: ""}),
                     business=self.business,
                 )
-                matching = [issue for issue in validation.issues if issue.column == field_name]
-                self.assertTrue(matching)
-                self.assertEqual(matching[0].code, "required")
-                self.assertEqual(matching[0].row_number, 2)
-                self.assertTrue(validation.has_errors)
+                self.assertTrue(validation.is_valid, validation.issues)
+                self.assertEqual(getattr(validation.validated_row, field_name), "")
+
+    def test_any_single_supported_column_can_be_uploaded(self):
+        for field_name in CLIENT_IMPORT_SCHEMA.allowed_columns:
+            value = CLIENT_SAMPLE_ROW.get(field_name) or "Existing data"
+            # Use valid choices and URLs where the format is constrained.
+            value = {
+                "website": "https://example.com",
+                "secondary_email": "other@example.com",
+                "country": "Sint Maarten",
+                "postal_code": "1234",
+            }.get(field_name, value)
+            with self.subTest(field_name=field_name):
+                result = validate_client_import(
+                    self.upload([{field_name: value}], headers=(field_name,)),
+                    business=self.business,
+                )
+                self.assertFalse(result.has_errors, result.issues)
+                self.assertEqual(result.summary.rows_valid, 1)
 
     def test_missing_optional_values_use_explicit_import_defaults(self):
         validation = validate_client_row(self.row(), business=self.business)
@@ -442,10 +458,10 @@ class ClientImportValidationTests(TestCase):
         result = validate_client_import(self.upload(rows), business=self.business)
 
         self.assertEqual(result.summary.rows_detected, 5)
-        self.assertEqual(result.summary.rows_valid, 3)
+        self.assertEqual(result.summary.rows_valid, 4)
         self.assertEqual(result.summary.rows_warning, 0)
-        self.assertEqual(result.summary.rows_error, 2)
-        self.assertEqual(len(result.validated_rows), 3)
+        self.assertEqual(result.summary.rows_error, 1)
+        self.assertEqual(len(result.validated_rows), 4)
 
     def test_warning_row_remains_valid_and_counts_in_both_columns(self):
         result = validate_client_import(self.upload([self.valid_values]), business=self.business)
@@ -469,13 +485,13 @@ class ClientImportValidationTests(TestCase):
         self.assertEqual(summary.rows_error, 0)
 
     def test_structural_errors_skip_client_field_validation(self):
-        headers = tuple(field for field in CLIENT_STANDARD_TEMPLATE_FIELDS if field != "email")
+        headers = CLIENT_STANDARD_TEMPLATE_FIELDS + ("business_id",)
         with mock.patch("apps.crm.importing.clients.validate_client_rows") as validator:
             result = validate_client_import(
                 self.upload([self.valid_values], headers=headers), business=self.business
             )
 
-        self.assertIn("missing_required_header", self.issue_codes(result))
+        self.assertIn("forbidden_header", self.issue_codes(result))
         self.assertEqual(result.row_results, ())
         validator.assert_not_called()
 
@@ -566,7 +582,7 @@ class ClientImportJobIntegrationTests(TestCase):
             job.assert_confirmable(at=timezone.now())
 
     def test_structurally_invalid_file_never_becomes_ready(self):
-        headers = tuple(field for field in CLIENT_STANDARD_TEMPLATE_FIELDS if field != "email")
+        headers = CLIENT_STANDARD_TEMPLATE_FIELDS + ("business_id",)
         upload = self.upload([self.valid_values], headers=headers)
         job = self.create_job(upload)
 

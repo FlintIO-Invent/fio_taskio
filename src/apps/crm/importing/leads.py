@@ -21,8 +21,8 @@ from .types import (
     ParsedImportFile,
 )
 
-LEAD_REQUIRED_FIELDS = (
-    "lead_type",
+LEAD_REQUIRED_FIELDS = ()
+LEAD_CONTACT_FIELDS = (
     "first_name",
     "last_name",
     "email",
@@ -30,15 +30,19 @@ LEAD_REQUIRED_FIELDS = (
     "company_name",
 )
 LEAD_OPTIONAL_FIELDS = (
-    "status",
-    "category",
-    "street_address",
-    "district",
-    "country",
-    "postal_code",
-    "message",
-    "notes",
-    "consent_to_contact",
+    ("lead_type",)
+    + LEAD_CONTACT_FIELDS
+    + (
+        "status",
+        "category",
+        "street_address",
+        "district",
+        "country",
+        "postal_code",
+        "message",
+        "notes",
+        "consent_to_contact",
+    )
 )
 LEAD_TEMPLATE_FIELDS = LEAD_REQUIRED_FIELDS + LEAD_OPTIONAL_FIELDS
 LEAD_SERVER_DERIVED_FIELDS = ("business", "is_active", "request_source")
@@ -66,6 +70,7 @@ LEAD_FORBIDDEN_FIELDS = (
     "is_active",
 )
 LEAD_IMPORT_DEFAULTS: dict[str, Any] = {
+    "lead_type": Lead.LeadType.INTEREST,
     "status": Lead.Status.NEW,
     "category": "",
     "street_address": "",
@@ -370,6 +375,8 @@ def validate_lead_row(row: CSVRow, *, business) -> LeadRowValidation:
         "is_active": True,
     }
     form = PrivateLeadForm(data=form_data, business=business)
+    for field_name in LEAD_IMPORT_SCHEMA.allowed_columns:
+        form.fields[field_name].required = False
     form.fields["category"].queryset = _allowed_category_queryset(business)
     form.is_valid()
     issues.extend(_form_issues(form, row_number=row.row_number))

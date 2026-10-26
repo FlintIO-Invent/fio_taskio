@@ -18,7 +18,7 @@ from .client_preview import (
     classify_validated_client_rows,
     project_client_capacity,
 )
-from .clients import CLIENT_IMPORT_SCHEMA, ValidatedClientRow
+from .clients import CLIENT_CONTACT_FIELDS, CLIENT_IMPORT_SCHEMA, ValidatedClientRow
 from .preview import PreviewPayloadStore, database_preview_store, preview_binding_for_job
 from .types import ImportType
 
@@ -161,7 +161,11 @@ def _create_client_from_trusted_row(row: ValidatedClientRow, *, business) -> Cli
     client_fields: dict[str, Any] = row.as_client_fields()
     client_fields["is_active"] = True
     client = Client(business=business, **client_fields)
-    client.full_clean()
+    # CSV imports permit absent contact details without changing manual forms.
+    # Supplied values and every tenant, choice, and capacity rule still validate.
+    client.full_clean(
+        exclude=[name for name in CLIENT_CONTACT_FIELDS if getattr(client, name) == ""]
+    )
     client.save()
     return client
 

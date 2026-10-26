@@ -18,6 +18,7 @@ from .importing.lead_preview import LeadPreviewStatus, persist_lead_preview
 from .importing.leads import (
     LEAD_FORBIDDEN_FIELDS,
     LEAD_IMPORT_SCHEMA,
+    LEAD_SAMPLE_ROW,
     LEAD_TEMPLATE_FIELDS,
     validate_lead_import,
 )
@@ -108,11 +109,33 @@ class LeadImportTestMixin:
 class LeadImportValidationTests(LeadImportTestMixin, TestCase):
     def test_schema_is_versioned_and_separates_server_fields(self):
         self.assertEqual(LEAD_IMPORT_SCHEMA.version, "1")
+        self.assertEqual(LEAD_IMPORT_SCHEMA.required_columns, ())
         self.assertEqual(LEAD_IMPORT_SCHEMA.allowed_columns, LEAD_TEMPLATE_FIELDS)
         self.assertIn("business_id", LEAD_FORBIDDEN_FIELDS)
         self.assertIn("requested_service", LEAD_FORBIDDEN_FIELDS)
         self.assertIn("preferred_start_time", LEAD_FORBIDDEN_FIELDS)
         self.assertIn("invoice_id", LEAD_FORBIDDEN_FIELDS)
+
+    def test_any_single_supported_column_can_be_uploaded(self):
+        for field_name in LEAD_TEMPLATE_FIELDS:
+            value = LEAD_SAMPLE_ROW[field_name] or "Existing data"
+            value = {"category": "Maintenance", "postal_code": "1234"}.get(field_name, value)
+            if field_name == "category":
+                ServiceCategory.objects.create(business=self.business, name=value)
+            with self.subTest(field_name=field_name):
+                validation = validate_lead_import(
+                    self.upload([{field_name: value}], headers=(field_name,)),
+                    business=self.business,
+                )
+                self.assertFalse(validation.has_errors, validation.issues)
+                self.assertEqual(validation.summary.rows_valid, 1)
+
+    def test_blank_contact_fields_and_type_do_not_block_a_row(self):
+        row = {key: "" for key in LEAD_TEMPLATE_FIELDS}
+        row["notes"] = "Only available detail"
+        validation = validate_lead_import(self.upload([row]), business=self.business)
+        self.assertFalse(validation.has_errors, validation.issues)
+        self.assertEqual(validation.row_results[0].validated_row.lead_type, Lead.LeadType.INTEREST)
 
     def test_request_and_interest_rows_validate_without_writes(self):
         rows = [
@@ -161,14 +184,14 @@ class LeadImportValidationTests(LeadImportTestMixin, TestCase):
             {issue.code for issue in validation.row_results[2].issues},
         )
 
-    def test_required_values_and_strict_boolean_are_validated(self):
+    def test_blank_email_is_allowed_but_strict_boolean_is_validated(self):
         validation = validate_lead_import(
             self.upload([{**self.base_row, "email": "", "consent_to_contact": "maybe"}]),
             business=self.business,
         )
 
         codes = {issue.code for issue in validation.row_results[0].issues}
-        self.assertIn("required", codes)
+        self.assertNotIn("required", codes)
         self.assertIn("invalid_boolean", codes)
 
     def test_defaults_use_workspace_country_and_do_not_manufacture_consent(self):
@@ -282,6 +305,12 @@ class LeadImportPreviewTests(LeadImportTestMixin, TestCase):
 
     def test_cross_business_lead_and_client_are_ignored(self):
         other = Business.objects.create(name="Other", slug="other-lead-import")
+        BusinessSubscription.objects.create(
+            business=other,
+            plan=self.business.subscription.plan,
+            status=BusinessSubscription.Status.ACTIVE,
+            current_period_end=timezone.now() + timedelta(days=30),
+        )
         Lead.objects.create(
             business=other,
             lead_type=Lead.LeadType.REQUEST,

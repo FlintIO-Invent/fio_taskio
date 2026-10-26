@@ -265,12 +265,15 @@ class LogisticsClientCapacityTests(LogisticsClientCapacityMixin, TestCase):
         self.subscription.save(update_fields=["logistics_approval_review_required"])
         self.assertFalse(self.capacity().available)
 
-    def test_service_null_import_policy_is_unchanged(self):
+    def test_service_unlimited_import_policy_matches_plan_entitlement(self):
         self.business.vertical = Business.Vertical.SERVICE
         self.business.save(update_fields=["vertical"])
         self.plan.family = ClarivoPlan.Family.SERVICE
         self.plan.save(update_fields=["family"])
-        self.assertFalse(self.capacity().available)
+        capacity = self.capacity()
+        self.assertTrue(capacity.available)
+        self.assertTrue(capacity.allowed)
+        self.assertIsNone(capacity.plan_limit)
 
 
 @skipUnless(connection.vendor == "postgresql", "Row-lock concurrency requires PostgreSQL")

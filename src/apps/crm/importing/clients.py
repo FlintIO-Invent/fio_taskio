@@ -17,7 +17,9 @@ from .parsing import parse_csv_upload
 from .schemas import ImportSchema
 from .types import CSVRow, ImportIssue, ImportPreviewSummary, ImportType, ParsedImportFile
 
-CLIENT_REQUIRED_FIELDS = (
+CLIENT_REQUIRED_FIELDS = ()
+
+CLIENT_CONTACT_FIELDS = (
     "first_name",
     "last_name",
     "email",
@@ -26,7 +28,7 @@ CLIENT_REQUIRED_FIELDS = (
     "street_address",
 )
 
-CLIENT_STANDARD_OPTIONAL_FIELDS = (
+CLIENT_STANDARD_OPTIONAL_FIELDS = CLIENT_CONTACT_FIELDS + (
     "client_type",
     "client_status",
     "district",
@@ -322,6 +324,8 @@ def validate_client_row(row: CSVRow, *, business) -> ClientRowValidation:
     # PrivateClientForm is used only as a read-only validation adapter. Neither
     # form.save() nor any Client persistence method is called in this block.
     form = PrivateClientForm(data=normalized, business=business)
+    for field_name in CLIENT_IMPORT_SCHEMA.allowed_columns:
+        form.fields[field_name].required = False
     form.is_valid()
 
     issues = list(normalization_issues)

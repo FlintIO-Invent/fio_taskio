@@ -198,6 +198,14 @@ class ImportJobAndPermissionTests(TestCase):
     def setUp(self):
         self.business = Business.objects.create(name="Alpha", slug="alpha-import")
         self.other_business = Business.objects.create(name="Bravo", slug="bravo-import")
+        plan = ClarivoPlan.objects.create(name="Import Permission Plan", slug="import-permissions")
+        for business in (self.business, self.other_business):
+            BusinessSubscription.objects.create(
+                business=business,
+                plan=plan,
+                status=BusinessSubscription.Status.ACTIVE,
+                current_period_end=timezone.now() + timedelta(days=30),
+            )
         self.users = {}
         for role, _label in BusinessUser.Role.choices:
             user = TaskIOUser.objects.create_user(
@@ -461,11 +469,13 @@ class ExistingServiceImportCharacterizationTests(TestCase):
         self.assertEqual(service.unit_price, Decimal("12.50"))
         self.assertFalse(service.is_active)
 
-    def test_existing_import_requires_name_and_unit_price_headers(self):
+    def test_existing_import_accepts_missing_unit_price_header(self):
         response = self.upload(b"name,external_code\nMissing Price,NO-PRICE\n")
 
-        self.assertContains(response, "Missing required CSV column: unit_price.")
-        self.assertFalse(BusinessService.objects.exists())
+        self.assertContains(response, "Import complete")
+        service = BusinessService.objects.get(external_code="NO-PRICE")
+        self.assertEqual(service.unit_price, Decimal("0"))
+        self.assertFalse(service.is_active)
 
     def test_existing_import_rolls_back_services_and_categories_on_late_error(self):
         response = self.upload(

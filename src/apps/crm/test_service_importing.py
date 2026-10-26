@@ -104,7 +104,20 @@ class ServiceImportTestMixin:
 class ServiceImportValidationPreviewTests(ServiceImportTestMixin, TestCase):
     def test_schema_is_versioned_and_uses_all_existing_columns(self):
         self.assertEqual(SERVICE_IMPORT_SCHEMA.version, "1")
+        self.assertEqual(SERVICE_IMPORT_SCHEMA.required_columns, ())
         self.assertEqual(SERVICE_IMPORT_SCHEMA.allowed_columns, SERVICE_TEMPLATE_FIELDS)
+
+    def test_any_single_supported_column_can_be_uploaded(self):
+        for field_name in SERVICE_TEMPLATE_FIELDS:
+            value = self.base_row[field_name] or "Existing data"
+            value = {"tax_rate": "7.5"}.get(field_name, value)
+            with self.subTest(field_name=field_name):
+                validation = validate_service_import(
+                    self.upload([{field_name: value}], headers=(field_name,)),
+                    business=self.business,
+                )
+                self.assertFalse(validation.has_errors, validation.issues)
+                self.assertEqual(validation.summary.rows_valid, 1)
 
     def test_create_preview_is_read_only_and_proposes_category(self):
         job, preview = self.preview([self.base_row])
@@ -332,7 +345,7 @@ class ServiceImportValidationPreviewTests(ServiceImportTestMixin, TestCase):
         self.assertFalse(BusinessService.objects.exists())
         self.assertEqual(ImportJob.objects.get().status, ImportJob.Status.READY)
 
-    def test_missing_required_header_is_visible_in_preview(self):
+    def test_missing_price_is_previewed_as_an_inactive_service(self):
         self.login()
         response = self.client.post(
             reverse("business_service_import"),
@@ -345,5 +358,6 @@ class ServiceImportValidationPreviewTests(ServiceImportTestMixin, TestCase):
             follow=True,
         )
 
-        self.assertContains(response, "Missing required CSV column: unit_price.")
-        self.assertNotContains(response, "Confirm Service Import")
+        self.assertContains(response, "this service will be imported as inactive")
+        self.assertContains(response, "Confirm Service Import")
+        self.assertFalse(BusinessService.objects.exists())
