@@ -434,17 +434,24 @@ class ImportJobRetentionTests(ImportHistoryTestMixin, TestCase):
         purge_target = Business.objects.create(
             name="Import Purge Target",
             slug="import-purge-target",
-            is_active=False,
         )
         purge_owner = TaskIOUser.objects.create_user(
             email="import-purge-owner@example.com",
             password="testpass123",
+        )
+        BusinessSubscription.objects.create(
+            business=purge_target,
+            plan=self.business.subscription.plan,
+            status=BusinessSubscription.Status.ACTIVE,
+            current_period_end=timezone.now() + timedelta(days=30),
         )
         BusinessUser.objects.create(
             business=purge_target,
             user=purge_owner,
             role=BusinessUser.Role.OWNER,
         )
+        purge_target.is_active = False
+        purge_target.save(update_fields=["is_active"])
         job = self.make_job(
             business=purge_target,
             actor=purge_owner,

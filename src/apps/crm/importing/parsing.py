@@ -191,7 +191,7 @@ def parse_csv_upload(
             )
 
     header_set = set(headers)
-    if not set(schema.required_columns).issubset(header_set):
+    if header_set - set(schema.allowed_columns):
         detected_type = None
         if "lead_type" in header_set:
             detected_type = ImportType.LEADS
@@ -261,6 +261,9 @@ def parse_csv_upload(
             )
             break
 
+        if len(raw_row) < len(headers) and not schema.required_columns:
+            # Optional fields also allow rows with missing trailing cells.
+            raw_row = raw_row + [""] * (len(headers) - len(raw_row))
         if len(raw_row) < len(headers):
             issues.append(
                 _issue(

@@ -493,12 +493,12 @@ def _service_import_example_rows(business: Business) -> list[dict[str, str]]:
 
 def _service_import_columns() -> list[dict[str, str]]:
     descriptions = {
-        "name": "Service name.",
-        "unit_price": "Decimal service price.",
+        "name": "Service name. Missing names use Imported service (row N) on inactive new services.",
+        "unit_price": "Decimal service price. Missing prices use 0 on inactive new services.",
         "description": "Internal service description.",
         "tax_rate": "Service tax percentage. Blank uses the workspace default.",
         "category": "Existing or new category name for this workspace.",
-        "is_active": "true/false, yes/no, or 1/0. Blank defaults to true.",
+        "is_active": "true/false, yes/no, or 1/0. New services missing name or price stay inactive.",
         "external_code": "Stable code used to update matching services later.",
         "is_bookable_online": "true only when the service should appear on online booking.",
         "default_duration_minutes": "Whole-number booking duration in minutes.",

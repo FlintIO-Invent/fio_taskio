@@ -24,8 +24,10 @@ from .types import (
     ParsedImportFile,
 )
 
-SERVICE_REQUIRED_FIELDS = ("name", "unit_price")
+SERVICE_REQUIRED_FIELDS = ()
 SERVICE_OPTIONAL_FIELDS = (
+    "name",
+    "unit_price",
     "description",
     "tax_rate",
     "category",
@@ -258,9 +260,10 @@ def validate_service_row(row: CSVRow, *, business) -> ServiceRowValidation:
     description = values.get("description", "")
     category_label = values.get("category", "")
 
+    price_supplied = bool(values.get("unit_price"))
     try:
         unit_price = _parse_decimal(
-            values.get("unit_price", ""),
+            values.get("unit_price") or "0",
             row_number=row.row_number,
             field_name="unit_price",
             business=business,
@@ -334,6 +337,36 @@ def validate_service_row(row: CSVRow, *, business) -> ServiceRowValidation:
         )
         return ServiceRowValidation(row.row_number, display, None, tuple(issues))
     existing_service = service_matches[0] if service_matches else None
+
+    incomplete = existing_service is None and (not name or not price_supplied)
+    if existing_service is not None:
+        name = name or existing_service.name
+        if not price_supplied:
+            unit_price = existing_service.unit_price
+        if "description" not in values:
+            description = existing_service.description
+        if "tax_rate" not in values:
+            tax_rate = existing_service.tax_rate
+        if "is_active" not in values:
+            is_active = existing_service.is_active
+        if "category" not in values and existing_service.category_id is not None:
+            category_label = existing_service.category.name
+    elif incomplete:
+        name = name or f"Imported service (row {row.row_number})"
+        is_active = False
+        issues.append(
+            _issue(
+                row_number=row.row_number,
+                column="name" if not values.get("name") else "unit_price",
+                code="incomplete_service",
+                message=(
+                    "Missing name or price: this service will be imported as inactive. "
+                    "A missing name uses 'Imported service (row N)' and a missing price "
+                    "uses 0. Complete the details before activating the service."
+                ),
+                severity=IssueSeverity.WARNING,
+            )
+        )
 
     try:
         category, category_will_create, category_key = resolve_service_category(
@@ -431,6 +464,8 @@ def validate_service_row(row: CSVRow, *, business) -> ServiceRowValidation:
         parsed_manual = True
 
     is_bookable_online = projected("is_bookable_online", parsed_bookable, False)
+    if incomplete:
+        is_bookable_online = False
     default_duration_minutes = projected("default_duration_minutes", parsed_duration, None)
     booking_buffer_minutes = projected("booking_buffer_minutes", parsed_buffer, None)
     public_description = projected("public_description", values.get("public_description", ""), "")

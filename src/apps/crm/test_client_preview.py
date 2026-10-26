@@ -214,6 +214,12 @@ class ClientPreviewClassificationTests(ClientPreviewTestMixin, TestCase):
 
     def test_cross_business_match_is_ignored(self):
         other_business = Business.objects.create(name="Other", slug="other-preview")
+        BusinessSubscription.objects.create(
+            business=other_business,
+            plan=self.plan,
+            status=BusinessSubscription.Status.ACTIVE,
+            current_period_end=timezone.now() + timedelta(days=30),
+        )
         self.existing_client(business=other_business, email="jane@example.com")
         _job, preview = self.preview([self.valid_row])
 
@@ -292,8 +298,9 @@ class ClientPreviewCapacityTests(ClientPreviewTestMixin, TestCase):
         self.assertTrue(preview.ready)
 
     def test_unavailable_entitlement_blocks_readiness(self):
-        self.plan.max_clients = None
-        self.plan.save(update_fields=["max_clients"])
+        # A null limit is valid unlimited capacity; no subscription is unavailable.
+        self.subscription.delete()
+        self.business.refresh_from_db()
         job, preview = self.preview(self.rows(1))
 
         self.assertFalse(preview.capacity.available)

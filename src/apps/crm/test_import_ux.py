@@ -117,6 +117,7 @@ class ImportUXTests(TestCase):
                 )
                 self.assertContains(response, f"{DEFAULT_CSV_LIMITS.maximum_data_rows} data rows")
                 self.assertContains(response, "Nothing is saved before you confirm")
+                self.assertContains(response, "All fields are optional")
                 self.assertContains(response, reverse(template_route_name))
         self.assertFalse(ImportJob.objects.exists())
         self.assertFalse(Client.objects.exists())
@@ -169,7 +170,7 @@ class ImportUXTests(TestCase):
         self.assertContains(response, "1</strong> duplicates will be skipped")
         self.assertContains(response, "Import rows cannot be edited in the browser")
 
-    def test_missing_client_values_identify_fields_instead_of_only_showing_error(self):
+    def test_missing_client_values_are_ready_to_confirm(self):
         response = self.post_csv(
             "client_import_upload",
             "salon-clients.csv",
@@ -177,10 +178,26 @@ class ImportUXTests(TestCase):
             "Jane,Doe,jane@example.com,,,\n",
         )
         self.assertContains(response, "Validation status")
-        for field in ("company_name", "phone", "street_address"):
-            self.assertContains(response, f"<code>{field}</code>")
-        self.assertNotContains(response, "Confirm Client Import")
+        self.assertContains(response, "Ready to confirm")
+        self.assertContains(response, "Confirm Client Import")
         self.assertFalse(Client.objects.exists())
+
+    def test_missing_trailing_cells_are_treated_as_blank(self):
+        response = self.post_csv(
+            "client_import_upload", "partial.csv",
+            "first_name,last_name,email,phone\nJane\nJohn,Smith\n",
+        )
+        job = response.context["job"]
+        self.assertEqual(job.status, ImportJob.Status.READY)
+        self.assertEqual(job.rows_valid, 2)
+        response = self.client.post(reverse("client_import_execute", args=[job.pk]), follow=True)
+        self.assertTrue(response.context["result"].completed)
+        jane = Client.objects.get(business=self.business, first_name="Jane")
+        self.assertEqual(jane.last_name, "")
+        self.assertEqual(jane.email, "")
+        john = Client.objects.get(business=self.business, first_name="John")
+        self.assertEqual(john.last_name, "Smith")
+        self.assertEqual(john.phone, "")
 
     def test_invalid_client_status_names_the_field(self):
         response = self.post_csv(
@@ -206,7 +223,8 @@ class ImportUXTests(TestCase):
         }
         for source, content in samples.items():
             for target, route in routes.items():
-                if source == target:
+                # With optional lead_type, a contact-only CSV is also a valid Lead CSV.
+                if source == target or (source == "Clients" and target == "Leads"):
                     continue
                 with self.subTest(source=source, target=target):
                     response = self.post_csv(route, "wrong-type.csv", content)
@@ -216,6 +234,106 @@ class ImportUXTests(TestCase):
         self.assertFalse(Client.objects.exists())
         self.assertFalse(Lead.objects.exists())
         self.assertFalse(BusinessService.objects.exists())
+
+    def test_partial_contact_csvs_preview_confirm_and_replay_without_blank_duplicates(self):
+        flows = (
+            ("client_import_upload", "client_import_execute", Client),
+            ("lead_import_upload", "lead_import_execute", Lead),
+        )
+        for upload, execute, model in flows:
+            with self.subTest(model=model):
+                # Existing blanks must not turn unrelated partial records into duplicates.
+                model.objects.create(
+                    business=self.business, **({"lead_type": "INTEREST"} if model is Lead else {})
+                )
+                response = self.post_csv(
+                    upload, "partial.csv", "notes\nFirst contact\nSecond contact\n"
+                )
+                job = response.context["job"]
+                self.assertEqual(job.status, ImportJob.Status.READY)
+                self.assertEqual(job.rows_valid, 2)
+                self.assertEqual(model.objects.count(), 1)
+                response = self.client.post(reverse(execute, args=[job.pk]), follow=True)
+                self.assertTrue(response.context["result"].completed)
+                records = model.objects.filter(
+                    business=self.business, notes__in=["First contact", "Second contact"]
+                )
+                self.assertEqual(records.count(), 2)
+                for record in records:
+                    for field in (
+                        "first_name",
+                        "last_name",
+                        "email",
+                        "phone",
+                        "company_name",
+                        "street_address",
+                    ):
+                        self.assertEqual(getattr(record, field), "")
+                    self.assertFalse(record.consent_to_contact)
+                    if model is Lead:
+                        self.assertEqual(record.lead_type, Lead.LeadType.INTEREST)
+                self.client.post(reverse(execute, args=[job.pk]))
+                self.assertEqual(model.objects.count(), 3)
+
+    def test_partial_new_service_csv_imports_inactive_and_replays_safely(self):
+        response = self.post_csv(
+            "business_service_import",
+            "partial.csv",
+            "description,is_active,is_bookable_online\nHistorical service,true,true\n",
+        )
+        job = response.context["job"]
+        self.assertEqual(job.status, ImportJob.Status.READY)
+        self.assertContains(response, "Imported service (row 2)")
+        self.assertContains(response, "imported as inactive")
+        self.assertFalse(BusinessService.objects.exists())
+        response = self.client.post(
+            reverse("business_service_import_execute", args=[job.pk]), follow=True
+        )
+        self.assertTrue(response.context["result"].completed)
+        service = BusinessService.objects.get(business=self.business)
+        self.assertEqual(service.name, "Imported service (row 2)")
+        self.assertEqual(service.unit_price, Decimal("0"))
+        self.assertFalse(service.is_active)
+        self.assertFalse(service.is_bookable_online)
+        self.client.post(reverse("business_service_import_execute", args=[job.pk]))
+        self.assertEqual(BusinessService.objects.count(), 1)
+
+    def test_partial_service_update_preserves_omitted_values_and_blank_name_price(self):
+        category = self.business.service_categories.create(name="Existing category")
+        service = BusinessService.objects.create(
+            business=self.business,
+            category=category,
+            name="Existing service",
+            external_code="PARTIAL",
+            unit_price=Decimal("32.50"),
+            tax_rate=Decimal("4"),
+            description="Keep this",
+            is_active=False,
+            is_bookable_online=True,
+            default_duration_minutes=45,
+            booking_buffer_minutes=10,
+            public_description="Keep public text",
+        )
+        response = self.post_csv(
+            "business_service_import", "partial.csv", "external_code,name,unit_price\nPARTIAL,,\n"
+        )
+        job = response.context["job"]
+        self.assertEqual(job.status, ImportJob.Status.READY)
+        response = self.client.post(
+            reverse("business_service_import_execute", args=[job.pk]), follow=True
+        )
+        self.assertTrue(response.context["result"].completed)
+        service.refresh_from_db()
+        self.assertEqual(service.name, "Existing service")
+        self.assertEqual(service.unit_price, Decimal("32.50"))
+        self.assertEqual(service.tax_rate, Decimal("4"))
+        self.assertEqual(service.category_id, category.pk)
+        self.assertEqual(service.description, "Keep this")
+        self.assertFalse(service.is_active)
+        self.assertTrue(service.is_bookable_online)
+        self.assertEqual(service.default_duration_minutes, 45)
+        self.assertEqual(service.booking_buffer_minutes, 10)
+        self.assertEqual(service.public_description, "Keep public text")
 
     def test_every_downloaded_csv_template_can_preview_confirm_and_replay(self):
         flows = (
@@ -283,7 +401,7 @@ class ImportUXTests(TestCase):
         response = self.post_csv(
             "client_import_upload",
             "clients.csv",
-            "first_name,last_name\nJane,Doe\n",
+            "first_name,last_name,business_id\nJane,Doe,999\n",
         )
 
         self.assertContains(response, "This import cannot continue yet")
