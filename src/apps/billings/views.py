@@ -912,7 +912,19 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
 
     # Filter by status if provided
     status_filter = request.GET.get("status")
-    if status_filter == "REFUNDED":
+    if status_filter in ("OUTSTANDING", "UNPAID", "PARTIAL"):
+        # Lifecycle status alone does not describe payment: SENT can be fully paid.
+        states = {"UNPAID", "PARTIAL"} if status_filter == "OUTSTANDING" else {status_filter}
+        candidates = invoices.filter(
+            status__in=(Invoice.Status.SENT, Invoice.Status.PAID)
+        ).prefetch_related("payments")
+        matching_ids = []
+        for invoice in candidates:
+            balance = _invoice_settlement(invoice)
+            if balance.state in states and balance.outstanding > 0 and not balance.issues:
+                matching_ids.append(invoice.pk)
+        invoices = invoices.filter(pk__in=matching_ids)
+    elif status_filter == "REFUNDED":
         # Refunds are ledger entries, independent of the invoice lifecycle status.
         refunds = InvoicePayment.objects.filter(
             business=current_business,
@@ -941,6 +953,9 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
         "invoices": invoices,
         "status_choices": [
             *Invoice.Status.choices,
+            ("OUTSTANDING", "Unpaid or partially paid"),
+            ("UNPAID", "Unpaid"),
+            ("PARTIAL", "Partially paid"),
             ("REFUND_DUE", "Refund due"),
             ("REFUNDED", "Refunded"),
         ],

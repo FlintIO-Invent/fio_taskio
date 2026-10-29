@@ -36,30 +36,37 @@
     </div>
   </div>
 
-  <!-- Status Filter -->
-  <div class="row mb-3">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-body">
-          <div class="d-flex gap-2 flex-wrap">
-            <a href="{% url 'invoice_list' %}" class="btn btn-sm {% if not current_status %}btn-phoenix-primary{% else %}btn-outline-primary{% endif %}">
-              All
-            </a>
+  <!-- Invoice filters: Phoenix form controls, matching the parcel list. -->
+  <form method="get" action="{% url 'invoice_list' %}" class="card mb-4" aria-label="Invoice filters">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-6 col-lg-4">
+          <label class="form-label" for="invoice-status">Status / payment</label>
+          <select class="form-select" id="invoice-status" name="status">
+            <option value=""{% if not current_status %} selected{% endif %}>All invoices</option>
             {% for status_value, status_label in status_choices %}
-            <a href="?status={{ status_value }}" class="btn btn-sm {% if current_status == status_value %}btn-phoenix-primary{% else %}btn-outline-primary{% endif %}">
-              {{ status_label }}
-            </a>
+              <option value="{{ status_value }}"{% if current_status == status_value %} selected{% endif %}>{{ status_label }}</option>
             {% endfor %}
-          </div>
-          {% if current_status == 'REFUNDED' %}
-            <p class="text-body-secondary fs-9 mt-2 mb-0">Invoices with recorded refunds, including partial refunds.</p>
-          {% elif current_status == 'REFUND_DUE' %}
-            <p class="text-body-secondary fs-9 mt-2 mb-0">Invoices awaiting a recorded return of funds after cancellation settlement.</p>
-          {% endif %}
+          </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-auto d-flex flex-wrap gap-2">
+          <button class="btn btn-primary" type="submit">Filter</button>
+          <a class="btn btn-phoenix-secondary" href="{% url 'invoice_list' %}">Reset</a>
         </div>
       </div>
+      {% if current_status == 'OUTSTANDING' %}
+        <p class="text-body-secondary fs-9 mt-3 mb-0">Issued invoices with an unpaid or partially paid balance, based on recorded payments and credits.</p>
+      {% elif current_status == 'UNPAID' %}
+        <p class="text-body-secondary fs-9 mt-3 mb-0">Issued invoices with an outstanding balance and no net payment recorded.</p>
+      {% elif current_status == 'PARTIAL' %}
+        <p class="text-body-secondary fs-9 mt-3 mb-0">Issued invoices with some payment recorded and a remaining balance.</p>
+      {% elif current_status == 'REFUNDED' %}
+        <p class="text-body-secondary fs-9 mt-3 mb-0">Invoices with recorded refunds, including partial refunds.</p>
+      {% elif current_status == 'REFUND_DUE' %}
+        <p class="text-body-secondary fs-9 mt-3 mb-0">Invoices awaiting a recorded return of funds after cancellation settlement.</p>
+      {% endif %}
     </div>
-  </div>
+  </form>
 
   <!-- Invoices Table -->
   <div class="row gx-4">
@@ -139,7 +146,13 @@
             </div>
             <h4 class="mb-3">No invoices found</h4>
             <p class="mb-4 text-body-secondary">
-              {% if current_status == 'REFUNDED' %}
+              {% if current_status == 'OUTSTANDING' %}
+                No unpaid or partially paid invoices found.
+              {% elif current_status == 'UNPAID' %}
+                No unpaid invoices found.
+              {% elif current_status == 'PARTIAL' %}
+                No partially paid invoices found.
+              {% elif current_status == 'REFUNDED' %}
                 No invoices with recorded refunds found.
                 Refunds awaiting return of funds appear under <a href="?status=REFUND_DUE">Refund due</a>.
               {% elif current_status == 'REFUND_DUE' %}
