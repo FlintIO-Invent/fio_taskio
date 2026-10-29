@@ -34,7 +34,7 @@ class InvoiceRefundFilterTests(TestCase):
         self.assertContains(response, "including partial refunds")
         self.assertContains(
             response,
-            '<a href="?status=REFUNDED" class="btn btn-sm btn-phoenix-primary">' "Refunded</a>",
+            '<option value="REFUNDED" selected>Refunded</option>',
             html=True,
         )
         self.invoice.refresh_from_db()
@@ -87,7 +87,7 @@ class InvoiceRefundFilterTests(TestCase):
         self.assertEqual(list(response.context["invoices"]), [self.invoice])
         response = self.client.get(reverse("invoice_list"))
         self.assertEqual(list(response.context["invoices"]), [draft, self.invoice])
-        self.assertContains(response, 'href="?status=REFUNDED"')
+        self.assertContains(response, '<option value="REFUNDED">Refunded</option>', html=True)
 
 
 class InvoiceRefundDueFilterTests(TestCase):
@@ -151,3 +151,20 @@ class InvoiceRefundDueFilterTests(TestCase):
 
         self.assertEqual(list(response.context["invoices"]), [])
         self.assertContains(response, "No invoices with refunds due found.")
+
+    def test_payment_filters_respect_cancellation_credits_and_refunds_due(self):
+        self.business.cancellation_service_charge = Decimal("20")
+        self.business.save(update_fields=["cancellation_service_charge"])
+        invoices = []
+        for collected in (0, 10, 20, 100):
+            parcel, _, invoice, _ = self.prepare(collected=collected)
+            self.settle(parcel)
+            invoices.append(invoice)
+
+        for status, expected in (
+            ("UNPAID", [invoices[0]]),
+            ("PARTIAL", [invoices[1]]),
+            ("OUTSTANDING", [invoices[1], invoices[0]]),
+        ):
+            with self.subTest(status=status):
+                self.assertEqual(list(self.filtered(status).context["invoices"]), expected)
