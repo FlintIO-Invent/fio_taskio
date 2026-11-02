@@ -39,6 +39,9 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
         "dashboard_parcels_enabled": parcels_enabled,
         "dashboard_shipments_enabled": shipments_enabled,
         "dashboard_invoices_enabled": invoices_enabled,
+        "dashboard_manifests_enabled": parcels_enabled
+        and shipments_enabled
+        and can_view_module(business, "manifests"),
     }
     if parcels_enabled or invoices_enabled:
         local_now = now.astimezone(ZoneInfo(business.timezone))
