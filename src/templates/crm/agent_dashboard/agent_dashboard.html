@@ -143,19 +143,19 @@
         <div class="col-sm-6 col-xl-3">
           <div class="card h-100">
             <div class="card-body">
-              <p class="fs-9 text-body-tertiary mb-1">Open Invoices</p>
+              <p class="fs-9 text-body-tertiary mb-1">Invoices with a balance due</p>
               <div class="d-flex align-items-end justify-content-between">
                 <h3 class="mb-0">{{ open_invoice_count }}</h3>
                 <span class="fa-solid fa-file-invoice-dollar text-body-tertiary"></span>
               </div>
-              <p class="fs-10 text-body-tertiary mb-0 mt-2">{{ sent_invoice_count }} sent.</p>
+              <p class="fs-10 text-body-tertiary mb-0 mt-2">{{ sent_invoice_count }} issued · {{ draft_invoice_count }} draft.</p>
             </div>
           </div>
         </div>
         <div class="col-sm-6 col-xl-3">
           <div class="card h-100">
             <div class="card-body">
-              <p class="fs-9 text-body-tertiary mb-1">Invoice Value This Month</p>
+              <p class="fs-9 text-body-tertiary mb-1">Issued Invoice Value This Month</p>
               <div class="d-flex align-items-end justify-content-between gap-2">
                 <h3 class="mb-0">{{ invoice_value_this_month|money:current_business }}</h3>
                 <span class="fa-solid fa-chart-line text-body-tertiary"></span>
@@ -166,7 +166,7 @@
         <div class="col-sm-6 col-xl-3">
           <div class="card h-100">
             <div class="card-body">
-              <p class="fs-9 text-body-tertiary mb-1">Unpaid Invoice Value</p>
+              <p class="fs-9 text-body-tertiary mb-1">Outstanding balance · {{ current_business.currency }}</p>
               <div class="d-flex align-items-end justify-content-between gap-2">
                 <h3 class="mb-0">{{ unpaid_invoice_total|money:current_business }}</h3>
                 <span class="fa-solid fa-hand-holding-dollar text-body-tertiary"></span>
@@ -175,6 +175,7 @@
           </div>
         </div>
       </div>
+      <!-- {% include 'billings/includes/finance_totals.html' %} -->
     {% elif invoices_module_enabled %}
       <div class="alert alert-subtle-secondary mb-4" role="status">
         <span class="fa-solid fa-lock me-2"></span>Invoices Restricted. Billing totals are available only to billing roles in this workspace.
@@ -328,14 +329,14 @@
             <div class="card-header d-flex justify-content-between align-items-center">
               <div>
                 <h4 class="mb-1">Invoice Follow-Up</h4>
-                <p class="text-body-tertiary mb-0">Draft and sent invoices that still need action.</p>
+                <p class="text-body-tertiary mb-0">Issued invoices with verified outstanding balances.</p>
               </div>
               <a href="{% url 'invoice_list' %}" class="btn btn-sm btn-outline-primary">View Invoices</a>
             </div>
             <div class="card-body p-0">
               {% if recent_invoices %}
                 <div class="list-group list-group-flush">
-                  {% for invoice in recent_invoices %}
+                  {% for invoice in recent_invoices %}{% with financial=invoice.presentation %}
                     <a class="list-group-item list-group-item-action px-3 py-3" href="{% url 'invoice_detail' invoice.id %}">
                       <div class="d-flex justify-content-between align-items-start gap-3">
                         <div>
@@ -344,12 +345,12 @@
                           <p class="text-body-tertiary fs-10 mb-0">{{ invoice.created_at|date:"M j, Y g:i A" }}</p>
                         </div>
                         <div class="text-end">
-                          <div class="fw-semibold text-body-emphasis">{{ invoice.total|money:invoice.business }}</div>
-                          <span class="badge badge-phoenix badge-phoenix-secondary">{{ invoice.get_status_display }}</span>
+                          <div class="fw-semibold text-body-emphasis">{{ financial.balance_due|money:financial.billing_business }}</div>
+                          {% include 'billings/includes/invoice_status.html' with financial=financial only %}
                         </div>
                       </div>
                     </a>
-                  {% endfor %}
+                  {% endwith %}{% endfor %}
                 </div>
               {% else %}
                 <div class="p-4">

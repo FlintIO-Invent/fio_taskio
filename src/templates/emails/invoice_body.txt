@@ -6,7 +6,13 @@
 
 Invoice number: {{ invoice.invoice_number }}
 Issue date: {{ issue_date }}
-Amount due: {{ amount_due }}
+Lifecycle: {{ invoice_presentation.lifecycle_label }}
+{% if invoice_presentation.payment_label %}Payment status: {{ invoice_presentation.payment_label }}
+{% endif %}{% for row in invoice_presentation.amount_rows %}{{ row.label }}: {{ row.text }}
+{% endfor %}{% if invoice_presentation.note %}{{ invoice_presentation.note }}
+{% endif %}{% if invoice_presentation.refund_note %}{{ invoice_presentation.refund_note }}
+{% endif %}{% for issue in invoice_presentation.issues %}{{ issue }}
+{% endfor %}
 Attachment: {{ attachment_filename }}
 
 Business contact:

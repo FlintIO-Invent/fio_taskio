@@ -385,7 +385,9 @@ class BillingBusinessScopingTests(TestCase):
         self.assertIn("Hi Alicia Client", message.body)
         self.assertIn("Invoice number: INV-ALPHA-001", message.body)
         self.assertIn("Issue date:", message.body)
-        self.assertIn("Amount due: XCD 133.13", message.body)
+        self.assertIn("Original invoice total: XCD 133.13", message.body)
+        self.assertIn("Balance due: XCD 0.00", message.body)
+        self.assertIn("Draft — not collectible.", message.body)
         self.assertIn("Attachment: invoice-INV-ALPHA-001.pdf", message.body)
         self.assertIn("billing@alpha.test", message.body)
         self.assertIn("+1 721 555 0101", message.body)
@@ -394,9 +396,7 @@ class BillingBusinessScopingTests(TestCase):
         self.assertNotIn("https://www.motionmate.net//", message.body)
         self.assertTrue(any(alternative[1] == "text/html" for alternative in message.alternatives))
         html_body = next(
-            alternative[0]
-            for alternative in message.alternatives
-            if alternative[1] == "text/html"
+            alternative[0] for alternative in message.alternatives if alternative[1] == "text/html"
         )
         self.assertIn("Invoice number:</strong> INV-ALPHA-001", html_body)
         self.assertNotIn(internal_note, html_body)

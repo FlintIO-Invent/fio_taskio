@@ -73,7 +73,7 @@ class LogisticsFinancialBrowserChecks(StaticLiveServerTestCase):
                     page.set_viewport_size({"width": width, "height": 900})
                     page.goto(self.live_server_url + reverse("invoice_detail", args=[invoice.pk]))
                     self.assertTrue(
-                        page.get_by_role("button", name="Mark as Sent", exact=True).is_visible()
+                        page.get_by_role("button", name="Issue invoice", exact=True).is_visible()
                     )
                     self.assertEqual(
                         page.get_by_role("link", name="Edit Invoice", exact=True).count(), 0
@@ -81,10 +81,12 @@ class LogisticsFinancialBrowserChecks(StaticLiveServerTestCase):
                     page.screenshot(
                         path=str(evidence / f"{role}-draft-{width}.png"), full_page=True
                     )
-                page.get_by_role("button", name="Mark as Sent", exact=True).click()
+                page.get_by_role("button", name="Issue invoice", exact=True).click()
                 page.wait_for_load_state("networkidle")
                 self.assertTrue(
-                    page.get_by_role("button", name="Mark as Paid", exact=True).is_visible()
+                    page.get_by_role(
+                        "link", name="Record customer payment", exact=True
+                    ).is_visible()
                 )
                 self.assertEqual(
                     db(lambda invoice=invoice: Invoice.objects.get(pk=invoice.pk).status), "SENT"
@@ -96,6 +98,8 @@ class LogisticsFinancialBrowserChecks(StaticLiveServerTestCase):
             self.assertEqual(response.status, 404)
             db(lambda: self.grant(self.a, operate=False))
             page.goto(self.live_server_url + reverse("invoice_detail", args=[self.ia.pk]))
-            self.assertEqual(page.get_by_role("button", name="Mark as Paid", exact=True).count(), 0)
+            self.assertEqual(
+                page.get_by_role("link", name="Record customer payment", exact=True).count(), 0
+            )
             self.assertEqual(errors, [])
             browser.close()

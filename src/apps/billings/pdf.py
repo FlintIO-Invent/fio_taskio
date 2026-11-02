@@ -15,6 +15,7 @@ from reportlab.pdfgen import canvas
 from apps.logistics.monitoring import observe_document
 
 from .models import Invoice
+from .presentation import present_invoice
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,8 @@ BOTTOM_MARGIN = 54
 LINE_HEIGHT = 14
 
 
-def _money(invoice: Invoice, value: Decimal) -> str:
-    return f"{invoice.currency_code} {value:.2f}"
+def _money(value: Decimal, currency: str) -> str:
+    return f"{currency} {value:.2f}"
 
 
 def _quantity(value: Decimal) -> str:
@@ -56,9 +57,11 @@ def _client_address_lines(invoice: Invoice) -> list[str]:
 
 
 def _invoice_context(invoice: Invoice, *, include_notes: bool = True) -> dict:
-    business = invoice.billing_business
+    financial = present_invoice(invoice)
+    business = financial.billing_business
     return {
         "invoice": invoice,
+        "invoice_presentation": financial,
         "business": business,
         "business_address_lines": business.formatted_address_lines,
         "client_name": _client_name(invoice),
@@ -194,7 +197,9 @@ def _draw_invoice(pdf: canvas.Canvas, context: dict) -> None:
     )
     meta_y -= 12
     pdf.drawRightString(
-        PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Status: {invoice.get_status_display()}"
+        PAGE_WIDTH - RIGHT_MARGIN,
+        meta_y,
+        f"Lifecycle: {context['invoice_presentation'].lifecycle_label}",
     )
 
     y = min(y, meta_y) - 24
@@ -227,9 +232,9 @@ def _draw_invoice(pdf: canvas.Canvas, context: dict) -> None:
             )
 
     y -= 20
-    y = _draw_line_items(pdf, invoice, lines, y)
+    y = _draw_line_items(pdf, invoice, lines, y, context["invoice_presentation"].currency)
     y -= 18
-    y = _draw_totals(pdf, invoice, y)
+    y = _draw_totals(pdf, invoice, y, context["invoice_presentation"])
 
     if context["include_notes"] and invoice.notes:
         y = _ensure_space(pdf, y, 80)
@@ -245,7 +250,9 @@ def _draw_invoice(pdf: canvas.Canvas, context: dict) -> None:
     pdf.drawCentredString(PAGE_WIDTH / 2, BOTTOM_MARGIN / 2, context["powered_by"])
 
 
-def _draw_line_items(pdf: canvas.Canvas, invoice: Invoice, lines: list, y: int) -> int:
+def _draw_line_items(
+    pdf: canvas.Canvas, invoice: Invoice, lines: list, y: int, currency: str
+) -> int:
     y = _ensure_space(pdf, y, 64)
     pdf.setFillColor(colors.HexColor("#F4F6F8"))
     pdf.rect(LEFT_MARGIN, y - 18, PAGE_WIDTH - LEFT_MARGIN - RIGHT_MARGIN, 22, fill=1, stroke=0)
@@ -271,8 +278,8 @@ def _draw_line_items(pdf: canvas.Canvas, invoice: Invoice, lines: list, y: int) 
             pdf.drawString(LEFT_MARGIN + 8, y, description_line)
             y -= 12
         pdf.drawRightString(PAGE_WIDTH - 215, top_y, _quantity(line.quantity))
-        pdf.drawRightString(PAGE_WIDTH - 125, top_y, _money(invoice, line.unit_price))
-        pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN - 8, top_y, _money(invoice, line.line_total))
+        pdf.drawRightString(PAGE_WIDTH - 125, top_y, _money(line.unit_price, currency))
+        pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN - 8, top_y, _money(line.line_total, currency))
         y = top_y - row_height
         pdf.setStrokeColor(colors.HexColor("#E5E7EB"))
         pdf.line(LEFT_MARGIN, y + 6, PAGE_WIDTH - RIGHT_MARGIN, y + 6)
@@ -280,22 +287,38 @@ def _draw_line_items(pdf: canvas.Canvas, invoice: Invoice, lines: list, y: int) 
     return y
 
 
-def _draw_totals(pdf: canvas.Canvas, invoice: Invoice, y: int) -> int:
-    y = _ensure_space(pdf, y, 72)
-    label_x = PAGE_WIDTH - 190
+def _draw_totals(pdf: canvas.Canvas, invoice: Invoice, y: int, financial) -> int:
+    y = _ensure_space(pdf, y, 230)
+    label_x = PAGE_WIDTH - 200
     value_x = PAGE_WIDTH - RIGHT_MARGIN - 8
     pdf.setFont("Helvetica", 10)
     pdf.drawRightString(label_x, y, "Subtotal:")
-    pdf.drawRightString(value_x, y, _money(invoice, invoice.subtotal))
+    pdf.drawRightString(value_x, y, _money(invoice.subtotal, financial.currency))
     y -= 16
     if invoice.tax:
         tax_label = f"Tax ({invoice.tax_rate_percentage}%):"
         if invoice.snapshot_is_legacy:
             tax_label = f"Tax (legacy effective rate {invoice.tax_rate_percentage}%):"
         pdf.drawRightString(label_x, y, tax_label)
-        pdf.drawRightString(value_x, y, _money(invoice, invoice.tax))
+        pdf.drawRightString(value_x, y, _money(invoice.tax, financial.currency))
         y -= 16
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawRightString(label_x, y, "Total:")
-    pdf.drawRightString(value_x, y, _money(invoice, invoice.total))
+    for row in financial.amount_rows:
+        y -= 18
+        pdf.setFont("Helvetica", 9)
+        if row["amount"] is None:
+            y = _draw_wrapped_text(
+                pdf, f"{row['label']}: {row['text']}", x=LEFT_MARGIN, y=y, max_chars=90
+            )
+        else:
+            pdf.drawRightString(label_x, y, row["label"] + ":")
+            pdf.drawRightString(value_x, y, row["text"])
+    if financial.payment_label:
+        y -= 22
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT_MARGIN, y, f"Payment status: {financial.payment_label}")
+    for text in (financial.note, financial.refund_note, *financial.issues):
+        if text:
+            y = _ensure_space(pdf, y, 48) - 18
+            pdf.setFont("Helvetica", 9)
+            y = _draw_wrapped_text(pdf, text, x=LEFT_MARGIN, y=y, max_chars=90)
     return y

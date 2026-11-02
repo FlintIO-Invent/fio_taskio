@@ -41,9 +41,18 @@
     <div class="card-body">
       <div class="row g-3 align-items-end">
         <div class="col-12 col-md-6 col-lg-4">
-          <label class="form-label" for="invoice-status">Status / payment</label>
+          <label class="form-label" for="invoice-lifecycle">Lifecycle</label>
+          <select class="form-select" id="invoice-lifecycle" name="lifecycle">
+            <option value="">All lifecycles</option>
+            <option value="DRAFT"{% if current_lifecycle == 'DRAFT' %} selected{% endif %}>Draft</option>
+            <option value="SENT"{% if current_lifecycle == 'SENT' or current_lifecycle == 'ISSUED' %} selected{% endif %}>Issued</option>
+            <option value="CANCELLED"{% if current_lifecycle == 'CANCELLED' %} selected{% endif %}>Cancelled</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <label class="form-label" for="invoice-status">Payment / accounting</label>
           <select class="form-select" id="invoice-status" name="status">
-            <option value=""{% if not current_status %} selected{% endif %}>All invoices</option>
+            <option value=""{% if not current_status %} selected{% endif %}>All payment states</option>
             {% for status_value, status_label in status_choices %}
               <option value="{{ status_value }}"{% if current_status == status_value %} selected{% endif %}>{{ status_label }}</option>
             {% endfor %}
@@ -68,6 +77,14 @@
     </div>
   </form>
 
+  {% if review_invoices %}<section class="card mb-4" aria-label="Invoices requiring accounting review"><div class="card-body">
+    <h4>Accounting review</h4>
+    <p>These invoices are shown separately from collectible balances. Verify payment evidence before requesting payment.</p>
+    {% for invoice in review_invoices %}{% with financial=invoice.presentation %}
+      <p class="text-break"><a href="{% url 'invoice_detail' invoice.pk %}">{{ invoice.invoice_number }}</a> · {{ financial.currency }} {{ financial.unverified_balance|floatformat:2 }} unverified · {{ financial.note }}</p>
+    {% endwith %}{% endfor %}
+  </div></section>{% endif %}
+
   <!-- Invoices Table -->
   <div class="row gx-4">
     <div class="col-12">
@@ -80,14 +97,14 @@
                   <tr>
                     <th>Invoice #</th>
                     <th>Client</th>
-                    <th>Status</th>
-                    <th>Total</th>
+                    <th>Lifecycle / payment</th>
+                    <th>Original total / balance due</th>
                     <th>Created</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {% for invoice in invoices %}
+                  {% for invoice in invoices %}{% with financial=invoice.presentation %}
                     <tr>
                       <td>
                         <a href="{% url 'invoice_detail' invoice.pk %}" class="fw-bold text-decoration-none">
@@ -103,10 +120,10 @@
                         </div>
                       </td>
                       <td>
-                        <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+                        <div class="d-flex flex-wrap gap-1">{% include 'billings/includes/invoice_status.html' with financial=financial only %}</div>
                       </td>
-                      <td class="fw-bold">{{ invoice.total|money:invoice.billing_business }}</td>
-                      <td>{{ invoice.created_at|date:"M d, Y" }}</td>
+                      <td><div class="fw-bold">{{ financial.original_total|money:financial.billing_business }}</div><small class="text-body-secondary">{% if financial.review_required %}Unverified — review required{% else %}Balance due: {{ financial.balance_due|money:financial.billing_business }}{% endif %}</small>{% if financial.balance.refund_due %}<br><small>Refund due: {{ financial.balance.refund_due|money:financial.billing_business }}</small>{% endif %}</td>
+                      <td>{{ invoice.created_at|date:"M d, Y" }}<br><small class="text-body-secondary">{{ financial.email_note }}</small></td>
                       <td>
                         <div class="d-flex gap-2">
                           <a href="{% url 'invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary" aria-label="View invoice {{ invoice.invoice_number }}">
@@ -117,7 +134,7 @@
 	                            <span class="fa-solid fa-edit"></span>
 	                          </a>
 	                          {% endif %}
-                            {% if role_access.can_delete_invoices and workspace_can_modify %}
+                            {% if role_access.can_delete_invoices and workspace_can_modify and invoice.status == 'DRAFT' %}
                               <form method="post" action="{% url 'invoice_delete' invoice.pk %}">
                                 {% csrf_token %}
                                 <button
@@ -132,7 +149,7 @@
 	                        </div>
 	                      </td>
                     </tr>
-                  {% endfor %}
+                  {% endwith %}{% endfor %}
                 </tbody>
               </table>
             </div>

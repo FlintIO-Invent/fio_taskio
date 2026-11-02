@@ -247,7 +247,7 @@
               <div class="col-6">
                 <label class="form-label">Status</label>
                 <p class="mb-0">
-                  <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+                  <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.presentation.lifecycle_label }}</span>
                 </p>
               </div>
               <div class="col-6">

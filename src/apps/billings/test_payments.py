@@ -285,7 +285,7 @@ class CustomerPaymentTests(TestCase):
         self.assertEqual((balance.outstanding, balance.net_paid), (Decimal("100"), Decimal("0")))
         self.assertFalse(self.invoice.payments.exists())
         response = self.client.get(reverse("invoice_detail", args=[self.invoice.pk]))
-        self.assertContains(response, "Legacy manually marked PAID")
+        self.assertContains(response, "Manually marked paid — unverified")
         self.receipt(40)
         self.assertEqual(self.balance().state, "PARTIAL")
         self.assertFalse(self.balance().settled)

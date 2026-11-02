@@ -1,0 +1,12 @@
+{% load money %}
+{% if finance_currency_totals %}<section class="card mb-4" aria-label="Invoice balances by currency"><div class="card-body">
+  <h4>Invoice balances by currency</h4>
+  <p class="text-body-secondary">Issued invoices only. Drafts and cancelled invoices are excluded from collectible balances. Unverified balances require review before requesting payment.</p>
+  <div class="table-responsive"><table class="table mb-0">
+    <thead><tr><th>Currency</th><th>Outstanding balance</th><th>Net payments received</th><th>Unverified balances — review only</th></tr></thead>
+    <tbody>{% for row in finance_currency_totals %}<tr>
+      <td>{{ row.currency }}</td><td>{{ row.outstanding_invoice_total|money:row.billing_business }}</td><td>{{ row.paid_invoice_total|money:row.billing_business }}</td>
+      <td>{{ row.review_invoice_total|money:row.billing_business }} · {{ row.review_invoice_count }} invoice{{ row.review_invoice_count|pluralize }}{% if row.review_invoice_count %} · <a href="{% url 'invoice_list' %}?status=REVIEW">Review evidence</a>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+</div></section>{% endif %}

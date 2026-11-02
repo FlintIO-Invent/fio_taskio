@@ -39,6 +39,7 @@ from apps.notifications.emails import send_invoice_email
 from .models import Invoice, InvoiceCancellationCredit, InvoiceLine, InvoicePayment
 from .payment_services import _invoice_settlement
 from .pdf import invoice_pdf_filename, render_invoice_pdf
+from .presentation import present_invoice
 from .services import (
     change_invoice_status,
     create_invoice_for_client,
@@ -93,7 +94,7 @@ def _invoice_queryset_for_business(business: Business, actor=None):
         "appointment",
         "client",
         "business",
-    )
+    ).prefetch_related("payments")
 
 
 def _appointment_queryset_for_business(business: Business):
@@ -114,7 +115,8 @@ def _invoice_whatsapp_share_url(invoice: Invoice) -> str:
     business = invoice.business
     client_name = " ".join(part for part in [client.first_name, client.last_name] if part).strip()
     greeting = f"Hello {client_name}," if client_name else "Hello,"
-    total = format_money_for_business(invoice.total, invoice.billing_business)
+    financial = present_invoice(invoice)
+    total = format_money_for_business(financial.original_total, financial.billing_business)
     message = (
         f"{greeting} invoice {invoice.invoice_number} from {business.name} is ready. "
         f"Total: {total}. Please contact us if you have any questions."
@@ -910,19 +912,35 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
         "-created_at"
     )
 
-    # Filter by status if provided
+    # Preserve existing status links while presenting lifecycle independently.
     status_filter = request.GET.get("status")
-    if status_filter in ("OUTSTANDING", "UNPAID", "PARTIAL"):
-        # Lifecycle status alone does not describe payment: SENT can be fully paid.
-        states = {"UNPAID", "PARTIAL"} if status_filter == "OUTSTANDING" else {status_filter}
-        candidates = invoices.filter(
-            status__in=(Invoice.Status.SENT, Invoice.Status.PAID)
-        ).prefetch_related("payments")
-        matching_ids = []
-        for invoice in candidates:
-            balance = _invoice_settlement(invoice)
-            if balance.state in states and balance.outstanding > 0 and not balance.issues:
-                matching_ids.append(invoice.pk)
+    lifecycle_filter = request.GET.get("lifecycle", "")
+    if status_filter in ("DRAFT", "SENT", "CANCELLED"):
+        lifecycle_filter, status_filter = status_filter, ""
+    if lifecycle_filter in ("SENT", "ISSUED"):
+        invoices = invoices.filter(status__in=(Invoice.Status.SENT, Invoice.Status.PAID))
+    elif lifecycle_filter in ("DRAFT", "CANCELLED"):
+        invoices = invoices.filter(status=lifecycle_filter)
+    presentations = [(invoice, present_invoice(invoice)) for invoice in invoices]
+    review_invoices = [invoice for invoice, financial in presentations if financial.review_required]
+    if status_filter in ("OUTSTANDING", "UNPAID", "PARTIAL", "PAID", "REVIEW"):
+        matching_ids = [
+            invoice.pk
+            for invoice, financial in presentations
+            if (
+                financial.collectible
+                if status_filter == "OUTSTANDING"
+                else (
+                    financial.verified_paid
+                    if status_filter == "PAID"
+                    else (
+                        financial.review_required
+                        if status_filter == "REVIEW"
+                        else financial.collectible and financial.payment_status == status_filter
+                    )
+                )
+            )
+        ]
         invoices = invoices.filter(pk__in=matching_ids)
     elif status_filter == "REFUNDED":
         # Refunds are ledger entries, independent of the invoice lifecycle status.
@@ -952,14 +970,17 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
     context: dict[str, Any] = {
         "invoices": invoices,
         "status_choices": [
-            *Invoice.Status.choices,
+            ("PAID", "Paid"),
             ("OUTSTANDING", "Unpaid or partially paid"),
             ("UNPAID", "Unpaid"),
             ("PARTIAL", "Partially paid"),
             ("REFUND_DUE", "Refund due"),
-            ("REFUNDED", "Refunded"),
+            ("REFUNDED", "Refund recorded"),
+            ("REVIEW", "Accounting review"),
         ],
         "current_status": status_filter,
+        "current_lifecycle": lifecycle_filter,
+        "review_invoices": review_invoices if status_filter != "REVIEW" else [],
     }
     return render(request, "billings/invoice_list.html", context)
 
@@ -1108,6 +1129,11 @@ def invoice_delete(request: HttpRequest, invoice_id: int) -> HttpResponse:
         _invoice_queryset_for_business(current_business, request.user), pk=invoice_id
     )
     invoice_number = invoice.invoice_number
+    if invoice.status != Invoice.Status.DRAFT:
+        messages.error(
+            request, "Only Draft invoices can be deleted. Issued and cancelled history is retained."
+        )
+        return redirect("invoice_detail", invoice_id=invoice.id)
     if invoice.payments.exists():
         messages.error(request, "Invoices with customer payment history must be retained.")
         return redirect("invoice_detail", invoice_id=invoice.id)
@@ -1141,6 +1167,14 @@ def invoice_change_status(request: HttpRequest, invoice_id: int) -> HttpResponse
     invoice = get_object_or_404(
         _invoice_queryset_for_business(current_business, request.user), pk=invoice_id
     )
+    if request.POST.get("status") == Invoice.Status.PAID:
+        # Old forms/bookmarks must enter a receipt, never create another manual flag.
+        from .payment_services import require_payment_access
+
+        require_payment_access(
+            business=current_business, actor=request.user, invoice=invoice, write=True
+        )
+        return redirect("invoice_payment_record", invoice_id=invoice.pk)
     try:
         change_invoice_status(
             business=current_business,

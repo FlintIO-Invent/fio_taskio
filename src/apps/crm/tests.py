@@ -1290,11 +1290,14 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.context["invoice_count"], 2)
         self.assertEqual(response.context["unpaid_invoice_count"], 1)
         self.assertEqual(response.context["draft_invoice_count"], 0)
-        self.assertEqual(response.context["sent_invoice_count"], 1)
+        self.assertEqual(response.context["sent_invoice_count"], 2)
         self.assertEqual(response.context["open_invoice_count"], 1)
-        self.assertEqual(response.context["paid_invoice_count"], 1)
-        self.assertEqual(response.context["paid_invoice_total"], Decimal("125"))
-        self.assertEqual(response.context["invoice_value_this_month"], Decimal("175"))
+        self.assertEqual(response.context["paid_invoice_count"], 0)
+        self.assertEqual(response.context["paid_invoice_total"], Decimal("0"))
+        self.assertEqual(response.context["invoice_value_this_month"], Decimal("50"))
+        self.assertEqual(
+            response.context["finance_currency_totals"][0]["review_invoice_total"], Decimal("125")
+        )
         self.assertEqual(response.context["unpaid_invoice_total"], Decimal("50"))
         self.assertEqual(list(response.context["service_request_followups"]), [current_request])
         self.assertContains(response, "Alpha scheduled visit")
@@ -1424,7 +1427,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertTrue(response.context["dashboard_invoices_enabled"])
         self.assertEqual(response.context["invoice_count"], 1)
         self.assertContains(response, "STAFF-HIDDEN-1000")
-        self.assertContains(response, "Unpaid Invoice Value")
+        self.assertContains(response, "Outstanding balance")
         self.assertNotContains(response, "Invoices Restricted")
 
     def test_accountant_dashboard_shows_billing_and_read_only_activity(self):
@@ -1474,7 +1477,9 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["dashboard_invoices_enabled"])
-        self.assertContains(response, "ACCOUNTANT-1000")
+        self.assertNotContains(response, "ACCOUNTANT-1000")
+        self.assertEqual(response.context["draft_invoice_count"], 1)
+        self.assertEqual(response.context["unpaid_invoice_total"], 0)
         self.assertContains(response, "Accountant Request Co")
         self.assertContains(response, "Accountant visible appointment")
         self.assertNotContains(response, reverse("staff_lead_create"))
@@ -2217,7 +2222,7 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("invoice_list"))
-        self.assertContains(response, "Open Invoices")
+        self.assertContains(response, "Invoices with a balance due")
         self.assertContains(response, "Invoice Follow-Up")
 
     def test_dashboard_hides_invoicing_links_when_plan_disables_module(self):
