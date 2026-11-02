@@ -488,6 +488,15 @@ class ClarivoPlan(TimeStampedModel):
     regional_prices = models.JSONField(default=dict, blank=True)
     is_recommended = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    logistics_free_test_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Logistics free-test access",
+        help_text=(
+            "Allow complete Core/Growth/Scale tiers for FREE_TEST / LOCAL access without Stripe. "
+            "Leave Is active unchecked to keep paid activation disabled. "
+            "Registration still requires the private token and registration setting."
+        ),
+    )
     max_users = models.PositiveIntegerField(null=True, blank=True)
     max_clients = models.PositiveIntegerField(null=True, blank=True)
     max_invoices_per_month = models.PositiveIntegerField(null=True, blank=True)
@@ -703,6 +712,26 @@ class ClarivoPlan(TimeStampedModel):
         return not self.is_logistics_capacity_tier or all(
             getattr(self, field) is not None for field in LOGISTICS_TIER_CAPACITY_FIELDS
         )
+
+    @property
+    def allows_logistics_free_test(self) -> bool:
+        return (
+            self.logistics_free_test_enabled
+            and self.is_logistics_capacity_tier
+            and self.has_complete_logistics_capacity
+        )
+
+    def clean(self):
+        super().clean()
+        if self.logistics_free_test_enabled and not self.allows_logistics_free_test:
+            raise ValidationError(
+                {
+                    "logistics_free_test_enabled": (
+                        "Free-test access requires a Logistics Core/Growth/Scale tier "
+                        "with every capacity configured."
+                    )
+                }
+            )
 
 
 class BusinessSubscription(TimeStampedModel):
@@ -944,7 +973,12 @@ class BusinessSubscription(TimeStampedModel):
                 can_resume_checkout=not historical_only,
             )
 
-        if not self.plan.is_active:
+        free_test_access = (
+            self.plan.allows_logistics_free_test
+            and self.provisioning_source == self.ProvisioningSource.FREE_TEST
+            and self.payment_provider == self.PaymentProvider.LOCAL
+        )
+        if not self.plan.is_active and not free_test_access:
             return self._access_state(
                 self.AccessCode.PLAN_INACTIVE,
                 has_access=False,
