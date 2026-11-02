@@ -1,6 +1,7 @@
 import secrets
 
 from django.conf import settings
+from django.db.models import Q
 
 from apps.businesses.models import ClarivoPlan
 from apps.businesses.plan_catalog import LOGISTICS_TIER_CAPACITY_FIELDS, LOGISTICS_TIER_SLUGS
@@ -23,13 +24,15 @@ def free_test_plan_queryset(plan_slug: str):
     """Use the same tier eligibility for link admission and form validation."""
     if not is_allowed_free_test_plan_slug(plan_slug):
         return ClarivoPlan.objects.none()
-    plans = ClarivoPlan.objects.filter(slug=plan_slug, is_active=True)
+    plans = ClarivoPlan.objects.filter(slug=plan_slug)
     if plan_slug in LOGISTICS_TIER_SLUGS:
         plans = plans.filter(
+            Q(is_active=True) | Q(logistics_free_test_enabled=True),
             family=ClarivoPlan.Family.LOGISTICS,
             **{f"{field}__isnull": False for field in LOGISTICS_TIER_CAPACITY_FIELDS},
         )
-    return plans
+        return plans
+    return plans.filter(is_active=True)
 
 
 def get_configured_free_test_registration_token(plan_slug: str) -> str:

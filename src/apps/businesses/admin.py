@@ -176,12 +176,14 @@ class ClarivoPlanAdmin(admin.ModelAdmin):
         "price_yearly",
         "is_recommended",
         "is_active",
+        "logistics_free_test_enabled",
         "allow_invoicing",
         "allow_appointments",
         "allow_public_booking",
     )
     list_filter = (
         "is_active",
+        "logistics_free_test_enabled",
         "is_recommended",
         "allow_invoicing",
         "allow_appointments",
