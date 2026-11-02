@@ -21,6 +21,7 @@ from apps.businesses.plan_catalog import (
     DEFAULT_PUBLIC_BILLING_INTERVAL,
     DEFAULT_PUBLIC_PAID_PLAN_SLUG,
     DEFAULT_PUBLIC_PRICING_CURRENCY,
+    LOGISTICS_TIER_SLUGS,
     PUBLIC_BILLING_INTERVAL_LABELS,
     PUBLIC_PAID_PLAN_SLUG_SET,
     PUBLIC_PAID_PLAN_SLUGS,
@@ -35,6 +36,7 @@ from apps.businesses.plan_catalog import (
 )
 from apps.businesses.utils import create_default_trial_subscription, generate_business_slug
 
+from .free_test_registration import free_test_plan_queryset
 from .models import SaaSUserProfile, TaskIOUser
 
 
@@ -289,10 +291,7 @@ class BusinessRegistrationForm(forms.Form):
 
     def _plan_queryset(self):
         if self.free_test_plan_slug:
-            return ClarivoPlan.objects.filter(
-                is_active=True,
-                slug=self.free_test_plan_slug,
-            )
+            return free_test_plan_queryset(self.free_test_plan_slug)
 
         if (
             not self.beta_eligible
@@ -433,6 +432,13 @@ class BusinessRegistrationForm(forms.Form):
         password1 = cleaned_data.get("password1")
         password2 = cleaned_data.get("password2")
 
+        if (
+            self.free_test_plan_slug in LOGISTICS_TIER_SLUGS
+            and self.add_prefix("vertical") in self.data
+            and self.data.get(self.add_prefix("vertical")) != Business.Vertical.LOGISTICS
+        ):
+            raise ValidationError("Select a valid Logistics workspace vertical.")
+
         if password1 and password2 and password1 != password2:
             self.add_error("password2", "Passwords do not match.")
 
@@ -489,6 +495,7 @@ class BusinessRegistrationForm(forms.Form):
         create_subscription: bool = True,
         provisioning_source: str = BusinessSubscription.ProvisioningSource.STANDARD,
     ) -> tuple[TaskIOUser, Business, BusinessUser, BusinessSubscription | None]:
+        logistics_free_test = self.free_test_plan_slug in LOGISTICS_TIER_SLUGS
         user = TaskIOUser.objects.create_user(
             email=self.cleaned_data["email"],
             first_name=self.cleaned_data["first_name"],
@@ -504,7 +511,15 @@ class BusinessRegistrationForm(forms.Form):
             slug=generate_business_slug(self.cleaned_data["business_name"]),
             email=self.cleaned_data["business_email"],
             country=self.cleaned_data["country"],
+            vertical=(
+                Business.Vertical.LOGISTICS if logistics_free_test else Business.Vertical.SERVICE
+            ),
         )
+
+        if logistics_free_test:
+            from apps.logistics.models import LogisticsProfile
+
+            LogisticsProfile.objects.create(business=business)
 
         membership = BusinessUser.objects.create(
             user=user,
@@ -528,6 +543,10 @@ class BusinessRegistrationForm(forms.Form):
                     status=BusinessSubscription.Status.ACTIVE,
                     provisioning_source=BusinessSubscription.ProvisioningSource.FREE_TEST,
                     payment_provider=BusinessSubscription.PaymentProvider.LOCAL,
+                    # Compatibility marker only; free access has no period deadline.
+                    billing_interval=(
+                        BusinessSubscription.BillingInterval.YEARLY if logistics_free_test else ""
+                    ),
                 )
             else:
                 subscription = create_default_trial_subscription(
