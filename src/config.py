@@ -185,6 +185,18 @@ class Settings(BaseSettings):
         default="",
         description="Reusable private token for Business free-test registration.",
     )
+    free_test_logistics_core_token: str = Field(
+        default="",
+        description="Reusable private token for Logistics Core free-test registration.",
+    )
+    free_test_logistics_growth_token: str = Field(
+        default="",
+        description="Reusable private token for Logistics Growth free-test registration.",
+    )
+    free_test_logistics_scale_token: str = Field(
+        default="",
+        description="Reusable private token for Logistics Scale free-test registration.",
+    )
     motionmate_support_email: str = Field(
         default="",
         description="Support email address shown in transactional emails.",
@@ -319,6 +331,9 @@ class Settings(BaseSettings):
         "free_test_starter_token",
         "free_test_pro_token",
         "free_test_business_token",
+        "free_test_logistics_core_token",
+        "free_test_logistics_growth_token",
+        "free_test_logistics_scale_token",
         mode="before",
     )
     @classmethod
