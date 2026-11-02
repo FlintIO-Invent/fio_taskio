@@ -1,0 +1,34 @@
+{% load static %}
+<div class="modal fade" id="draftClientModal" tabindex="-1" aria-labelledby="draftClientModalLabel" aria-hidden="true" data-client-destination="{{ client_destination }}">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <form class="d-flex flex-column overflow-hidden" method="post" action="{% url 'staff_client_quick_create' %}" data-draft-client-form>
+        {% csrf_token %}
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title" id="draftClientModalLabel">Add a new client</h5>
+            <p class="small text-body-secondary mb-0">The client will be saved to {{ current_business.name }} now. Your draft will stay in place.</p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-danger d-none" role="alert" tabindex="-1" data-draft-client-errors></div>
+          <div class="row g-3">
+            {% for field in new_client_form %}
+              <div class="{% if field.name == 'street_address' or field.name == 'company_name' %}col-12{% else %}col-12 col-md-6{% endif %}">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}</label>
+                {{ field }}
+              </div>
+            {% endfor %}
+          </div>
+          <p class="small text-body-secondary mt-3 mb-0">All fields are required. You can complete the rest of the client profile later.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-phoenix-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" type="submit">{% if client_destination == 'appointment' %}Add and select client{% else %}Add and use client details{% endif %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script src="{% static 'assets/js/draft-client.js' %}" defer></script>

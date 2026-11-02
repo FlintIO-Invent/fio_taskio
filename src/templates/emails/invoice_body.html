@@ -6,9 +6,14 @@
   <p>
     <strong>Invoice number:</strong> {{ invoice.invoice_number }}<br>
     <strong>Issue date:</strong> {{ issue_date }}<br>
-    <strong>Amount due:</strong> {{ amount_due }}<br>
+    <strong>Lifecycle:</strong> {{ invoice_presentation.lifecycle_label }}<br>
+    {% if invoice_presentation.payment_label %}<strong>Payment status:</strong> {{ invoice_presentation.payment_label }}<br>{% endif %}
+    {% for row in invoice_presentation.amount_rows %}<strong>{{ row.label }}:</strong> {{ row.text }}<br>{% endfor %}
     <strong>Attachment:</strong> {{ attachment_filename }}
   </p>
+  {% if invoice_presentation.note %}<p>{{ invoice_presentation.note }}</p>{% endif %}
+  {% if invoice_presentation.refund_note %}<p>{{ invoice_presentation.refund_note }}</p>{% endif %}
+  {% for issue in invoice_presentation.issues %}<p>{{ issue }}</p>{% endfor %}
   <p>
     <strong>Business contact:</strong><br>
     {{ business_contact|linebreaksbr }}

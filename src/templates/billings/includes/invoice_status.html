@@ -1,0 +1,2 @@
+<span class="badge badge-phoenix badge-phoenix-secondary">{{ financial.lifecycle_label }}</span>
+{% for label in financial.indicators %}<span class="badge badge-phoenix {% if label == 'Paid' %}badge-phoenix-success{% elif label == 'No payment required' or label == 'Cancellation credit' %}badge-phoenix-info{% else %}badge-phoenix-warning{% endif %}">{{ label }}</span>{% endfor %}

@@ -11,8 +11,8 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Case, Count, IntegerField, Q, QuerySet, Sum, Value, When
-from django.http import Http404, HttpRequest, HttpResponse
+from django.db.models import Case, Count, IntegerField, Q, QuerySet, Value, When
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -22,6 +22,7 @@ from loguru import logger
 from apps.appointments.models import Appointment
 from apps.appointments.operations import completed_operation, operation_fingerprint, operation_key
 from apps.billings.models import Invoice
+from apps.billings.presentation import invoice_finance_totals, present_invoice
 from apps.businesses.localization import (
     localized_price_input_example,
     uses_sint_maarten_districts,
@@ -841,39 +842,47 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         )
 
     invoices = Invoice.objects.none()
-    recent_invoices = Invoice.objects.none()
-    unpaid_statuses = [Invoice.Status.DRAFT, Invoice.Status.SENT]
-    invoice_count = 0
-    draft_invoice_count = 0
-    open_invoice_count = 0
-    sent_invoice_count = 0
-    paid_invoice_count = 0
-    invoice_value_this_month = Decimal("0.00")
-    unpaid_invoice_total = Decimal("0.00")
-    paid_invoice_total = Decimal("0.00")
-
+    recent_invoices = []
+    invoice_count = draft_invoice_count = open_invoice_count = sent_invoice_count = (
+        paid_invoice_count
+    ) = 0
+    invoice_value_this_month = unpaid_invoice_total = paid_invoice_total = Decimal("0.00")
+    finance_currency_totals = []
     if can_view_invoice_activity:
-        invoices = Invoice.objects.filter(business=current_business).select_related(
-            "client",
-            "business",
+        invoices = (
+            Invoice.objects.filter(business=current_business, client__business=current_business)
+            .select_related("client", "business")
+            .prefetch_related("payments")
+            .order_by("-created_at", "-pk")
         )
-        paid_invoices = invoices.filter(status=Invoice.Status.PAID)
-        recent_invoices = invoices.filter(status__in=unpaid_statuses).order_by(
-            "-created_at",
-            "-pk",
-        )[:5]
-        invoice_count = invoices.count()
-        draft_invoice_count = invoices.filter(status=Invoice.Status.DRAFT).count()
-        sent_invoice_count = invoices.filter(status=Invoice.Status.SENT).count()
-        open_invoice_count = invoices.filter(status__in=unpaid_statuses).count()
-        paid_invoice_count = paid_invoices.count()
-        paid_invoice_total = paid_invoices.aggregate(total=Sum("total"))["total"] or Decimal("0.00")
-        invoice_value_this_month = invoices.filter(created_at__gte=start_of_month).exclude(
-            status=Invoice.Status.CANCELLED
-        ).aggregate(total=Sum("total"))["total"] or Decimal("0.00")
-        unpaid_invoice_total = invoices.filter(status__in=unpaid_statuses).aggregate(
-            total=Sum("total")
-        )["total"] or Decimal("0.00")
+        records = list(invoices)
+        finance_currency_totals = invoice_finance_totals(
+            records,
+            business=current_business,
+            month_start=start_of_month,
+            month_end=(start_of_month + timedelta(days=32)).replace(day=1),
+        )
+        current_totals = next(
+            (
+                row
+                for row in finance_currency_totals
+                if row["currency"] == current_business.currency
+            ),
+            {},
+        )
+        invoice_count = len(records)
+        draft_invoice_count = sum(invoice.status == Invoice.Status.DRAFT for invoice in records)
+        sent_invoice_count = sum(
+            invoice.status in (Invoice.Status.SENT, Invoice.Status.PAID) for invoice in records
+        )
+        open_invoice_count = sum(row["open_invoice_count"] for row in finance_currency_totals)
+        paid_invoice_count = sum(row["paid_invoice_count"] for row in finance_currency_totals)
+        paid_invoice_total = current_totals.get("paid_invoice_total", Decimal("0.00"))
+        invoice_value_this_month = current_totals.get("invoiced_this_month_total", Decimal("0.00"))
+        unpaid_invoice_total = current_totals.get("outstanding_invoice_total", Decimal("0.00"))
+        recent_invoices = [invoice for invoice in records if present_invoice(invoice).collectible][
+            :5
+        ]
 
     context: dict[str, Any] = {
         "current_business": current_business,
@@ -923,6 +932,7 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         "unpaid_invoice_count": open_invoice_count,
         "paid_invoice_count": paid_invoice_count,
         "paid_invoice_total": paid_invoice_total,
+        "finance_currency_totals": finance_currency_totals,
         "invoice_value_this_month": invoice_value_this_month,
         "unpaid_invoice_total": unpaid_invoice_total,
         "recent_invoices": recent_invoices,
@@ -1181,6 +1191,7 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
         "form": form,
         "page_title": "Create a new service request",
         "submit_label": "Create service request",
+        "new_client_form": QuickClientForm(prefix="new_client"),
     }
 
     return render(request, "crm/forms/lead_create.html", context)
@@ -1319,6 +1330,47 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
 
     context = {"form": form}
     return render(request, "crm/forms/client_create.html", context)
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    permission_message="You do not have permission to create clients.",
+)
+@business_module_required("crm")
+@require_http_methods(["POST"])
+def staff_client_quick_create(request: HttpRequest) -> JsonResponse:
+    """Add a client without leaving an appointment or service request draft."""
+    form = QuickClientForm(request.POST, prefix="new_client")
+    if not form.is_valid():
+        return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
+
+    with transaction.atomic():
+        business = lock_client_capacity_scope(request.current_business)
+        if business_limit_reached(business, "clients"):
+            return JsonResponse(
+                {
+                    "errors": {
+                        "__all__": [
+                            {"message": get_business_limit_reached_message(business, "clients")}
+                        ]
+                    }
+                },
+                status=400,
+            )
+        client = form.save(commit=False)
+        client.business = business
+        client.save()
+
+    return JsonResponse(
+        {
+            "client": {
+                "id": client.pk,
+                "label": str(client),
+                **{name: getattr(client, name) for name in form.fields},
+            }
+        },
+        status=201,
+    )
 
 
 @business_role_required(
@@ -1492,9 +1544,9 @@ def staff_client_detail(request: HttpRequest, client_id: int) -> HttpResponse:
         get_current_business_membership(request), BILLING_VIEW_ROLES
     ):
         client_invoices = scope_invoices(
-            Invoice.objects.filter(business=current_business, client=client).select_related(
-                "business"
-            ),
+            Invoice.objects.filter(business=current_business, client=client)
+            .select_related("business")
+            .prefetch_related("payments"),
             business=current_business,
             actor=request.user,
         ).order_by("-created_at", "-pk")

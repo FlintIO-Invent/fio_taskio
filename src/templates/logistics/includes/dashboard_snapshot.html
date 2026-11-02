@@ -36,19 +36,20 @@
         <a class="btn btn-sm btn-phoenix-primary" href="{% url 'invoice_list' %}"><span class="fa-solid fa-file-invoice-dollar me-2" aria-hidden="true"></span>View Invoices</a>
       </div>
       <div class="row g-3">
-        {% include 'logistics/includes/kpi_card.html' with label='Invoiced This Month' value=invoiced_this_month_total|money:current_business icon='fa-chart-line' tone='primary' description='Sent and paid invoices created this calendar month.' columns='col-12 col-sm-6 col-xl-3' only %}
-        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Balances' value=outstanding_invoice_total|money:current_business icon='fa-hourglass-half' tone='warning' description='Issued Invoice amounts less net customer receipts.' columns='col-12 col-sm-6 col-xl-3' only %}
-        {% include 'logistics/includes/kpi_card.html' with label='Net Customer Receipts' value=paid_invoice_total|money:current_business icon='fa-circle-check' tone='success' description='Recorded receipts less reversals and refunds.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Invoiced This Month' value=invoiced_this_month_total|money:current_business icon='fa-chart-line' tone='primary' description='Verified issued invoices created this calendar month, after credits.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Balances' value=outstanding_invoice_total|money:current_business icon='fa-hourglass-half' tone='warning' description='Verified outstanding obligations after payments and credits.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Net payments received' value=paid_invoice_total|money:current_business icon='fa-circle-check' tone='success' description='Recorded receipts less reversals and refunds.' columns='col-12 col-sm-6 col-xl-3' only %}
         {% include 'logistics/includes/kpi_card.html' with label='Draft Invoice Value' value=draft_invoice_total|money:current_business icon='fa-file-circle-plus' tone='info' description='Draft invoices awaiting issue, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
         {% for totals in other_currency_invoice_totals %}
         <div class="col-12"><p class="fw-semibold mb-0">Saved Invoice currency: {{ totals.currency }}</p></div>
-        {% include 'logistics/includes/kpi_card.html' with label='Invoiced This Month' value=totals.invoiced_this_month_total|money:totals.billing_business icon='fa-chart-line' tone='primary' description='Sent and paid invoices created this calendar month.' columns='col-12 col-sm-6 col-xl-3' only %}
-        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Balances' value=totals.outstanding_invoice_total|money:totals.billing_business icon='fa-hourglass-half' tone='warning' description='Issued Invoice amounts less net customer receipts.' columns='col-12 col-sm-6 col-xl-3' only %}
-        {% include 'logistics/includes/kpi_card.html' with label='Net Customer Receipts' value=totals.paid_invoice_total|money:totals.billing_business icon='fa-circle-check' tone='success' description='Recorded receipts less reversals and refunds.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Invoiced This Month' value=totals.invoiced_this_month_total|money:totals.billing_business icon='fa-chart-line' tone='primary' description='Verified issued invoices created this calendar month, after credits.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Outstanding Balances' value=totals.outstanding_invoice_total|money:totals.billing_business icon='fa-hourglass-half' tone='warning' description='Verified outstanding obligations after payments and credits.' columns='col-12 col-sm-6 col-xl-3' only %}
+        {% include 'logistics/includes/kpi_card.html' with label='Net payments received' value=totals.paid_invoice_total|money:totals.billing_business icon='fa-circle-check' tone='success' description='Recorded receipts less reversals and refunds.' columns='col-12 col-sm-6 col-xl-3' only %}
         {% include 'logistics/includes/kpi_card.html' with label='Draft Invoice Value' value=totals.draft_invoice_total|money:totals.billing_business icon='fa-file-circle-plus' tone='info' description='Draft invoices awaiting issue, across all dates.' columns='col-12 col-sm-6 col-xl-3' only %}
         {% endfor %}
       </div>
-      {% if payment_review_invoice_count %}<p class="text-body-secondary mt-3 mb-0">{{ payment_review_invoice_count }} Invoice balance{{ payment_review_invoice_count|pluralize }} need{{ payment_review_invoice_count|pluralize:'s,' }} accounting review. Manual PAID status does not establish receipt-backed settlement.</p>{% endif %}
+      <!-- {% include 'billings/includes/finance_totals.html' %} -->
+      {% if payment_review_invoice_count %}<p class="text-body-secondary mt-3 mb-0">{{ payment_review_invoice_count }} Invoice balance{{ payment_review_invoice_count|pluralize }} need{{ payment_review_invoice_count|pluralize:'s,' }} accounting review. Unverified balances are shown separately and excluded from collectible totals.</p>{% endif %}
       <section class="card mt-3 p-0" id="logistics-refunds" aria-labelledby="logistics-refunds-title">
         <div class="card-header p-3">
           <h4 class="mb-1" id="logistics-refunds-title"><span class="fa-solid fa-arrow-rotate-left text-body-tertiary me-2" aria-hidden="true"></span>Customer refunds</h4>
@@ -99,6 +100,9 @@
       {% endif %}
       {% if dashboard_parcels_enabled %}
         <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_list' %}"><span class="fa-solid fa-box me-2" aria-hidden="true"></span>View Parcels</a>
+      {% endif %}
+      {% if dashboard_manifests_enabled %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_manifest' %}"><span class="fa-solid fa-file-pdf me-2" aria-hidden="true"></span>Download manifest</a>
       {% endif %}
     </div>
   </div>
@@ -215,7 +219,7 @@
                   {% include 'logistics/includes/status_badge.html' with status=parcel.current_status label=parcel.get_current_status_display %}
                 </div>
                 <p class="text-body-tertiary fs-9 mb-0">{{ parcel.client }}</p>
-                <p class="fs-9 mb-0">{% if parcel.workflow_summary.financial.visibility == 'DETAILED' %}{{ parcel.workflow_summary.financial.state_label }}{% elif parcel.workflow_summary.financial.clearance.cleared %}Accounting clearance confirmed{% else %}Accounting clearance pending{% endif %}</p>
+                <p class="fs-9 mb-0">{% if parcel.workflow_summary.financial.visibility == 'DETAILED' %}{{ parcel.workflow_summary.financial.state_label }}{% if parcel.workflow_summary.financial.clearance.via_credit %} · Credit approved{% endif %}{% elif parcel.workflow_summary.financial.clearance.cleared %}Accounting clearance confirmed{% else %}Accounting clearance pending{% endif %}</p>
               </li>
             {% empty %}
               <li class="list-group-item text-center py-5">

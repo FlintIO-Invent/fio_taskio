@@ -9,25 +9,29 @@
   </div>
   <div class="card-body">
     <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
-      {% for invoice in client_invoices %}
+      {% for invoice in client_invoices %}{% with financial=invoice.presentation %}
         <div class="col">
           <article class="border rounded-3 p-3 p-sm-4 d-flex flex-column h-100" aria-labelledby="client-invoice-{{ invoice.pk }}">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
               <h5 class="fs-8 text-break mb-0" id="client-invoice-{{ invoice.pk }}">
                 <a href="{% url 'invoice_detail' invoice.pk %}">{{ invoice.invoice_number }}</a>
               </h5>
-              <span class="badge badge-phoenix {% if invoice.status == 'PAID' %}badge-phoenix-success{% elif invoice.status == 'SENT' %}badge-phoenix-primary{% elif invoice.status == 'CANCELLED' %}badge-phoenix-danger{% else %}badge-phoenix-secondary{% endif %}">{{ invoice.get_status_display }}</span>
+              <div class="d-flex flex-wrap gap-1">{% include 'billings/includes/invoice_status.html' with financial=financial only %}</div>
             </div>
             <dl class="mb-4">
-              <dt class="text-body-secondary fw-normal fs-9 mb-1">Invoice total</dt>
-              <dd class="fw-semibold text-break mb-3">{{ invoice.total|money:invoice.billing_business }} <span class="text-body-secondary fs-9">{{ invoice.currency_code }}</span></dd>
+              <dt class="text-body-secondary fw-normal fs-9 mb-1">Original invoice total</dt>
+              <dd class="fw-semibold text-break mb-3">{{ financial.currency }} {{ financial.original_total|floatformat:2 }}</dd>
+              <dt class="text-body-secondary fw-normal fs-9 mb-1">Balance due</dt>
+              <dd class="mb-3">{% if financial.review_required %}Unverified — review required{% else %}{{ financial.currency }} {{ financial.balance_due|floatformat:2 }}{% endif %}</dd>
+              {% if financial.balance.refund_due %}<dt>Refund due</dt><dd>{{ financial.currency }} {{ financial.balance.refund_due|floatformat:2 }}</dd>{% endif %}
               <dt class="text-body-secondary fw-normal fs-9 mb-1">Created</dt>
               <dd class="mb-0">{{ invoice.created_at|date:"M j, Y" }}</dd>
             </dl>
+            <p class="text-body-secondary fs-9 text-break">{{ financial.email_note }}</p>
             <a class="btn btn-phoenix-primary d-flex align-items-center justify-content-center w-100 p-3 mt-auto" href="{% url 'invoice_detail' invoice.pk %}" aria-label="View invoice {{ invoice.invoice_number }}">View Invoice</a>
           </article>
         </div>
-      {% empty %}
+      {% endwith %}{% empty %}
         <div class="col w-100">
           <div class="border rounded-3 p-4 bg-body-tertiary">
             <h5 class="fs-8 mb-2">No invoices to display</h5>

@@ -492,7 +492,7 @@ class PrivateClientForm(CRMAddressStyleMixin, forms.ModelForm):
 
 
 class QuickClientForm(forms.ModelForm):
-    """Collect only the client details required while drafting an invoice."""
+    """Collect the client details required while drafting another record."""
 
     class Meta:
         model = Client
@@ -769,12 +769,20 @@ class PublicBookingForm(CRMAddressStyleMixin, forms.Form):
         max_length=40,
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "+1 (721) 456-7890"}),
     )
+    client_type = forms.ChoiceField(
+        choices=(
+            (Client.ClientType.BUSINESS, "Company"),
+            (Client.ClientType.INDIVIDUAL, "Individual"),
+        ),
+        initial=Client.ClientType.BUSINESS,
+        required=False,
+        label="Company or Individual",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     company_name = forms.CharField(
         max_length=120,
-        label="Company or household",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Company or household"}
-        ),
+        label="Company name",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Company name"}),
     )
     street_address = forms.CharField(
         max_length=255,
@@ -824,6 +832,9 @@ class PublicBookingForm(CRMAddressStyleMixin, forms.Form):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+        self.fields["company_name"].required = (
+            _initial_or_posted_value(self, "client_type") != Client.ClientType.INDIVIDUAL
+        )
         self.fields["country"].choices = _public_country_choices_with_business(business)
         self.address_style_data = _public_booking_address_style_data()
         self._apply_address_style(business=business)
@@ -886,6 +897,11 @@ class PublicBookingForm(CRMAddressStyleMixin, forms.Form):
                 .exists()
             ):
                 self.fields["service"].initial = selected_service_pk
+
+    def clean_company_name(self):
+        if self.cleaned_data.get("client_type") == Client.ClientType.INDIVIDUAL:
+            return ""
+        return self.cleaned_data["company_name"]
 
     def clean(self):
         cleaned_data = super().clean()

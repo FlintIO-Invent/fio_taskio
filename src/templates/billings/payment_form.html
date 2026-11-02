@@ -4,6 +4,7 @@
   <h2 class="mb-3">{{ title }}</h2>
   <p>Invoice {{ invoice.invoice_number }}{% if original_payment %} · Original receipt {{ original_payment.reference }}{% endif %}</p>
   <p class="text-body-secondary">Record money received or a completed refund. These entries do not collect money or send a refund.</p>
+  {% if payment_balance.legacy_paid_unverified %}<p class="text-warning">{{ invoice.presentation.note }}</p>{% endif %}
   <div class="card"><div class="card-body">
     <form method="post" novalidate>
       {% csrf_token %}

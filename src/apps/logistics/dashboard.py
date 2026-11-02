@@ -5,14 +5,14 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from django.db.models import Count, Exists, OuterRef, Q, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Count, Exists, OuterRef, Q
 
 from apps.billings.models import Invoice, InvoiceCancellationCredit, InvoicePayment
 from apps.billings.payment_services import _invoice_settlement
-from apps.businesses.utils import BILLING_VIEW_ROLES, can_view_module, membership_has_any_role
+from apps.billings.presentation import invoice_finance_totals, present_invoice
+from apps.businesses.utils import can_view_module, membership_has_any_role
 
-from .financial_access import scope_invoices
+from .financial_access import ACCOUNTING_ROLES, scope_invoices
 from .models import Parcel, ParcelEvent, Shipment
 from .parcel_policy import PARCEL_VIEW_ROLES
 from .parcel_services import parcels_for_business
@@ -29,14 +29,19 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
     shipments_enabled = can_view_module(business, "shipments") and membership_has_any_role(
         membership, SHIPMENT_VIEW_ROLES
     )
+    # Dashboard aggregates require accounting access. Operational invoice access
+    # (including staff Parcel clearance) remains governed by its existing policy.
     invoices_enabled = can_view_module(business, "invoicing") and membership_has_any_role(
-        membership, BILLING_VIEW_ROLES
+        membership, ACCOUNTING_ROLES
     )
     context = {
         "logistics_dashboard": True,
         "dashboard_parcels_enabled": parcels_enabled,
         "dashboard_shipments_enabled": shipments_enabled,
         "dashboard_invoices_enabled": invoices_enabled,
+        "dashboard_manifests_enabled": parcels_enabled
+        and shipments_enabled
+        and can_view_module(business, "manifests"),
     }
     if parcels_enabled or invoices_enabled:
         local_now = now.astimezone(ZoneInfo(business.timezone))
@@ -54,23 +59,11 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             business=business,
             actor=actor,
         )
-        buckets = (
-            invoices.annotate(
-                finance_currency=Coalesce("currency_snapshot", Value(business.currency))
-            )
-            .values("finance_currency")
-            .annotate(
-                invoiced_this_month_total=Sum(
-                    "total",
-                    filter=Q(
-                        status__in=(Invoice.Status.SENT, Invoice.Status.PAID),
-                        created_at__gte=month_start,
-                        created_at__lt=month_end,
-                    ),
-                ),
-                draft_invoice_total=Sum("total", filter=Q(status=Invoice.Status.DRAFT)),
-            )
+        invoices = invoices.select_related("business").prefetch_related("payments")
+        finance_totals = invoice_finance_totals(
+            invoices, business=business, month_start=month_start, month_end=month_end
         )
+        context["finance_currency_totals"] = finance_totals
         keys = (
             "invoiced_this_month_total",
             "outstanding_invoice_total",
@@ -78,7 +71,6 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             "draft_invoice_total",
         )
         context.update({key: Decimal("0.00") for key in keys})
-        receipt_totals = {}
         refund_totals = {}
         refund_review_count = 0
         review_count = 0
@@ -102,6 +94,7 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
             .prefetch_related("payments")
         ):
             balance = _invoice_settlement(invoice)
+            financial = present_invoice(invoice, balance=balance)
             if balance.issues:
                 if invoice.status in (Invoice.Status.SENT, Invoice.Status.PAID):
                     review_count += 1
@@ -129,19 +122,11 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
                     (entry.amount for entry in refunds), Decimal("0.00")
                 )
                 values["recorded_refund_count"] += len(refunds)
-            if invoice.status not in (Invoice.Status.SENT, Invoice.Status.PAID):
-                continue
-            if balance.legacy_paid_unverified or invoice.snapshot_is_legacy:
+            if financial.review_required and invoice.status in (
+                Invoice.Status.SENT,
+                Invoice.Status.PAID,
+            ):
                 review_count += 1
-            values = receipt_totals.setdefault(
-                balance.currency,
-                {
-                    "outstanding_invoice_total": Decimal("0.00"),
-                    "paid_invoice_total": Decimal("0.00"),
-                },
-            )
-            values["outstanding_invoice_total"] += balance.outstanding
-            values["paid_invoice_total"] += balance.net_paid
         context["payment_review_invoice_count"] = review_count
         refund_currencies = []
         for currency, totals in sorted(refund_totals.items()):
@@ -153,29 +138,11 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
         context["refund_currency_totals"] = refund_currencies
         context["refund_review_invoice_count"] = refund_review_count
         other_currencies = []
-        for bucket in buckets.order_by("finance_currency"):
-            values = {key: bucket.get(key) or Decimal("0.00") for key in keys}
-            values.update(
-                receipt_totals.get(
-                    bucket["finance_currency"],
-                    {
-                        "outstanding_invoice_total": Decimal("0.00"),
-                        "paid_invoice_total": Decimal("0.00"),
-                    },
-                )
-            )
-            if bucket["finance_currency"] == business.currency:
-                context.update(values)
+        for bucket in finance_totals:
+            if bucket["currency"] == business.currency:
+                context.update({key: bucket[key] for key in keys})
             else:
-                money_business = copy(business)
-                money_business.currency = bucket["finance_currency"]
-                other_currencies.append(
-                    {
-                        **values,
-                        "currency": bucket["finance_currency"],
-                        "billing_business": money_business,
-                    }
-                )
+                other_currencies.append(bucket)
         context["other_currency_invoice_totals"] = other_currencies
     if parcels_enabled:
         parcels = parcels_for_business(business=business, actor=actor)

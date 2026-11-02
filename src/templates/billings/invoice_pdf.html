@@ -31,7 +31,7 @@
       <div class="invoice-title">Invoice</div>
       <div>Invoice #: {{ invoice.invoice_number }}</div>
       <div>Date: {{ issue_date|date:"M d, Y" }}</div>
-      <div>Status: {{ invoice.get_status_display }}</div>
+      <div>Lifecycle: {{ invoice_presentation.lifecycle_label }}</div>
     </div>
   </div>
 
@@ -85,12 +85,15 @@
         <td class="text-end">{{ invoice.tax|money:business }}</td>
       </tr>
     {% endif %}
-    <tr>
-      <td><strong>Total</strong></td>
-      <td class="text-end"><strong>{{ invoice.total|money:business }}</strong></td>
-    </tr>
+    {% for row in invoice_presentation.amount_rows %}<tr><td>{{ row.label }}</td><td class="text-end">{{ row.text }}</td></tr>{% endfor %}
   </table>
 
+  <div class="section">
+    {% if invoice_presentation.payment_label %}<p>Payment status: <strong>{{ invoice_presentation.payment_label }}</strong></p>{% endif %}
+    {% if invoice_presentation.note %}<p>{{ invoice_presentation.note }}</p>{% endif %}
+    {% if invoice_presentation.refund_note %}<p>{{ invoice_presentation.refund_note }}</p>{% endif %}
+    {% for issue in invoice_presentation.issues %}<p>{{ issue }}</p>{% endfor %}
+  </div>
   {% if include_notes and invoice.notes %}
     <div class="section">
       <strong>Notes</strong>

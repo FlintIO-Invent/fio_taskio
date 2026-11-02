@@ -41,6 +41,9 @@ def _invoice(request, invoice_id):
 
 def payment_context(*, business, actor, invoice):
     balance = invoice_settlement(business=business, actor=actor, invoice=invoice)
+    from .presentation import present_invoice
+
+    financial = present_invoice(invoice, balance=balance)
     writable, accounting = False, False
     try:
         require_payment_access(business=business, actor=actor, invoice=invoice, write=True)
@@ -71,12 +74,13 @@ def payment_context(*, business, actor, invoice):
         )
     return {
         "payment_balance": balance,
+        "invoice_presentation": financial,
         "has_customer_payments": invoice.payments.exists(),
         "payment_entries": entries,
         "payment_currency_differs": balance.currency != invoice.currency_code,
         "can_record_payment": (
             writable
-            and not balance.issues
+            and not financial.review_required
             and balance.outstanding > 0
             and invoice.status in (Invoice.Status.SENT, Invoice.Status.PAID)
             and not (business.vertical == "LOGISTICS" and invoice.snapshot_is_legacy)
@@ -103,7 +107,10 @@ def invoice_payment_record(request, invoice_id):
         invoice=invoice,
         currency=balance.currency,
         accounting=member.role in ACCOUNTING_ROLES,
-        initial={"method": "CASH", "amount": balance.outstanding},
+        initial={
+            "method": "CASH",
+            "amount": None if balance.legacy_paid_unverified else balance.outstanding,
+        },
     )
     if request.method == "POST" and form.is_valid():
         try:

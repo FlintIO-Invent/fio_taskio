@@ -57,7 +57,7 @@
     <h4 class="fs-8 mb-3">1. Review and issue Invoice</h4>
     {% for invoice in invoices %}
       <div class="border rounded-3 p-3 p-sm-4 mb-3">
-        <p class="text-break mb-0"><a class="fw-semibold" href="{% url 'invoice_detail' invoice.id %}">{{ invoice.number }}</a>{% if not invoice.restricted %} · {{ invoice.lifecycle_status }} · Outstanding {{ invoice.currency }} {{ invoice.outstanding|floatformat:2 }}{% if invoice.shared %} · Full shared Invoice balance{% endif %}{% endif %}</p>
+        <p class="text-break mb-0"><a class="fw-semibold" href="{% url 'invoice_detail' invoice.id %}">{{ invoice.number }}</a>{% if not invoice.restricted %} · {% include 'billings/includes/invoice_status.html' with financial=invoice.presentation only %} · {% if invoice.presentation.review_required %}Unverified balance — review required{% else %}Balance due {{ invoice.currency }} {{ invoice.presentation.balance_due|floatformat:2 }}{% endif %}{% if invoice.shared %} · Full shared Invoice balance{% endif %}{% endif %}</p>
         {% if invoice.can_issue or invoice.can_pay %}
         <div class="row row-cols-1 row-cols-md-2 g-3 mt-1">
         {% if invoice.can_issue %}
@@ -81,10 +81,10 @@
       {% if financial_actions %}<a class="btn btn-phoenix-primary mb-3" href="#registration-billing">Review charges and create Invoice</a>{% endif %}
     {% endfor %}
     <h4 class="fs-8 mt-4 mb-3">2. Customer payment decision</h4>
-    {% if not paid_available %}<p class="text-body-secondary mb-3" id="payment-invoice-guidance">Create and issue an Invoice above to enable Paid. Choose Unpaid to continue without recording a payment.</p>{% endif %}
-    {% if can_decide_payment %}<form id="registration-payment-form" data-payment-decision-form data-payment-complete="{{ payment_decision_complete|yesno:'true,false' }}" method="post" class="border rounded-3 p-3 p-sm-4"{% if not paid_available %} aria-describedby="payment-invoice-guidance"{% endif %} novalidate>
+    {% if not record_available %}<p class="text-body-secondary mb-3" id="payment-invoice-guidance">Create and issue an invoice above to record a payment. You can continue without recording a payment.</p>{% endif %}
+    {% if can_decide_payment %}<form id="registration-payment-form" data-payment-decision-form data-payment-complete="{{ payment_decision_complete|yesno:'true,false' }}" method="post" class="border rounded-3 p-3 p-sm-4"{% if not record_available %} aria-describedby="payment-invoice-guidance"{% endif %} novalidate>
       {% csrf_token %}<input type="hidden" name="action" value="payment"><input type="hidden" name="invoice" value="{{ payment_invoice.pk }}">
-      <fieldset class="mb-4"><legend class="fs-8">Customer payment decision</legend>{{ payment_decision_form.decision }}{{ payment_decision_form.decision.errors }}<p class="text-body-secondary mb-0">Choose explicitly, then press Continue. Unpaid keeps the existing outstanding balance and does not grant clearance.</p></fieldset>
+      <fieldset class="mb-4"><legend class="fs-8">Customer payment decision</legend>{{ payment_decision_form.decision }}{{ payment_decision_form.decision.errors }}<p class="text-body-secondary mb-0">Record money already received, or continue without recording a payment. This choice does not grant clearance.</p></fieldset>
       {% if payment_form %}<div data-payment-receipt-fields>
       <h4 class="fs-8 text-break mb-2">Record customer payment · {{ payment_invoice.invoice_number }}</h4>
       <p class="text-body-secondary mb-4">Record money already received. This does not collect a payment.</p>
@@ -101,7 +101,7 @@
           {% endif %}
         {% endfor %}
       </div>
-      </div>{% elif paid_available %}<p class="text-body-secondary">The balance is already cleared. Paid confirms the saved receipts.</p>{% endif %}
+      </div>{% elif record_available %}<p class="text-body-secondary">No receipt entry is available. Accounting clearance and payment status are shown separately above.</p>{% endif %}
       <button class="btn btn-primary mt-3 w-100" type="submit">Continue</button>
     </form>{% else %}<p class="text-body-secondary">An authorized operational or accounting colleague must record the payment decision.</p>{% endif %}
   </section>
@@ -161,5 +161,5 @@
     </div>
   </div>
 </div>
-<script src="{% static 'assets/js/parcel-wizard.js' %}?v=20261023-1"></script>
+<script src="{% static 'assets/js/parcel-wizard.js' %}?v=20261102-1"></script>
 {% endblock %}

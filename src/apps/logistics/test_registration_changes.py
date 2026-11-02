@@ -136,30 +136,33 @@ class ExplicitPaymentDecisionTests(TestCase):
         invoice = self.bill(self.charge(parcel=parcel, unit_price=100))
         response = self.client.get(self.url(parcel))
         html = response.content.decode()
-        self.assertLess(html.index(f"Issue Invoice {invoice.invoice_number}"), html.index('id="registration-payment-form"'))
-        self.assertIn("disabled", self.payment_choices(response)["paid"])
-        self.assertNotIn("disabled", self.payment_choices(response)["unpaid"])
+        self.assertLess(
+            html.index(f"Issue Invoice {invoice.invoice_number}"),
+            html.index('id="registration-payment-form"'),
+        )
+        self.assertIn("disabled", self.payment_choices(response)["record"])
+        self.assertNotIn("disabled", self.payment_choices(response)["continue"])
         self.assertEqual(InvoicePayment.objects.count(), 0)
         self.assertRedirects(
             self.client.post(self.url(parcel), {"action": "issue", "invoice": invoice.pk}),
             self.url(parcel),
         )
         response = self.client.get(self.url(parcel))
-        self.assertNotIn("disabled", self.payment_choices(response)["paid"])
+        self.assertNotIn("disabled", self.payment_choices(response)["record"])
         self.assertIsNone(response.context["payment_decision_form"]["decision"].value())
         self.assertEqual(response.context["payment_invoice"].pk, invoice.pk)
         self.assertEqual(InvoicePayment.objects.count(), 0)
 
-    def test_no_invoice_disables_paid_but_paid_receipts_can_be_confirmed(self):
+    def test_no_invoice_and_fully_paid_invoice_disable_further_receipt_entry(self):
         parcel = self.parcel()
         response = self.client.get(self.url(parcel))
-        self.assertIn("disabled", self.payment_choices(response)["paid"])
-        self.assertNotIn("disabled", self.payment_choices(response)["unpaid"])
+        self.assertIn("disabled", self.payment_choices(response)["record"])
+        self.assertNotIn("disabled", self.payment_choices(response)["continue"])
         invoice = self.bill(self.charge(parcel=parcel, unit_price=100))
         self.issue(invoice)
         self.pay(parcel, invoice)
         response = self.client.get(self.url(parcel))
-        self.assertNotIn("disabled", self.payment_choices(response)["paid"])
+        self.assertIn("disabled", self.payment_choices(response)["record"])
         self.assertEqual(InvoicePayment.objects.count(), 1)
 
     def test_no_default_unpaid_preserves_balance_and_saved_choice(self):
@@ -170,7 +173,11 @@ class ExplicitPaymentDecisionTests(TestCase):
         for value in ("", "other"):
             response = self.pay(parcel, invoice, decision=value)
             self.assertEqual(response.status_code, 200)
-            self.assertContains(response, "Select paid or unpaid") if not value else None
+            (
+                self.assertContains(response, "Choose whether to record a payment")
+                if not value
+                else None
+            )
             self.assertEqual(InvoicePayment.objects.count(), 0)
         for _ in range(2):
             response = self.client.post(
@@ -178,7 +185,7 @@ class ExplicitPaymentDecisionTests(TestCase):
             )
             self.assertRedirects(response, self.url(parcel) + "#registration-shipment")
         page = self.client.get(self.url(parcel))
-        self.assertEqual(page.context["payment_decision_form"]["decision"].value(), "unpaid")
+        self.assertEqual(page.context["payment_decision_form"]["decision"].value(), "continue")
         self.assertEqual(page.context["resume_step"], "registration-shipment")
         invoice.refresh_from_db()
         self.assertEqual(invoice.status, "SENT")
@@ -190,7 +197,7 @@ class ExplicitPaymentDecisionTests(TestCase):
         self.client.post(self.url(parcel), {"action": "payment", "decision": "unpaid"})
         response = self.pay(parcel, invoice, amount="", method="")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["payment_decision_form"]["decision"].value(), "paid")
+        self.assertEqual(response.context["payment_decision_form"]["decision"].value(), "record")
         self.assertIn("amount", response.context["payment_form"].errors)
         self.assertIn("method", response.context["payment_form"].errors)
         self.assertFalse(response.context["payment_decision_complete"])
@@ -203,7 +210,7 @@ class ExplicitPaymentDecisionTests(TestCase):
         self.assertEqual(InvoicePayment.objects.count(), 1)
         self.assertEqual(Invoice.objects.count(), 1)
         page = self.client.get(self.url(parcel))
-        self.assertEqual(page.context["payment_decision_form"]["decision"].value(), "paid")
+        self.assertEqual(page.context["payment_decision_form"]["decision"].value(), "record")
 
     def test_paid_without_invoice_is_validation_error_unpaid_has_no_writes(self):
         parcel = self.parcel()

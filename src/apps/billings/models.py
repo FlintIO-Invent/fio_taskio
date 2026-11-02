@@ -85,6 +85,12 @@ class Invoice(TimeStampedModel):
     def __str__(self) -> str:
         return self.invoice_number
 
+    @property
+    def presentation(self):
+        from .presentation import present_invoice
+
+        return present_invoice(self)
+
     def delete(self, *args, **kwargs):
         if self.payments.exists():
             raise ProtectedError("Customer payment history must be retained.", [self])

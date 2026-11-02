@@ -115,7 +115,7 @@ class FinancialCoverageBrowserChecks(StaticLiveServerTestCase):
                 (reissue.currency_code, reissue.tax_rate_percentage, reissue.total),
                 ("USD", Decimal("10"), Decimal("165")),
             )
-            page.get_by_role("button", name="Mark as Sent", exact=True).click()
+            page.get_by_role("button", name="Issue invoice", exact=True).click()
             page.wait_for_load_state("networkidle")
             self.assertEqual(db(lambda: Invoice.objects.get(pk=reissue.pk).status), "SENT")
             self.assertTrue(page.get_by_text("$165.00", exact=True).first.is_visible())

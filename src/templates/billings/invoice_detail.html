@@ -103,7 +103,7 @@
       <div class="card">
         <div class="card-header mobile-card-header d-flex justify-content-between align-items-center">
           <h5 class="mb-0">Invoice Details</h5>
-          <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+          <div class="d-flex flex-wrap gap-2">{% include 'billings/includes/invoice_status.html' with financial=invoice_presentation only %}</div>
         </div>
         <div class="card-body">
           <div class="row g-4 mb-4">
@@ -124,9 +124,9 @@
                   <span class="fa-solid fa-signal"></span>
                 </div>
                 <div class="invoice-detail-content">
-                  <div class="invoice-detail-label">Status</div>
+                  <div class="invoice-detail-label">Lifecycle</div>
                   <p class="invoice-detail-value">
-                    <span class="badge bg-{{ invoice.status|lower }}">{{ invoice.get_status_display }}</span>
+                    {{ invoice_presentation.lifecycle_label }}
                   </p>
                 </div>
               </div>
@@ -138,7 +138,7 @@
                 </div>
                 <div class="invoice-detail-content">
                   <div class="invoice-detail-label">Currency</div>
-                  <p class="invoice-detail-value fw-semibold">{{ invoice.currency_code }}</p>
+                  <p class="invoice-detail-value fw-semibold">{{ invoice_presentation.currency }}</p>
                 </div>
               </div>
             </div>
@@ -216,25 +216,25 @@
                     {% if line.shipment_id in visible_shipment_ids and module_access.shipments %}<br><a href="{% url 'logistics_shipment_detail' line.shipment_id %}" class="small">View shipment</a>{% endif %}
                   </td>
                   <td class="text-end">{{ line.quantity }}</td>
-                  <td class="text-end">{{ line.unit_price|money:invoice.billing_business }}</td>
-                  <td class="text-end">{{ line.line_total|money:invoice.billing_business }}</td>
+                  <td class="text-end">{{ line.unit_price|money:invoice_presentation.billing_business }}</td>
+                  <td class="text-end">{{ line.line_total|money:invoice_presentation.billing_business }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
               <tfoot>
                 <tr>
                   <td colspan="3" class="text-end fw-bold">Subtotal:</td>
-                  <td class="text-end fw-bold">{{ invoice.subtotal|money:invoice.billing_business }}</td>
+                  <td class="text-end fw-bold">{{ invoice.subtotal|money:invoice_presentation.billing_business }}</td>
                 </tr>
                 {% if invoice.tax %}
                 <tr>
                   <td colspan="3" class="text-end">{% if invoice.snapshot_is_legacy %}Tax (legacy effective rate {{ invoice.tax_rate_percentage }}%):{% else %}Tax ({{ invoice.tax_rate_percentage }}%):{% endif %}</td>
-                  <td class="text-end">{{ invoice.tax|money:invoice.billing_business }}</td>
+                  <td class="text-end">{{ invoice.tax|money:invoice_presentation.billing_business }}</td>
                 </tr>
                 {% endif %}
                 <tr>
                   <td colspan="3" class="text-end fw-bold">Total:</td>
-                  <td class="text-end fw-bold">{{ invoice.total|money:invoice.billing_business }}</td>
+                  <td class="text-end fw-bold">{{ invoice.total|money:invoice_presentation.billing_business }}</td>
                 </tr>
               </tfoot>
             </table>
@@ -295,16 +295,9 @@
           </div>
 
           <div class="border-top pt-3 mb-3">
-            <div class="invoice-detail-label">Email Delivery</div>
-            {% if invoice.emailed_at %}
-              <p class="invoice-detail-value">
-                Last emailed {{ invoice.emailed_at|date:"M d, Y, g:i a" }}
-                {% if invoice.emailed_to %}to {{ invoice.emailed_to }}{% endif %}
-              </p>
-              <small class="text-body-tertiary">Sent {{ invoice.email_send_count }} time{{ invoice.email_send_count|pluralize }}.</small>
-            {% else %}
-              <p class="invoice-detail-value text-body-tertiary">This invoice has not been emailed yet.</p>
-            {% endif %}
+            <div class="invoice-detail-label">Email submission</div>
+            <p class="invoice-detail-value text-break">{{ invoice_presentation.email_note }}</p>
+            {% if invoice_presentation.email_submitted_at %}<small class="text-body-tertiary">Submitted {{ invoice_presentation.email_submission_count }} time{{ invoice_presentation.email_submission_count|pluralize }}.</small>{% endif %}
           </div>
 
           {% if invoice_can_clear %}
@@ -318,18 +311,8 @@
               <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
                 {% csrf_token %}
                 <input type="hidden" name="status" value="SENT">
-                <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as sent?')">
-                  <span class="fa-solid fa-paper-plane me-2"></span>Mark as Sent
-                </button>
-              </form>
-              {% endif %}
-
-              {% if invoice.status == 'SENT' %}
-              <form method="post" action="{% url 'invoice_change_status' invoice.pk %}" class="d-inline">
-                {% csrf_token %}
-                <input type="hidden" name="status" value="PAID">
-                <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Mark this invoice as paid?')">
-                  <span class="fa-solid fa-check me-2"></span>Mark as Paid
+                <button type="submit" class="btn btn-phoenix-success w-100" onclick="return confirm('Issue this invoice?')">
+                  <span class="fa-solid fa-paper-plane me-2"></span>Issue invoice
                 </button>
               </form>
               {% endif %}

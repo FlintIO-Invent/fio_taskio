@@ -72,11 +72,11 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item active">Service Requests</li>
+      <li class="breadcrumb-item active">Bookings</li>
     </ol>
   </nav>
 
-  <h2 class="text-bold text-body-emphasis mb-5">Service Requests</h2>
+  <h2 class="text-bold text-body-emphasis mb-5">Bookings</h2>
 
   <div class="pb-6">
     <div id="serviceRequestsTable" data-list='{"valueNames":["name","email","phone","leadtype","booking","status","date"],"page":10,"pagination":true}'>
@@ -86,7 +86,7 @@
             <div class="d-flex flex-wrap align-items-center gap-2">
               {% if role_access.can_manage_leads and workspace_can_modify %}
                 <a class="btn btn-primary" href="{% url 'staff_lead_create' %}">
-                  <span class="fas fa-plus me-2"></span>Create Service Request
+                  <span class="fas fa-plus me-2"></span>Create Booking
                 </a>
                 <a class="btn btn-phoenix-secondary" href="{% url 'lead_import_upload' %}">
                   <span class="fas fa-file-import me-2"></span>Import Lead CSV
