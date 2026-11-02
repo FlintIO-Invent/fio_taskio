@@ -5,12 +5,16 @@ from io import StringIO
 from unittest.mock import patch
 
 from django.core.management import call_command
+from django.forms.models import model_to_dict
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.businesses.admin import CommercialPlanAdminForm
 from apps.businesses.models import Business, BusinessSubscription, BusinessUser, ClarivoPlan
 from apps.businesses.plan_catalog import LOGISTICS_TIER_CAPACITY_FIELDS, LOGISTICS_TIER_SLUGS
+from apps.businesses.stripe_checkout import StripeCheckoutError, _validated_checkout_dimensions
+from apps.businesses.stripe_config import StripeConfigurationError
 from apps.businesses.stripe_portal import (
     get_customer_portal_availability,
     get_payment_recovery_portal_availability,
@@ -22,6 +26,7 @@ from apps.businesses.utils import (
     resolve_business_plan_limit,
 )
 from apps.crm.models import Client
+from apps.logistics.billing import validate_offering_activation
 from apps.logistics.classification import default_operating_areas
 from apps.logistics.models import LogisticsApplication, LogisticsProfile
 from config import Settings
@@ -74,13 +79,30 @@ class LogisticsFreeTestConfigurationTests(SimpleTestCase):
 @override_settings(
     FREE_TEST_REGISTRATION_ENABLED=True,
     LOGISTICS_LOCAL_BILLING_BYPASS=False,
+    MOTIONMATE_ENVIRONMENT="production",
+    DEBUG=False,
+    STRIPE_ENABLED=True,
+    STRIPE_SECRET_KEY="sk_live_fixture_only",
+    STRIPE_PUBLISHABLE_KEY="pk_live_fixture_only",
+    STRIPE_LOGISTICS_TIER_PRICE_ID_MAP={},
     **TOKEN_SETTINGS,
 )
 class LogisticsFreeTestRegistrationTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        # Only disposable test fixtures are activated; production activation is unchanged.
-        ClarivoPlan.objects.filter(slug__in=LOGISTICS_TIER_SLUGS).update(is_active=True)
+        # Free availability never activates the paid offering, even with LIVE keys.
+        ClarivoPlan.objects.filter(slug__in=LOGISTICS_TIER_SLUGS).update(
+            is_active=False, logistics_free_test_enabled=True
+        )
+
+    def setUp(self):
+        http = patch(
+            "stripe._http_client.RequestsClient.request",
+            side_effect=AssertionError("Stripe called"),
+        )
+        self.stripe_http = http.start()
+        self.addCleanup(http.stop)
+        self.addCleanup(self.stripe_http.assert_not_called)
 
     def url(self, tier, token=None):
         return reverse("register_business_free_test", args=[tier, token or TOKENS[tier]])
@@ -109,13 +131,109 @@ class LogisticsFreeTestRegistrationTests(TestCase):
         self.assertFalse(TaskIOUser.objects.filter(email__iexact=payload["email"]).exists())
         self.assertFalse(Business.objects.filter(name=payload["business_name"]).exists())
 
+    def test_admin_enables_only_selected_free_tier_without_paid_activation_or_stripe(self):
+        ClarivoPlan.objects.filter(slug__in=LOGISTICS_TIER_SLUGS).update(
+            logistics_free_test_enabled=False
+        )
+        plan = ClarivoPlan.objects.get(slug="logistics-scale")
+        data = {**model_to_dict(plan), "logistics_free_test_enabled": True}
+        with patch("apps.logistics.billing.configure_stripe_sdk") as sdk:
+            form = CommercialPlanAdminForm(data, instance=plan)
+            self.assertTrue(form.is_valid(), form.errors)
+            form.save()
+        sdk.assert_not_called()
+        plan.refresh_from_db()
+        self.assertTrue(plan.allows_logistics_free_test)
+        self.assertFalse(plan.is_active)
+        self.assertEqual(self.client.get(self.url(plan.slug)).status_code, 200)
+        for slug in ("logistics-core", "logistics-growth"):
+            self.assertFalse(ClarivoPlan.objects.get(slug=slug).logistics_free_test_enabled)
+            self.assertRedirects(self.client.get(self.url(slug)), reverse("register_business"))
+
+    def test_free_flag_cannot_skip_paid_activation_or_checkout_validation(self):
+        business = self.register("logistics-scale")
+        plan = business.subscription.plan
+        with self.assertRaises(StripeCheckoutError):
+            _validated_checkout_dimensions(
+                business=business, plan=plan, billing_interval="yearly", currency="eur"
+            )
+        plan.is_active = True
+        with self.assertRaisesMessage(StripeConfigurationError, "TEST keys"):
+            validate_offering_activation(plan)
+        form = CommercialPlanAdminForm(model_to_dict(plan), instance=plan)
+        self.assertFalse(form.is_valid())
+        with self.assertRaisesMessage(StripeConfigurationError, "TEST keys"):
+            _validated_checkout_dimensions(
+                business=business, plan=plan, billing_interval="yearly", currency="eur"
+            )
+        plan.refresh_from_db()
+        self.assertFalse(plan.is_active)
+
+    def test_admin_free_flag_rejects_other_plans_and_incomplete_tiers(self):
+        for slug in (*LOGISTICS_TIER_SLUGS, "starter", "beta", "logistics"):
+            plan = ClarivoPlan.objects.get(slug=slug)
+            changes = [{"logistics_free_test_enabled": True, "is_active": False}]
+            if slug in LOGISTICS_TIER_SLUGS:
+                changes = [
+                    {**changes[0], field: None} for field in LOGISTICS_TIER_CAPACITY_FIELDS
+                ] + [{**changes[0], "family": ClarivoPlan.Family.SERVICE}]
+            for change in changes:
+                with self.subTest(slug=slug, change=change):
+                    form = CommercialPlanAdminForm(
+                        {**model_to_dict(plan), **change},
+                        instance=ClarivoPlan.objects.get(pk=plan.pk),
+                    )
+                    self.assertFalse(form.is_valid())
+                    self.assertIn("logistics_free_test_enabled", form.errors)
+
+    def test_access_exception_requires_free_test_local_and_preserves_suspension(self):
+        business = self.register("logistics-scale")
+        subscription = business.subscription
+        for field, value in (
+            ("payment_provider", BusinessSubscription.PaymentProvider.STRIPE),
+            ("provisioning_source", BusinessSubscription.ProvisioningSource.STANDARD),
+        ):
+            original = getattr(subscription, field)
+            setattr(subscription, field, value)
+            self.assertEqual(
+                subscription.effective_access_state.code, subscription.AccessCode.PLAN_INACTIVE
+            )
+            setattr(subscription, field, original)
+        for status in (
+            BusinessSubscription.Status.PENDING_CHECKOUT,
+            BusinessSubscription.Status.PAST_DUE,
+            BusinessSubscription.Status.CANCELLED,
+            BusinessSubscription.Status.EXPIRED,
+        ):
+            subscription.status = status
+            self.assertFalse(subscription.has_access)
+        subscription.status = BusinessSubscription.Status.ACTIVE
+        self.assertTrue(subscription.has_access)
+        subscription.logistics_approval_review_required = True
+        self.assertFalse(subscription.has_access)
+        subscription.logistics_approval_review_required = False
+        subscription.business.is_active = False
+        self.assertFalse(subscription.has_access)
+        subscription.business.is_active = True
+        subscription.plan.logistics_free_test_enabled = False
+        self.assertFalse(subscription.has_access)
+
+    def test_existing_active_free_tier_does_not_require_new_flag(self):
+        ClarivoPlan.objects.filter(slug="logistics-scale").update(
+            is_active=True, logistics_free_test_enabled=False
+        )
+        business = self.register("logistics-scale")
+        self.assertTrue(business.subscription.has_access)
+
+    @override_settings(STRIPE_ENABLED=False, STRIPE_SECRET_KEY="", STRIPE_PUBLISHABLE_KEY="")
+    def test_free_registration_does_not_require_any_stripe_keys(self):
+        with patch("apps.logistics.billing.configure_stripe_sdk") as sdk:
+            business = self.register("logistics-scale")
+        sdk.assert_not_called()
+        self.assertTrue(business.subscription.has_access)
+
     def test_each_tier_provisions_logistics_owner_profiles_and_session_without_stripe(self):
         with (
-            override_settings(
-                STRIPE_ENABLED=True,
-                STRIPE_SECRET_KEY="sk_test_fixture_only",
-                STRIPE_PUBLISHABLE_KEY="pk_test_fixture_only",
-            ),
             patch("apps.accounts.views.ensure_pending_checkout_subscription") as pending,
             patch("apps.accounts.views.create_trial_checkout_session") as checkout,
             patch(
@@ -176,6 +294,7 @@ class LogisticsFreeTestRegistrationTests(TestCase):
                     self.assertFalse(subscription.cancel_at_period_end)
                     self.assertFalse(subscription.logistics_approval_review_required)
                     self.assertTrue(subscription.has_access)
+                    self.assertFalse(subscription.plan.is_active)
                     self.assertIsNone(subscription.access_ends_at)
                     self.assertFalse(
                         LogisticsApplication.objects.filter(business=business).exists()
@@ -280,7 +399,7 @@ class LogisticsFreeTestRegistrationTests(TestCase):
     def test_inactive_wrong_family_missing_and_every_incomplete_capacity_are_unavailable(self):
         for tier in LOGISTICS_TIER_SLUGS:
             plan = ClarivoPlan.objects.get(slug=tier)
-            cases = [{"is_active": False}, {"family": "SERVICE"}]
+            cases = [{"logistics_free_test_enabled": False}, {"family": "SERVICE"}]
             cases += [{field: None} for field in LOGISTICS_TIER_CAPACITY_FIELDS]
             for changes in cases:
                 with self.subTest(tier=tier, changes=changes):
@@ -380,7 +499,10 @@ class LogisticsFreeTestRegistrationTests(TestCase):
                 self.assertRedirects(response, reverse("register_business"))
                 self.assert_no_registration(self.payload(tier, "-old-link"))
                 self.assertEqual(self.client.get(self.url(tier, new_token)).status_code, 200)
-            with override_settings(FREE_TEST_REGISTRATION_ENABLED=False):
+            with override_settings(
+                FREE_TEST_REGISTRATION_ENABLED=False,
+                **{FREE_TEST_TOKEN_SETTING_BY_PLAN[tier]: ""},
+            ):
                 with patch("django.utils.timezone.now", return_value=future):
                     self.assertTrue(subscription.has_access)
                     self.assertIsNone(subscription.access_ends_at)
