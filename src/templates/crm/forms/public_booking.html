@@ -172,7 +172,13 @@
 
                     <div class="tab-pane" id="public-booking-step-contact" role="tabpanel" data-booking-wizard-pane data-booking-wizard-pane-index="2">
                       <div class="mb-3 text-start">
-                        <label class="form-label" for="{{ form.company_name.id_for_label }}">Company or household</label>
+                        <label class="form-label" for="{{ form.client_type.id_for_label }}">{{ form.client_type.label }}</label>
+                        {{ form.client_type }}
+                        {% if form.client_type.errors %}<div class="text-danger small">{{ form.client_type.errors }}</div>{% endif %}
+                      </div>
+
+                      <div class="mb-3 text-start" data-booking-company-name>
+                        <label class="form-label" for="{{ form.company_name.id_for_label }}">{{ form.company_name.label }}</label>
                         {{ form.company_name }}
                         {% if form.company_name.errors %}<div class="text-danger small">{{ form.company_name.errors }}</div>{% endif %}
                       </div>
@@ -309,6 +315,9 @@
     const nextStepButton = wizard ? wizard.querySelector('[data-booking-wizard-next]') : null;
     const submitStepButton = wizard ? wizard.querySelector('[data-booking-wizard-submit]') : null;
     const serviceField = document.getElementById('{{ form.service.id_for_label }}');
+    const clientTypeField = document.getElementById('{{ form.client_type.id_for_label }}');
+    const companyNameField = document.getElementById('{{ form.company_name.id_for_label }}');
+    const companyNameSection = document.querySelector('[data-booking-company-name]');
     const staffField = document.getElementById('{{ form.staff_member.id_for_label }}');
     const dateInput = document.getElementById('{{ form.preferred_date.id_for_label }}');
     const timeInput = document.getElementById('{{ form.preferred_time.id_for_label }}');
@@ -858,6 +867,18 @@
       renderDateSlots();
     }
 
+    function syncClientType() {
+      if (!clientTypeField || !companyNameField || !companyNameSection) {
+        return;
+      }
+      const isCompany = clientTypeField.value !== 'INDIVIDUAL';
+      companyNameSection.classList.toggle('d-none', !isCompany);
+      companyNameField.required = isCompany;
+      companyNameField.disabled = !isCompany;
+      clearFieldState(companyNameField);
+      setStepError(wizardPanes[2], '');
+    }
+
     function syncBookingSection() {
       if (!intentField || !bookingSection) {
         return;
@@ -879,10 +900,14 @@
     }
 
     syncBookingSection();
+    syncClientType();
     applyAddressStyle();
     activateWizardStep(Math.max(firstPaneWithServerErrors(), 0));
     if (countryField) {
       countryField.addEventListener('change', applyAddressStyle);
+    }
+    if (clientTypeField) {
+      clientTypeField.addEventListener('change', syncClientType);
     }
     if (intentField) {
       intentField.addEventListener('change', () => {

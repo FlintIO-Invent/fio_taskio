@@ -2997,6 +2997,68 @@ class PublicBookingTests(TestCase):
         self.assertIn("Requested service: Online Consultation", client.communication_notes)
         self.assertFalse(Appointment.objects.filter(source_lead=lead).exists())
 
+    def test_individual_public_booking_does_not_require_company_name(self):
+        lead = self._create_valid_booking(
+            client_type=Client.ClientType.INDIVIDUAL,
+            company_name="",
+        )
+        client = Client.objects.get(business=self.business, email=lead.email)
+        self.assertEqual(lead.company_name, "")
+        self.assertEqual(client.client_type, Client.ClientType.INDIVIDUAL)
+        self.assertEqual(client.company_name, "Jamie Booker")
+
+    def test_individual_public_booking_ignores_stale_company_name(self):
+        lead = self._create_valid_booking(
+            client_type=Client.ClientType.INDIVIDUAL,
+            company_name="Previously entered company",
+        )
+        client = Client.objects.get(business=self.business, email=lead.email)
+        self.assertEqual(lead.company_name, "")
+        self.assertEqual(client.client_type, Client.ClientType.INDIVIDUAL)
+
+    def test_individual_public_booking_accepts_full_length_personal_names(self):
+        lead = self._create_valid_booking(
+            client_type=Client.ClientType.INDIVIDUAL,
+            company_name="",
+            first_name="A" * 80,
+            last_name="B" * 80,
+        )
+        client = Client.objects.get(business=self.business, email=lead.email)
+        self.assertEqual(client.first_name, "A" * 80)
+        self.assertEqual(client.last_name, "B" * 80)
+        self.assertEqual(len(client.company_name), 120)
+        self.assertEqual(client.client_type, Client.ClientType.INDIVIDUAL)
+
+    def test_individual_can_book_an_appointment_without_company_name(self):
+        lead = self._create_valid_book_now(
+            client_type=Client.ClientType.INDIVIDUAL,
+            company_name="",
+        )
+        appointment = Appointment.objects.get(source_lead=lead)
+        self.assertEqual(appointment.client.client_type, Client.ClientType.INDIVIDUAL)
+        self.assertEqual(appointment.business, self.business)
+
+    def test_company_public_booking_requires_company_name(self):
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            self._booking_payload(client_type=Client.ClientType.BUSINESS, company_name=""),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("company_name", response.context["form"].errors)
+        self.assertEqual(response.context["form"]["client_type"].value(), Client.ClientType.BUSINESS)
+        self.assertFalse(Lead.objects.filter(business=self.business).exists())
+        self.assertFalse(Client.objects.filter(business=self.business).exists())
+
+    def test_public_booking_rejects_unknown_client_type(self):
+        response = self.client.post(
+            reverse("public_booking", args=[self.business.slug]),
+            self._booking_payload(client_type="UNKNOWN"),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("client_type", response.context["form"].errors)
+        self.assertFalse(Lead.objects.filter(business=self.business).exists())
+        self.assertFalse(Client.objects.filter(business=self.business).exists())
+
     def test_book_later_creates_request_without_preferred_time(self):
         payload = self._booking_payload(
             booking_intent=PublicBookingForm.BOOK_LATER,

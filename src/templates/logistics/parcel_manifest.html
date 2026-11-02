@@ -1,0 +1,40 @@
+{% extends 'inheritance/dashboard_parent.html' %}
+{% block content %}
+<div class="content">
+  <nav class="mb-3" aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Download manifest</li>
+  </ol></nav>
+  <h2 class="mb-2">Download manifest</h2>
+  <p class="text-body-secondary">Parcels are included by <strong>registration date</strong> in {{ current_business.timezone }}. Both start and end dates are included.</p>
+  <div class="card"><div class="card-body">
+    <form method="get" aria-label="Manifest period">
+      {% if form.non_field_errors %}<div class="alert alert-subtle-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4"><label class="form-label" for="{{ form.period.id_for_label }}">{{ form.period.label }}</label>{{ form.period }}{{ form.period.errors }}</div>
+        <div class="col-12 col-md-4" data-manifest-custom><label class="form-label" for="{{ form.start_date.id_for_label }}">{{ form.start_date.label }}</label>{{ form.start_date }}{{ form.start_date.errors }}</div>
+        <div class="col-12 col-md-4" data-manifest-custom><label class="form-label" for="{{ form.end_date.id_for_label }}">{{ form.end_date.label }}</label>{{ form.end_date }}{{ form.end_date.errors }}</div>
+      </div>
+      <p class="text-body-secondary fs-9">Start and end dates are only used for Custom range. Last 7 days and Last 30 days include today.</p>
+      <p class="text-body-secondary">The PDF includes current operational details for all matching parcels within your location access. It does not change parcels or shipments. You can share the downloaded file manually through email or WhatsApp.</p>
+      <div class="d-flex flex-column flex-sm-row gap-2">
+        <button class="btn btn-primary" type="submit" name="download" value="pdf"><span class="fa-solid fa-download me-2" aria-hidden="true"></span>Download PDF</button>
+        <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
+      </div>
+    </form>
+  </div></div>
+</div>
+<script>
+  (() => {
+    const period = document.getElementById('id_period');
+    const update = () => document.querySelectorAll('[data-manifest-custom]').forEach(group => {
+      const custom = period.value === 'custom';
+      group.hidden = !custom;
+      group.querySelector('input').disabled = !custom;
+      group.querySelector('input').required = custom;
+    });
+    period.addEventListener('change', update);
+    update();
+  })();
+</script>
+{% endblock %}

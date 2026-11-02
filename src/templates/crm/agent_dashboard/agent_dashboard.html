@@ -125,13 +125,7 @@
       </div>
     </div>
 
-    {% if public_booking_share_ready %}
-      <div class="row g-3 mb-4">
-        <div class="col-12">
-          {% include "businesses/includes/public_booking_share_card.html" %}
-        </div>
-      </div>
-    {% endif %}
+    
 
     {% if dashboard_invoices_enabled %}
       <div class="row g-3 mb-4" data-onboarding-target="invoices">
@@ -191,17 +185,25 @@
       </div>
     {% endif %}
 
+    {% if public_booking_share_ready %}
+      <div class="row g-3 mb-4">
+        <div class="col-12">
+          {% include "businesses/includes/public_booking_share_card.html" %}
+        </div>
+      </div>
+    {% endif %}
+
     <div class="row g-3">
       <div class="col-12 col-xxl-7">
         <div class="card h-100">
           <div class="card-header d-flex justify-content-between align-items-center gap-3">
             <div>
-              <h4 class="mb-1">Service Request Follow-Up</h4>
+              <h4 class="mb-1">Booking Follow-Up</h4>
               <p class="text-body-tertiary mb-0">
-                {{ open_service_request_count }} open requests, {{ public_booking_pending_review_count }} online bookings pending review.
+                {{ open_service_request_count }} open bookings, {{ public_booking_pending_review_count }} online bookings pending review.
               </p>
             </div>
-            <a href="{% url 'staff_lead_list' %}" class="btn btn-sm btn-outline-primary">View Requests</a>
+            <a href="{% url 'staff_lead_list' %}" class="btn btn-sm btn-outline-primary">View Bookings</a>
           </div>
           <div class="card-body p-0">
             {% if service_request_followups %}

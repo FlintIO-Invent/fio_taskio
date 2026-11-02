@@ -10,6 +10,7 @@ from . import (
     shipment_views,
 )
 from .cancellation_views import parcel_cancellation_settlement
+from .manifest_views import parcel_manifest
 from .public_tracking_views import public_tracking
 from .registration_views import parcel_registration
 from .views import (
@@ -26,6 +27,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("parcels/manifest/", parcel_manifest, name="logistics_parcel_manifest"),
     path(
         "parcels/<int:parcel_id>/cancellation-settlement/",
         parcel_cancellation_settlement,

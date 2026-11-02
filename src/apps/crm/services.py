@@ -50,7 +50,8 @@ def _default_client_company_name(lead: Lead) -> str:
         for part in [_normalized_text(lead.first_name), _normalized_text(lead.last_name)]
         if part
     )
-    return full_name or _normalized_text(lead.email)
+    max_length = Client._meta.get_field("company_name").max_length
+    return (full_name or _normalized_text(lead.email))[:max_length]
 
 
 def _default_client_type(lead: Lead) -> str:

@@ -100,6 +100,9 @@
       {% if dashboard_parcels_enabled %}
         <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_list' %}"><span class="fa-solid fa-box me-2" aria-hidden="true"></span>View Parcels</a>
       {% endif %}
+      {% if dashboard_manifests_enabled %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'logistics_parcel_manifest' %}"><span class="fa-solid fa-file-pdf me-2" aria-hidden="true"></span>Download manifest</a>
+      {% endif %}
     </div>
   </div>
 
