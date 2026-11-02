@@ -2,17 +2,34 @@ import secrets
 
 from django.conf import settings
 
-from apps.businesses.plan_catalog import PUBLIC_PAID_PLAN_SLUG_SET
+from apps.businesses.models import ClarivoPlan
+from apps.businesses.plan_catalog import LOGISTICS_TIER_CAPACITY_FIELDS, LOGISTICS_TIER_SLUGS
 
 FREE_TEST_TOKEN_SETTING_BY_PLAN = {
     "starter": "FREE_TEST_STARTER_TOKEN",
     "pro": "FREE_TEST_PRO_TOKEN",
     "business": "FREE_TEST_BUSINESS_TOKEN",
+    "logistics-core": "FREE_TEST_LOGISTICS_CORE_TOKEN",
+    "logistics-growth": "FREE_TEST_LOGISTICS_GROWTH_TOKEN",
+    "logistics-scale": "FREE_TEST_LOGISTICS_SCALE_TOKEN",
 }
 
 
 def is_allowed_free_test_plan_slug(plan_slug: str) -> bool:
-    return plan_slug in PUBLIC_PAID_PLAN_SLUG_SET
+    return plan_slug in FREE_TEST_TOKEN_SETTING_BY_PLAN
+
+
+def free_test_plan_queryset(plan_slug: str):
+    """Use the same tier eligibility for link admission and form validation."""
+    if not is_allowed_free_test_plan_slug(plan_slug):
+        return ClarivoPlan.objects.none()
+    plans = ClarivoPlan.objects.filter(slug=plan_slug, is_active=True)
+    if plan_slug in LOGISTICS_TIER_SLUGS:
+        plans = plans.filter(
+            family=ClarivoPlan.Family.LOGISTICS,
+            **{f"{field}__isnull": False for field in LOGISTICS_TIER_CAPACITY_FIELDS},
+        )
+    return plans
 
 
 def get_configured_free_test_registration_token(plan_slug: str) -> str:

@@ -69,7 +69,7 @@ from .forms import (
     SaaSWorkspaceSettingsForm,
 )
 from .free_test_registration import (
-    is_allowed_free_test_plan_slug,
+    free_test_plan_queryset,
     is_valid_free_test_registration_token,
 )
 
@@ -278,9 +278,8 @@ def _beta_registration_link_is_available(token: str) -> bool:
 def _free_test_registration_link_is_available(tier: str, token: str) -> bool:
     return bool(
         getattr(settings, "FREE_TEST_REGISTRATION_ENABLED", False)
-        and is_allowed_free_test_plan_slug(tier)
         and is_valid_free_test_registration_token(tier, token)
-        and ClarivoPlan.objects.filter(slug=tier, is_active=True).exists()
+        and free_test_plan_queryset(tier).exists()
     )
 
 
