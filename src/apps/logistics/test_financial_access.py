@@ -72,7 +72,7 @@ class LogisticsFinancialAccessTests(TestCase):
             reverse("invoice_change_status", args=[invoice.pk]), {"status": status}
         )
 
-    def test_staff_invoice_list_detail_pdf_and_dashboard_only_include_complete_accessible_invoices(
+    def test_staff_keep_scoped_invoice_access_without_dashboard_summaries(
         self,
     ):
         response = self.client.get(reverse("invoice_list"))
@@ -91,7 +91,8 @@ class LogisticsFinancialAccessTests(TestCase):
                         self.client.get(reverse(name, args=[invoice.pk])).status_code, 404
                     )
         dashboard = self.client.get(reverse("agent_dashboard"))
-        self.assertEqual(dashboard.context["draft_invoice_total"], self.ia.total)
+        self.assertNotIn("draft_invoice_total", dashboard.context)
+        self.assertNotContains(dashboard, "Finance overview")
         parcel = self.client.get(reverse("logistics_parcel_detail", args=[self.pa.pk]))
         self.assertNotContains(parcel, self.mixed.invoice_number)
         self.assertContains(parcel, "Financial details restricted")
@@ -117,7 +118,7 @@ class LogisticsFinancialAccessTests(TestCase):
         )
         self.assertContains(response, "USD")
 
-    def test_dashboard_refund_card_uses_existing_location_financial_scope(self):
+    def test_staff_keep_scoped_refund_invoice_access_without_dashboard_summary(self):
         from apps.billings.payment_services import adjust_invoice_payment, record_invoice_payment
 
         for invoice, amount in ((self.ia, 5), (self.ic, 7)):
@@ -147,9 +148,8 @@ class LogisticsFinancialAccessTests(TestCase):
                 idempotency_key=uuid.uuid4(),
             )
         response = self.client.get(reverse("agent_dashboard"))
-        totals = response.context["refund_currency_totals"][0]
-        self.assertEqual(totals["recorded_refund_total"], 5)
-        self.assertEqual(totals["recorded_refund_count"], 1)
+        self.assertNotIn("refund_currency_totals", response.context)
+        self.assertNotContains(response, "Customer refunds")
         response = self.client.get(reverse("invoice_list"), {"status": "REFUNDED"})
         self.assertEqual(list(response.context["invoices"]), [self.ia])
         self.client.force_login(self.user)

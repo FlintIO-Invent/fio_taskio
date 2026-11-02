@@ -10,9 +10,9 @@ from django.db.models.functions import Coalesce
 
 from apps.billings.models import Invoice, InvoiceCancellationCredit, InvoicePayment
 from apps.billings.payment_services import _invoice_settlement
-from apps.businesses.utils import BILLING_VIEW_ROLES, can_view_module, membership_has_any_role
+from apps.businesses.utils import can_view_module, membership_has_any_role
 
-from .financial_access import scope_invoices
+from .financial_access import ACCOUNTING_ROLES, scope_invoices
 from .models import Parcel, ParcelEvent, Shipment
 from .parcel_policy import PARCEL_VIEW_ROLES
 from .parcel_services import parcels_for_business
@@ -29,8 +29,10 @@ def get_logistics_dashboard_context(*, business, actor, membership, now):
     shipments_enabled = can_view_module(business, "shipments") and membership_has_any_role(
         membership, SHIPMENT_VIEW_ROLES
     )
+    # Dashboard aggregates require accounting access. Operational invoice access
+    # (including staff Parcel clearance) remains governed by its existing policy.
     invoices_enabled = can_view_module(business, "invoicing") and membership_has_any_role(
-        membership, BILLING_VIEW_ROLES
+        membership, ACCOUNTING_ROLES
     )
     context = {
         "logistics_dashboard": True,
