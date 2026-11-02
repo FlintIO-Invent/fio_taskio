@@ -12,7 +12,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Case, Count, IntegerField, Q, QuerySet, Sum, Value, When
-from django.http import Http404, HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -1181,6 +1181,7 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
         "form": form,
         "page_title": "Create a new service request",
         "submit_label": "Create service request",
+        "new_client_form": QuickClientForm(prefix="new_client"),
     }
 
     return render(request, "crm/forms/lead_create.html", context)
@@ -1319,6 +1320,47 @@ def staff_client_create(request: HttpRequest) -> HttpResponse:
 
     context = {"form": form}
     return render(request, "crm/forms/client_create.html", context)
+
+
+@business_role_required(
+    *CLIENT_MANAGE_ROLES,
+    permission_message="You do not have permission to create clients.",
+)
+@business_module_required("crm")
+@require_http_methods(["POST"])
+def staff_client_quick_create(request: HttpRequest) -> JsonResponse:
+    """Add a client without leaving an appointment or service request draft."""
+    form = QuickClientForm(request.POST, prefix="new_client")
+    if not form.is_valid():
+        return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
+
+    with transaction.atomic():
+        business = lock_client_capacity_scope(request.current_business)
+        if business_limit_reached(business, "clients"):
+            return JsonResponse(
+                {
+                    "errors": {
+                        "__all__": [
+                            {"message": get_business_limit_reached_message(business, "clients")}
+                        ]
+                    }
+                },
+                status=400,
+            )
+        client = form.save(commit=False)
+        client.business = business
+        client.save()
+
+    return JsonResponse(
+        {
+            "client": {
+                "id": client.pk,
+                "label": str(client),
+                **{name: getattr(client, name) for name in form.fields},
+            }
+        },
+        status=201,
+    )
 
 
 @business_role_required(

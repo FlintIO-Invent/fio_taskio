@@ -16,36 +16,19 @@
     </ol>
   </nav>
 
-  <form method="post" novalidate>
+  <form class="mb-9" method="post" novalidate>
     {% csrf_token %}
     {{ form.operation_key }}
 
-    <div class="row g-3 mb-4 justify-content-between align-items-center">
-      <div class="col-lg-8">
-        <h2 class="mb-2 text-body-emphasis">{{ page_title }}</h2>
+    <div class="row g-3 flex-between-end mb-5">
+      <div class="col-auto">
+        <h2 class="mb-2">{{ page_title }}</h2>
+        <h5 class="text-body-tertiary fw-semibold">This appointment will be saved to {{ current_business.name }}.</h5>
         {% if source_lead %}
-          <p class="text-body-tertiary mb-0">
-            This appointment is being scheduled from service request for {{ source_lead.first_name }} {{ source_lead.last_name }} and will belong only to {{ current_business.name }}.
-          </p>
+          <p class="text-body-secondary small mb-0">Scheduling from the service request for {{ source_lead.first_name }} {{ source_lead.last_name }}.</p>
         {% elif source_client %}
-          <p class="text-body-tertiary mb-0">
-            This appointment is being scheduled for {{ source_client.first_name }} {{ source_client.last_name }} and will belong only to {{ current_business.name }}.
-          </p>
-        {% else %}
-          <p class="text-body-tertiary mb-0">This internal appointment will belong only to {{ current_business.name }}.</p>
+          <p class="text-body-secondary small mb-0">Scheduling for {{ source_client.first_name }} {{ source_client.last_name }}.</p>
         {% endif %}
-      </div>
-      <div class="col-auto d-flex gap-2">
-        {% if appointment %}
-          <a class="btn btn-phoenix-secondary" href="{% url 'appointment_detail' appointment.pk %}">Cancel</a>
-        {% elif source_lead %}
-          <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_detail' source_lead.pk %}">Cancel</a>
-        {% elif source_client %}
-          <a class="btn btn-phoenix-secondary" href="{% url 'staff_client_detail' source_client.pk %}">Cancel</a>
-        {% else %}
-          <a class="btn btn-phoenix-secondary" href="{% url 'appointment_list' %}">Cancel</a>
-        {% endif %}
-        <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
       </div>
     </div>
 
@@ -55,8 +38,18 @@
 
     <div class="row g-4">
       <div class="col-12 col-xl-8">
-        <div class="card border-0 shadow-sm">
-          <div class="card-body p-4 p-lg-5">
+        <div class="card mb-4">
+          <div class="card-body">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-3">
+              <h4 class="mb-0 text-body">Appointment Details</h4>
+              {% if new_client_form and role_access.can_manage_clients and workspace_can_modify %}
+                <button class="btn btn-phoenix-primary" type="button" data-bs-toggle="modal" data-bs-target="#draftClientModal">Add a new client</button>
+              {% endif %}
+            </div>
+            {% if new_client_form and role_access.can_manage_clients and workspace_can_modify %}
+              <p class="small text-body-secondary mb-0" data-draft-client-status role="status">Select an existing client or add a new one for this appointment.</p>
+            {% endif %}
+            <hr class="my-4" />
             {% if source_lead %}
               <div class="alert alert-subtle-secondary border mb-4" role="alert">
                 <div class="fw-semibold mb-1">Request context</div>
@@ -99,6 +92,15 @@
                 {{ form.staff_member }}
                 {% if form.staff_member.errors %}<div class="invalid-feedback d-block">{{ form.staff_member.errors|striptags }}</div>{% endif %}
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-4">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Schedule &amp; Location</h4>
+            <hr class="my-4" />
+            <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label" for="{{ form.start_time.id_for_label }}">Start Time</label>
                 {{ form.start_time }}
@@ -114,8 +116,17 @@
                 {{ form.location }}
                 {% if form.location.errors %}<div class="invalid-feedback d-block">{{ form.location.errors|striptags }}</div>{% endif %}
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Notes</h4>
+            <hr class="my-4" />
+            <div class="row g-3">
               <div class="col-12">
-                <label class="form-label" for="{{ form.notes.id_for_label }}">Notes</label>
+                <label class="form-label" for="{{ form.notes.id_for_label }}">Internal Notes</label>
                 {{ form.notes }}
                 {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors|striptags }}</div>{% endif %}
               </div>
@@ -125,35 +136,51 @@
       </div>
 
       <div class="col-12 col-xl-4">
-        <div class="card border-0 shadow-sm">
-          <div class="card-body p-4">
-            <h4 class="mb-3">Workspace Scope</h4>
-            <p class="text-body-tertiary mb-3">Clients, services, and staff are filtered to the current workspace on the backend and in the form.</p>
+        <div class="card">
+          <div class="card-body">
+            <h4 class="mb-3 text-body">Status</h4>
+            <hr class="my-4" />
+            <p class="form-label mb-2">Status On Save</p>
+            <span class="badge badge-phoenix badge-phoenix-secondary">{{ appointment.get_status_display|default:"Scheduled" }}</span>
+            <p class="text-body-tertiary small mt-3 mb-0">You can update the status from the appointment details page after saving.</p>
             {% if source_client %}
-              <div class="rounded-3 border p-3 mb-3">
-                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Client</p>
+              <hr class="my-4" />
+              <div>
+                <p class="form-label mb-2">Client</p>
                 <a class="fw-semibold text-decoration-none" href="{% url 'staff_client_detail' source_client.pk %}">
                   {{ source_client.first_name }} {{ source_client.last_name }}
                 </a>
               </div>
             {% endif %}
             {% if source_lead %}
-              <div class="rounded-3 border p-3 mb-3">
-                <p class="text-body-tertiary text-uppercase fs-10 mb-1">Service Request</p>
+              <hr class="my-4" />
+              <div>
+                <p class="form-label mb-2">Service Request</p>
                 <a class="fw-semibold text-decoration-none" href="{% url 'staff_lead_detail' source_lead.pk %}">
                   {{ source_lead.first_name }} {{ source_lead.last_name }}
                 </a>
               </div>
             {% endif %}
-            <div class="rounded-3 border p-3">
-              <p class="text-body-tertiary text-uppercase fs-10 mb-1">Status On Save</p>
-              <h3 class="mb-0 text-capitalize">{{ appointment.get_status_display|default:"Scheduled" }}</h3>
-            </div>
-            <p class="text-body-tertiary small mt-3 mb-0">Status changes happen from the detail page so the schedule stays easy to review after creation.</p>
           </div>
         </div>
       </div>
     </div>
+
+    <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 mt-4">
+      {% if appointment %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'appointment_detail' appointment.pk %}">Cancel</a>
+      {% elif source_lead %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_detail' source_lead.pk %}">Cancel</a>
+      {% elif source_client %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'staff_client_detail' source_client.pk %}">Cancel</a>
+      {% else %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'appointment_list' %}">Cancel</a>
+      {% endif %}
+      <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+    </div>
   </form>
+  {% if new_client_form and role_access.can_manage_clients and workspace_can_modify %}
+    {% include "crm/includes/draft_client_modal.html" with client_destination="appointment" %}
+  {% endif %}
 </div>
 {% endblock %}

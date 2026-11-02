@@ -6,7 +6,7 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Service Requests</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Bookings</a></li>
       <li class="breadcrumb-item active">{{ page_title|default:"Create a new service request" }}</li>
     </ol>
   </nav>
@@ -16,8 +16,8 @@
 
     <div class="row g-3 flex-between-end mb-5">
       <div class="col-auto">
-        <h2 class="mb-2">{{ page_title|default:"Create a new service request" }}</h2>
-        <h5 class="text-body-tertiary fw-semibold">This service request will be saved to {{ current_business.name }}.</h5>
+        <h2 class="mb-2">{{ page_title|default:"Create a new booking" }}</h2>
+        <h5 class="text-body-tertiary fw-semibold">This booking will be saved to {{ current_business.name }}.</h5>
       </div>
     </div>
 
@@ -29,7 +29,15 @@
       <div class="col-12 col-xl-8">
         <div class="card mb-4">
           <div class="card-body">
-            <h4 class="mb-3 text-body">Service Request Details</h4>
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-3">
+              <h4 class="mb-0 text-body">Booking Details</h4>
+              {% if new_client_form and role_access.can_manage_clients and workspace_can_modify %}
+                <button class="btn btn-phoenix-primary" type="button" data-bs-toggle="modal" data-bs-target="#draftClientModal">Add a new client</button>
+              {% endif %}
+            </div>
+            {% if new_client_form and role_access.can_manage_clients and workspace_can_modify %}
+              <p class="small text-body-secondary mb-0" data-draft-client-status role="status">Save a new client here and use their details for this booking.</p>
+            {% endif %}
             <hr class="my-4" />
             <div class="row g-3">
               <div class="col-md-6">
@@ -155,8 +163,11 @@
       {% else %}
       <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_list' %}">Cancel</a>
       {% endif %}
-      <button class="btn btn-primary" type="submit">{{ submit_label|default:"Save service request" }}</button>
+      <button class="btn btn-primary" type="submit">{{ submit_label|default:"Save booking" }}</button>
     </div>
   </form>
+  {% if new_client_form and role_access.can_manage_clients and workspace_can_modify %}
+    {% include "crm/includes/draft_client_modal.html" with client_destination="lead" %}
+  {% endif %}
 </div>
 {% endblock %}

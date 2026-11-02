@@ -16,6 +16,7 @@ from apps.businesses.utils import (
     business_role_required,
     can_view_module,
 )
+from apps.crm.forms import QuickClientForm
 from apps.crm.models import BusinessService, Client, Lead
 from apps.crm.services import (
     find_matching_client_for_lead,
@@ -313,6 +314,7 @@ def appointment_create(request: HttpRequest) -> HttpResponse:
         "page_title": "Create appointment",
         "submit_label": "Create appointment",
         "source_client": source_client,
+        "new_client_form": QuickClientForm(prefix="new_client"),
     }
     return render(request, "appointments/form.html", context)
 
@@ -363,6 +365,7 @@ def appointment_create_from_request(request: HttpRequest, lead_id: int) -> HttpR
         "source_lead": lead,
         "request_client": client,
         "missing_client_fields": missing_client_fields,
+        "new_client_form": QuickClientForm(prefix="new_client"),
     }
     return render(request, "appointments/form.html", context)
 
