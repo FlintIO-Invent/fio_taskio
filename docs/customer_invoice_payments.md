@@ -1,5 +1,7 @@
 # Shared customer Invoice payments
 
+Current shared display and reporting vocabulary: [Invoice and payment terminology](invoice_payment_terminology.md).
+
 Customer accounting lives in `apps.billings`, using the existing Invoice, InvoiceLine, tenant roles, subscription/module authorization and activity audit. It is independent of Stripe SaaS subscription billing. No customer collection or refund provider API is called.
 
 ## Model and migration
@@ -35,7 +37,7 @@ Receipt/reduction/correction events also write existing ActivityLog entries. Nor
 
 ## Legacy status, settlement and SERVICE compatibility
 
-Invoice lifecycle status remains independent of payment settlement. Recording a full receipt does not automatically mark an Invoice PAID; reversing/refunding does not silently reopen its lifecycle status. The existing SERVICE transition graph and behavior for Invoices without receipts are unchanged. New receipt-history guards apply only after opting into payment accounting.
+Invoice lifecycle status remains independent of payment settlement. Recording a full receipt does not automatically mark an Invoice PAID; reversing/refunding does not silently reopen its lifecycle status. Stored lifecycle enums and the internal transition graph are unchanged. Normal UI payment actions now enter receipts rather than setting the legacy PAID flag. New receipt-history guards apply only after opting into payment accounting.
 
 An Invoice marked PAID with no receipts returns `LEGACY_PAID_UNVERIFIED`, net paid zero and its full unverified outstanding balance. No synthetic receipt is created by migrations, reads or the old Mark as Paid action. Later real, authorized receipts can establish partial/full settlement. A manually PAID Invoice with partial or refunded receipts remains financially outstanding despite its label. Original PAID terminal lifecycle restrictions remain; receipt adjustment does not introduce credit notes or rewrite the issued Invoice.
 
@@ -43,7 +45,7 @@ Settlement is derived from recorded net payments, saved Invoice basis and integr
 
 Logistics Parcel/shared-freight clearance now uses this shared authoritative settlement result instead of checking only Invoice.status. Every applicable active charge must have one financially settled Invoice and existing coverage/evidence checks must pass. A refund immediately removes clearance where it restores an outstanding obligation. The bounded STAFF clearance API still exposes no amounts, Invoice IDs or other cargo IDs.
 
-Logistics finance dashboard outstanding balances and net receipts also use the ledger, grouped by saved currency. Manual PAID amounts are not counted as receipts. Legacy/review cases are identified. SERVICE's existing dashboard and Invoice presentation defaults are retained. If a SERVICE workspace changes currency after a receipt, the payment panel and subsequent receipt entries preserve their original currency/basis and explicitly explain the difference from the existing Invoice display defaults; no conversion is implied.
+Both Services and Logistics dashboards use authoritative balances, grouped by saved payment currency. Manual PAID amounts are review-only and are not counted as receipts or collectible debt. Shared Invoice presentation retains the first receipt currency across lists, details, emails and PDFs if Services workspace defaults change; no conversion is implied. See the terminology document for zero-value/credited invoices and independent refund and payment indicators.
 
 ## UI and permissions
 

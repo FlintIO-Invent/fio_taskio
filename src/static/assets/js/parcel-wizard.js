@@ -13,12 +13,12 @@
     const paymentComplete = () => decisionForm?.dataset.paymentComplete === 'true';
     if (decisionForm) {
       const refreshPayment = () => {
-        const paid = decisionForm.querySelector('[name="decision"]:checked')?.value === 'paid';
+        const record = decisionForm.querySelector('[name="decision"]:checked')?.value === 'record';
         const receipt = decisionForm.querySelector('[data-payment-receipt-fields]');
         if (receipt) {
-          receipt.hidden = !paid;
+          receipt.hidden = !record;
           receipt.querySelectorAll('input, select, textarea').forEach(field => {
-            if (field.name !== 'currency') field.disabled = !paid;
+            if (field.name !== 'currency') field.disabled = !record;
           });
         }
       };

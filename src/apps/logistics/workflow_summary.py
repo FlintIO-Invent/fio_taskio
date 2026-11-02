@@ -21,6 +21,7 @@ from django.utils.dateparse import parse_datetime
 
 from apps.billings.models import Invoice, InvoiceLine, InvoicePayment
 from apps.billings.payment_services import _invoice_settlement
+from apps.billings.presentation import PAYMENT_LABELS, payment_classification, present_invoice
 from apps.businesses.models import BusinessUser
 from apps.businesses.utils import can_use_module
 from apps.crm.models import ActivityLog
@@ -145,8 +146,9 @@ def _totals(charges, invoices):
         )
     for invoice in invoices:
         if (
-            invoice["lifecycle_status"] == Invoice.Status.CANCELLED
+            invoice["lifecycle_status"] not in (Invoice.Status.SENT, Invoice.Status.PAID)
             or not invoice["evidence_verified"]
+            or invoice["presentation"]["review_required"]
         ):
             continue
         _add(result["verified_net_paid"], invoice["currency"], invoice["net_paid"])
@@ -540,10 +542,15 @@ class _Graph:
 
     def invoice_projection(self, invoice):
         balance = self.balances[invoice.pk]
+        financial = present_invoice(
+            invoice, balance=balance, issues=self.invoice_issues[invoice.pk]
+        )
         return {
             "id": invoice.pk,
             "number": invoice.invoice_number,
             "lifecycle_status": invoice.status,
+            "lifecycle_label": financial.lifecycle_label,
+            "presentation": financial.summary,
             "currency": balance.currency,
             "total": balance.total,
             "net_paid": balance.net_paid,
@@ -622,6 +629,7 @@ class _Graph:
             ):
                 issues.append("Legacy financial snapshots require accounting confirmation.")
             state = FinancialState.UNINVOICED
+            payment_status, no_payment_required = "", False
             if len(active) == 1:
                 invoice, balance = active[0].invoice, self.balances[active[0].invoice_id]
                 if self.invoice_issues[invoice.pk]:
@@ -641,6 +649,34 @@ class _Graph:
                             else FinancialState.UNPAID
                         )
                     )
+                    financial = present_invoice(invoice, balance=balance)
+                    allocated = getattr(invoice, "_cancellation_projection", None)
+                    own = (
+                        [
+                            value
+                            for key, value in allocated["balances"].items()
+                            if key.endswith(f":{parcel.pk}")
+                        ]
+                        if allocated
+                        else []
+                    )
+                    payment_status, no_payment_required = payment_classification(
+                        issued=financial.lifecycle == "ISSUED",
+                        review=financial.review_required,
+                        adjusted_total=(
+                            sum((value["obligation"] for value in own), ZERO)
+                            if own
+                            else balance.adjusted_total
+                        ),
+                        outstanding=(
+                            sum(
+                                (max(value["obligation"] - value["net"], ZERO) for value in own),
+                                ZERO,
+                            )
+                            if own
+                            else balance.outstanding
+                        ),
+                    )
             own_invoice_ids = tuple(
                 dict.fromkeys(
                     line.invoice_id for line in lines if line.invoice_id in self.readable_invoices
@@ -659,6 +695,8 @@ class _Graph:
                     ),
                     "billed": len(active) == 1,
                     "state": state.value,
+                    "payment_status": payment_status,
+                    "no_payment_required": no_payment_required,
                     "voided": bool(charge.voided_at),
                     "invoice_ids": own_invoice_ids,
                 }
@@ -721,22 +759,48 @@ class _Graph:
             if detailed
             else (("Accounting clearance requires review.",) if issues else ())
         )
+        payment_states = {row["payment_status"] for row in active_rows if row["payment_status"]}
+        no_payment = bool(active_rows) and all(row["no_payment_required"] for row in active_rows)
+        unissued = any(
+            row["billed"] and not row["payment_status"] and not row["no_payment_required"]
+            for row in active_rows
+        )
+        payment_status = (
+            ""
+            if issues or unissued or "UNINVOICED" in states or not payment_states
+            else (
+                "PAID"
+                if payment_states == {"PAID"}
+                else (
+                    "PARTIAL"
+                    if "PARTIAL" in payment_states or "PAID" in payment_states
+                    else "UNPAID"
+                )
+            )
+        )
+        display_label = (
+            "Accounting review required"
+            if issues
+            else (
+                "Not invoiced"
+                if "UNINVOICED" in states
+                else (
+                    "No payment required"
+                    if no_payment
+                    else (
+                        "Draft invoices require issuance"
+                        if unissued
+                        else PAYMENT_LABELS.get(payment_status, "Draft")
+                    )
+                )
+            )
+        )
         return {
             "visibility": visibility,
             "state": state.value if detailed else None,
-            "state_label": (
-                {
-                    "PAID": "Paid",
-                    "PARTIAL": "Partially paid",
-                    "UNPAID": "Unpaid",
-                    "UNINVOICED": "Not invoiced",
-                    "UNKNOWN": "Unknown — review required",
-                    "CREDIT_APPROVED": "Approved credit",
-                    "REFUND_DUE": "Refund due",
-                }[state.value]
-                if detailed
-                else None
-            ),
+            "state_label": display_label if detailed else None,
+            "payment_status": payment_status if detailed else None,
+            "no_payment_required": no_payment if detailed else None,
             "clearance": {
                 "complete": complete,
                 "cleared": cleared,
@@ -1133,7 +1197,7 @@ def _summary(graph, parcel, as_of, require_credit_evidence):
                 "label": (
                     "Credit clearance approved"
                     if financial["clearance"]["via_credit"]
-                    else "Financially settled"
+                    else "Accounting clearance confirmed"
                 ),
                 "source": (
                     "logistics.LogisticsCreditApproval"

@@ -444,15 +444,18 @@ def send_invoice_email(
 
 
 def _deliver_invoice_email(invoice, *, pdf_bytes: bytes, filename: str) -> bool:
+    from apps.billings.presentation import present_invoice
+
+    financial = present_invoice(invoice)
     invoice_title = f"Invoice {invoice.invoice_number} from {invoice.business.name}"
     context = {
         "invoice": invoice,
+        "invoice_presentation": financial,
         "business": invoice.business,
         "client": invoice.client,
         "client_name": _client_display_name(invoice.client),
         "email_title": invoice_title,
         "issue_date": _format_date(invoice.created_at, invoice.business),
-        "amount_due": f"{invoice.currency_code} {invoice.total:.2f}",
         "attachment_filename": filename,
         "business_contact": _business_contact_text(invoice.business),
         "reply_to_email": _invoice_reply_to_email(invoice),

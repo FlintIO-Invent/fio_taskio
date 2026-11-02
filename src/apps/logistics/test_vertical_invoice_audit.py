@@ -73,13 +73,20 @@ class VerticalInvoiceAuditTests(TestCase):
                 invoice.invoice_number,
             )
         # Arriving freight now has its own issued, explicitly credited Invoice.
-        for status, count in (("DRAFT", 1), ("SENT", 3), ("PAID", 1), ("CANCELLED", 0)):
+        for status, count in (("DRAFT", 1), ("SENT", 4), ("PAID", 0), ("CANCELLED", 0)):
             filtered = self.client.get(reverse("invoice_list"), {"status": status})
             self.assertEqual(filtered.context["invoices"].count(), count)
+            expected = (
+                invoices.filter(status__in=("SENT", "PAID"))
+                if status == "SENT"
+                else invoices.none() if status == "PAID" else invoices.filter(status=status)
+            )
             self.assertEqual(
                 set(filtered.context["invoices"].values_list("pk", flat=True)),
-                set(invoices.filter(status=status).values_list("pk", flat=True)),
+                set(expected.values_list("pk", flat=True)),
             )
+        # The simulated historical flag remains intact, without becoming receipt evidence.
+        self.assertEqual(invoices.filter(status="PAID").count(), 1)
 
     def test_legacy_pre_invoice_seed_requires_safe_reset_before_refresh(self):
         old_client = Client.objects.create(

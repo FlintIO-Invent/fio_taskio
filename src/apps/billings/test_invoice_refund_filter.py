@@ -34,7 +34,7 @@ class InvoiceRefundFilterTests(TestCase):
         self.assertContains(response, "including partial refunds")
         self.assertContains(
             response,
-            '<option value="REFUNDED" selected>Refunded</option>',
+            '<option value="REFUNDED" selected>Refund recorded</option>',
             html=True,
         )
         self.invoice.refresh_from_db()
@@ -87,7 +87,9 @@ class InvoiceRefundFilterTests(TestCase):
         self.assertEqual(list(response.context["invoices"]), [self.invoice])
         response = self.client.get(reverse("invoice_list"))
         self.assertEqual(list(response.context["invoices"]), [draft, self.invoice])
-        self.assertContains(response, '<option value="REFUNDED">Refunded</option>', html=True)
+        self.assertContains(
+            response, '<option value="REFUNDED">Refund recorded</option>', html=True
+        )
 
 
 class InvoiceRefundDueFilterTests(TestCase):

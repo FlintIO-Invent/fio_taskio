@@ -63,7 +63,7 @@ class CustomerPaymentBrowserChecks(StaticLiveServerTestCase):
                     page.screenshot(path=str(evidence / "partial-balance.png"), full_page=True)
                     panel.get_by_role("link", name="Record customer payment", exact=True).click()
                 else:
-                    self.assertTrue(panel.get_by_text("Settled", exact=True).is_visible())
+                    self.assertTrue(panel.get_by_text("Paid", exact=True).is_visible())
                     self.assertEqual(
                         panel.get_by_role("link", name="Record customer payment").count(), 0
                     )

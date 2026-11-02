@@ -1,0 +1,7 @@
+{% if financial.payment_label %}<p>Payment status: <strong>{{ financial.payment_label }}</strong></p>{% endif %}
+{% if financial.note %}<p class="text-body-secondary">{{ financial.note }}</p>{% endif %}
+{% for issue in financial.issues %}<p class="text-warning">{{ issue }}</p>{% endfor %}
+<dl class="row mb-3">
+  {% for row in financial.amount_rows %}<dt class="col-sm-7 fw-normal">{{ row.label }}</dt><dd class="col-sm-5 text-sm-end text-break">{{ row.text }}</dd>{% endfor %}
+</dl>
+{% if financial.refund_note %}<p class="text-warning">{{ financial.refund_note }}</p>{% endif %}

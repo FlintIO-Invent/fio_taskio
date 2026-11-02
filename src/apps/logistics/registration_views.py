@@ -148,21 +148,16 @@ def _post(request, parcel, summary):
             )
         decision = PaymentDecisionForm(request.POST)
         if not decision.is_valid():
-            raise ValidationError("Select paid or unpaid, then press Continue.")
-        if decision.cleaned_data["decision"] == "unpaid":
+            raise ValidationError("Choose whether to record a payment, then press Continue.")
+        if decision.cleaned_data["decision"] == "continue":
             request.session[
                 f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
-            ] = "unpaid"
-            return redirect(registration_url(parcel) + "#registration-shipment")
-        if summary.financial["clearance"]["cleared"] and not request.POST.get("invoice"):
-            request.session[
-                f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
-            ] = "paid"
+            ] = "continue"
             return redirect(registration_url(parcel) + "#registration-shipment")
     if action in ("issue", "payment"):
         if action == "payment" and not request.POST.get("invoice"):
             raise ValidationError(
-                "Create and issue an Invoice before recording payment, or choose unpaid."
+                "Create and issue an Invoice before recording payment, or continue without recording a payment."
             )
         invoice = _related_invoice(request, summary, request.POST.get("invoice"))
         if action == "issue":
@@ -202,7 +197,7 @@ def _post(request, parcel, summary):
             messages.success(request, "Customer receipt recorded.")
             request.session[
                 f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
-            ] = "paid"
+            ] = "record"
     elif action == "assign":
         shipment = get_object_or_404(
             shipments_for_business(business=request.current_business, actor=request.user),
@@ -379,7 +374,7 @@ def parcel_registration(request, parcel_id):
     saved_decision = request.session.get(
         f"parcel_payment_decision_{request.current_business.pk}_{parcel.pk}"
     )
-    paid_available = any(row["can_pay"] for row in invoices) or summary.financial["clearance"]["cleared"]
+    record_available = any(row["can_pay"] for row in invoices)
     return render(
         request,
         "logistics/parcel_registration.html",
@@ -399,9 +394,9 @@ def parcel_registration(request, parcel_id):
                     else None
                 ),
                 initial={"decision": saved_decision} if saved_decision else None,
-                paid_available=paid_available,
+                record_available=record_available,
             ),
-            "paid_available": paid_available,
+            "record_available": record_available,
             "payment_decision_complete": bool(saved_decision) and request.method != "POST",
             "can_decide_payment": _can_decide_payment(request, parcel),
             "error": error,

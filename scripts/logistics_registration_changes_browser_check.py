@@ -108,12 +108,12 @@ class RegistrationChangesBrowserChecks(StaticLiveServerTestCase):
                 page.locator("[data-parcel-wizard-next]").click()
                 expect(page.locator("#registration-payment")).to_be_visible()
                 expect(page.locator("#registration-payment")).to_contain_text(
-                    "Select paid or unpaid"
+                    "Choose whether to record a payment"
                 )
-                page.locator('[name="decision"][value="unpaid"]').check()
+                page.locator('[name="decision"][value="continue"]').check()
                 page.locator("[data-parcel-wizard-back]").click()
                 page.locator("[data-parcel-wizard-next]").click()
-                expect(page.locator('[name="decision"][value="unpaid"]')).to_be_checked()
+                expect(page.locator('[name="decision"][value="continue"]')).to_be_checked()
                 page.locator("[data-parcel-wizard-next]").click()
                 expect(page.locator("#registration-shipment")).to_be_visible()
                 self.assertEqual(
@@ -128,11 +128,11 @@ class RegistrationChangesBrowserChecks(StaticLiveServerTestCase):
                     page.get_by_role("link", name="Create Shipment with this Parcel")
                 ).to_have_count(0)
                 page.locator("[data-parcel-wizard-back]").click()
-                page.locator('[name="decision"][value="paid"]').check()
+                page.locator('[name="decision"][value="record"]').check()
                 page.locator("#id_amount").fill("")
                 page.locator("[data-parcel-wizard-next]").click()
                 expect(page.locator("#registration-payment")).to_be_visible()
-                expect(page.locator('[name="decision"][value="paid"]')).to_be_checked()
+                expect(page.locator('[name="decision"][value="record"]')).to_be_checked()
                 expect(page.locator("#registration-payment")).to_contain_text(
                     "This field is required"
                 )

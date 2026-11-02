@@ -83,8 +83,8 @@ class LogisticsDashboardFinanceTests(TestCase):
         with mock.patch("apps.crm.views.timezone.now", return_value=start + timedelta(days=7)):
             response = self.client.get(reverse("agent_dashboard"))
         for key, expected in {
-            "invoiced_this_month_total": "180.75",
-            "outstanding_invoice_total": "210.60",
+            "invoiced_this_month_total": "100.25",
+            "outstanding_invoice_total": "110.00",
             "paid_invoice_total": "0.00",
             "draft_invoice_total": "30.00",
         }.items():
@@ -94,6 +94,10 @@ class LogisticsDashboardFinanceTests(TestCase):
             )
         self.assertContains(response, "Finance overview")
         self.assertEqual(response.context["payment_review_invoice_count"], 2)
+        self.assertEqual(
+            response.context["finance_currency_totals"][0]["review_invoice_total"],
+            Decimal("100.60"),
+        )
         self.assertContains(response, "Monthly totals use America/Curacao.")
         self.assertContains(response, f'href="{reverse("invoice_list")}"')
 
@@ -158,7 +162,7 @@ class LogisticsDashboardFinanceTests(TestCase):
                     for text in (
                         "Finance overview",
                         "Outstanding Balances",
-                        "Net Customer Receipts",
+                        "Net payments received",
                         "Customer refunds",
                         "mobile-dashboard-finance",
                         "logistics-finance-heading",
