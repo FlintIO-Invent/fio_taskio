@@ -1,5 +1,8 @@
-<section class="card mb-4" aria-label="Customer payments"><div class="card-body">
-  <h3>Customer payments</h3>
+<section class="card mt-3 mb-4" aria-label="Customer payments">
+  <div class="card-header">
+    <h5 class="mb-0">Customer payments</h5>
+  </div>
+  <div class="card-body">
   {% include 'billings/includes/financial_summary.html' with financial=invoice_presentation only %}
   {% if payment_currency_differs %}<p class="text-body-secondary">Invoice and payment amounts retain the saved {{ payment_balance.currency }} currency. No currency conversion is applied.</p>{% endif %}
   {% if payment_entries %}<div class="table-responsive"><table class="table align-middle">
@@ -13,5 +16,4 @@
       <td>{% if entry.can_adjust %}<a href="{% url 'invoice_payment_adjust' invoice.pk entry.pk %}">Adjust receipt</a>{% endif %}</td>
     </tr>{% endfor %}</tbody>
   </table></div>{% elif payment_balance.issues %}<p>Receipt history needs accounting review.</p>{% else %}<p>No customer receipts recorded.</p>{% endif %}
-  {% if can_record_payment %}<a class="btn btn-primary" href="{% url 'invoice_payment_record' invoice.pk %}">Record customer payment</a>{% endif %}
 </div></section>
