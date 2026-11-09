@@ -98,7 +98,12 @@ class InvoicePresentationTests(TestCase):
             self.assertContains(response, "Issued")
             self.assertContains(response, "Partially paid")
             self.assertContains(response, "60.00")
+        for response in (detail, listing):
+            self.assertContains(response, "Invoice status")
+            self.assertNotContains(response, ">Lifecycle<")
         for content in (pdf_html, pdf, email.body, email.alternatives[0].content):
+            self.assertIn("Invoice status:", content)
+            self.assertNotIn("Lifecycle:", content)
             self.assertIn("Issued", content)
             self.assertIn("Partially paid", content)
             self.assertIn("Original invoice total", content)

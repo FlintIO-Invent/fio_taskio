@@ -9,7 +9,7 @@ from .presentation import present_invoice
 
 
 class InvoiceLifecycleFilter(admin.SimpleListFilter):
-    title = "lifecycle"
+    title = "invoice status"
     parameter_name = "lifecycle"
 
     def lookups(self, request, model_admin):
@@ -61,7 +61,7 @@ class InvoiceAdmin(admin.ModelAdmin):
             .prefetch_related("payments")
         )
 
-    @admin.display(description="Lifecycle")
+    @admin.display(description="Invoice status")
     def lifecycle(self, invoice):
         if not invoice or not invoice.pk:
             return "Draft"

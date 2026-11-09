@@ -6,7 +6,7 @@
 
 Invoice number: {{ invoice.invoice_number }}
 Issue date: {{ issue_date }}
-Lifecycle: {{ invoice_presentation.lifecycle_label }}
+Invoice status: {{ invoice_presentation.lifecycle_label }}
 {% if invoice_presentation.payment_label %}Payment status: {{ invoice_presentation.payment_label }}
 {% endif %}{% for row in invoice_presentation.amount_rows %}{{ row.label }}: {{ row.text }}
 {% endfor %}{% if invoice_presentation.note %}{{ invoice_presentation.note }}

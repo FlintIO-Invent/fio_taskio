@@ -41,6 +41,7 @@ from .models import (
     BusinessBookingSettings,
     BusinessDataOperation,
     BusinessInvitation,
+    BusinessInvoiceLogo,
     BusinessSubscription,
     BusinessUser,
     DemoSeedRecord,
@@ -78,6 +79,7 @@ PURGE_DELETION_ORDER = (
     "subscription_notifications",
     "business_subscription",
     "business_booking_settings",
+    "business_invoice_logo",
     "logistics_profile",
     "business_users",
     "eligible_users",
@@ -493,6 +495,9 @@ def _delete_business_records(
         ),
         "business_booking_settings": _delete_queryset(
             BusinessBookingSettings.objects.filter(business_id=business_id)
+        ),
+        "business_invoice_logo": _delete_queryset(
+            BusinessInvoiceLogo.objects.filter(business_id=business_id)
         ),
         "logistics_profile": _delete_queryset(
             LogisticsProfile.objects.filter(business_id=business_id)

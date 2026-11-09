@@ -6,7 +6,7 @@
   <p>
     <strong>Invoice number:</strong> {{ invoice.invoice_number }}<br>
     <strong>Issue date:</strong> {{ issue_date }}<br>
-    <strong>Lifecycle:</strong> {{ invoice_presentation.lifecycle_label }}<br>
+    <strong>Invoice status:</strong> {{ invoice_presentation.lifecycle_label }}<br>
     {% if invoice_presentation.payment_label %}<strong>Payment status:</strong> {{ invoice_presentation.payment_label }}<br>{% endif %}
     {% for row in invoice_presentation.amount_rows %}<strong>{{ row.label }}:</strong> {{ row.text }}<br>{% endfor %}
     <strong>Attachment:</strong> {{ attachment_filename }}

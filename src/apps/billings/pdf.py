@@ -10,8 +10,11 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
+from apps.businesses.invoice_logos import load_invoice_logo
 from apps.logistics.monitoring import observe_document
 
 from .models import Invoice
@@ -70,6 +73,7 @@ def _invoice_context(invoice: Invoice, *, include_notes: bool = True) -> dict:
         "issue_date": timezone.localtime(invoice.created_at),
         "include_notes": include_notes,
         "powered_by": "Powered by Motionmate",
+        "invoice_logo": load_invoice_logo(invoice.business_id),
     }
 
 
@@ -166,43 +170,72 @@ def _ensure_space(pdf: canvas.Canvas, y: int, needed: int) -> int:
     return PAGE_HEIGHT - TOP_MARGIN
 
 
+def _header_lines(text: str, font: str, size: int, width: int = 240) -> list[str]:
+    """Wrap header text by actual printed width, including long unbroken names."""
+    lines, line = [], ""
+    for word in (text or "").split():
+        candidate = f"{line} {word}".strip()
+        if line and stringWidth(candidate, font, size) > width:
+            lines.append(line)
+            line = ""
+        for char in (" " if line else "") + word:
+            if line and stringWidth(line + char, font, size) > width:
+                lines.append(line.rstrip())
+                line = ""
+            line += char
+    if line:
+        lines.append(line)
+    return lines
+
+
 def _draw_invoice(pdf: canvas.Canvas, context: dict) -> None:
     invoice: Invoice = context["invoice"]
     business = context["business"]
     lines = context["lines"]
 
     y = PAGE_HEIGHT - TOP_MARGIN
+    logo = context["invoice_logo"]
+    if logo is not None:
+        scale = min(144 / logo.width, 54 / logo.height)
+        pdf.drawImage(
+            ImageReader(BytesIO(logo.png_data)),
+            LEFT_MARGIN,
+            y - logo.height * scale,
+            width=logo.width * scale,
+            height=logo.height * scale,
+            mask="auto",
+        )
+        y -= 66
     pdf.setFont("Helvetica-Bold", 18)
-    pdf.drawString(LEFT_MARGIN, y, business.name)
+    for name_line in _header_lines(business.name, "Helvetica-Bold", 18):
+        pdf.drawString(LEFT_MARGIN, y, name_line)
+        y -= 21
+    y -= 1
     pdf.setFont("Helvetica-Bold", 24)
-    pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, y, "INVOICE")
-    y -= 22
+    pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, PAGE_HEIGHT - TOP_MARGIN, "INVOICE")
 
     pdf.setFont("Helvetica", 9)
-    for line in context["business_address_lines"]:
-        pdf.drawString(LEFT_MARGIN, y, line)
-        y -= 12
+    contact_lines = list(context["business_address_lines"])
     if business.email:
-        pdf.drawString(LEFT_MARGIN, y, f"Email: {business.email}")
-        y -= 12
+        contact_lines.append(f"Email: {business.email}")
     if business.phone:
-        pdf.drawString(LEFT_MARGIN, y, f"Phone: {business.phone}")
-        y -= 12
+        contact_lines.append(f"Phone: {business.phone}")
+    for text in contact_lines:
+        for line in _header_lines(text, "Helvetica", 9):
+            pdf.drawString(LEFT_MARGIN, y, line)
+            y -= 12
 
     meta_y = PAGE_HEIGHT - TOP_MARGIN - 30
-    pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Invoice #: {invoice.invoice_number}")
-    meta_y -= 12
-    pdf.drawRightString(
-        PAGE_WIDTH - RIGHT_MARGIN, meta_y, f"Date: {context['issue_date']:%b %d, %Y}"
-    )
-    meta_y -= 12
-    pdf.drawRightString(
-        PAGE_WIDTH - RIGHT_MARGIN,
-        meta_y,
-        f"Lifecycle: {context['invoice_presentation'].lifecycle_label}",
-    )
+    for text in (
+        f"Invoice #: {invoice.invoice_number}",
+        f"Date: {context['issue_date']:%b %d, %Y}",
+        f"Invoice status: {context['invoice_presentation'].lifecycle_label}",
+    ):
+        for line in _header_lines(text, "Helvetica", 9):
+            pdf.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, meta_y, line)
+            meta_y -= 12
 
-    y = min(y, meta_y) - 24
+    y = min(y, meta_y) - 12
     pdf.setStrokeColor(colors.HexColor("#D8DEE9"))
     pdf.line(LEFT_MARGIN, y, PAGE_WIDTH - RIGHT_MARGIN, y)
     y -= 24
