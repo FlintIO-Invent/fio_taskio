@@ -266,6 +266,15 @@ class BusinessDataInventory:
 
 DIRECT_BUSINESS_RELATION_REGISTRY: tuple[InventoryRegistration, ...] = (
     InventoryRegistration(
+        "business_invoice_logo",
+        "businesses.BusinessInvoiceLogo",
+        "business",
+        "Business.invoice_logo",
+        InventoryClassification.CASCADE,
+        False,
+        False,
+    ),
+    InventoryRegistration(
         "logistics_credit_approvals",
         "logistics.LogisticsCreditApproval",
         "business",

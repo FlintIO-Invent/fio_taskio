@@ -14,7 +14,7 @@ read policy. All monetary calculations, cancellation allocation validation,
 receipt history, credit approvals and movement decisions remain in their existing
 services.
 
-- Lifecycle: **Draft, Issued, Cancelled**. Stored `SENT` and historical `PAID` both
+- Invoice status: **Draft, Issued, Cancelled**. Stored `SENT` and historical `PAID` both
   present as Issued. Their stored values are retained.
 - Payment: **Unpaid, Partially paid, Paid**, based on valid recorded payments and
   adjusted obligations. Paid requires positive net receipts and no remaining debt.
@@ -48,7 +48,11 @@ currencies and unverified balances. Drafts, cancellations and review cases are n
 collectible. Monthly issued value uses creation dates because historical issue
 timestamps do not exist; credits are reflected. It is not a cash-revenue metric.
 
-Lifecycle and payment/accounting filters are separate. Existing lifecycle links
+The UI labels the invoice lifecycle **Invoice status**, separately from payment
+status. The internal `lifecycle` field names, filter parameters and stored status
+values remain unchanged across HTML, emails, PDFs and admin.
+
+Invoice status and payment/accounting filters are separate. Existing lifecycle links
 remain accepted, with `status=SENT` representing Issued. The Paid filter requires
 payment evidence. Outstanding includes valid positive balances even when the same
 invoice also has refund liability. Review cases appear explicitly and have their

@@ -8,6 +8,8 @@
     body { font-family: Arial, sans-serif; color: #1f2937; font-size: 13px; }
     .header { display: flex; justify-content: space-between; border-bottom: 1px solid #d8dee9; padding-bottom: 18px; margin-bottom: 24px; }
     .brand { font-size: 20px; font-weight: 700; }
+    .issuer, .invoice-meta { width: 48%; overflow-wrap: anywhere; }
+    .invoice-logo { display: block; width: 192px; height: 72px; object-fit: contain; object-position: left top; margin-bottom: 12px; }
     .invoice-title { font-size: 26px; font-weight: 700; text-align: right; }
     .muted { color: #6b7280; }
     .section { margin-top: 20px; }
@@ -21,17 +23,18 @@
 </head>
 <body>
   <div class="header">
-    <div>
+    <div class="issuer">
+      {% if invoice_logo %}<img class="invoice-logo" src="{{ invoice_logo.data_uri }}" alt="{{ business.name }} logo">{% endif %}
       <div class="brand">{{ business.name }}</div>
       {% for line in business_address_lines %}<div>{{ line }}</div>{% endfor %}
       {% if business.email %}<div>Email: {{ business.email }}</div>{% endif %}
       {% if business.phone %}<div>Phone: {{ business.phone }}</div>{% endif %}
     </div>
-    <div>
+    <div class="invoice-meta">
       <div class="invoice-title">Invoice</div>
       <div>Invoice #: {{ invoice.invoice_number }}</div>
       <div>Date: {{ issue_date|date:"M d, Y" }}</div>
-      <div>Lifecycle: {{ invoice_presentation.lifecycle_label }}</div>
+      <div>Invoice status: {{ invoice_presentation.lifecycle_label }}</div>
     </div>
   </div>
 
