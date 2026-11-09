@@ -196,6 +196,13 @@ class Business(TimeStampedModel):
         return subscription.can_view_module(module_name)
 
 
+class BusinessInvoiceLogo(TimeStampedModel):
+    business = models.OneToOneField(
+        Business, on_delete=models.CASCADE, related_name="invoice_logo"
+    )
+    png_data = models.BinaryField(max_length=512 * 1024)
+
+
 class BusinessDataOperation(models.Model):
     class Mode(models.TextChoices):
         DEACTIVATE = "deactivate", "Deactivate"

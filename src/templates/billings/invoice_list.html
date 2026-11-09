@@ -41,9 +41,9 @@
     <div class="card-body">
       <div class="row g-3 align-items-end">
         <div class="col-12 col-md-6 col-lg-4">
-          <label class="form-label" for="invoice-lifecycle">Lifecycle</label>
+          <label class="form-label" for="invoice-lifecycle">Invoice status</label>
           <select class="form-select" id="invoice-lifecycle" name="lifecycle">
-            <option value="">All lifecycles</option>
+            <option value="">All invoice statuses</option>
             <option value="DRAFT"{% if current_lifecycle == 'DRAFT' %} selected{% endif %}>Draft</option>
             <option value="SENT"{% if current_lifecycle == 'SENT' or current_lifecycle == 'ISSUED' %} selected{% endif %}>Issued</option>
             <option value="CANCELLED"{% if current_lifecycle == 'CANCELLED' %} selected{% endif %}>Cancelled</option>
@@ -97,7 +97,7 @@
                   <tr>
                     <th>Invoice #</th>
                     <th>Client</th>
-                    <th>Lifecycle / payment</th>
+                    <th>Invoice / payment status</th>
                     <th>Original total / balance due</th>
                     <th>Created</th>
                     <th>Actions</th>

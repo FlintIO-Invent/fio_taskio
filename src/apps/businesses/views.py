@@ -26,10 +26,12 @@ from .forms import (
     WeeklyAvailabilityBulkForm,
     WeeklyAvailabilityForm,
 )
+from .invoice_logos import load_invoice_logo
 from .models import (
     Business,
     BusinessBookingSettings,
     BusinessInvitation,
+    BusinessInvoiceLogo,
     BusinessSubscription,
     BusinessUser,
     ClarivoPlan,
@@ -382,9 +384,18 @@ def business_settings(request: HttpRequest) -> HttpResponse:
                 raise PermissionDenied("Only owners and admins can update business settings.")
             if not can_edit_business:
                 return redirect_for_unavailable_workspace_access(request)
-            form = BusinessSettingsForm(request.POST, instance=business)
+            form = BusinessSettingsForm(request.POST, request.FILES, instance=business)
             if form.is_valid():
-                form.save()
+                with transaction.atomic():
+                    Business.objects.select_for_update().get(pk=business.pk)
+                    form.save()
+                    if form.cleaned_data.get("remove_invoice_logo"):
+                        BusinessInvoiceLogo.objects.filter(business=business).delete()
+                    elif form.cleaned_data.get("invoice_logo") is not None:
+                        BusinessInvoiceLogo.objects.update_or_create(
+                            business=business,
+                            defaults={"png_data": form.cleaned_data["invoice_logo"]},
+                        )
                 messages.success(request, "Business settings updated.")
                 return redirect("business_settings")
         elif section == "logistics_transport":
@@ -425,6 +436,11 @@ def business_settings(request: HttpRequest) -> HttpResponse:
             business and business.has_capability("booking_availability")
         ),
     }
+    if can_edit_business:
+        context["invoice_logo"] = load_invoice_logo(business.pk)
+        context["has_invoice_logo"] = bool(context["invoice_logo"]) or (
+            BusinessInvoiceLogo.objects.filter(business=business).exists()
+        )
     if can_edit_business and business.vertical == Business.Vertical.LOGISTICS:
         from apps.logistics.models import LogisticsProfile
 

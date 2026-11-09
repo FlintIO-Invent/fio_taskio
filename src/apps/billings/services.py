@@ -249,7 +249,7 @@ def change_invoice_status(*, business, actor, invoice, status):
             or selected.lines.filter(obligation_shares__isnull=False).exists()
         ):
             raise ValidationError(
-                "Use parcel cancellation settlement credits and completed refunds; this Invoice's original lifecycle and allocations are retained."
+                "Use parcel cancellation settlement credits and completed refunds; this invoice's original status and allocations are retained."
             )
     if status not in STATUS_TRANSITIONS.get(selected.status, set()):
         return selected

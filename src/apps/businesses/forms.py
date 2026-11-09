@@ -198,6 +198,24 @@ class LogisticsTransportNameActionForm(forms.Form):
 
 
 class BusinessSettingsForm(forms.ModelForm):
+    invoice_logo = forms.FileField(
+        required=False,
+        label="Company logo",
+        help_text="PNG or JPG, up to 2 MB. Used on newly generated invoice PDFs, including older invoices.",
+        widget=forms.FileInput(attrs={"class": "form-control", "accept": "image/png,image/jpeg"}),
+    )
+    remove_invoice_logo = forms.BooleanField(
+        required=False,
+        label="Remove saved logo",
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
+    def clean_invoice_logo(self):
+        from .invoice_logos import normalize_invoice_logo
+
+        upload = self.cleaned_data.get("invoice_logo")
+        return normalize_invoice_logo(upload) if upload is not None else None
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.vertical == Business.Vertical.LOGISTICS:
@@ -225,6 +243,8 @@ class BusinessSettingsForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        if cleaned.get("invoice_logo") and cleaned.get("remove_invoice_logo"):
+            self.add_error("invoice_logo", "Choose either a replacement logo or removal, not both.")
         if self.instance.vertical != Business.Vertical.LOGISTICS:
             return cleaned
         for kind in ("vessel", "carrier"):
