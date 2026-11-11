@@ -222,9 +222,9 @@
 	                                                <a class="nav-link" href="{% url 'staff_client_create' %}">
 	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Client</span></div>
 	                                                </a>
-	                                                <a class="nav-link" href="{% url 'client_import_upload' %}">
+	                                                <!-- <a class="nav-link" href="{% url 'client_import_upload' %}">
 	                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Import Client CSV</span></div>
-	                                                </a>
+	                                                </a> -->
 	                                            {% endif %}
 	                                        </li>
 	                                    </ul>
@@ -259,83 +259,11 @@
 
                         </li>
 
-                        {% if module_capabilities.appointments or module_capabilities.public_booking %}
-                        <!-- Module Section -->
+                        {% if services_workspace_access and role_access.can_view_appointments %}
                         <li class="nav-item">
-                            <!-- label-->
                             <p class="navbar-vertical-label">Modules</p>
                             <hr class="navbar-vertical-line"/>
-                            
-                            {% if module_access.appointments and role_access.can_view_appointments %}
-                                <div class="nav-item-wrapper">
-                                    <a class="nav-link dropdown-indicator label-1" href="#nv-appointments" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-appointments" data-onboarding-target="appointments">
-                                        <div class="d-flex align-items-center w-100">
-                                            <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                            <span class="nav-link-icon"><span data-feather="calendar"></span></span><span class="nav-link-text">Appointments</span>
-                                            <span class="badge badge-phoenix badge-phoenix-success nav-module-status">Included</span>
-                                        </div>
-                                    </a>
-                                    <div class="parent-wrapper label-1">
-                                        <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-appointments">
-                                            <li class="collapsed-nav-item-title d-none"></li>
-                                            <li class="nav-item">
-                                                <a class="nav-link" href="{% url 'appointment_list' %}">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">View All Appointments</span></div>
-                                                </a>
-                                            </li>
-                                            {% if role_access.can_manage_appointments and workspace_can_modify %}
-                                                <li class="nav-item">
-                                                    <a class="nav-link" href="{% url 'appointment_create' %}">
-                                                        <div class="d-flex align-items-center"><span class="nav-link-text">Create Appointment</span></div>
-                                                    </a>
-                                                </li>
-                                            {% endif %}
-                                        </ul>
-                                    </div>
-                                </div>
-                            {% endif %}
-                            <div class="nav-item-wrapper">
-                                <a class="nav-link dropdown-indicator label-1" href="#nv-online-booking" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="nv-online-booking" {% if module_access.public_booking %}data-onboarding-target="booking-settings"{% endif %}>
-                                    <div class="d-flex align-items-center">
-                                        <div class="dropdown-indicator-icon-wrapper"><span class="fas fa-caret-right dropdown-indicator-icon"></span></div>
-                                        <span class="nav-link-icon"><span data-feather="globe"></span></span><span class="nav-link-text">Online Booking</span>
-                                    </div>
-                                </a>
-                                <div class="parent-wrapper label-1">
-                                    <ul class="nav collapse parent" data-bs-parent="#navbarVerticalCollapse" id="nv-online-booking">
-                                        <li class="collapsed-nav-item-title d-none">Online Booking</li>
-                                        <li class="nav-item">
-                                            <a class="nav-link" href="{% url 'staff_lead_list' %}" data-onboarding-target="service-requests">
-                                                <div class="d-flex align-items-center"><span class="nav-link-text">View Bookings</span></div>
-                                            </a>
-                                            {% if role_access.can_manage_leads and workspace_can_modify %}
-                                                <a class="nav-link" href="{% url 'staff_lead_create' %}">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Create Booking</span></div>
-                                                </a>
-                                                <a class="nav-link" href="{% url 'lead_import_upload' %}">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Import Lead CSV</span></div>
-                                                </a>
-                                            {% endif %}
-                                            <span class="nav-link d-flex align-items-center justify-content-between text-body-tertiary">
-                                                <span class="nav-link-text">Public Booking</span>
-                                                {% if not module_access.public_booking %}
-                                                    <span class="badge badge-phoenix badge-phoenix-warning">NOT INCLUDED</span>
-                                                {% elif current_business.booking_settings.booking_enabled %}
-                                                    <span class="badge badge-phoenix badge-phoenix-success">ENABLED</span>
-                                                {% else %}
-                                                    <span class="badge badge-phoenix badge-phoenix-secondary">DISABLED</span>
-                                                {% endif %}
-                                            </span>
-                                            {% if module_capabilities.public_booking and role_access.can_manage_booking_availability and workspace_can_modify %}
-                                                <a class="nav-link" href="{% url 'business_booking_settings' %}" data-onboarding-target="availability">
-                                                    <div class="d-flex align-items-center"><span class="nav-link-text">Booking Settings</span></div>
-                                                </a>
-                                            {% endif %}
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-                            
+                            {% include "appointments/includes/workspace_navigation.html" %}
                         </li>
                         {% endif %}
                   </ul>
