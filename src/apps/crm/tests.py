@@ -2413,11 +2413,14 @@ class CRMBusinessScopingTests(TestCase):
 class PublicBookingTests(TestCase):
     def setUp(self):
         from django.core.cache import cache
+
         cache.clear()
         original_post = self.client.post
+
         def post_with_committed_callbacks(*args, **kwargs):
             with self.captureOnCommitCallbacks(execute=True):
                 return original_post(*args, **kwargs)
+
         self.client.post = post_with_committed_callbacks
         self.business = Business.objects.create(
             name="Motionmate Booking",
@@ -2738,7 +2741,9 @@ class PublicBookingTests(TestCase):
             data=self._booking_payload(email="limit-blocked-booking@example.com"),
         )
 
-        self.assertRedirects(response, reverse("public_booking_thank_you", args=[self.business.slug]))
+        self.assertRedirects(
+            response, reverse("public_booking_thank_you", args=[self.business.slug])
+        )
         self.assertTrue(Lead.objects.filter(email="limit-blocked-booking@example.com").exists())
 
     def test_public_book_now_uses_submitted_month_and_rejects_at_capacity(self):
@@ -3050,7 +3055,9 @@ class PublicBookingTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertIn("company_name", response.context["form"].errors)
-        self.assertEqual(response.context["form"]["client_type"].value(), Client.ClientType.BUSINESS)
+        self.assertEqual(
+            response.context["form"]["client_type"].value(), Client.ClientType.BUSINESS
+        )
         self.assertFalse(Lead.objects.filter(business=self.business).exists())
         self.assertFalse(Client.objects.filter(business=self.business).exists())
 
@@ -3253,15 +3260,13 @@ class PublicBookingTests(TestCase):
         self.assertTrue(Lead.objects.filter(email="email-down-booking@example.com").exists())
         self.assertTrue(
             any(
-                "Failed to send public service request confirmation email notification."
-                in message
+                "Failed to send public service request confirmation email notification." in message
                 for message in captured.output
             )
         )
         self.assertTrue(
             any(
-                "Failed to send internal service request alert email notification."
-                in message
+                "Failed to send internal service request alert email notification." in message
                 for message in captured.output
             )
         )
@@ -3293,7 +3298,10 @@ class PublicBookingTests(TestCase):
                 self.owner_user.email,
             )
         self.assertTrue(
-            any("has an invalid notification email configured" in message for message in captured.output)
+            any(
+                "has an invalid notification email configured" in message
+                for message in captured.output
+            )
         )
 
     def test_booking_request_list_shows_booking_context(self):
@@ -3305,7 +3313,9 @@ class PublicBookingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Booking Request")
         self.assertContains(response, self.service.name)
-        self.assertContains(response, lead.preferred_start_time.astimezone(self.business_timezone).strftime("%b"))
+        self.assertContains(
+            response, lead.preferred_start_time.astimezone(self.business_timezone).strftime("%b")
+        )
         self.assertContains(response, "Preferred")
 
     def test_booking_request_detail_shows_booking_context_and_confirm_action_for_manage_roles(self):
@@ -3435,8 +3445,12 @@ class PublicBookingTests(TestCase):
                 "service": self.service.pk,
                 "staff_member": self.staff_user.pk,
                 "title": "Confirmed online consultation",
-                "start_time": lead.preferred_start_time.astimezone(self.business_timezone).strftime("%Y-%m-%dT%H:%M"),
-                "end_time": lead.preferred_end_time.astimezone(self.business_timezone).strftime("%Y-%m-%dT%H:%M"),
+                "start_time": lead.preferred_start_time.astimezone(self.business_timezone).strftime(
+                    "%Y-%m-%dT%H:%M"
+                ),
+                "end_time": lead.preferred_end_time.astimezone(self.business_timezone).strftime(
+                    "%Y-%m-%dT%H:%M"
+                ),
                 "location": "45 Front Street, Philipsburg, Sint Maarten, 00000",
                 "notes": "Confirmed from booking request.",
             },
@@ -3470,8 +3484,12 @@ class PublicBookingTests(TestCase):
                 "service": self.service.pk,
                 "staff_member": self.staff_user.pk,
                 "title": "Confirmed online consultation",
-                "start_time": lead.preferred_start_time.astimezone(self.business_timezone).strftime("%Y-%m-%dT%H:%M"),
-                "end_time": lead.preferred_end_time.astimezone(self.business_timezone).strftime("%Y-%m-%dT%H:%M"),
+                "start_time": lead.preferred_start_time.astimezone(self.business_timezone).strftime(
+                    "%Y-%m-%dT%H:%M"
+                ),
+                "end_time": lead.preferred_end_time.astimezone(self.business_timezone).strftime(
+                    "%Y-%m-%dT%H:%M"
+                ),
                 "location": "45 Front Street, Philipsburg, Sint Maarten, 00000",
                 "notes": "Confirmed from booking request.",
             },
@@ -3786,83 +3804,59 @@ class DashboardOnboardingViewTests(TestCase):
         self.assertContains(owner_response, "Open Setup Guide")
         self.assertNotContains(staff_response, "Open Setup Guide")
 
-    def _sidebar_and_online_booking_menu(self, response):
+    def _sidebar_and_appointments_menu(self, response):
         html = response.content.decode()
         sidebar_start = html.index('id="navbarVerticalCollapse"')
         sidebar_end = html.index("</nav>", sidebar_start)
         sidebar_html = html[sidebar_start:sidebar_end]
-        menu_start = sidebar_html.index('id="nv-online-booking"')
+        menu_start = sidebar_html.index('id="nv-appointments"')
         menu_end = sidebar_html.index("</ul>", menu_start)
         return sidebar_html, sidebar_html[menu_start:menu_end]
 
-    def test_dashboard_sidebar_shows_enabled_public_booking_and_request_actions(self):
-        BusinessBookingSettings.objects.create(
-            business=self.business,
-            booking_enabled=True,
-        )
+    def test_dashboard_sidebar_unifies_bookings_with_online_booking_settings(self):
+        BusinessBookingSettings.objects.create(business=self.business, booking_enabled=True)
         self._login(self.owner_user)
-
         response = self.client.get(reverse("agent_dashboard"))
+        sidebar, menu = self._sidebar_and_appointments_menu(response)
+        self.assertEqual(sidebar.count('href="#nv-appointments"'), 1)
+        self.assertNotIn('id="nv-online-booking"', sidebar)
+        self.assertNotIn('id="nv-service-requests"', sidebar)
+        self.assertIn(reverse("appointment_list"), menu)
+        self.assertIn("Needs follow-up", menu)
+        self.assertIn("Online Booking: On", menu)
+        self.assertIn(reverse("business_booking_settings"), menu)
+        for name in (
+            "staff_lead_list",
+            "staff_lead_create",
+            "appointment_create",
+            "lead_import_upload",
+        ):
+            self.assertNotIn(reverse(name), menu)
 
-        sidebar_html, online_booking_menu_html = self._sidebar_and_online_booking_menu(response)
-
-        self.assertEqual(sidebar_html.count('href="#nv-online-booking"'), 1)
-        self.assertNotIn('href="#nv-service-requests"', sidebar_html)
-        self.assertNotIn('id="nv-service-requests"', sidebar_html)
-        self.assertNotIn('<span class="nav-link-text">Service Requests</span>', sidebar_html)
-        self.assertIn(reverse("client_import_upload"), sidebar_html)
-        self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
-        self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
-        self.assertIn(reverse("lead_import_upload"), online_booking_menu_html)
-        self.assertIn("Public Booking", online_booking_menu_html)
-        self.assertIn("ENABLED", online_booking_menu_html)
-        self.assertIn(reverse("business_booking_settings"), online_booking_menu_html)
-        self.assertEqual(
-            sidebar_html.count(f'href="{reverse("staff_lead_list")}"'),
-            1,
-        )
-        self.assertEqual(
-            sidebar_html.count(f'href="{reverse("staff_lead_create")}"'),
-            1,
-        )
-        self.assertEqual(
-            sidebar_html.count(f'href="{reverse("lead_import_upload")}"'),
-            1,
-        )
-
-    def test_dashboard_sidebar_keeps_request_actions_when_public_booking_not_included(self):
+    def test_dashboard_sidebar_keeps_requests_when_public_booking_not_included(self):
         self.plan.allow_public_booking = False
         self.plan.save(update_fields=["allow_public_booking", "updated_at"])
         self._login(self.owner_user)
-
         response = self.client.get(reverse("agent_dashboard"))
+        _sidebar, menu = self._sidebar_and_appointments_menu(response)
+        self.assertIn(reverse("appointment_list"), menu)
+        self.assertIn("Needs follow-up", menu)
+        self.assertIn("Not included", menu)
+        workspace = self.client.get(reverse("appointment_list"))
+        self.assertContains(workspace, reverse("staff_lead_create"))
 
-        sidebar_html, online_booking_menu_html = self._sidebar_and_online_booking_menu(response)
-
-        self.assertEqual(sidebar_html.count('href="#nv-online-booking"'), 1)
-        self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
-        self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
-        self.assertIn(reverse("lead_import_upload"), online_booking_menu_html)
-        self.assertIn("NOT INCLUDED", online_booking_menu_html)
-
-    def test_dashboard_sidebar_shows_public_booking_off_without_hiding_request_actions(self):
-        BusinessBookingSettings.objects.create(
-            business=self.business,
-            booking_enabled=False,
-        )
+    def test_dashboard_sidebar_shows_public_booking_off_without_hiding_requests(self):
+        BusinessBookingSettings.objects.create(business=self.business, booking_enabled=False)
         self._login(self.owner_user)
-
         response = self.client.get(reverse("agent_dashboard"))
+        _sidebar, menu = self._sidebar_and_appointments_menu(response)
+        self.assertIn(reverse("appointment_list"), menu)
+        self.assertIn("Needs follow-up", menu)
+        self.assertIn("Online Booking: Off", menu)
+        workspace = self.client.get(reverse("appointment_list"))
+        self.assertContains(workspace, reverse("staff_lead_create"))
 
-        _sidebar_html, online_booking_menu_html = self._sidebar_and_online_booking_menu(response)
-
-        self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
-        self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
-        self.assertIn(reverse("lead_import_upload"), online_booking_menu_html)
-        self.assertIn("Public Booking", online_booking_menu_html)
-        self.assertIn("OFF", online_booking_menu_html)
-
-    def test_dashboard_sidebar_preserves_service_request_role_restrictions(self):
+    def test_unified_navigation_preserves_service_request_role_restrictions(self):
         role_cases = (
             (self.owner_user, True),
             (self.admin_user, True),
@@ -3870,24 +3864,18 @@ class DashboardOnboardingViewTests(TestCase):
             (self.accountant_user, False),
             (self.viewer_user, False),
         )
-
         for user, can_create in role_cases:
             with self.subTest(user=user.email):
                 self.client.logout()
                 self._login(user)
-
                 response = self.client.get(reverse("agent_dashboard"))
-
-                _sidebar_html, online_booking_menu_html = (
-                    self._sidebar_and_online_booking_menu(response)
-                )
-                self.assertIn(reverse("staff_lead_list"), online_booking_menu_html)
+                _sidebar, menu = self._sidebar_and_appointments_menu(response)
+                self.assertIn(reverse("appointment_list"), menu)
+                workspace = self.client.get(reverse("appointment_list"))
                 if can_create:
-                    self.assertIn(reverse("staff_lead_create"), online_booking_menu_html)
-                    self.assertIn(reverse("lead_import_upload"), online_booking_menu_html)
+                    self.assertContains(workspace, reverse("staff_lead_create"))
                 else:
-                    self.assertNotIn(reverse("staff_lead_create"), online_booking_menu_html)
-                    self.assertNotIn(reverse("lead_import_upload"), online_booking_menu_html)
+                    self.assertNotContains(workspace, reverse("staff_lead_create"))
 
     def test_owner_with_selected_journey_gets_guide_panel_state(self):
         UserOnboardingState.objects.create(

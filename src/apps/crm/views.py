@@ -21,6 +21,10 @@ from loguru import logger
 
 from apps.appointments.models import Appointment
 from apps.appointments.operations import completed_operation, operation_fingerprint, operation_key
+from apps.appointments.workspace import (
+    PUBLIC_SOURCES,
+    follow_up_requests,
+)
 from apps.billings.models import Invoice
 from apps.billings.presentation import invoice_finance_totals, present_invoice
 from apps.businesses.localization import (
@@ -800,9 +804,9 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
     service_requests = _lead_queryset_for_business(current_business).filter(
         lead_type=Lead.LeadType.REQUEST
     )
-    open_service_requests = service_requests.filter(status__in=SERVICE_REQUEST_ACTIVE_STATUSES)
-    booking_requests_needing_review = service_requests.filter(
-        request_source=Lead.RequestSource.PUBLIC_BOOKING,
+    open_service_requests = follow_up_requests(current_business)
+    booking_requests_needing_review = open_service_requests.filter(
+        request_source__in=PUBLIC_SOURCES,
         status=Lead.Status.NEW,
     )
     service_request_followups = _order_service_requests_for_followup(
@@ -917,7 +921,7 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
         "new_client_count_this_month": clients.filter(created_at__gte=start_of_month).count(),
         "service_request_count": service_requests.count(),
         "open_service_request_count": open_service_requests.count(),
-        "new_service_request_count": service_requests.filter(status=Lead.Status.NEW).count(),
+        "new_service_request_count": open_service_requests.filter(status=Lead.Status.NEW).count(),
         "service_request_count_this_month": service_requests.filter(
             created_at__gte=start_of_month,
         ).count(),
@@ -1181,11 +1185,16 @@ def staff_lead_create(request: HttpRequest) -> HttpResponse:
         if form.is_valid():
             lead = form.save(commit=False)
             lead.business = current_business
+            lead.request_source = Lead.RequestSource.STAFF
             lead.save()
             messages.success(request, "Service request created successfully.")
-            return redirect("staff_lead_list")
+            if lead.lead_type != Lead.LeadType.REQUEST:
+                return redirect("staff_lead_detail", lead_id=lead.pk)
+            return redirect("appointment_list")
     else:
-        form = PrivateLeadForm(business=current_business)
+        form = PrivateLeadForm(
+            business=current_business, initial={"lead_type": Lead.LeadType.REQUEST}
+        )
 
     context = {
         "form": form,

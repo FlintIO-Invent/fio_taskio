@@ -6,7 +6,7 @@
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'staff_lead_list' %}">Bookings</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'appointment_list' %}">Appointments</a></li>
       <li class="breadcrumb-item active">{{ page_title|default:"Create a new service request" }}</li>
     </ol>
   </nav>
@@ -161,7 +161,7 @@
       {% if lead %}
       <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_detail' lead.id %}">Cancel</a>
       {% else %}
-      <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_list' %}">Cancel</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'appointment_list' %}">Cancel</a>
       {% endif %}
       <button class="btn btn-primary" type="submit">{{ submit_label|default:"Save booking" }}</button>
     </div>

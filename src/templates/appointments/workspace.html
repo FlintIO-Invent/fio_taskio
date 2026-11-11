@@ -1,0 +1,110 @@
+{% extends "inheritance/dashboard_parent.html" %}
+
+{% block content %}
+<div class="content">
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">{{ message }}</div>
+  {% endfor %}
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Appointments</li>
+    </ol>
+  </nav>
+  <div class="row g-3 mb-4 align-items-center justify-content-between">
+    <div class="col-12 col-md-auto">
+      <h2 class="mb-1 text-body-emphasis">Appointments</h2>
+      <p class="mb-0 text-body-secondary">Bookings and requests for your workspace.</p>
+    </div>
+    <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
+      {% if role_access.can_manage_appointments and module_write_access.appointments %}
+        <a class="btn btn-phoenix-primary" href="{% url 'appointment_create' %}">New Appointment</a>
+      {% endif %}
+      {% if role_access.can_manage_leads and services_request_write_access %}
+        <a class="btn btn-phoenix-secondary" href="{% url 'staff_lead_create' %}">Create Request</a>
+      {% endif %}
+    </div>
+  </div>
+  {% if not workspace_appointment_access %}
+    <div class="alert alert-subtle-secondary border">Service requests are available here. Scheduled appointments require appointment access.</div>
+  {% endif %}
+  {% if workspace_appointment_access and not role_access.can_manage_appointments or workspace_appointment_access and not module_write_access.appointments %}
+    <div class="alert alert-subtle-secondary border" role="alert">You have read-only appointment access in this workspace.</div>
+  {% endif %}
+  <div class="card mb-4">
+    <div class="card-body">
+      <form class="row g-3 align-items-end" method="get">
+        {% for field in workspace_form %}
+          <div class="col-12 col-sm-6 col-xl-4">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}<div class="text-danger small" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+        {% endfor %}
+        <div class="col-12 d-flex flex-wrap gap-2">
+          <button class="btn btn-primary" type="submit">Filter</button>
+          <a class="btn btn-phoenix-secondary" href="{% url 'appointment_list' %}">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body p-3">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" data-unified-workspace>
+          <thead class="text-body-secondary">
+            <tr><th>Booking / request</th><th>Client</th><th>Classification</th><th>Source</th><th>Service</th><th>Staff</th><th>Time</th><th>State</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            {% for row in workspace_page %}
+              <tr data-entry-kind="{{ row.kind }}" data-entry-id="{{ row.pk }}">
+                <td><a class="fw-semibold" href="{{ row.url }}">{{ row.title }}</a></td>
+                <td>
+                  {% if row.client_id %}<a href="{% url 'staff_client_detail' row.client_id %}">{{ row.client_name }}</a>{% else %}{{ row.client_name|default:"Not linked" }}{% endif %}
+                </td>
+                <td>{{ row.classification }}</td>
+                <td>{{ row.source }}</td>
+                <td>{{ row.service }}</td>
+                <td>{% if row.staff %}{{ row.staff.get_full_name|default:row.staff.email }}{% else %}Unassigned{% endif %}</td>
+                <td class="white-space-nowrap">
+                  {% if row.start %}
+                    {{ row.start|date:"M d, Y H:i" }}<br><small class="text-body-secondary">to {{ row.end|date:"M d, Y H:i" }}</small>
+                  {% else %}
+                    Not scheduled
+                    {% if row.preferred_start %}<br><small class="text-body-secondary">Preferred: {{ row.preferred_start|date:"M d, Y H:i" }}</small>{% endif %}
+                  {% endif %}
+                </td>
+                <td><span class="badge badge-phoenix {{ row.badge }}">{{ row.state }}</span>{% if row.request_status %}<br><small class="text-body-secondary">{{ row.request_status }}</small>{% endif %}</td>
+                <td>
+                  <div class="d-flex gap-2">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ row.url }}">View</a>
+                    {% if row.kind == 'appointment' and role_access.can_manage_appointments and module_write_access.appointments %}
+                      <a class="btn btn-sm btn-outline-warning" href="{% url 'appointment_update' row.pk %}">Edit</a>
+                    {% elif row.kind == 'request' and role_access.can_manage_leads and services_request_write_access %}
+                      <a class="btn btn-sm btn-outline-warning" href="{% url 'staff_lead_update' row.pk %}">Edit</a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="9" class="text-center py-5">No bookings or requests match these filters.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if workspace_page.paginator.num_pages > 1 %}
+        <nav class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3" aria-label="Workspace pages">
+          <span>Page {{ workspace_page.number }} of {{ workspace_page.paginator.num_pages }}</span>
+          <div class="d-flex gap-2">
+            {% if workspace_page.has_previous %}<a class="btn btn-sm btn-phoenix-secondary" href="?{{ workspace_query }}&amp;page={{ workspace_page.previous_page_number }}">Previous</a>{% endif %}
+            {% if workspace_page.has_next %}<a class="btn btn-sm btn-phoenix-secondary" href="?{{ workspace_query }}&amp;page={{ workspace_page.next_page_number }}">Next</a>{% endif %}
+          </div>
+        </nav>
+      {% endif %}
+    </div>
+  </div>
+  {% if services_request_access %}
+    <a class="d-inline-block mt-3" href="{% url 'staff_lead_list' %}?status_group=all">Request history</a>
+  {% endif %}
+</div>
+{% endblock %}

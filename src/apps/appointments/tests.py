@@ -29,7 +29,9 @@ class AppointmentModelAndFormTests(TestCase):
             slug="bravo-workspace",
         )
         for business in (self.business, self.other_business):
-            BusinessSubscription.objects.create(business=business, plan=ClarivoPlan.objects.get(slug="business"), status="active")
+            BusinessSubscription.objects.create(
+                business=business, plan=ClarivoPlan.objects.get(slug="business"), status="active"
+            )
         self.owner = TaskIOUser.objects.create_user(
             email="owner@example.com",
             password="testpass123",
@@ -556,8 +558,10 @@ class AppointmentViewTests(TestCase):
         response = self.client.get(reverse("appointment_list"))
 
         self.assertEqual(response.status_code, 200)
-        appointments = list(response.context["appointments"])
-        self.assertEqual(appointments, [self.appointment])
+        rows = list(response.context["workspace_page"])
+        self.assertEqual(
+            [(row["kind"], row["pk"]) for row in rows], [("appointment", self.appointment.pk)]
+        )
 
     def test_appointment_detail_blocks_other_business_appointment(self):
         self._login_as(self.owner, self.business)
@@ -617,7 +621,7 @@ class AppointmentViewTests(TestCase):
             response, reverse("staff_client_detail", args=[self.other_client_record.id])
         )
 
-    def test_owner_is_redirected_to_subscription_when_appointments_are_locked(self):
+    def test_request_only_owner_can_read_workspace_but_cannot_create_appointments(self):
         subscription = BusinessSubscription.objects.get(business=self.business)
         subscription.plan = self.locked_plan
         subscription.save(update_fields=["plan", "updated_at"])
@@ -625,10 +629,16 @@ class AppointmentViewTests(TestCase):
 
         response = self.client.get(reverse("appointment_list"), follow=True)
 
-        self.assertRedirects(response, reverse("business_subscription"))
-        self.assertContains(response, "Appointments is not included in the current workspace plan")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["workspace_appointment_access"])
+        self.assertFalse(
+            any(row["kind"] == "appointment" for row in response.context["workspace_page"])
+        )
+        self.assertRedirects(
+            self.client.get(reverse("appointment_create")), reverse("business_subscription")
+        )
 
-    def test_viewer_is_redirected_to_dashboard_when_appointments_are_locked(self):
+    def test_request_only_viewer_can_read_workspace_but_cannot_read_appointments(self):
         subscription = BusinessSubscription.objects.get(business=self.business)
         subscription.plan = self.locked_plan
         subscription.save(update_fields=["plan", "updated_at"])
@@ -636,8 +646,15 @@ class AppointmentViewTests(TestCase):
 
         response = self.client.get(reverse("appointment_list"), follow=True)
 
-        self.assertRedirects(response, reverse("agent_dashboard"))
-        self.assertContains(response, "Appointments is not included in the current workspace plan")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["workspace_appointment_access"])
+        self.assertFalse(
+            any(row["kind"] == "appointment" for row in response.context["workspace_page"])
+        )
+        self.assertRedirects(
+            self.client.get(reverse("appointment_detail", args=[self.appointment.pk])),
+            reverse("agent_dashboard"),
+        )
 
     def test_manage_roles_can_schedule_from_request(self):
         users = (
@@ -1014,7 +1031,7 @@ class AppointmentViewTests(TestCase):
         self.assertRedirects(response, reverse("appointment_list"))
         self.assertContains(response, "You do not have permission to manage appointments.")
 
-    def test_dashboard_shows_appointment_link_only_when_plan_allows_viewing(self):
+    def test_dashboard_keeps_workspace_link_for_request_only_plans(self):
         self._login_as(self.viewer_user, self.business)
 
         allowed_response = self.client.get(reverse("agent_dashboard"))
@@ -1025,7 +1042,7 @@ class AppointmentViewTests(TestCase):
         subscription.save(update_fields=["plan", "updated_at"])
 
         blocked_response = self.client.get(reverse("agent_dashboard"))
-        self.assertNotContains(blocked_response, reverse("appointment_list"))
+        self.assertContains(blocked_response, reverse("appointment_list"))
 
     def test_detail_template_shows_management_actions_only_for_manage_roles(self):
         self._login_as(self.owner, self.business)
@@ -1149,12 +1166,12 @@ class AppointmentViewTests(TestCase):
         self.assertNotContains(viewer_response, reverse("appointment_create"))
         self.assertContains(viewer_response, "read-only appointment access")
 
-    def test_sidebar_shows_create_link_only_for_manage_roles(self):
+    def test_workspace_shows_create_link_only_for_manage_roles(self):
         self._login_as(self.owner, self.business)
-        owner_response = self.client.get(reverse("agent_dashboard"))
+        owner_response = self.client.get(reverse("appointment_list"))
         self.assertContains(owner_response, reverse("appointment_create"))
 
         self.client.logout()
         self._login_as(self.viewer_user, self.business)
-        viewer_response = self.client.get(reverse("agent_dashboard"))
+        viewer_response = self.client.get(reverse("appointment_list"))
         self.assertNotContains(viewer_response, reverse("appointment_create"))
