@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib import messages
-from django.db import models
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
@@ -28,6 +27,7 @@ from apps.notifications.emails import send_appointment_confirmation_email
 from .forms import AppointmentForm
 from .models import Appointment
 from .operations import create_appointment_operation
+from .workspace import workspace_context, workspace_read_required
 
 STATUS_TRANSITIONS: dict[str, set[str]] = {
     Appointment.Status.SCHEDULED: {
@@ -224,34 +224,12 @@ def _prepare_client_for_request_scheduling(lead: Lead):
     permission_message="You do not have permission to view appointments.",
     raise_exception=False,
 )
-@business_module_required("appointments", access="read")
+@workspace_read_required
 @require_http_methods(["GET"])
 def appointment_list(request: HttpRequest) -> HttpResponse:
     current_business = request.current_business
     appointments = _appointment_queryset_for_business(current_business)
-
-    status_filter = (request.GET.get("status") or "").strip()
-    query = (request.GET.get("q") or "").strip()
-
-    if status_filter:
-        appointments = appointments.filter(status=status_filter)
-
-    if query:
-        appointments = appointments.filter(
-            models.Q(title__icontains=query)
-            | models.Q(service_name__icontains=query)
-            | models.Q(client__first_name__icontains=query)
-            | models.Q(client__last_name__icontains=query)
-            | models.Q(client__company_name__icontains=query)
-        )
-
-    context: dict[str, Any] = {
-        "appointments": appointments,
-        "status_choices": Appointment.Status.choices,
-        "current_status": status_filter,
-        "query": query,
-    }
-    return render(request, "appointments/list.html", context)
+    return render(request, "appointments/workspace.html", workspace_context(request, appointments))
 
 
 @business_role_required(

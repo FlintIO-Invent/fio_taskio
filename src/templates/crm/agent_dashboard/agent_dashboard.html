@@ -92,7 +92,7 @@
             </div>
             <p class="fs-9 text-body-tertiary mb-0">
               {% if public_booking_module_enabled %}
-                Pending manual review.
+                Awaiting follow-up or scheduling.
               {% else %}
                 {{ public_booking_unavailable_message }}
               {% endif %}
@@ -204,7 +204,7 @@
                 {{ open_service_request_count }} open bookings, {{ public_booking_pending_review_count }} online bookings pending review.
               </p>
             </div>
-            <a href="{% url 'staff_lead_list' %}" class="btn btn-sm btn-outline-primary">View Bookings</a>
+            <a href="{% url 'appointment_list' %}?state=needs_follow_up" class="btn btn-sm btn-outline-primary">View Bookings</a>
           </div>
           <div class="card-body p-0">
             {% if service_request_followups %}
@@ -244,8 +244,8 @@
               <div class="p-4">
                 <p class="text-body-tertiary mb-3">No open service requests need follow-up.</p>
                 {% if role_access.can_manage_leads %}
-                  <a class="btn btn-phoenix-primary btn-sm" href="{% url 'staff_lead_create' %}">
-                    <span class="fa-solid fa-plus me-2"></span>Create Request
+                  <a class="btn btn-phoenix-primary btn-sm" href="{% url 'appointment_list' %}?state=needs_follow_up">
+                    <span class="fa-solid fa-plus me-2"></span>Open Appointments
                   </a>
                 {% endif %}
               </div>
@@ -264,11 +264,6 @@
               </div>
               <div class="d-flex gap-2 flex-wrap">
                 <a href="{% url 'appointment_list' %}" class="btn btn-sm btn-outline-primary">View Appointments</a>
-                {% if role_access.can_manage_appointments %}
-                  <a href="{% url 'appointment_create' %}" class="btn btn-sm btn-primary">
-                    <span class="fa-solid fa-calendar-plus me-2"></span>Schedule
-                  </a>
-                {% endif %}
               </div>
             </div>
             <div class="card-body p-0">
@@ -300,8 +295,8 @@
                 <div class="p-4">
                   <p class="text-body-tertiary mb-3">No upcoming appointments are scheduled.</p>
                   {% if role_access.can_manage_appointments %}
-                    <a class="btn btn-phoenix-primary btn-sm" href="{% url 'appointment_create' %}">
-                      <span class="fa-solid fa-calendar-plus me-2"></span>Schedule Appointment
+                    <a class="btn btn-phoenix-primary btn-sm" href="{% url 'appointment_list' %}">
+                      <span class="fa-solid fa-calendar-plus me-2"></span>Open Appointments
                     </a>
                   {% endif %}
                 </div>

@@ -93,6 +93,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.businesses.context_processors.current_business",
+                "apps.appointments.workspace.navigation_context",
             ],
         },
     },
