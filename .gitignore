@@ -35,3 +35,7 @@ replacements.txt
 AGENTS.md
 .agents
 .agents/
+
+# design references
+/design_references/ 
+echo '/design_references/phoenix/' >> .gitignore
