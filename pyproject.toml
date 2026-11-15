@@ -27,6 +27,8 @@ dependencies = [
 
 [project.optional-dependencies]
 logistics-cache = ["redis>=5"]
+# Local UI review only; production installs do not include browsers or Playwright.
+ui = ["playwright==1.63.0"]
 
 # Dev tooling
 dev = [

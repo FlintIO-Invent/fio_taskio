@@ -1,0 +1,13 @@
+{
+  "name": "motionmate-services-lab-tabler",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@tabler/core": "1.7.5",
+    "esbuild": "0.28.2"
+  }
+}

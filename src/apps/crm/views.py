@@ -897,6 +897,9 @@ def agent_dashboard(request: HttpRequest) -> HttpResponse:
             and request.GET.get("setup_guide") == "1"
         ),
         "dashboard_today": start_of_today.date(),
+        "services_dashboard_ui": current_business.vertical == Business.Vertical.SERVICE,
+        "dashboard_timezone": start_of_today.tzinfo,
+        "dashboard_now": timezone.localtime(now, start_of_today.tzinfo),
         "dashboard_appointments_enabled": can_view_appointment_activity,
         "dashboard_invoices_enabled": can_view_invoice_activity,
         "appointments_module_enabled": appointments_enabled,

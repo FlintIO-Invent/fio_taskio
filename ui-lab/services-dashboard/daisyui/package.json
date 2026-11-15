@@ -1,0 +1,16 @@
+{
+  "name": "motionmate-services-lab-daisyui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@fontsource-variable/manrope": "5.3.0",
+    "@tailwindcss/cli": "4.3.5",
+    "daisyui": "5.8.0",
+    "esbuild": "0.28.2",
+    "tailwindcss": "4.3.5"
+  }
+}

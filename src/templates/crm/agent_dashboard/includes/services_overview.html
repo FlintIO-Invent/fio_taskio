@@ -1,0 +1,107 @@
+{% load money tz %}
+{% timezone dashboard_timezone %}
+<div class="content mm-services-dashboard" role="region" aria-labelledby="mm-sd-title">
+  {% if messages %}
+    <div class="mm-sd-messages">
+      {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}
+    </div>
+  {% endif %}
+  <header class="mm-sd-intro">
+    <p class="mm-sd-context">{{ current_business.name }}</p>
+    <div class="mm-sd-intro-line">
+      <h1 id="mm-sd-title">Services overview</h1>
+      {% if onboarding_status.visible %}
+        <button class="btn mm-sd-setup" type="button" aria-label="Open Setup Guide"
+          data-bs-toggle="{% if onboarding_status.selected_journey %}offcanvas{% else %}modal{% endif %}"
+          data-bs-target="{% if onboarding_status.selected_journey %}#onboardingGuidePanel{% else %}#onboardingWelcomeModal{% endif %}"
+          aria-controls="{% if onboarding_status.selected_journey %}onboardingGuidePanel{% else %}onboardingWelcomeModal{% endif %}">
+          <span class="fa-solid fa-compass" aria-hidden="true"></span><span>Setup<span class="mm-sd-setup-long"> Guide</span></span>
+        </button>
+      {% endif %}
+    </div>
+    <p class="mm-sd-date">{{ dashboard_today|date:"l, F j, Y" }}<span class="mm-sd-zone"><span class="fa-regular fa-clock" aria-hidden="true"></span> {{ dashboard_timezone }} · UTC{{ dashboard_now|date:"c"|slice:"-6:" }}</span></p>
+  </header>
+  <a class="mm-sd-skip" href="#mm-sd-work">Skip to appointments and requests</a>
+  <div class="mm-sd-work" id="mm-sd-work" tabindex="-1">
+    <section class="mm-sd-panel mm-sd-appointments" aria-labelledby="mm-sd-appointments-title" data-onboarding-target="appointments">
+      <header class="mm-sd-panel-header">
+        <div><p class="mm-sd-eyebrow">Your schedule</p><h2 id="mm-sd-appointments-title">Appointments <span class="mm-sd-count">{% if dashboard_appointments_enabled %}{{ today_appointment_count }}{% else %}Locked{% endif %}</span></h2>
+          <p class="mm-sd-caption">{% if dashboard_appointments_enabled %}{{ today_appointment_count }} scheduled today. Next scheduled · {{ upcoming_appointment_count }} upcoming.{% else %}{{ appointment_unavailable_message|default:"Appointment activity is limited by your workspace role." }}{% endif %}</p>
+        </div>
+        {% if dashboard_appointments_enabled %}<a class="btn mm-sd-primary" href="{% url 'appointment_list' %}">Open Appointments</a>{% endif %}
+      </header>
+      {% if dashboard_appointments_enabled %}
+        {% if upcoming_appointments %}
+          <ol class="mm-sd-records">
+          {% for appointment in upcoming_appointments %}
+            {% if forloop.counter == 4 %}</ol><details class="mm-sd-more" data-mm-sd-more open><summary><span data-mm-sd-more-label data-expanded-label="Show fewer appointments" data-collapsed-label="Show {{ upcoming_appointments|length|add:'-3' }} more appointments">{{ upcoming_appointments|length|add:'-3' }} additional appointments</span></summary><ol class="mm-sd-records" start="4">{% endif %}
+            <li><a class="mm-sd-appointment" href="{% url 'appointment_detail' appointment.id %}" data-mm-sd-record="appointment" data-record-id="{{ appointment.id }}">
+              <div class="mm-sd-time"><time datetime="{{ appointment.start_time|utc|date:'c' }}">{{ appointment.start_time|date:"g:i A" }}</time><span>{{ appointment.start_time|date:"M j, Y" }}</span><span class="mm-sd-offset">UTC{{ appointment.start_time|date:"c"|slice:"-6:" }}</span></div>
+              <div class="mm-sd-record-copy"><div class="mm-sd-record-heading"><strong>{{ appointment.client.first_name }} {{ appointment.client.last_name }}</strong><span class="mm-sd-badge mm-sd-info">{{ appointment.get_status_display }}</span></div>
+                <p>{% if appointment.service_name %}{{ appointment.service_name }}{% if appointment.title %} · {{ appointment.title }}{% endif %}{% else %}{{ appointment.title }}{% endif %}</p>
+                {% if appointment.client.company_name %}<span class="mm-sd-secondary">{{ appointment.client.company_name }}</span>{% endif %}
+              </div><span class="fa-solid fa-chevron-right mm-sd-chevron" aria-hidden="true"></span>
+            </a></li>
+          {% endfor %}
+          </ol>{% if upcoming_appointments|length > 3 %}</details>{% endif %}
+          <footer class="mm-sd-panel-footer"><span>Preview of up to 5 scheduled records</span><a href="{% url 'appointment_list' %}" class="mm-sd-text-action">View all appointments</a></footer>
+        {% else %}
+          <div class="mm-sd-empty"><h3>No upcoming appointments are scheduled.</h3><p>Existing bookings are available in Appointments.</p>{% if role_access.can_manage_appointments %}<a class="btn mm-sd-secondary-action" href="{% url 'appointment_list' %}">Open Appointments</a>{% endif %}</div>
+        {% endif %}
+      {% elif appointments_module_enabled %}<div class="mm-sd-empty"><h3>Appointments Restricted</h3><p>Appointment activity is limited by your workspace role.</p></div>
+      {% else %}<div class="mm-sd-empty"><h3>Appointments Locked</h3><p>{{ appointment_unavailable_message }}</p></div>{% endif %}
+    </section>
+
+    <section class="mm-sd-panel" aria-labelledby="mm-sd-followup-title" data-onboarding-target="service-requests">
+      <header class="mm-sd-panel-header"><div><p class="mm-sd-eyebrow">Keep things moving</p><h2 id="mm-sd-followup-title">Booking follow-up <span class="mm-sd-count">{{ open_service_request_count }}</span></h2><p class="mm-sd-caption">{{ public_booking_pending_review_count }} online bookings pending review · {{ new_service_request_count }} New</p></div><a class="btn mm-sd-secondary-action" href="{% url 'appointment_list' %}?state=needs_follow_up">View Bookings</a></header>
+      {% if service_request_followups %}
+        <ul class="mm-sd-records">
+        {% for request_item in service_request_followups %}
+          {% if forloop.counter == 4 %}</ul><details class="mm-sd-more" data-mm-sd-more open><summary><span data-mm-sd-more-label data-expanded-label="Show fewer requests" data-collapsed-label="Show {{ service_request_followups|length|add:'-3' }} more requests">{{ service_request_followups|length|add:'-3' }} additional requests</span></summary><ul class="mm-sd-records">{% endif %}
+          <li><a class="mm-sd-request" href="{% url 'staff_lead_detail' request_item.id %}" data-mm-sd-record="request" data-record-id="{{ request_item.id }}">
+            <div class="mm-sd-record-heading"><strong>{{ request_item.first_name }} {{ request_item.last_name }}</strong><span class="mm-sd-badge">{{ request_item.get_status_display }}</span></div>
+            <p>{{ request_item.company_name|default:request_item.email }}{% if request_item.requested_service %} · {{ request_item.requested_service.name }}{% elif request_item.category %} · {{ request_item.category.name }}{% endif %}</p>
+            <div class="mm-sd-request-meta"><span>{% if request_item.preferred_start_time %}Preferred {{ request_item.preferred_start_time|date:"M j, Y g:i A" }} · UTC{{ request_item.preferred_start_time|date:"c"|slice:"-6:" }}{% else %}Created {{ request_item.created_at|date:"M j, Y g:i A" }} · UTC{{ request_item.created_at|date:"c"|slice:"-6:" }}{% endif %}</span>{% if request_item.is_public_booking_request %}<span class="mm-sd-badge mm-sd-attention">Online Booking</span>{% endif %}</div>
+          </a></li>
+        {% endfor %}
+        </ul>{% if service_request_followups|length > 3 %}</details>{% endif %}
+      {% else %}<div class="mm-sd-empty"><h3>No open service requests need follow-up.</h3>{% if role_access.can_manage_leads %}<a class="btn mm-sd-secondary-action" href="{% url 'appointment_list' %}?state=needs_follow_up">Open Appointments</a>{% endif %}</div>{% endif %}
+      <footer class="mm-sd-panel-footer"><span>{{ service_request_count_this_month }} requests created this month</span><span>{{ open_service_request_count }} open</span></footer>
+    </section>
+  </div>
+
+  <section class="mm-sd-panel mm-sd-finance" aria-labelledby="mm-sd-invoices-title" data-onboarding-target="invoices">
+    <header class="mm-sd-panel-header"><div><p class="mm-sd-eyebrow">Customer invoicing</p><h2 id="mm-sd-invoices-title">Invoice follow-up</h2><p class="mm-sd-caption">Issued invoices with verified outstanding balances.</p></div>{% if dashboard_invoices_enabled %}<a class="btn mm-sd-secondary-action" href="{% url 'invoice_list' %}">View Invoices</a>{% endif %}</header>
+    {% if dashboard_invoices_enabled %}
+      <dl class="mm-sd-finance-summary"><div><dt>Outstanding balance · {{ current_business.currency }}</dt><dd>{{ unpaid_invoice_total|money:current_business }}</dd><dd class="mm-sd-finance-detail">Invoices with a balance due · {{ open_invoice_count }} · all currencies</dd></div><div><dt>Issued Invoice Value This Month · {{ current_business.currency }}</dt><dd>{{ invoice_value_this_month|money:current_business }}</dd><dd class="mm-sd-finance-detail">{{ sent_invoice_count }} issued · {{ draft_invoice_count }} draft invoices · all currencies</dd></div></dl>
+      <p class="mm-sd-financial-note">Amounts above use the workspace currency. Issued invoice value is not cash received.</p>
+      {% if recent_invoices %}
+        <ul class="mm-sd-records mm-sd-invoice-records">
+        {% for invoice in recent_invoices %}{% with financial=invoice.presentation %}
+          <li><a class="mm-sd-invoice" href="{% url 'invoice_detail' invoice.id %}" data-mm-sd-record="invoice" data-record-id="{{ invoice.id }}"><div><strong>{{ invoice.invoice_number }}</strong><p>{{ invoice.client }}</p><span class="mm-sd-secondary">{{ invoice.created_at|date:"M j, Y g:i A" }} · UTC{{ invoice.created_at|date:"c"|slice:"-6:" }}</span></div><div class="mm-sd-invoice-status">{% include 'billings/includes/invoice_status.html' with financial=financial only %}</div><div class="mm-sd-amount">{{ financial.balance_due|money:financial.billing_business }} <span>{{ financial.currency }}</span><span class="mm-sd-secondary">Balance due</span></div></a></li>
+        {% endwith %}{% endfor %}
+        </ul>
+      {% else %}<div class="mm-sd-empty"><h3>No open invoices need follow-up.</h3>{% if role_access.can_manage_invoices %}<a class="btn mm-sd-secondary-action" href="{% url 'staff_client_list' %}">Create From Clients</a>{% endif %}</div>{% endif %}
+      <!-- {% include 'billings/includes/finance_totals.html' %} -->
+    {% elif invoices_module_enabled %}<div class="mm-sd-empty"><h3>Invoices Restricted</h3><p>Billing records are limited to billing roles.</p></div>
+    {% else %}<div class="mm-sd-empty"><h3>Invoices Locked</h3><p>{{ invoice_unavailable_message }}</p></div>{% endif %}
+  </section>
+
+  <section class="mm-sd-panel mm-sd-workspace" aria-labelledby="mm-sd-workspace-title" data-onboarding-target="business-settings">
+    <header class="mm-sd-panel-header"><div><h2 id="mm-sd-workspace-title">Workspace details</h2><p class="mm-sd-caption" data-onboarding-target="clients">{{ client_count }} clients · {{ new_client_count_this_month }} added this month</p></div></header>
+    <dl class="mm-sd-workspace-values"><div><dt>Business</dt><dd>{{ current_business.name }}</dd></div><div><dt>Currency</dt><dd>{{ current_business.currency }}</dd></div><div><dt>Timezone</dt><dd>{{ current_business.timezone }}</dd></div><div><dt>Invoice Prefix</dt><dd>{{ current_business.invoice_prefix }}</dd></div><div data-onboarding-target="booking-settings"><dt>Online Booking Review</dt><dd>{% if public_booking_module_enabled %}{{ public_booking_pending_review_count }} pending review{% else %}{{ public_booking_unavailable_message }}{% endif %}</dd></div></dl>
+    {% if role_access.can_manage_business_settings %}<footer class="mm-sd-settings"><a class="btn mm-sd-secondary-action" href="{% url 'business_service_list' %}" data-onboarding-target="services">Services</a><a class="btn mm-sd-secondary-action" href="{% url 'business_booking_settings' %}" data-onboarding-target="availability">Availability</a><a class="btn mm-sd-secondary-action" href="{% url 'business_settings' %}" data-onboarding-target="business-settings">Business Settings</a></footer>{% endif %}
+  </section>
+
+  {% if public_booking_share_ready %}
+    <section class="mm-sd-panel mm-sd-sharing" aria-labelledby="mm-sd-share-title">
+      <header class="mm-sd-panel-header"><div><h2 id="mm-sd-share-title">Online Booking Link</h2><p class="mm-sd-caption">Share when customers are ready to request appointment times.</p></div><span class="mm-sd-badge mm-sd-success">Ready to share</span></header>
+      <div class="mm-sd-share-body"><label for="mm-sd-booking-url">Your customer booking page</label><input class="mm-sd-field" id="mm-sd-booking-url" type="url" value="{{ public_booking_url }}" readonly>
+        <noscript><p>Select the link and copy it manually.</p></noscript>
+        <div class="mm-sd-share-actions"><button class="btn mm-sd-secondary-action" type="button" data-mm-sd-copy><span class="fa-regular fa-copy" aria-hidden="true"></span> Copy</button><a class="btn mm-sd-secondary-action" href="{{ public_booking_path }}" target="_blank" rel="noopener"><span class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></span> Open</a></div>
+        <p>Customers can request a service, choose a preferred time, and wait for your team to confirm manually.</p><p id="mm-sd-copy-status" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  {% endif %}
+</div>
+{% endtimezone %}

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "services-dashboard",
+    "title": "Services dashboard · approved Step 4 reference",
+    "vertical": "SERVICE",
+    "path": "services-dashboard/daisyui/dist/",
+    "scenarioParam": "state",
+    "states": ["populated", "empty", "long", "viewer", "locked"],
+    "gallery": "services-dashboard/daisyui/evidence/step4/gallery.html"
+  },
+  {
+    "id": "services-appointments",
+    "title": "Services Appointments · Step 5 demonstration",
+    "vertical": "SERVICE",
+    "path": "services-appointments/dist/",
+    "scenarioParam": "scenario",
+    "states": ["populated", "empty", "long", "admin", "staff", "accountant", "viewer", "read-only", "request-only", "appointments-only", "locked", "loading", "error", "invalid", "pagination"],
+    "gallery": "services-appointments/evidence/gallery.html"
+  }
+]

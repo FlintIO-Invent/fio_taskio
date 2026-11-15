@@ -1363,7 +1363,7 @@ class CRMBusinessScopingTests(TestCase):
         response = self.client.get(reverse("agent_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Upcoming Activity")
+        self.assertContains(response, 'id="mm-sd-appointments-title"')
         self.assertContains(response, "Dashboard upcoming visit")
         self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
         self.assertNotContains(response, reverse("appointment_create"))
@@ -1394,7 +1394,7 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Appointments Locked")
-        self.assertNotContains(response, "Upcoming Activity")
+        self.assertNotContains(response, 'class="mm-sd-appointment"')
         self.assertNotContains(response, "Hidden dashboard visit")
 
     def test_staff_dashboard_shows_invoice_totals_when_plan_allows_billing(self):
@@ -2223,7 +2223,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("invoice_list"))
         self.assertContains(response, "Invoices with a balance due")
-        self.assertContains(response, "Invoice Follow-Up")
+        self.assertContains(response, '<h2 id="mm-sd-invoices-title">Invoice follow-up</h2>')
 
     def test_dashboard_hides_invoicing_links_when_plan_disables_module(self):
         plan = ClarivoPlan.objects.create(

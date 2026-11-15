@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "historical_baseline": {
+    "commit": "34eacc9ce9b412b0ffeb5ffa492a69f5de49ca4c",
+    "runtime_files": 6749,
+    "source_sha256": "04b0261e306f221baca0ef4488e477a9865a93310b0fe19ca2ab634993bfd05d",
+    "proof": "Phase 1 matched all saved original runtime paths to tracked files; only four working-tree differences, with original hashes matching Git HEAD blobs."
+  },
+  "protected_step7_files": {
+    "src/templates/inheritance/dashboard_parent.html": "24fb9822688e9ba7a504a6478424d689eb28f5c50e68713fd21a85da489ae929",
+    "src/templates/crm/agent_dashboard/agent_dashboard.html": "9d76055586dc85f69e8f1669f416a31a4712081ae064e98ef080c9092ae43f94",
+    "src/apps/crm/views.py": "240f014d65dacf9d0247a92c918fbc0b21af744f7f661a4fe333e01cccc68160",
+    "src/apps/crm/tests.py": "c4fc60270a62cb107c707bcb5af55d2fc1a453d957093ca19c9673d47280301f",
+    "src/templates/crm/agent_dashboard/includes/services_overview.html": "32a2ae989019b1a74a45ed41767630ac807407f2cfe6045d15e67a073bf14000",
+    "src/static/assets/css/services-dashboard.css": "b6ddc6f3c876751cce29f163c0fed903e7c230e5d0bfb5944dcb6d8a0e0a3a15",
+    "src/static/assets/js/services-dashboard.js": "ef700eea45550799c37dd07d1a2d07c0c7d5bd2b31b18ace81e280873271f4d5",
+    "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "src/static/assets/fonts/manrope/OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30",
+    "src/apps/crm/test_services_dashboard_ui.py": "0c89f30301a1946666980b1ac86080f3dad0feb7e437adf4a60af586aae8664b",
+    "scripts/services_dashboard_ui_browser_check.py": "021bd405b20481b4d36165f637ef6969c08bf34b7c6443079792df6734a69ca7"
+  },
+  "archive": {
+    "local_path": "/home/mzero/motionmate-ui-archives/2026-11-15-phase2/ui-history.tar.gz",
+    "bytes": 266988375,
+    "sha256": "45ef410047fadb50f7e242417fe7042a831aa5401637fc8ba4ac660f8d81ef0c",
+    "content_files": 1856,
+    "source_state": "Historical evidence and UI Lab/docs captured before Phase 2 instruction/tooling edits"
+  },
+  "protected_frozen_reference_files": {
+    "ui-lab/services-dashboard/daisyui/dist/app.css": "a36e9816e0a0e2c340dcd2fe8e4bd4897f030a530ed9169ff0f9429460141e32",
+    "ui-lab/services-dashboard/daisyui/dist/app.js": "809d06cbe131554509940827fbe9f828ac6b64f782db7f1a464836d924627bc4",
+    "ui-lab/services-dashboard/daisyui/dist/assets/DaisyUI-MIT.txt": "8709e3ac65c84637c422dc8082b893d9997fce093751c77b2f1983bf29dbf9ea",
+    "ui-lab/services-dashboard/daisyui/dist/assets/Feather-MIT.txt": "308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee",
+    "ui-lab/services-dashboard/daisyui/dist/assets/Manrope-OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30",
+    "ui-lab/services-dashboard/daisyui/dist/assets/Nunito-Sans-OFL.txt": "6632e6c45fcc18cc03909a0a53d84e9775185e06203ff80d6367cf93959b91a8",
+    "ui-lab/services-dashboard/daisyui/dist/assets/Tailwind-MIT.txt": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985",
+    "ui-lab/services-dashboard/daisyui/dist/assets/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "ui-lab/services-dashboard/daisyui/dist/assets/motionmate-logo.svg": "01a44ff946297e3dd5fd882dda585d349e03b28dbab9af5fde8d3b0e4b75adf2",
+    "ui-lab/services-dashboard/daisyui/dist/assets/nunito-sans-latin-wght-normal.woff2": "29e3890496844a9ea81975c52771c587c872b4eb317026422d1995b88d21b57d",
+    "ui-lab/services-dashboard/daisyui/dist/index.html": "941352ddf9ceb20e0b570002b53906d7529bf4ca145ce6e18b3a5e6c0efc0d55",
+    "ui-lab/services-dashboard/daisyui/dist/tokens.css": "81bfc2fd20a49f39c8cae7f0b495ec8c65d56907f98d10272cf002789b351276",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/app.css": "88aae0fd5ab5e41272b5ba66f42721ffc2c6d47b064167b76f36cfe9c5b5a4ce",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/app.js": "833784851a011fed986d76a77233636a825469e465d052129b6583bbfce9208b",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/assets/DaisyUI-MIT.txt": "8709e3ac65c84637c422dc8082b893d9997fce093751c77b2f1983bf29dbf9ea",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/assets/Feather-MIT.txt": "308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/assets/Nunito-Sans-OFL.txt": "6632e6c45fcc18cc03909a0a53d84e9775185e06203ff80d6367cf93959b91a8",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/assets/Tailwind-MIT.txt": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/assets/motionmate-logo.svg": "01a44ff946297e3dd5fd882dda585d349e03b28dbab9af5fde8d3b0e4b75adf2",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/assets/nunito-sans-latin-wght-normal.woff2": "29e3890496844a9ea81975c52771c587c872b4eb317026422d1995b88d21b57d",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/index.html": "7afc6adf62d1fb14d2575f673a8f4e436ada413f27c35eacb6af24ed1a7c375a",
+    "ui-lab/services-dashboard/daisyui/evidence/step4/original-dist/tokens.css": "81bfc2fd20a49f39c8cae7f0b495ec8c65d56907f98d10272cf002789b351276"
+  }
+}
