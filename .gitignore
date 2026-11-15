@@ -31,11 +31,21 @@ replacements.txt
 !.env.example
 
 
-# agents 
-AGENTS.md
-.agents
-.agents/
+# Keep the reusable UI skill; unrelated agent configuration remains local.
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/motionmate-ui/
+.agents/skills/motionmate-ui/*
+!.agents/skills/motionmate-ui/SKILL.md
+!.agents/skills/motionmate-ui/references/
+.agents/skills/motionmate-ui/references/*
+!.agents/skills/motionmate-ui/references/phoenix-map.md
 
 # design references
-/design_references/ 
-echo '/design_references/phoenix/' >> .gitignore
+/design_references/
+
+# Historical UI evidence is preserved in the separate local archive.
+/docs/design/motionmate-ui-lab/baseline-metrics.json
+/docs/design/motionmate-ui-lab/screenshots/*
+!/docs/design/motionmate-ui-lab/screenshots/real-django/

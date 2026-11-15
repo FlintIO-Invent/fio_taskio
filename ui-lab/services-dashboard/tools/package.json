@@ -1,0 +1,11 @@
+{
+  "name": "motionmate-services-lab-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {},
+  "devDependencies": {
+    "@fontsource-variable/nunito-sans": "5.3.0",
+    "axe-core": "4.11.1"
+  }
+}

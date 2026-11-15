@@ -1,0 +1,72 @@
+/* Step 4 semantic colors, promoted into a lab-only reusable source.
+   Original services-dashboard/shared/tokens.css remains frozen. */
+@font-face {
+  font-family: Manrope;
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('./assets/manrope-latin-wght-normal.woff2') format('woff2');
+}
+:root {
+  --mm-canvas: #f6f7fb;
+  --mm-surface: #fff;
+  --mm-raised: #eef1fa;
+  --mm-text: #182235;
+  --mm-secondary: #526079;
+  --mm-primary: #3949db;
+  --mm-on-primary: #fff;
+  --mm-primary-hover: #2e3cb8;
+  --mm-divider: #d8dfea;
+  --mm-control: #71819a;
+  --mm-accent: #7460d9;
+  --mm-success: #16624a;
+  --mm-success-bg: #e7f5ef;
+  --mm-warning: #7a4a09;
+  --mm-warning-bg: #fff3d6;
+  --mm-error: #9c2d3a;
+  --mm-error-bg: #fceaec;
+  --mm-frame: #f0f2fa;
+  --mm-current: #e9edff;
+  --mm-header: #fbfbfe;
+  --mm-violet: #6a4fc2;
+  --mm-cyan: #087b9f;
+  --mm-shadow: 0 12px 32px #1822351f;
+  --mm-font: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mm-space-1: 4px;
+  --mm-space-2: 8px;
+  --mm-space-3: 12px;
+  --mm-space-4: 16px;
+  --mm-space-5: 20px;
+  --mm-space-6: 24px;
+  --mm-space-8: 32px;
+  --mm-radius-control: 8px;
+  --mm-radius-panel: 12px;
+  --mm-radius-badge: 6px;
+  color-scheme: light;
+}
+:root[data-bs-theme=dark] {
+  --mm-canvas: #0b1020;
+  --mm-surface: #121a2b;
+  --mm-raised: #1a2440;
+  --mm-text: #edf1fc;
+  --mm-secondary: #b0bcd2;
+  --mm-primary: #abb6ff;
+  --mm-on-primary: #101727;
+  --mm-primary-hover: #bec6ff;
+  --mm-divider: #29354d;
+  --mm-control: #7d8eae;
+  --mm-accent: #b9a8ff;
+  --mm-success: #8ae0b9;
+  --mm-success-bg: #113c30;
+  --mm-warning: #f5cc80;
+  --mm-warning-bg: #3c2d16;
+  --mm-error: #ffacb5;
+  --mm-error-bg: #40202b;
+  --mm-frame: #101829;
+  --mm-current: #242f53;
+  --mm-header: #151f33;
+  --mm-violet: #c8b6ff;
+  --mm-cyan: #79d9f6;
+  --mm-shadow: 0 12px 32px #0006;
+  color-scheme: dark;
+}

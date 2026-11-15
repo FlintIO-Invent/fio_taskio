@@ -1,0 +1,24 @@
+:root { color-scheme: light dark; font-family: system-ui,sans-serif; background: #f6f7fb; color: #182235; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: #3949db; text-underline-offset: 3px; }
+button,input,select { font: inherit; }
+button,select,input { min-height: 44px; padding: 8px 12px; border: 1px solid #71819a; border-radius: 8px; background: #fff; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid #3949db; outline-offset: 3px; }
+.review { max-width: 1500px; margin: auto; padding: 32px; }
+.review h1 { letter-spacing: -.035em; }
+.review p { max-width: 95ch; line-height: 1.6; }
+.review li { line-height: 1.8; margin-bottom: 4px; }
+.review label { display: block; margin-bottom: 6px; font-weight: 600; }
+.review form { display: flex; flex-wrap: wrap; gap: 16px; padding: 24px; background: #fff; border: 1px solid #d8dfea; border-radius: 12px; }
+.review form>div { flex: 1 1 200px; min-width: 0; }
+.review select { width: 100%; }
+.review .launch { flex: 1 1 100%; padding-top: 8px; }
+.comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+figure { margin: 0; min-width: 0; }
+figure img { width: 100%; height: auto; border: 1px solid #71819a; border-radius: 8px; }
+figcaption { padding: 8px 0 24px; font-size: 14px; }
+.review section { margin-block: 40px; }
+@media(max-width:767px) { .review { padding: 16px; } .comparison { grid-template-columns: 1fr; } }
+@media(prefers-color-scheme:dark) { :root { background: #0b1020; color: #edf1fc; } a { color: #abb6ff; } button,input,select,.review form { background: #121a2b; } .review form { border-color: #29354d; } :focus-visible { outline-color: #abb6ff; } }

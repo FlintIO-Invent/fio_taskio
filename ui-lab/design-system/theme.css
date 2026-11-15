@@ -1,0 +1,51 @@
+/* Same theme values as Step 4; explicitly scanned, separate documents only. */
+@plugin "../services-dashboard/daisyui/node_modules/daisyui" {
+  themes: false;
+  root: "#app";
+  include: button,card,badge,input,select,menu,modal,navbar,table;
+  logs: false;
+}
+@plugin "../services-dashboard/daisyui/node_modules/daisyui/theme" {
+  name: "motionmate-light";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+  --color-base-100: #ffffff;
+  --color-base-200: #f6f7fb;
+  --color-base-300: #d8dfea;
+  --color-base-content: #182235;
+  --color-primary: #3949db;
+  --color-primary-content: #ffffff;
+  --color-neutral: #eef1fa;
+  --color-neutral-content: #182235;
+  --radius-selector: .5rem;
+  --radius-field: .5rem;
+  --radius-box: .75rem;
+  --size-selector: .25rem;
+  --size-field: .25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+@plugin "../services-dashboard/daisyui/node_modules/daisyui/theme" {
+  name: "motionmate-dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: #121a2b;
+  --color-base-200: #0b1020;
+  --color-base-300: #29354d;
+  --color-base-content: #edf1fc;
+  --color-primary: #abb6ff;
+  --color-primary-content: #101727;
+  --color-neutral: #1a2440;
+  --color-neutral-content: #edf1fc;
+  --radius-selector: .5rem;
+  --radius-field: .5rem;
+  --radius-box: .75rem;
+  --size-selector: .25rem;
+  --size-field: .25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
