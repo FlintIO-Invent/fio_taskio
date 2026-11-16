@@ -1012,7 +1012,7 @@ class CRMBusinessScopingTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("staff_lead_convert_to_client", args=[lead.id]))
-        self.assertContains(response, "Convert Service Request to Client")
+        self.assertContains(response, "Complete Client details")
 
     def test_service_request_detail_shows_matched_client_and_invoice_action(self):
         self._enable_invoicing_for_business()
@@ -1115,7 +1115,7 @@ class CRMBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
-        self.assertContains(response, "Confirmed appointment")
+        self.assertContains(response, "Linked appointment")
 
     def test_service_request_detail_hides_duplicate_schedule_button_when_appointment_exists(self):
         self._enable_appointments_for_business()
@@ -2686,7 +2686,7 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("public_booking", args=[self.business.slug]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Online Booking Form")
+        self.assertContains(response, "Book a service")
         self.assertContains(response, "Book an appointment now")
         self.assertContains(response, "Contact me before booking")
         self.assertContains(response, "Choose a date from")
@@ -3328,12 +3328,12 @@ class PublicBookingTests(TestCase):
                 response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
 
                 self.assertEqual(response.status_code, 200)
-                self.assertContains(response, "Booking Request")
+                self.assertContains(response, "Scheduling")
                 self.assertContains(response, "Online Booking")
                 self.assertContains(response, self.service.name)
                 self.assertContains(response, "45 minutes")
                 self.assertContains(response, "Please confirm if this time works.")
-                self.assertContains(response, "Confirm / Schedule Appointment")
+                self.assertContains(response, "Schedule Appointment")
                 self.assertContains(
                     response, reverse("appointment_create_from_request", args=[lead.id])
                 )
@@ -3348,8 +3348,8 @@ class PublicBookingTests(TestCase):
                 response = self.client.get(reverse("staff_lead_detail", args=[lead.id]))
 
                 self.assertEqual(response.status_code, 200)
-                self.assertContains(response, "Booking Request")
-                self.assertNotContains(response, "Confirm / Schedule Appointment")
+                self.assertContains(response, "Scheduling")
+                self.assertNotContains(response, "Schedule Appointment")
                 self.assertNotContains(
                     response, reverse("appointment_create_from_request", args=[lead.id])
                 )
@@ -3363,7 +3363,7 @@ class PublicBookingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("appointment_detail", args=[appointment.id]))
-        self.assertContains(response, "View Confirmed Appointment")
+        self.assertContains(response, "View Appointment")
         self.assertNotContains(response, reverse("appointment_create_from_request", args=[lead.id]))
 
     def test_booking_request_detail_shows_plan_message_when_appointments_unavailable(self):

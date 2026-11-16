@@ -1,0 +1,4 @@
+{% extends "inheritance/split_forms_parent.html" %}
+{% load static services_bookings %}
+{% block page_assets %}{{ block.super }}{% services_booking_scope as bookings_ui %}{% if bookings_ui %}{% include "appointments/includes/services_booking_assets.html" %}<script src="{% static 'assets/js/services-public-booking.js' %}" defer></script>{% endif %}{% endblock %}
+{% block page_body_attributes %}{% services_booking_scope as bookings_ui %}{% if bookings_ui %} class="mm-services-bookings-page mm-services-public-booking"{% else %}{{ block.super }}{% endif %}{% endblock %}

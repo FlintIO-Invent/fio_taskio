@@ -105,6 +105,19 @@ class InvoicePresentationTests(TestCase):
             self.assertIn("Invoice status:", content)
             self.assertNotIn("Lifecycle:", content)
             self.assertIn("Issued", content)
+        for content in (pdf_html, pdf):
+            self.assertNotIn("Payment status:", content)
+            self.assertNotIn("Partially paid", content)
+            self.assertIn("Total Amount", content)
+            self.assertIn("USD 100.00", content)
+            for label in (
+                "Original invoice total",
+                "Net payments received",
+                "Balance due",
+                "Refund due",
+            ):
+                self.assertNotIn(label, content)
+        for content in (email.body, email.alternatives[0].content):
             self.assertIn("Partially paid", content)
             self.assertIn("Original invoice total", content)
             self.assertIn("Net payments received", content)
@@ -117,12 +130,14 @@ class InvoicePresentationTests(TestCase):
         self.assertIn("Balance due: USD 60.00", admin.financial_summary(self.invoice))
         self.assertEqual(admin.lifecycle(None), "Draft")
 
-    def test_full_payment_says_paid_on_both_pdf_paths_and_keeps_sent_enum(self):
+    def test_full_payment_pdf_hides_payment_status_and_keeps_sent_enum(self):
         self.receipt()
         financial = present_invoice(self.invoice)
         self.assertEqual((financial.lifecycle_label, financial.payment_label), ("Issued", "Paid"))
-        self.assertIn("Payment status: Paid", self.pdf_text(self.invoice))
-        self.assertIn("<strong>Paid</strong>", render_invoice_pdf_html(self.invoice))
+        for content in (self.pdf_text(self.invoice), render_invoice_pdf_html(self.invoice)):
+            self.assertNotIn("Payment status:", content)
+            self.assertIn("Invoice status:", content)
+            self.assertIn("Issued", content)
         detail = self.client.get(reverse("invoice_detail", args=[self.invoice.pk]))
         self.assertContains(detail, ">Paid</span>")
         self.assertNotContains(detail, "Mark as Paid")
@@ -180,13 +195,13 @@ class InvoicePresentationTests(TestCase):
         self.assertContains(
             detail, '<p class="invoice-detail-value fw-semibold">USD</p>', html=True
         )
-        for content in (
-            self.pdf_text(self.invoice),
-            render_invoice_pdf_html(self.invoice),
-            self.email(self.invoice).body,
+        for content, expected_amount in (
+            (self.pdf_text(self.invoice), "100.00"),
+            (render_invoice_pdf_html(self.invoice), "100.00"),
+            (self.email(self.invoice).body, "60.00"),
         ):
-            self.assertIn("USD 60.00", content)
-            self.assertNotIn("EUR 60.00", content)
+            self.assertIn(f"USD {expected_amount}", content)
+            self.assertNotIn(f"EUR {expected_amount}", content)
         dashboard = self.client.get(reverse("agent_dashboard"))
         currencies = {row["currency"]: row for row in dashboard.context["finance_currency_totals"]}
         self.assertEqual(currencies["USD"]["outstanding_invoice_total"], 60)

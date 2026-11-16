@@ -1,0 +1,5 @@
+{% extends "inheritance/dashboard_parent.html" %}
+{% load services_bookings %}
+{% block page_assets %}{{ block.super }}{% services_booking_scope as bookings_ui %}{% if bookings_ui %}{% include "appointments/includes/services_booking_assets.html" %}{% endif %}{% endblock %}
+{% block page_body_attributes %}{% services_booking_scope as bookings_ui %}{% if bookings_ui %} class="mm-services-bookings-page"{% else %}{{ block.super }}{% endif %}{% endblock %}
+{% block services_mobile_search %}{% services_booking_scope as bookings_ui %}{% if not bookings_ui %}{{ block.super }}{% endif %}{% endblock %}

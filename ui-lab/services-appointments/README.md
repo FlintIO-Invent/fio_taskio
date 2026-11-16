@@ -1,88 +1,86 @@
-# Services Appointments · isolated demonstration
+# Services Appointments & Bookings — connected prototype
 
-Target: `SERVICE`, named route `appointment_list`, GET `/appointments/`.
-Purpose: a readable combined work list and deliberate filter/action hierarchy,
-using the approved visual language independently of the dashboard layout.
-Synthetic fixtures only. No Django process, DB connection, real record or provider.
+Step 3 UI Lab only, based on the [audit](../../docs/design/motionmate-ui-lab/10-appointments-bookings-audit.md) and [design brief](../../docs/design/motionmate-ui-lab/11-appointments-bookings-design-brief.md). This extends the existing Step 5 Appointments composition into one connected review. Phoenix and Django application sources, the approved dashboard and shared design-system files are unchanged.
 
-Open with the [shared lab instructions](../README.md). Use `?scenario=long`,
-`viewer`, `request-only`, `appointments-only`, `locked`, `invalid`, `pagination`,
-`loading` or `error`, with `&theme=light|dark`. `scenario` is review-only;
-`state` retains its actual filter meaning, e.g. `&state=needs_follow_up`.
+Synthetic records and browser-memory state only. Reload resets demo changes and drafts. The only persistent preference is the existing lab-only theme setting. No database, real record, email, invoice, account or provider is accessed. UI outcome/confirmation concepts do not establish application behavior or authorize backend changes.
 
-## Source audit and preserved contracts
+## Launch
 
-Read the actual implementation before designing (15 November 2026):
+From the repository root, with the existing environment:
 
-- [workspace template](../../src/templates/appointments/workspace.html),
-  [view and guards](../../src/apps/appointments/views.py),
-  [projection/filter form](../../src/apps/appointments/workspace.py),
-  [named routes](../../src/apps/appointments/urls.py),
-  [navigation](../../src/templates/appointments/includes/workspace_navigation.html).
-- [Appointment model](../../src/apps/appointments/models.py),
-  [AppointmentForm](../../src/apps/appointments/forms.py),
-  [form template](../../src/templates/appointments/form.html),
-  [CRM model/route definitions](../../src/apps/crm/models.py),
-  [CRM routes](../../src/apps/crm/urls.py),
-  [role predicates](../../src/apps/businesses/utils.py),
-  [context flags](../../src/apps/businesses/context_processors.py).
-- [Shared Phoenix shell](../../src/templates/inheritance/dashboard_parent.html),
-  [draft client dialog](../../src/templates/crm/includes/draft_client_modal.html),
-  [Services contracts](../../docs/services_unified_appointments.md),
-  [financial vocabulary](../../docs/invoice_payment_terminology.md),
-  [Logistics financial boundary](../../docs/logistics_financial_access.md).
-- Read-only Phoenix table/validation examples and the UI skill's Phoenix map.
-  Reference library exists; no reference assets were edited or built.
+```sh
+.venv/bin/python -B ui-lab/services-dashboard/tools/serve.py --root ui-lab --port 8765
+```
 
-| Contract | Audited application behavior | Preview treatment |
-| --- | --- | --- |
-| Combined work | Existing Appointments plus active NEW/CONTACTED REQUEST Leads without any linked appointment; requests ordered first by creation, then appointments by start and ID | Supplied synthetic projection keeps kinds, IDs, ordering and distinct request status. No new entities, calendar or scheduling controls. |
-| Classification | Appointment Client classification; request classification only from exactly one same-Business email match; otherwise Unknown | Fixture explicitly supplies label and optional client link. Browser never infers relationships. |
-| Entitlements | List accepts either request or appointment reads; each row kind needs its own entitlement | Explicit owner/admin/staff/accountant/viewer, request-only, appointment-only, read-only and unavailable projections. Unavailable is a lab boundary illustration; the actual decorator may redirect rather than render this shell. |
-| Writes | New/Edit appointment: manage role AND appointment write access. Create/Edit request: manage-leads role AND request write access | Supplied independent booleans control those links; no browser role evaluator. Owner/admin/staff allow writes in their writable fixtures; accountant/viewer do not. |
-| Filter form | GET `q` (max 160), `state`, `source`, `classification`, `staff`, `service`; `status` alias only when `state` is absent; invalid form returns no records | Same names/options and alias; local display filtering over supplied metadata. Staff metadata is blank for requests, preserving that requests have no assigned staff. No server/global-search claim. |
-| Detail/edit | `appointment_detail` `/appointments/<id>/`; `appointment_update` same + `edit/`; `staff_lead_detail` `/crm/staff/leads/<id>/`; `staff_lead_update` same + `edit/` | Named-route/path intent retained in local modal. No detail/edit workflow implemented or submitted. |
-| Creation | `appointment_create` `/appointments/create/`; `staff_lead_create` `/crm/staff/leads/create/` | Links open local intent review. Existing full forms, inline client drafts, quota, availability, confirmation, CSRF and `operation_key` behavior remain untouched and untested here. |
-| History/client/navigation | `staff_lead_list?status_group=all`; `staff_client_detail`; dashboard and list routes | Original destination intent retained. List filters/reset act locally; other destinations show intent review. Only relevant audited Services navigation is composed here; this is not a replacement application shell. |
-| Pagination | 50 records/page, retain query values, allow historical status bookmarks | 52-row synthetic case uses 50+2; page links keep filters. No database query engine. |
-| Time | Current workspace template uses Django date filters without explicit workspace timezone activation in this path | Preview supplies labels in America/Lower_Princes, with a visible zone and unchanged UTC instants. This is a proposed presentation correction, not a production timezone fix. Request preferred time remains “Preferred”; undated requests say “Not scheduled”. |
-| Financial/booking behavior | Existing scheduling/conversion/booking/invoice/payment workflows stay in established detail/forms/services | No approve, schedule, reschedule, status-change, invoice or payment operation is added. No accounting amounts appear in this list. |
+- [Workspace](http://127.0.0.1:8765/services-appointments/dist/?view=workspace&theme=light)
+- [Appointment details](http://127.0.0.1:8765/services-appointments/dist/?view=detail&id=801&theme=light)
+- [Create appointment](http://127.0.0.1:8765/services-appointments/dist/?view=form&theme=light)
+- [Public booking](http://127.0.0.1:8765/services-appointments/dist/?view=public&theme=light)
+- [Request follow-up](http://127.0.0.1:8765/services-appointments/dist/?view=request&id=703&theme=light)
+- [Review gallery](http://127.0.0.1:8765/services-appointments/evidence/step3/gallery.html)
 
-## Reuse and independent refinement
+Keep `--root ui-lab`: the server's historical default serves only the dashboard subtree. It binds to loopback and rejects writes. If 8765 is occupied, use another free port; do not take over an existing listener. No package installation, Django startup or database setup is needed. The generated `dist/` may be Git-ignored or absent in a fresh checkout; rebuild only after confirming the existing pinned toolchain is available.
 
-`src/input.css` imports the lab's shared theme and compositions, and scans only
-this source plus shared components. `render.js` uses shared `shell`, `link`,
-`badge`, `icon` and escaping. `mountChrome()` owns ordinary dialogs, focus,
-theme and account popup. Fixture decisions stay in this screen; there is no
-shared business-policy abstraction. New tokens preserve the Step 4 values.
+## Five compositions and local interactions
 
-Desktop combines the original nine information subjects into six semantic
-columns: booking/source, client/classification, service/staff, time, state and
-actions. Tablet/mobile use labeled cards from the same table rows. This design
-does not copy dashboard queues, metric regions or its capped preview policy.
-Secondary filters use a disclosure; all submitted values remain present.
+1. **Workspace:** original six GET filter meanings, historical `status` alias, 50-row pagination, mixed appointment/request records, desktop table and tablet/mobile cards. New Appointment and Create Request open local forms. Requests and scheduled records retain distinct state/time semantics.
+2. **Appointment details:** edit, related-record disclosure, invoice destination intent, and terminal-action confirmation previews. Only Scheduled has outgoing status choices; editing a terminal preview does not reopen it.
+3. **Create/edit:** one full-page form in create/edit/from-request modes; required fields and time ordering, native selectors, inline Client dialog, preserved draft, busy/success states. This is local validation, not server-rule coverage.
+4. **Public booking:** four named steps, both intents, selected day/time, Company/Individual, review/edit links, and distinct outcomes. Synthetic Book now adds an appointment to the local workspace without a duplicate request row; Contact before booking adds unscheduled follow-up. This is a supplied local outcome projection, not a second authoritative booking service.
+5. **Follow-up:** request details, missing Client completion and request-linked scheduling. The completion subview distinguishes saved Client information from an appointment. Review controls expose the proposed direct scheduling resume (D4); the existing Client Details destination is identified explicitly. Create/edit request forms belong to this composition.
 
-The demonstration covers client/company names, known/unknown classifications,
-online/internal/unspecified source, assigned/unassigned staff, preferred/undated
-requests and all four current appointment statuses. The fixed synthetic clock
-is **14 November 2026 at 09:00 UTC**, matching the reference. It is not today.
-Loading/error states are explicitly controlled lab states, since this Django
-list is server rendered. Retry dismisses only the synthetic error. Theme choice
-uses the existing lab-only key; no business record or filter draft is saved.
+The **Interactive prototype** disclosure above the product frame provides screen/scenario selection and proposal notes. Public views hide staff navigation. Product navigation within the prototype retains local drafts; review scenario changes deliberately reload and reset the demo. Client, invoice, dashboard, history/settings and contact destinations outside the five compositions are intercepted as destination previews. No real request/call/email is made.
 
-Rebuild only this screen with `node ui-lab/tools/build.mjs services-appointments`.
-The [common capture tool](../tools/capture.py) writes its matrix and fresh
-cross-screen comparisons into `evidence/`; [check.py](check.py) exercises this
-screen's interactions. Full results, screenshots and limitations are reported
-in the [Step 5 report](../../docs/design/motionmate-ui-lab/05-design-system-and-workflow.md).
+## Scenarios and contracts
 
-## Approval boundary
+Use `?view=workspace|detail|form|public|request` with `&theme=light|dark`. `view` is review-only. Existing `state` remains a workspace filter, not a scenario name. `scenario` accepts:
 
-This is ready for design review after evidence completion. A later implementation
-would need separate authorization for at least `src/templates/appointments/workspace.html`
-and any approved Services-only template/asset boundary. Changes to the shared
-`dashboard_parent.html`, app views/forms/routes, static/build configuration or
-other screens would expand that proposal and need explicit scope. Do not copy
-this JavaScript into production as an authorization, pagination or search layer.
-No DB writes, migrations, Logistics edits, commits, pushes or deployment are part
-of this demonstration.
+- `populated`, `long`, `empty`, `pagination`, `invalid`, `loading`, `error`;
+- `staff`, `admin`, `accountant`, `viewer`, `read-only`, `request-only`, `appointments-only`, `locked`;
+- `no-slots`, `conflict`, `uncertain` for public booking error examples.
+
+Additional review destinations: `view=completion&id=703`, `view=request-form`, and `view=outcome&result=scheduled|request`. Deep-linked outcomes are explicit synthetic fixtures, not trusted application receipts. `mode=edit|from-request` selects the shared appointment form mode with an existing synthetic `id`.
+
+The fixed supplied clock is **14 November 2026 09:00 UTC**; records use **America/Lower_Princes, UTC−04:00**, and public slots use 16–18 November. These are historical fixture dates, not the current day. Availability choices, conflicts and access flags are supplied examples. There is no live availability feed, production matching engine, buffer enforcement or server authorization evaluator. Known Client projections retain their supplied classification; missing/ambiguous data remains Unknown/Unspecified. Legitimate historical multiple appointments and compatibility route names remain application contracts, not newly implemented prototype services.
+
+The existing list retains `q`, `state`, `source`, `classification`, `staff`, `service`, `status` compatibility, row identity and all nine record information subjects. Staff filtering removes requests; Service does not infer category matches. Appointment/request access flags are independent. Accountant/Viewer reads and Services billing permissions are not replaced with Logistics policy.
+
+## Structure and reuse
+
+- `src/fixtures.js`: existing synthetic list projections/filter options.
+- `src/render.js`: existing workspace composition and shared shell usage.
+- `src/journey.js`: added detail/form/public/follow-up compositions and synthetic context.
+- `src/app.js`: connected local navigation/drafts/projections, validation and feedback.
+- `src/input.css`: existing table/cards plus new responsive compositions using shared tokens.
+- `src/index.html`: existing isolated document and CSP (`connect-src 'none'`, `form-action 'none'`).
+- `dist/`, `build-meta.json`: generated by the existing lab-only builder.
+- `validate_step3.py`, `validate_states_step3.py`: static-loopback Chromium/axe/task checks; no Django imports.
+- `supplement_contrast.py`: computed-color supplement for retained dialog incompletes.
+- `review_evidence.py`: gallery/summary and protected-file verification.
+- `evidence/step3/`: raw results, screenshots, gallery, source hashes and protected-file manifest.
+
+Shared tokens/components are read from `ui-lab/design-system/`; the existing pinned Step 4 build tools, local Manrope/logo and licenses are reused. No dashboard build or shared component edit is performed.
+
+## Build and validation
+
+Only use already installed tools; missing dependencies require separate approval. Do not run installation commands as part of this prototype.
+
+```sh
+node ui-lab/tools/build.mjs services-appointments
+# If Playwright's matching browser is absent, select an existing compatible browser:
+# export PWA_CHROMIUM=/path/to/already-installed/chrome
+.venv/bin/python -B ui-lab/services-appointments/validate_step3.py
+.venv/bin/python -B ui-lab/services-appointments/validate_states_step3.py
+.venv/bin/python -B ui-lab/services-appointments/supplement_contrast.py
+.venv/bin/python -B ui-lab/services-appointments/review_evidence.py
+```
+
+These checks start their own GET-only ephemeral loopback servers and write evidence only under this package. They never contact the ordinary local Django listener or any application database/provider. Repeats replace the current Step 3 results/screenshots. Retain any failed evidence separately when needed. `STEP3_TASKS_ONLY=1` runs tasks alone and writes `tasks-only.json`, explicitly not a replacement for the full matrix.
+
+The 40-case primary matrix covers five compositions × 1440/768/390/320px × light/dark. Additional state cases and dialog/wizard captures are documented in the [Step 3 report](../../docs/design/motionmate-ui-lab/12-appointments-bookings-prototype-review.md). The original `check.py` and its earlier evidence describe the Step 5 list-only route-intent demonstration; its navigation assumptions do not certify the connected Step 3 journey. The new validators are the current checks.
+
+## Review boundary
+
+D2 terminal confirmations, D4 request resume/linkage, D5 mode clearing/fallback/server validation and D6 outcome context remain proposed interactions/server dependencies. No reopening, notification, invoice automation, new conflict/buffer policy or non-JS application fallback is implemented. Simulated client/booking writes and status previews never prove real POST/CSRF/retry/provider behavior. Step 3 has no Django BEFORE/AFTER or live-runtime verification.
+
+Stop for visual review. Design approval does not authorize production integration, framework changes, data/schema work, staging, commits, push/merge or deployment. Follow the established [review workflow](../../docs/design/motionmate-ui-lab/PREVIEW-WORKFLOW.md) and [runbook](../../docs/design/motionmate-ui-lab/REPRODUCIBILITY.md) for a separately authorized next phase.
