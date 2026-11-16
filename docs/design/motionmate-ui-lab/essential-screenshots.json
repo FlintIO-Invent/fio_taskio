@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "screenshots": [
+    {
+      "path": "ui-lab/services-dashboard/daisyui/evidence/step4/screenshots/daisyui-populated-1440-light-viewport.png",
+      "sha256": "75428c6726cea89fcf858e4e34ba0239c7ffdef147203048cfa3bc0b04f9d70f",
+      "purpose": "Required approved reference consumed by ui-lab/tools/capture.py",
+      "provenance": "Original Step 4 screenshot; preserved in place"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-before-1440-light-viewport.png",
+      "sha256": "e6a10014987f1e1b9312f0b0b2d306dd572cb9cc5d27dc41a5dd32040652e490",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/before-1440-light-viewport.png"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-after-1440-light-viewport.png",
+      "sha256": "22e528f7895c0324f06ae484dffcbb5eda9d8ebdb869a0c2b53aaae7ee41919d",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/after-1440-light-viewport.png"
+    },
+    {
+      "path": "ui-lab/services-dashboard/daisyui/evidence/step4/screenshots/daisyui-populated-1440-dark-viewport.png",
+      "sha256": "88b6103f606b873f0f89f4da6e21aba982b3e8037ccf1da49b595a5b031d5f7b",
+      "purpose": "Required approved reference consumed by ui-lab/tools/capture.py",
+      "provenance": "Original Step 4 screenshot; preserved in place"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-before-1440-dark-viewport.png",
+      "sha256": "ce0e03f28a4eba2017f62e762145a2b784f503eb2575d063c8f0edc69cc43dab",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/before-1440-dark-viewport.png"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-after-1440-dark-viewport.png",
+      "sha256": "073456e18f72a8372b29a7858516cf6df94862b6ab0be2f9f69b34458f366a3f",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/after-1440-dark-viewport.png"
+    },
+    {
+      "path": "ui-lab/services-dashboard/daisyui/evidence/step4/screenshots/daisyui-populated-768-light-viewport.png",
+      "sha256": "b22c4f16d74af5f6eb1e54348d571b9c49d7f2897b92deb26b952fe447b0dc1c",
+      "purpose": "Required approved reference consumed by ui-lab/tools/capture.py",
+      "provenance": "Original Step 4 screenshot; preserved in place"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-before-768-light-viewport.png",
+      "sha256": "eac95d884f20a2b4eb9aa9e326a1e3ea6484f28aaeeea30b854a2760e0e65dcf",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/before-768-light-viewport.png"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-after-768-light-viewport.png",
+      "sha256": "80c99eaed099d4fc2a97ce7fb2d096090eaee55c7a642b47ff292bf0298e2b40",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/after-768-light-viewport.png"
+    },
+    {
+      "path": "ui-lab/services-dashboard/daisyui/evidence/step4/screenshots/daisyui-populated-768-dark-viewport.png",
+      "sha256": "1eb529cad52c31605b1bc2db997d7d3a096aa925d162b7f1ffda9dcd48e65db5",
+      "purpose": "Required approved reference consumed by ui-lab/tools/capture.py",
+      "provenance": "Original Step 4 screenshot; preserved in place"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-before-768-dark-viewport.png",
+      "sha256": "d35b8004b5804dfda9135b558d7938b274d2b0bf8501d975347eb2aa56298c76",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/before-768-dark-viewport.png"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-after-768-dark-viewport.png",
+      "sha256": "20996c91562578068d1327e13ce5fe4769e9633d7953c49a0721279567f5975d",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/after-768-dark-viewport.png"
+    },
+    {
+      "path": "ui-lab/services-dashboard/daisyui/evidence/step4/screenshots/daisyui-populated-390-light-viewport.png",
+      "sha256": "af88b936f523d45a6f8155d31b3b8ba48c7e512bbb39f3f298b6bec47ab0efed",
+      "purpose": "Required approved reference consumed by ui-lab/tools/capture.py",
+      "provenance": "Original Step 4 screenshot; preserved in place"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-before-390-light-viewport.png",
+      "sha256": "84602059c67c1da41d0a3972453dc2203be79309deddc53e25770b0748ae36d4",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/before-390-light-viewport.png"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-after-390-light-viewport.png",
+      "sha256": "86dd46881cb1af71a4cb4992bb01f3355fe92f52cc5790b88d0ab137ba58fb7e",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/after-390-light-viewport.png"
+    },
+    {
+      "path": "ui-lab/services-dashboard/daisyui/evidence/step4/screenshots/daisyui-populated-390-dark-viewport.png",
+      "sha256": "034f634a826f6786b3f2c8889dc3a4fe51057378b624cad80e12c2f80895f6da",
+      "purpose": "Required approved reference consumed by ui-lab/tools/capture.py",
+      "provenance": "Original Step 4 screenshot; preserved in place"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-before-390-dark-viewport.png",
+      "sha256": "f77b858d15aa321e69e5af28010b909cdf587000042155c19705e87e4bc52b30",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/before-390-dark-viewport.png"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/screenshots/real-django/step8-after-390-dark-viewport.png",
+      "sha256": "3632e84684562f70880c8254b753578e29e849bae3d48db946e6ca466cd18944",
+      "purpose": "Approved real Django BEFORE/AFTER review at matched viewport/theme",
+      "provenance": "Step 8 session el3ei0h7/evidence/after-390-dark-viewport.png"
+    }
+  ]
+}

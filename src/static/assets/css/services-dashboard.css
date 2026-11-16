@@ -1,0 +1,185 @@
+/* Services dashboard only. Phoenix owns the shell, theme and Bootstrap runtime. */
+@font-face {
+  font-family: "Motionmate Dashboard Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("../fonts/manrope/manrope-latin-wght-normal.woff2") format("woff2");
+}
+.mm-services-dashboard {
+  --mm-sd-canvas: #f6f7fb;
+  --mm-sd-surface: #fff;
+  --mm-sd-raised: #eef1fa;
+  --mm-sd-text: #182235;
+  --mm-sd-secondary: #526079;
+  --mm-sd-primary: #3949db;
+  --mm-sd-on-primary: #fff;
+  --mm-sd-hover: #2e3cb8;
+  --mm-sd-border: #d8dfea;
+  --mm-sd-control: #71819a;
+  --mm-sd-violet: #6a4fc2;
+  --mm-sd-cyan: #087b9f;
+  --mm-sd-success: #16624a;
+  --mm-sd-success-bg: #e7f5ef;
+  --mm-sd-attention: #7a4a09;
+  --mm-sd-attention-bg: #fff3d6;
+  font-family: "Motionmate Dashboard Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--mm-sd-text);
+}
+html[data-bs-theme="dark"] .mm-services-dashboard {
+  --mm-sd-canvas: #0b1020;
+  --mm-sd-surface: #121a2b;
+  --mm-sd-raised: #1a2440;
+  --mm-sd-text: #edf1fc;
+  --mm-sd-secondary: #b0bcd2;
+  --mm-sd-primary: #abb6ff;
+  --mm-sd-on-primary: #101727;
+  --mm-sd-hover: #bec6ff;
+  --mm-sd-border: #29354d;
+  --mm-sd-control: #7d8eae;
+  --mm-sd-violet: #c8b6ff;
+  --mm-sd-cyan: #79d9f6;
+  --mm-sd-success: #8ae0b9;
+  --mm-sd-success-bg: #113c30;
+  --mm-sd-attention: #f5cc80;
+  --mm-sd-attention-bg: #3c2d16;
+}
+html:not([data-bs-theme="dark"]) .content.mm-services-dashboard,
+html[data-bs-theme="dark"] .content.mm-services-dashboard { background: var(--mm-sd-canvas); }
+.content.mm-services-dashboard { padding-top: calc(var(--phoenix-navbar-top-height) + 1rem); padding-bottom: 2rem; }
+.mm-services-dashboard :is(h1,h2,h3,p,dl,ol,ul) { margin: 0; }
+.mm-services-dashboard :is(h1,h2,h3) { font-family: inherit; color: var(--mm-sd-text); }
+.mm-services-dashboard h1 { font-size: 32px; line-height: 40px; letter-spacing: -.025em; font-weight: 750; }
+.mm-services-dashboard h2 { font-size: 20px; line-height: 28px; letter-spacing: -.02em; font-weight: 700; }
+.mm-services-dashboard h3 { font-size: 16px; line-height: 24px; font-weight: 650; }
+.mm-services-dashboard a { color: var(--mm-sd-primary); text-underline-offset: 3px; }
+.mm-services-dashboard :is(a,button,input,summary,[tabindex]) { scroll-margin-top: 84px; scroll-margin-bottom: 12px; }
+.mm-services-dashboard :is(a,button,input,summary,[tabindex]):focus-visible { outline: 2px solid var(--mm-sd-primary); outline-offset: 3px; box-shadow: none; }
+.mm-services-dashboard .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; min-width: 44px; padding: 10px 14px; font: 650 14px/20px "Motionmate Dashboard Manrope",system-ui,sans-serif; border-radius: 8px; white-space: normal; text-decoration: none; box-shadow: none; }
+.mm-services-dashboard .mm-sd-primary { background: var(--mm-sd-primary); color: var(--mm-sd-on-primary); border: 1px solid var(--mm-sd-primary); }
+.mm-services-dashboard .mm-sd-primary:hover,.mm-services-dashboard .mm-sd-primary:active { background: var(--mm-sd-hover); color: var(--mm-sd-on-primary); border-color: var(--mm-sd-hover); }
+.mm-services-dashboard .mm-sd-secondary-action { background: var(--mm-sd-surface); color: var(--mm-sd-text); border: 1px solid var(--mm-sd-control); }
+.mm-services-dashboard .mm-sd-secondary-action:hover,.mm-services-dashboard .mm-sd-secondary-action:active { background: var(--mm-sd-raised); color: var(--mm-sd-text); border-color: var(--mm-sd-control); }
+.mm-services-dashboard .btn:disabled { opacity: 1; color: var(--mm-sd-secondary); background: var(--mm-sd-raised); border-color: var(--mm-sd-control); }
+.mm-services-dashboard .mm-sd-intro { margin-bottom: 20px; }
+.mm-services-dashboard .mm-sd-context { color: var(--mm-sd-violet); font-size: 14px; line-height: 20px; margin-bottom: 4px; overflow-wrap: anywhere; }
+.mm-services-dashboard .mm-sd-intro-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mm-services-dashboard .mm-sd-setup { color: var(--mm-sd-secondary); border: 1px solid transparent; background: transparent; flex-shrink: 0; }
+.mm-services-dashboard .mm-sd-setup:hover { background: var(--mm-sd-raised); color: var(--mm-sd-primary); }
+.mm-services-dashboard .mm-sd-date { font-size: 14px; line-height: 22px; color: var(--mm-sd-secondary); margin-top: 4px; }
+.mm-services-dashboard .mm-sd-zone { display: inline-block; margin-inline-start: 16px; }
+.mm-services-dashboard .mm-sd-skip { display: inline-block; position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.mm-services-dashboard .mm-sd-skip:focus { position: relative; width: auto; height: auto; clip-path: none; padding: 12px; margin-bottom: 12px; background: var(--mm-sd-surface); }
+.mm-services-dashboard .mm-sd-work { display: grid; grid-template-columns: minmax(0,1fr); align-items: start; gap: 24px; }
+.mm-services-dashboard .mm-sd-panel { background: var(--mm-sd-surface); border: 1px solid var(--mm-sd-border); border-radius: 12px; min-width: 0; padding: 0; }
+.mm-services-dashboard .mm-sd-appointments { border-top: 3px solid var(--mm-sd-primary); }
+.mm-services-dashboard .mm-sd-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--mm-sd-border); }
+.mm-services-dashboard .mm-sd-panel-header>.btn { flex-shrink: 0; }
+.mm-services-dashboard .mm-sd-eyebrow { color: var(--mm-sd-violet); font-size: 14px; line-height: 20px; font-weight: 600; margin-bottom: 2px; }
+.mm-services-dashboard .mm-sd-count { color: var(--mm-sd-secondary); font-variant-numeric: tabular-nums; font-size: 16px; margin-inline-start: 4px; }
+.mm-services-dashboard .mm-sd-caption { color: var(--mm-sd-secondary); font-size: 14px; line-height: 20px; margin-top: 4px; }
+.mm-services-dashboard .mm-sd-records { list-style: none; padding: 0; }
+.mm-services-dashboard .mm-sd-records>li+li { border-top: 1px solid var(--mm-sd-border); }
+.mm-services-dashboard :is(.mm-sd-appointment,.mm-sd-request,.mm-sd-invoice) { color: var(--mm-sd-text); text-decoration: none; padding: 12px 20px; min-height: 44px; overflow-wrap: anywhere; }
+.mm-services-dashboard :is(.mm-sd-appointment,.mm-sd-request,.mm-sd-invoice):hover { background: var(--mm-sd-raised); color: var(--mm-sd-text); }
+.mm-services-dashboard :is(.mm-sd-appointment,.mm-sd-request,.mm-sd-invoice):focus-visible { outline-offset: -3px; }
+.mm-services-dashboard .mm-sd-appointment { display: grid; grid-template-columns: 100px minmax(0,1fr) 12px; align-items: start; gap: 12px; }
+.mm-services-dashboard .mm-sd-time { padding: 6px; border-radius: 7px; background: var(--mm-sd-raised); box-shadow: inset 2px 0 var(--mm-sd-cyan); font-variant-numeric: tabular-nums; }
+.mm-services-dashboard .mm-sd-time time { display: block; font-size: 17px; font-weight: 750; letter-spacing: -.025em; }
+.mm-services-dashboard .mm-sd-time>span { display: block; font-size: 14px; line-height: 20px; color: var(--mm-sd-secondary); }
+.mm-services-dashboard .mm-sd-record-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
+.mm-services-dashboard strong { font-size: 15px; line-height: 22px; font-weight: 650; }
+.mm-services-dashboard .mm-sd-record-copy p,.mm-services-dashboard .mm-sd-request p { font-size: 14px; line-height: 20px; margin-top: 4px; color: var(--mm-sd-secondary); }
+.mm-services-dashboard .mm-sd-secondary { display: block; color: var(--mm-sd-secondary); font-size: 14px; line-height: 20px; margin-top: 4px; }
+.mm-services-dashboard .mm-sd-chevron { margin-top: 20px; color: var(--mm-sd-secondary); font-size: 14px; }
+.mm-services-dashboard .mm-sd-request { display: block; }
+.mm-services-dashboard .mm-sd-request-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-top: 6px; font-size: 14px; line-height: 20px; color: var(--mm-sd-secondary); }
+.mm-services-dashboard .mm-sd-badge { display: inline-flex; padding: 2px 8px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--mm-sd-secondary); background: var(--mm-sd-raised); }
+.mm-services-dashboard .mm-sd-info { color: var(--mm-sd-primary); }
+.mm-services-dashboard .mm-sd-attention { color: var(--mm-sd-attention); background: var(--mm-sd-attention-bg); }
+.mm-services-dashboard .mm-sd-success { color: var(--mm-sd-success); background: var(--mm-sd-success-bg); }
+.mm-services-dashboard .mm-sd-more { border-top: 1px solid var(--mm-sd-border); }
+.mm-services-dashboard .mm-sd-more summary { min-height: 44px; padding: 12px 20px; cursor: pointer; font-size: 14px; line-height: 20px; color: var(--mm-sd-primary); font-weight: 650; }
+.mm-services-dashboard .mm-sd-panel-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 4px 20px; min-height: 48px; border-top: 1px solid var(--mm-sd-border); color: var(--mm-sd-secondary); font-size: 14px; line-height: 20px; }
+.mm-services-dashboard .mm-sd-text-action { display: inline-flex; min-height: 44px; align-items: center; }
+.mm-services-dashboard .mm-sd-empty { padding: 24px 20px; }
+.mm-services-dashboard .mm-sd-empty p { margin-top: 8px; color: var(--mm-sd-secondary); font-size: 14px; }
+.mm-services-dashboard .mm-sd-empty .btn { margin-top: 12px; }
+.mm-services-dashboard :is(.mm-sd-finance,.mm-sd-workspace,.mm-sd-sharing) { margin-top: 24px; }
+.mm-services-dashboard .mm-sd-finance-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; padding: 20px 20px 8px; }
+.mm-services-dashboard .mm-sd-finance-summary dt { color: var(--mm-sd-secondary); font-size: 14px; line-height: 20px; font-weight: 400; }
+.mm-services-dashboard .mm-sd-finance-summary dd { margin: 4px 0 0; font-size: 22px; line-height: 28px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.mm-services-dashboard .mm-sd-finance-summary .mm-sd-finance-detail { font-size: 14px; line-height: 20px; font-weight: 400; color: var(--mm-sd-secondary); }
+.mm-services-dashboard .mm-sd-financial-note { color: var(--mm-sd-secondary); font-size: 14px; line-height: 20px; padding: 8px 20px 16px; }
+.mm-services-dashboard .mm-sd-invoice { display: grid; grid-template-columns: minmax(0,1fr) minmax(150px,1fr) auto; align-items: center; gap: 16px; border-top: 1px solid var(--mm-sd-border); }
+.mm-services-dashboard .mm-sd-invoice p { font-size: 14px; margin-top: 4px; }
+.mm-services-dashboard .mm-sd-invoice-status { display: flex; flex-wrap: wrap; gap: 6px; }
+.mm-services-dashboard .mm-sd-invoice-status .badge-phoenix { font: 600 14px/20px "Motionmate Dashboard Manrope",system-ui,sans-serif; padding: 2px 8px; border-radius: 6px; border: 0; text-transform: none; letter-spacing: normal; }
+.mm-services-dashboard .mm-sd-invoice-status .badge-phoenix-secondary { color: var(--mm-sd-secondary); background: var(--mm-sd-raised); }
+.mm-services-dashboard .mm-sd-invoice-status .badge-phoenix-info { color: var(--mm-sd-primary); background: var(--mm-sd-raised); }
+.mm-services-dashboard .mm-sd-invoice-status .badge-phoenix-warning { color: var(--mm-sd-attention); background: var(--mm-sd-attention-bg); }
+.mm-services-dashboard .mm-sd-invoice-status .badge-phoenix-success { color: var(--mm-sd-success); background: var(--mm-sd-success-bg); }
+.mm-services-dashboard .mm-sd-amount { text-align: end; font-size: 16px; line-height: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mm-services-dashboard .mm-sd-amount>span { font-size: 14px; }
+.mm-services-dashboard .mm-sd-workspace-values { padding: 0 20px; }
+.mm-services-dashboard .mm-sd-workspace-values>div { display: grid; grid-template-columns: 180px minmax(0,1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--mm-sd-border); font-size: 14px; line-height: 22px; }
+.mm-services-dashboard .mm-sd-workspace-values dt { font-weight: 400; color: var(--mm-sd-secondary); }
+.mm-services-dashboard .mm-sd-workspace-values dd { margin: 0; text-align: end; font-weight: 600; overflow-wrap: anywhere; }
+.mm-services-dashboard .mm-sd-settings { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 20px; }
+.mm-services-dashboard .mm-sd-share-body { padding: 20px; font-size: 14px; line-height: 22px; color: var(--mm-sd-secondary); }
+.mm-services-dashboard .mm-sd-share-body label { display: block; margin-bottom: 8px; font-weight: 600; }
+.mm-services-dashboard .mm-sd-field { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--mm-sd-control); border-radius: 8px; background: var(--mm-sd-surface); color: var(--mm-sd-text); font: 400 16px/24px "Motionmate Dashboard Manrope",system-ui,sans-serif; }
+.mm-services-dashboard .mm-sd-share-actions { display: flex; gap: 8px; margin: 12px 0 16px; }
+.mm-services-dashboard .mm-sd-share-actions>* { flex: 1; }
+.mm-services-dashboard #mm-sd-copy-status:not(:empty) { margin-top: 12px; color: var(--mm-sd-success); font-weight: 650; }
+.mm-services-dashboard #mm-sd-copy-status[data-failed] { color: var(--mm-sd-attention); }
+/* This page marker is supplied only by the Services dashboard view. */
+body.mm-services-dashboard-page .content.pt-3.pb-0 { min-height: auto; padding-top: calc(var(--phoenix-navbar-top-height) + 1rem) !important; }
+body.mm-services-dashboard-page .content.pt-3.pb-0 ~ .mm-services-dashboard { padding-top: 1rem; }
+body.mm-services-dashboard-page :is(a,button,input):focus-visible { outline: 2px solid #3949db; outline-offset: 3px; }
+html[data-bs-theme="dark"] body.mm-services-dashboard-page :is(a,button,input):focus-visible { outline-color: #abb6ff; }
+body.mm-services-dashboard-page :is(.navbar-toggler,.navbar-brand,.theme-control-toggle-label,#navbarDropdownUser) { min-height: 44px; min-width: 44px; }
+body.mm-services-dashboard-page .theme-control-toggle-label { display: inline-flex; align-items: center; justify-content: center; }
+body.mm-services-dashboard-page .theme-control-toggle { position: relative; }
+body.mm-services-dashboard-page .theme-control-toggle-input { display: block; position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); }
+body.mm-services-dashboard-page .theme-control-toggle-input:focus-visible ~ .theme-control-toggle-label { outline: 2px solid #3949db; outline-offset: 3px; }
+html[data-bs-theme="dark"] body.mm-services-dashboard-page .theme-control-toggle-input:focus-visible ~ .theme-control-toggle-label { outline-color: #abb6ff; }
+body.mm-services-dashboard-page :is(.onboarding-welcome-modal,.onboarding-guide-panel) :is(.btn,.btn-close) { min-height: 44px; min-width: 44px; }
+body.mm-services-dashboard-page :is(.onboarding-welcome-modal,.onboarding-guide-panel) :is(.fs-9,.fs-10) { font-size: 14px !important; line-height: 20px; }
+body.mm-services-dashboard-page :is(.onboarding-welcome-modal,.onboarding-guide-panel) .btn-primary { background: #3949db; border-color: #3949db; color: #fff; }
+body.mm-services-dashboard-page :is(.onboarding-welcome-modal,.onboarding-guide-panel) .btn-primary:hover { background: #2e3cb8; border-color: #2e3cb8; }
+html[data-bs-theme="dark"] body.mm-services-dashboard-page :is(.onboarding-welcome-modal,.onboarding-guide-panel) .btn-primary { background: #abb6ff; border-color: #abb6ff; color: #101727; }
+html[data-bs-theme="dark"] body.mm-services-dashboard-page :is(.onboarding-welcome-modal,.onboarding-guide-panel) .btn-primary:hover { background: #bec6ff; border-color: #bec6ff; }
+@media(min-width:1200px) { .mm-services-dashboard .mm-sd-work { grid-template-columns: minmax(0,7fr) minmax(0,5fr); } }
+@media(min-width:768px) { .mm-services-dashboard[data-mm-sd-ready] .mm-sd-more summary { display: none; } }
+@media(max-width:767px) {
+  .content.mm-services-dashboard { padding-inline: 16px; }
+  .mm-services-dashboard h1 { font-size: 28px; line-height: 34px; }
+  .mm-services-dashboard .mm-sd-intro { margin-bottom: 16px; }
+  .mm-services-dashboard .mm-sd-setup { padding-inline: 8px; }
+  .mm-services-dashboard .mm-sd-setup :is(.fa-compass,.mm-sd-setup-long) { display: none; }
+  .mm-services-dashboard .mm-sd-zone { display: block; margin-inline-start: 0; }
+  .mm-services-dashboard .mm-sd-work { gap: 20px; }
+  .mm-services-dashboard .mm-sd-panel-header { padding: 12px 16px; flex-wrap: wrap; }
+  .mm-services-dashboard .mm-sd-panel-header>div { flex: 1 1 180px; }
+  .mm-services-dashboard .mm-sd-panel-header>.btn { flex: 0 1 auto; }
+  .mm-services-dashboard .mm-sd-appointment { grid-template-columns: 96px minmax(0,1fr); gap: 12px; padding: 12px 16px; }
+  .mm-services-dashboard .mm-sd-chevron { display: none; }
+  .mm-services-dashboard strong { font-size: 16px; line-height: 24px; }
+  .mm-services-dashboard .mm-sd-request { padding: 12px 16px; }
+  .mm-services-dashboard .mm-sd-record-heading { gap: 4px 8px; }
+  .mm-services-dashboard .mm-sd-panel-footer { padding-inline: 16px; }
+  .mm-services-dashboard .mm-sd-finance-summary { grid-template-columns: minmax(0,1fr); gap: 16px; padding: 16px; }
+  .mm-services-dashboard .mm-sd-financial-note { padding-inline: 16px; }
+  .mm-services-dashboard .mm-sd-invoice { grid-template-columns: minmax(0,1fr) auto; padding: 12px 16px; }
+  .mm-services-dashboard .mm-sd-invoice-status { grid-column: 1; }
+  .mm-services-dashboard .mm-sd-amount { grid-column: 2; grid-row: 1 / 3; }
+  .mm-services-dashboard .mm-sd-workspace-values { padding-inline: 16px; }
+  .mm-services-dashboard .mm-sd-workspace-values>div { grid-template-columns: 90px minmax(0,1fr); }
+  .mm-services-dashboard .mm-sd-settings { padding: 16px; }
+  .mm-services-dashboard .mm-sd-settings>.btn { flex: 1 1 auto; }
+  .mm-services-dashboard .mm-sd-share-body { padding: 16px; }
+}
+@media(prefers-reduced-motion:reduce) { .mm-services-dashboard * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }

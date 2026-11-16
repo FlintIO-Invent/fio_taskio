@@ -66,9 +66,10 @@
     <link href="{% static 'assets/css/logistics-mobile.css' %}" rel="stylesheet">
     <script src="{% static 'assets/js/logistics-mobile.js' %}" defer></script>
     {% endif %}
+    {% block page_assets %}{% endblock %}
   </head>
 
-  <body{% if current_business.vertical == 'LOGISTICS' %} class="logistics-workspace"{% endif %}>
+  <body{% block page_body_attributes %}{% if current_business.vertical == 'LOGISTICS' %} class="logistics-workspace"{% endif %}{% endblock %}>
     <!-- ===============================================-->
     <!--    Main Content-->
     <!-- ===============================================-->
@@ -290,7 +291,7 @@
                   >
                       <span class="navbar-toggle-icon"><span class="toggle-line"></span></span>
                   </button>
-                  <a class="navbar-brand me-1 me-sm-3" href="{% url 'agent_dashboard' %}">
+                  <a class="navbar-brand me-1 me-sm-3" href="{% url 'agent_dashboard' %}"{% if services_dashboard_ui %} aria-label="Motionmate home"{% endif %}>
                       <div class="d-flex align-items-center">
                           {% include "includes/motionmate_logo.html" with variant="inline" mark_size=27 mark_class="me-2" wordmark_class="logo-text ms-1 d-none d-sm-block" %}
                       </div>
@@ -299,7 +300,7 @@
               <ul class="navbar-nav navbar-nav-icons flex-row">
                     <li class="nav-item">
                         <div class="theme-control-toggle fa-icon-wait px-2">
-                            <input class="form-check-input ms-0 theme-control-toggle-input" type="checkbox" data-theme-control="phoenixTheme" value="dark" id="themeControlToggle" />
+                            <input class="form-check-input ms-0 theme-control-toggle-input" type="checkbox" data-theme-control="phoenixTheme" value="dark" id="themeControlToggle"{% if services_dashboard_ui %} aria-label="Dark theme"{% endif %} />
                             <label class="mb-0 theme-control-toggle-label theme-control-toggle-light" for="themeControlToggle" data-bs-toggle="tooltip" data-bs-placement="left" data-bs-title="Switch theme" style="height: 32px; width: 32px;">
                                 <span class="icon" data-feather="moon"></span>
                             </label>
@@ -317,11 +318,13 @@
                     </li>
                     {% endif %}
                     {% else %}
+                    {% block services_mobile_search %}
                     <li class="nav-item d-lg-none">
                         <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#searchBoxModal">
                             <span class="d-block" style="height: 20px; width: 20px;"><span data-feather="search" style="height: 19px; width: 19px; margin-bottom: 2px;"></span></span>
                         </a>
                     </li>
+                    {% endblock %}
                     {% endif %}
                     <li class="nav-item dropdown">
                         <a class="nav-link lh-1 pe-0" aria-label="Account menu" id="navbarDropdownUser" href="#!" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
