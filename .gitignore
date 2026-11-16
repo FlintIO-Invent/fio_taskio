@@ -42,6 +42,9 @@ replacements.txt
 .agents/skills/motionmate-ui/references/*
 !.agents/skills/motionmate-ui/references/phoenix-map.md
 
+# Reusable, source-only workflow skill; keep unrelated agent files local.
+!.agents/skills/motionmate-ui-workflow/
+
 # design references
 /design_references/
 

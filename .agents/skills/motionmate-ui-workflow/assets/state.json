@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "",
+  "vertical": "SERVICE",
+  "mode": "quick",
+  "route": "",
+  "objective": "",
+  "current_phase": "audit",
+  "completed_phases": [],
+  "next_permitted_action": "Complete audit within current authorization.",
+  "design_version": null,
+  "design_artifacts": {},
+  "manifest": [],
+  "approvals": {
+    "design": null,
+    "implementation": null,
+    "acceptance": null
+  },
+  "baseline": null,
+  "resource_authorizations": [],
+  "environments": [],
+  "deferred_decisions": [],
+  "known_issues": [],
+  "validation": [],
+  "evidence": {},
+  "updated_at": null
+}

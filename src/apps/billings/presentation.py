@@ -150,8 +150,6 @@ class InvoicePresentation:
                 if self.balance.credits
                 else "Zero-value invoice. No payment required."
             )
-        if self.lifecycle == "DRAFT":
-            return "Draft — not collectible."
         if self.lifecycle == "CANCELLED":
             return "Cancelled — no collectible balance. Payment history is retained."
         return ""
