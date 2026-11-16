@@ -59,10 +59,11 @@
         userLinkRTL.setAttribute('disabled', true);
       }
     </script>
+    {% block page_assets %}{% endblock %}
   </head>
 
 
-  <body>
+  <body{% block page_body_attributes %}{% endblock %}>
 
     <!-- ===============================================-->
     <!--    Main Content-->

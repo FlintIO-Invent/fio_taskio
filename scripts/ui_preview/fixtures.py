@@ -238,10 +238,14 @@ def seed(session):
                     "business": logistics.name,
                 }
             )
+    from ui_preview.appointments_fixtures import seed as seed_appointments
+
+    appointments_review = seed_appointments(session)
     data = inventory()
     return {
         "clock": session["clock"],
         "accounts": accounts,
+        "appointments_review": appointments_review,
         "inventory": data,
         "sha256": hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(),
     }

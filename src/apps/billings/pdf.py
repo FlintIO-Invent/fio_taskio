@@ -65,6 +65,7 @@ def _invoice_context(invoice: Invoice, *, include_notes: bool = True) -> dict:
     return {
         "invoice": invoice,
         "invoice_presentation": financial,
+        "invoice_total_text": _money(invoice.total, financial.currency),
         "business": business,
         "business_address_lines": business.formatted_address_lines,
         "client_name": _client_name(invoice),
@@ -335,17 +336,23 @@ def _draw_totals(pdf: canvas.Canvas, invoice: Invoice, y: int, financial) -> int
         pdf.drawRightString(label_x, y, tax_label)
         pdf.drawRightString(value_x, y, _money(invoice.tax, financial.currency))
         y -= 16
-    for row in financial.amount_rows:
+    if invoice.business.vertical == "SERVICE":
         y -= 18
-        pdf.setFont("Helvetica", 9)
-        if row["amount"] is None:
-            y = _draw_wrapped_text(
-                pdf, f"{row['label']}: {row['text']}", x=LEFT_MARGIN, y=y, max_chars=90
-            )
-        else:
-            pdf.drawRightString(label_x, y, row["label"] + ":")
-            pdf.drawRightString(value_x, y, row["text"])
-    if financial.payment_label:
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawRightString(label_x, y, "Total Amount:")
+        pdf.drawRightString(value_x, y, _money(invoice.total, financial.currency))
+    else:
+        for row in financial.amount_rows:
+            y -= 18
+            pdf.setFont("Helvetica", 9)
+            if row["amount"] is None:
+                y = _draw_wrapped_text(
+                    pdf, f"{row['label']}: {row['text']}", x=LEFT_MARGIN, y=y, max_chars=90
+                )
+            else:
+                pdf.drawRightString(label_x, y, row["label"] + ":")
+                pdf.drawRightString(value_x, y, row["text"])
+    if invoice.business.vertical != "SERVICE" and financial.payment_label:
         y -= 22
         pdf.setFont("Helvetica-Bold", 10)
         pdf.drawString(LEFT_MARGIN, y, f"Payment status: {financial.payment_label}")

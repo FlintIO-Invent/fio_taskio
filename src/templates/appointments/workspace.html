@@ -1,7 +1,8 @@
-{% extends "inheritance/dashboard_parent.html" %}
+{% extends "appointments/base.html" %}
 
+{% load services_bookings %}
 {% block content %}
-<div class="content">
+<div class="content mm-sb-content">
   {% for message in messages %}
     <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">{{ message }}</div>
   {% endfor %}
@@ -13,8 +14,8 @@
   </nav>
   <div class="row g-3 mb-4 align-items-center justify-content-between">
     <div class="col-12 col-md-auto">
-      <h2 class="mb-1 text-body-emphasis">Appointments</h2>
-      <p class="mb-0 text-body-secondary">Bookings and requests for your workspace.</p>
+      <p class="mm-sb-eyebrow">Services workspace</p><h1>Appointments</h1>
+      <p class="mb-0 text-body-secondary">Scheduled appointments and requests that need follow-up.</p>
     </div>
     <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
       {% if role_access.can_manage_appointments and module_write_access.appointments %}
@@ -31,16 +32,16 @@
   {% if workspace_appointment_access and not role_access.can_manage_appointments or workspace_appointment_access and not module_write_access.appointments %}
     <div class="alert alert-subtle-secondary border" role="alert">You have read-only appointment access in this workspace.</div>
   {% endif %}
+  <p class="mm-sb-zone">Times shown in {% booking_zone current_business %}. Preferred request times are not scheduled appointments.</p>
   <div class="card mb-4">
     <div class="card-body">
       <form class="row g-3 align-items-end" method="get">
-        {% for field in workspace_form %}
-          <div class="col-12 col-sm-6 col-xl-4">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% for error in field.errors %}<div class="text-danger small" role="alert">{{ error }}</div>{% endfor %}
-          </div>
-        {% endfor %}
+        <div class="col-12 col-md-7">{% include "appointments/includes/form_field.html" with field=workspace_form.q %}</div>
+        <div class="col-12 col-md-5">{% include "appointments/includes/form_field.html" with field=workspace_form.state %}</div>
+        <div class="col-12"><details class="mm-sb-filters"{% if workspace_form.source.value or workspace_form.classification.value or workspace_form.staff.value or workspace_form.service.value or workspace_form.errors %} open{% endif %}><summary>More filters</summary><div class="row g-3 mt-1">
+        {% for field in workspace_form %}{% if field.name != 'q' and field.name != 'state' %}<div class="col-12 col-sm-6">{% include "appointments/includes/form_field.html" %}</div>{% endif %}{% endfor %}
+        <p class="text-body-secondary mb-0">Staff filtering shows appointments only. Service filtering matches the selected service, not category-only requests.</p>
+        </div></details></div>
         <div class="col-12 d-flex flex-wrap gap-2">
           <button class="btn btn-primary" type="submit">Filter</button>
           <a class="btn btn-phoenix-secondary" href="{% url 'appointment_list' %}">Reset</a>
@@ -51,31 +52,31 @@
   <div class="card">
     <div class="card-body p-3">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0" data-unified-workspace>
-          <thead class="text-body-secondary">
-            <tr><th>Booking / request</th><th>Client</th><th>Classification</th><th>Source</th><th>Service</th><th>Staff</th><th>Time</th><th>State</th><th>Actions</th></tr>
+        <table class="table table-hover align-middle mb-0 mm-sb-records" data-unified-workspace>
+          <caption class="visually-hidden">Appointments and unscheduled follow-up requests</caption><thead class="text-body-secondary">
+            <tr><th scope="col">Booking / request</th><th scope="col">Client</th><th scope="col">Classification</th><th scope="col">Source</th><th scope="col">Service</th><th scope="col">Staff</th><th scope="col">Time</th><th scope="col">State</th><th scope="col">Actions</th></tr>
           </thead>
           <tbody>
             {% for row in workspace_page %}
               <tr data-entry-kind="{{ row.kind }}" data-entry-id="{{ row.pk }}">
-                <td><a class="fw-semibold" href="{{ row.url }}">{{ row.title }}</a></td>
-                <td>
+                <td data-label="Booking / request"><a class="fw-semibold" href="{{ row.url }}">{{ row.title }}</a></td>
+                <td data-label="Client">
                   {% if row.client_id %}<a href="{% url 'staff_client_detail' row.client_id %}">{{ row.client_name }}</a>{% else %}{{ row.client_name|default:"Not linked" }}{% endif %}
                 </td>
-                <td>{{ row.classification }}</td>
-                <td>{{ row.source }}</td>
-                <td>{{ row.service }}</td>
-                <td>{% if row.staff %}{{ row.staff.get_full_name|default:row.staff.email }}{% else %}Unassigned{% endif %}</td>
-                <td class="white-space-nowrap">
+                <td data-label="Classification">{{ row.classification }}</td>
+                <td data-label="Source">{{ row.source }}</td>
+                <td data-label="Service">{{ row.service }}</td>
+                <td data-label="Staff">{% if row.staff %}{{ row.staff.get_full_name|default:row.staff.email }}{% else %}Unassigned{% endif %}</td>
+                <td data-label="Time" class="white-space-nowrap">
                   {% if row.start %}
-                    {{ row.start|date:"M d, Y H:i" }}<br><small class="text-body-secondary">to {{ row.end|date:"M d, Y H:i" }}</small>
+                    {{ row.start|booking_time:current_business }}<br><small class="text-body-secondary">to {{ row.end|booking_time:current_business }}</small>
                   {% else %}
                     Not scheduled
-                    {% if row.preferred_start %}<br><small class="text-body-secondary">Preferred: {{ row.preferred_start|date:"M d, Y H:i" }}</small>{% endif %}
+                    {% if row.preferred_start %}<br><small class="text-body-secondary">Preferred: {{ row.preferred_start|booking_time:current_business }}</small>{% endif %}
                   {% endif %}
                 </td>
-                <td><span class="badge badge-phoenix {{ row.badge }}">{{ row.state }}</span>{% if row.request_status %}<br><small class="text-body-secondary">{{ row.request_status }}</small>{% endif %}</td>
-                <td>
+                <td data-label="State"><span class="badge badge-phoenix {{ row.badge }}">{{ row.state }}</span>{% if row.request_status %}<br><small class="text-body-secondary">{{ row.request_status }}</small>{% endif %}</td>
+                <td data-label="Actions">
                   <div class="d-flex gap-2">
                     <a class="btn btn-sm btn-outline-primary" href="{{ row.url }}">View</a>
                     {% if row.kind == 'appointment' and role_access.can_manage_appointments and module_write_access.appointments %}
