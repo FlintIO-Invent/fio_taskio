@@ -397,5 +397,43 @@ class PreviewToolingTests(unittest.TestCase):
             connect.assert_not_called()
 
 
+class AppointmentAdapterTests(unittest.TestCase):
+    def test_fixture_refuses_ordinary_environment_before_model_import(self):
+        from ui_preview.appointments_fixtures import seed
+
+        with mock.patch.dict(
+            os.environ,
+            {"DJANGO_SETTINGS_MODULE": "taskio.settings", "MOTIONMATE_PREVIEW_PHASE": "serve"},
+        ):
+            with self.assertRaisesRegex(RuntimeError, "verified preview setup"):
+                seed({})
+
+    def test_adapter_verifies_sources_before_database_or_writes(self):
+        from ui_preview import appointments_checks as checks
+
+        with (
+            mock.patch.object(checks, "verify_source", side_effect=RuntimeError("changed source")),
+            mock.patch.object(checks, "verify_database") as database,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "changed source"):
+                checks.prepare(Path("/missing"), {"before": {"source": "/missing"}})
+            database.assert_not_called()
+
+    def test_adapter_verifies_database_before_marker_or_child_environment(self):
+        from ui_preview import appointments_checks as checks
+
+        state = {"before": {"source": "/before"}, "after": {"source": "/after"}}
+        with (
+            mock.patch.object(checks, "verify_source"),
+            mock.patch.object(
+                checks, "verify_database", side_effect=RuntimeError("unowned database")
+            ),
+            mock.patch.object(checks, "child_env") as child,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "unowned database"):
+                checks.prepare(Path("/missing"), state)
+            child.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

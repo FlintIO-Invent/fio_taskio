@@ -1,7 +1,7 @@
-{% extends "inheritance/dashboard_parent.html" %}
+{% extends "appointments/base.html" %}
 
 {% block content %}
-<div class="content">
+<div class="content mm-sb-content">
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
@@ -21,19 +21,20 @@
   </div>
   {% endif %}
 
+  {% include "appointments/includes/error_summary.html" %}
   <form class="mb-9" method="post" novalidate>
     {% csrf_token %}
 
     <div class="row g-3 flex-between-end mb-5">
       <div class="col-auto">
-        <h2 class="mb-2">Convert Service Request to Client</h2>
+        <h1>Complete Client details</h1>
         <h5 class="text-body-tertiary fw-semibold">
           Confirm the required client details for {{ current_business.name }} before creating or matching a client.
         </h5>
       </div>
       <div class="col-auto d-flex gap-2">
         <a class="btn btn-phoenix-secondary mb-2 mb-sm-0" href="{% url 'staff_lead_detail' lead.id %}">Cancel</a>
-        <button class="btn btn-primary mb-2 mb-sm-0" type="submit">Save and Continue</button>
+        <button class="btn btn-primary mb-2 mb-sm-0" type="submit">Save client details</button>
       </div>
     </div>
 
@@ -45,7 +46,7 @@
       <div class="col-12 col-xl-8">
         <div class="card mb-4">
           <div class="card-body">
-            <h4 class="mb-3 text-body">Required Client Details</h4>
+            <h2 class="mb-3 text-body">Required Client Details</h2>
             <hr class="my-4" />
             {% if missing_client_fields %}
             <div class="alert alert-warning">
@@ -55,34 +56,22 @@
             {% endif %}
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label">First Name</label>
-                {{ form.first_name }}
-                {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.first_name %}
               </div>
               <div class="col-md-6">
-                <label class="form-label">Last Name</label>
-                {{ form.last_name }}
-                {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.last_name %}
               </div>
               <div class="col-12">
-                <label class="form-label">Company Name</label>
-                {{ form.company_name }}
-                {% if form.company_name.errors %}<div class="invalid-feedback d-block">{{ form.company_name.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.company_name %}
               </div>
               <div class="col-md-6">
-                <label class="form-label">Email</label>
-                {{ form.email }}
-                {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.email %}
               </div>
               <div class="col-md-6">
-                <label class="form-label">Phone</label>
-                {{ form.phone }}
-                {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.phone %}
               </div>
               <div class="col-12">
-                <label class="form-label">{{ form.street_address.label }}</label>
-                {{ form.street_address }}
-                {% if form.street_address.errors %}<div class="invalid-feedback d-block">{{ form.street_address.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.street_address %}
               </div>
             </div>
           </div>
@@ -90,28 +79,20 @@
 
         <div class="card">
           <div class="card-body">
-            <h4 class="mb-3 text-body">Request Context</h4>
+            <h2 class="mb-3 text-body">Request Context</h2>
             <hr class="my-4" />
             <div class="row g-3">
               <div class="col-md-4">
-                <label class="form-label">{{ form.district.label }}</label>
-                {{ form.district }}
-                {% if form.district.errors %}<div class="invalid-feedback d-block">{{ form.district.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.district %}
               </div>
               <div class="col-md-4">
-                <label class="form-label">{{ form.country.label }}</label>
-                {{ form.country }}
-                {% if form.country.errors %}<div class="invalid-feedback d-block">{{ form.country.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.country %}
               </div>
               <div class="col-md-4">
-                <label class="form-label">{{ form.postal_code.label }}{% include "includes/help_icon.html" with text=form.postal_code.help_text %}</label>
-                {{ form.postal_code }}
-                {% if form.postal_code.errors %}<div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.postal_code %}
               </div>
               <div class="col-12">
-                <label class="form-label">Service Request Notes</label>
-                {{ form.message }}
-                {% if form.message.errors %}<div class="invalid-feedback d-block">{{ form.message.errors|striptags }}</div>{% endif %}
+                {% include "appointments/includes/form_field.html" with field=form.message %}
               </div>
               <div class="col-12">
                 <div class="form-check">
@@ -130,13 +111,13 @@
       <div class="col-12 col-xl-4">
         <div class="card">
           <div class="card-body">
-            <h4 class="mb-3 text-body">What Happens Next</h4>
+            <h2 class="mb-3 text-body">What Happens Next</h2>
             <hr class="my-4" />
             <ul class="mb-0 text-body-secondary">
               <li>This request stays in the current workspace only.</li>
               <li>Motionmate will reuse an existing client in this workspace if the email or phone matches safely.</li>
               <li>Existing client records only receive empty-field backfills from this request.</li>
-              <li>Once a client exists, you can start an invoice from the request detail page.</li>
+              <li>Saving opens Client Details. No appointment is scheduled here; return to the original request to continue scheduling.</li>
             </ul>
           </div>
         </div>

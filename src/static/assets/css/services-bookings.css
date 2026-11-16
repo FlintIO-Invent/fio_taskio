@@ -1,0 +1,99 @@
+/* Services Appointments content only. Phoenix retains shell, theme and runtime. */
+@font-face{font-family:"Motionmate Bookings Manrope";font-style:normal;font-weight:200 800;font-display:swap;src:url("../fonts/manrope/manrope-latin-wght-normal.woff2") format("woff2")}
+.mm-services-bookings-page{--mm-sb-canvas:#f6f7fb;--mm-sb-surface:#fff;--mm-sb-raised:#eef1fa;--mm-sb-text:#182235;--mm-sb-secondary:#526079;--mm-sb-primary:#3949db;--mm-sb-on-primary:#fff;--mm-sb-hover:#2e3cb8;--mm-sb-divider:#d8dfea;--mm-sb-control:#71819a;--mm-sb-violet:#6a4fc2;--mm-sb-cyan:#087b9f;--mm-sb-error:#9c2d3a;--mm-sb-error-bg:#fceaec;--mm-sb-success:#16624a;--mm-sb-success-bg:#e7f5ef;--mm-sb-warning:#7a4a09;--mm-sb-warning-bg:#fff3d6}
+html[data-bs-theme="dark"] .mm-services-bookings-page{--mm-sb-canvas:#0b1020;--mm-sb-surface:#121a2b;--mm-sb-raised:#1a2440;--mm-sb-text:#edf1fc;--mm-sb-secondary:#b0bcd2;--mm-sb-primary:#abb6ff;--mm-sb-on-primary:#101727;--mm-sb-hover:#bec6ff;--mm-sb-divider:#29354d;--mm-sb-control:#7d8eae;--mm-sb-violet:#c8b6ff;--mm-sb-cyan:#79d9f6;--mm-sb-error:#ffacb5;--mm-sb-error-bg:#40202b;--mm-sb-success:#8ae0b9;--mm-sb-success-bg:#113c30;--mm-sb-warning:#f5cc80;--mm-sb-warning-bg:#3c2d16}
+.mm-services-bookings-page .mm-sb-content{background:var(--mm-sb-canvas);color:var(--mm-sb-text);font:400 15px/1.6 "Motionmate Bookings Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;overflow-wrap:anywhere;min-width:0;padding-block-end:48px}
+.mm-services-bookings-page .mm-sb-content h1{font:750 32px/40px "Motionmate Bookings Manrope",system-ui,sans-serif;color:var(--mm-sb-text);margin-bottom:8px}
+.mm-services-bookings-page .mm-sb-content h2,.mm-services-bookings-page .modal h2{font:700 20px/28px "Motionmate Bookings Manrope",system-ui,sans-serif;color:var(--mm-sb-text)}
+.mm-services-bookings-page .mm-sb-content :is(h3,h4,h5,h6){color:var(--mm-sb-text)}
+.mm-services-bookings-page .mm-sb-content :is(.text-body-secondary,.text-body-tertiary,.text-body,.form-text){color:var(--mm-sb-secondary)!important}
+.mm-services-bookings-page .mm-sb-content :is(.small,small,.fs-9,.fs-10,.form-label,.form-text,.mm-sb-label){font-size:14px!important;line-height:20px}
+.mm-services-bookings-page .mm-sb-content .mm-sb-label{font-weight:600;color:var(--mm-sb-secondary)}
+.mm-services-bookings-page .mm-sb-content .mm-sb-eyebrow{color:var(--mm-sb-violet);font-size:14px;font-weight:650;margin:0 0 8px}
+.mm-services-bookings-page .mm-sb-content .mm-sb-schedule{font-size:20px;line-height:28px;font-weight:650;font-variant-numeric:tabular-nums;margin-block:16px 8px;padding-inline-start:12px;border-inline-start:3px solid var(--mm-sb-cyan)}
+.mm-services-bookings-page .mm-sb-content .mm-sb-zone{font-size:14px;color:var(--mm-sb-secondary);margin-bottom:20px}
+.mm-services-bookings-page .mm-sb-content :is(.card,.modal-content){background:var(--mm-sb-surface);border:1px solid var(--mm-sb-divider);border-radius:12px;box-shadow:none}
+.mm-services-bookings-page .mm-sb-content .card-body{padding:20px!important}
+.mm-services-bookings-page .mm-sb-content .card-header{padding:20px;border-bottom:1px solid var(--mm-sb-divider);background:transparent}
+.mm-services-bookings-page .mm-sb-content hr{border-color:var(--mm-sb-divider);opacity:1;margin-block:20px!important}
+.mm-services-bookings-page .mm-sb-content :is(a:not(.btn),summary){color:var(--mm-sb-primary)}
+.mm-services-bookings-page .mm-sb-content .btn{font:650 14px/20px "Motionmate Bookings Manrope",system-ui,sans-serif;min-height:44px;padding:11px 16px;border-radius:8px;white-space:normal;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.mm-services-bookings-page .mm-sb-content :is(.btn-primary,.btn-phoenix-primary){background:var(--mm-sb-primary);border-color:var(--mm-sb-primary);color:var(--mm-sb-on-primary)}
+.mm-services-bookings-page .mm-sb-content :is(.btn-primary,.btn-phoenix-primary):hover{background:var(--mm-sb-hover);border-color:var(--mm-sb-hover);color:var(--mm-sb-on-primary)}
+.mm-services-bookings-page .mm-sb-content :is(.btn-phoenix-secondary,.btn-outline-primary,.btn-outline-warning,.btn-phoenix-warning){background:var(--mm-sb-surface);border-color:var(--mm-sb-control);color:var(--mm-sb-text)}
+.mm-services-bookings-page .mm-sb-content :is(.btn-phoenix-danger,.btn-phoenix-success){border-color:var(--mm-sb-control)}
+.mm-services-bookings-page .mm-sb-content :is(input,select,textarea){font-family:inherit;font-size:16px;line-height:24px;color:var(--mm-sb-text);background-color:var(--mm-sb-surface);border-color:var(--mm-sb-control);border-radius:8px;max-width:100%}
+.mm-services-bookings-page .mm-sb-content :is(.form-control,.form-select){min-height:44px}
+.mm-services-bookings-page .mm-sb-content textarea{min-height:112px}
+.mm-services-bookings-page .mm-sb-content .form-check{min-height:44px;display:flex;align-items:center;gap:12px;padding-inline-start:0}
+.mm-services-bookings-page .mm-sb-content .form-check-input{margin:0;flex-shrink:0}
+.mm-services-bookings-page .mm-sb-content .form-check label{padding-block:12px;margin:0}
+.mm-services-bookings-page .mm-sb-content .form-label{display:inline-block;font-weight:600;margin-bottom:8px}
+.mm-services-bookings-page .mm-sb-content .mm-sb-required{font-weight:400;color:var(--mm-sb-secondary)}
+.mm-services-bookings-page .mm-sb-content :is(.invalid-feedback,.text-danger){color:var(--mm-sb-error)!important}
+.mm-services-bookings-page .mm-sb-content .alert-danger{background:var(--mm-sb-error-bg);color:var(--mm-sb-error);border-color:var(--mm-sb-error)}
+.mm-services-bookings-page .mm-sb-content .alert-danger a{color:inherit;text-decoration:underline}
+.mm-services-bookings-page .mm-sb-content .mm-sb-errors h2{font-size:18px;color:inherit}
+.mm-services-bookings-page .mm-sb-content .mm-sb-errors ul{margin-bottom:0}
+.mm-services-bookings-page .mm-sb-content .badge{font-size:14px;line-height:20px;padding:4px 8px;border-radius:6px;white-space:normal}
+.mm-services-bookings-page .mm-sb-content :is(.badge-phoenix-primary,.bg-primary){color:var(--mm-sb-primary)!important;background:var(--mm-sb-raised)!important}
+.mm-services-bookings-page .mm-sb-content :is(.badge-phoenix-warning,.bg-warning){color:var(--mm-sb-warning)!important;background:var(--mm-sb-warning-bg)!important}
+.mm-services-bookings-page .mm-sb-content :is(.badge-phoenix-danger,.bg-danger){color:var(--mm-sb-error)!important;background:var(--mm-sb-error-bg)!important}
+.mm-services-bookings-page .mm-sb-content :is(.badge-phoenix-success,.bg-success){color:var(--mm-sb-success)!important;background:var(--mm-sb-success-bg)!important}
+.mm-services-bookings-page .mm-sb-content :is(a,button,input,select,textarea,summary):focus-visible{outline:3px solid var(--mm-sb-primary);outline-offset:3px;box-shadow:none}
+.mm-services-bookings-page .mm-sb-content .mm-sb-filters{border:1px solid var(--mm-sb-divider);border-radius:8px;padding:0 16px}
+.mm-services-bookings-page .mm-sb-content summary{cursor:pointer;min-height:44px;padding-block:11px;font-weight:650}
+.mm-services-bookings-page .mm-sb-content .table{--phoenix-table-bg:transparent;color:var(--mm-sb-text);font-size:14px}
+.mm-services-bookings-page .mm-sb-content .table :is(td,th){padding:16px 10px;border-color:var(--mm-sb-divider);vertical-align:middle;white-space:normal}
+.mm-services-bookings-page .mm-sb-content .table th{color:var(--mm-sb-secondary);font-weight:600}
+.mm-services-bookings-page .mm-sb-content .table td:first-child a{font-size:15px}
+.mm-services-bookings-page .mm-sb-content .table td .d-flex{flex-wrap:wrap}
+.mm-services-bookings-page .mm-sb-content .row>*{min-width:0}
+.mm-services-bookings-page .mm-sb-content .modal{font-family:inherit;color:var(--mm-sb-text)}
+.mm-services-bookings-page .mm-sb-content .modal-content{box-shadow:0 12px 32px #1822351f}
+.mm-services-bookings-page .mm-sb-content .modal-header,.mm-services-bookings-page .mm-sb-content .modal-footer{border-color:var(--mm-sb-divider)}
+.mm-services-bookings-page .mm-sb-content .btn-close{min-width:44px;min-height:44px;padding:8px;box-sizing:border-box}
+.mm-services-bookings-page .mm-sb-content .mm-sb-review{border-top:1px solid var(--mm-sb-divider);padding-top:24px;margin-top:24px}
+.mm-services-bookings-page .mm-sb-content .mm-sb-review dl{display:grid;grid-template-columns:minmax(100px,1fr) 2fr;gap:8px 16px}
+.mm-services-bookings-page .mm-sb-content .mm-sb-review dt{color:var(--mm-sb-secondary);font-weight:500}
+.mm-services-bookings-page .mm-sb-content .mm-sb-review dd{margin:0;min-width:0}
+/* Public composition retains the existing Phoenix parent. */
+.mm-services-public-booking .mm-sb-content{padding:32px 24px;min-height:100vh;margin:auto;width:100%}
+.mm-services-public-booking .mm-sb-content>.col-12{max-width:1040px;width:100%}
+.mm-services-public-booking .mm-sb-content .auth-card>.card-body{padding:32px!important}
+.mm-services-public-booking .mm-sb-content .auth-title-box{background:var(--mm-sb-raised)!important;max-width:30%;align-self:stretch}
+.mm-services-public-booking .mm-sb-content .auth-title-box .card-sign-up{min-height:0!important;padding:28px!important}
+.mm-services-public-booking .mm-sb-content .auth-title-box .bg-holder,.mm-services-public-booking .mm-sb-content .auth-title-box .auth-title-box-img{display:none}
+.mm-services-public-booking .mm-sb-content .auth-form-box{max-width:none!important;padding:0 24px}
+.mm-services-public-booking .mm-sb-content .auth-title-box+.col-8{width:70%}
+.mm-services-public-booking .mm-sb-content .divider-content-center{background:var(--mm-sb-surface);font-size:20px;font-weight:700;color:var(--mm-sb-text)}
+.mm-services-public-booking .mm-sb-content .nav-wizard{gap:4px;margin:0;padding:0;flex-wrap:nowrap}
+.mm-services-public-booking .mm-sb-content .nav-wizard .nav-item{min-width:0;flex:1}
+.mm-services-public-booking .mm-sb-content .nav-wizard .nav-link{padding:8px 4px;min-height:60px;font-size:14px}
+.mm-services-public-booking .mm-sb-content .nav-wizard .nav-item-title{display:block!important;font-size:14px}
+.mm-services-public-booking .mm-sb-content .nav-wizard .nav-item-circle{width:28px;height:28px}
+.mm-services-public-booking .mm-sb-content .nav-wizard .nav-link.active{color:var(--mm-sb-primary)}
+.mm-services-public-booking .mm-sb-content :is(.booking-slot-date-grid,.booking-slot-time-grid){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mm-services-public-booking .mm-sb-content .booking-slot-button{width:100%;padding:10px 6px}
+.mm-services-public-booking .mm-sb-content .booking-slot-button[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--mm-sb-primary)}
+@media(max-width:1199.98px){.mm-services-bookings-page .mm-sb-content .mm-sb-records,.mm-services-bookings-page .mm-sb-content .mm-sb-records tbody{display:block}.mm-services-bookings-page .mm-sb-content .mm-sb-records thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.mm-services-bookings-page .mm-sb-content .mm-sb-records tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:16px;border-bottom:1px solid var(--mm-sb-divider);gap:12px 20px}.mm-services-bookings-page .mm-sb-content .mm-sb-records td{display:block;padding:0;border:0;min-width:0}.mm-services-bookings-page .mm-sb-content .mm-sb-records td:before{content:attr(data-label);display:block;color:var(--mm-sb-secondary);font-size:14px;margin-bottom:4px}.mm-services-bookings-page .mm-sb-content .mm-sb-records td:first-child,.mm-services-bookings-page .mm-sb-content .mm-sb-records td:last-child{grid-column:1/-1}.mm-services-bookings-page .mm-sb-content .table-responsive{overflow:visible}}
+@media(max-width:767.98px){.mm-services-bookings-page .mm-sb-content{padding-inline:16px;font-size:16px}.mm-services-bookings-page .mm-sb-content h1{font-size:28px;line-height:34px}.mm-services-bookings-page .mm-sb-content .card-body,.mm-services-bookings-page .mm-sb-content .card-header{padding:16px!important}.mm-services-bookings-page .mm-sb-content .mm-sb-records tr{padding-inline:0}.mm-services-bookings-page .mm-sb-content .mm-sb-records td:first-child a{font-size:16px}.mm-services-bookings-page .mm-sb-content .modal-dialog{margin:12px}.mm-services-public-booking .mm-sb-content{padding:16px}.mm-services-public-booking .mm-sb-content .auth-title-box{max-width:none;width:100%;border-radius:8px!important}.mm-services-public-booking .mm-sb-content .auth-title-box .card-sign-up{padding:20px!important}.mm-services-public-booking .mm-sb-content .auth-title-box+.col-8{width:100%}.mm-services-public-booking .mm-sb-content .auth-form-box{padding:0}.mm-services-public-booking .mm-sb-content .auth-card>.card-body{padding:16px!important}.mm-services-public-booking .mm-sb-content .auth-title-box p{margin-bottom:0}.mm-services-public-booking .mm-sb-content .auth-title-box h2{font-size:20px}.mm-services-public-booking .mm-sb-content .nav-wizard .nav-item-title{font-size:12px}.mm-services-public-booking .mm-sb-content .nav-wizard .nav-link{padding-inline:0}.mm-services-public-booking .mm-sb-content :is(.booking-slot-date-grid,.booking-slot-time-grid){grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:359.98px){.mm-services-bookings-page .mm-sb-content .mm-sb-records tr{grid-template-columns:minmax(0,1fr)}.mm-services-bookings-page .mm-sb-content .mm-sb-review dl{grid-template-columns:minmax(0,1fr)}.mm-services-bookings-page .mm-sb-content .mm-sb-review dd{margin-bottom:8px}}
+@media(prefers-reduced-motion:reduce){.mm-services-bookings-page .mm-sb-content *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+/* Explicit semantic tones replace Phoenix's low-contrast pastel action defaults. */
+.mm-services-bookings-page .mm-sb-content .btn-phoenix-success{color:var(--mm-sb-success);background:var(--mm-sb-success-bg)}
+.mm-services-bookings-page .mm-sb-content .btn-phoenix-danger{color:var(--mm-sb-error);background:var(--mm-sb-error-bg)}
+.mm-services-bookings-page .mm-sb-content .bg-info{color:var(--mm-sb-primary)!important;background:var(--mm-sb-raised)!important}
+@media(max-width:767.98px){.mm-services-public-booking .mm-sb-content .nav-wizard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.mm-services-public-booking .mm-sb-content .nav-wizard .nav-link{min-height:44px;border:1px solid var(--mm-sb-divider);border-radius:8px;padding:10px}.mm-services-public-booking .mm-sb-content .nav-wizard .nav-link>div{display:flex!important;align-items:center;gap:8px}.mm-services-public-booking .mm-sb-content .nav-wizard .nav-item-title{font-size:14px;margin:0!important}.mm-services-public-booking .mm-sb-content .nav-wizard .nav-item-circle-parent{display:none}.mm-services-public-booking .mm-sb-content .nav-wizard .nav-link.active{border-color:var(--mm-sb-primary);background:var(--mm-sb-raised)}}
+.mm-services-bookings-page .mm-sb-content .mm-sb-appointment-form{max-width:960px}
+.mm-services-bookings-page .mm-sb-content .mm-sb-save-status{padding:16px 0;border-block:1px solid var(--mm-sb-divider)}
+.mm-services-bookings-page .mm-sb-content .mm-sb-save-status hr{display:none}
+.mm-services-bookings-page .mm-sb-content .mm-sb-save-status>div{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.mm-services-bookings-page .mm-sb-content .mm-sb-save-status p{margin:0!important}
+.mm-services-bookings-page .mm-sb-content .mm-sb-related{position:relative}
+.mm-services-bookings-page .mm-sb-content .mm-sb-related>summary{border:1px solid var(--mm-sb-control);border-radius:8px;padding:11px 16px;color:var(--mm-sb-text)}
+.mm-services-bookings-page .mm-sb-content .mm-sb-related>div{position:absolute;inset-inline-start:0;top:100%;z-index:1040;min-width:220px;background:var(--mm-sb-surface);border:1px solid var(--mm-sb-divider);border-radius:8px;padding:8px;display:grid;gap:8px;box-shadow:0 12px 32px #1822351f}
+
+.mm-services-bookings-page .mm-sb-content .form-label{text-transform:none;letter-spacing:normal}
+.mm-services-public-booking .mm-sb-content .nav-wizard :is(.nav-link,.nav-item,.nav-item-circle-parent)::before,.mm-services-public-booking .mm-sb-content .nav-wizard :is(.nav-link,.nav-item,.nav-item-circle-parent)::after{display:none!important}
+.mm-services-bookings-page .mm-sb-content .booking-detail-fields dt{font-size:14px;line-height:20px;color:var(--mm-sb-secondary)}

@@ -1,7 +1,292 @@
-{% extends 'inheritance/split_forms_parent.html'%}
-{% load static %}
+{% extends 'appointments/public_base.html'%}
+{% load static services_bookings %}
 
-{% block content %}
+{% block content %}{% services_booking_scope as bookings_ui %}{% if bookings_ui %}
+<div class="row flex-center position-relative min-vh-100 g-0 py-5{% if bookings_ui %} mm-sb-content{% endif %}">
+  <div class="col-12 col-lg-10 col-xl-8">
+    <div class="card border border-translucent auth-card">
+      <div class="card-body p-5 pe-md-0">
+        <div class="row align-items-center gx-0 gy-7">
+
+          <div class="col-auto bg-body-highlight dark__bg-gray-1100 rounded-3 position-relative overflow-hidden auth-title-box">
+            <div class="bg-holder" style="background-image:url('{% static 'assets/img/bg/38.png' %}');"></div>
+
+            <div class="position-relative px-5 py-9 text-center text-md-start card-sign-up" style="min-height: 640px;">
+              <p class="mm-sb-eyebrow">Motionmate Services</p>
+              <h1>{{ public_business.name }}</h1>
+              <p class="text-body-tertiary">
+                {% if bookings_ui %}Book now to schedule an appointment, or ask the team to contact you before booking.{% else %}Send a preferred service time and the team will review your request before confirming the appointment.{% endif %}
+              </p>
+              {% if booking_settings.public_booking_instructions %}
+                <p class="text-body-tertiary">{{ booking_settings.public_booking_instructions }}</p>
+              {% endif %}
+            </div>
+
+            <div class="position-relative z-n1 mb-6 d-none d-md-block text-center mt-md-15">
+              <img class="auth-title-box-img d-dark-none" src="{% static 'assets/img/spot-illustrations/auth.png' %}" alt="" />
+              <img class="auth-title-box-img d-light-none" src="{% static 'assets/img/spot-illustrations/auth-dark.png' %}" alt="" />
+            </div>
+          </div>
+
+          <div class="col-8">
+            <div class="auth-form-box mx-auto" style="max-width: 640px;">
+
+              <div class="text-center mb-7">
+                <a class="d-flex flex-center text-decoration-none mb-4" href="{% url 'home' %}">
+                  {% include "includes/motionmate_logo.html" %}
+                </a>
+              </div>
+
+              <div class="position-relative mt-4">
+                <hr class="bg-body-secondary" />
+                <div class="divider-content-center bg-body-emphasis">{% if bookings_ui %}Book a service{% else %}Online Booking Form{% endif %}</div>
+              </div>
+
+              <form method="post" action="{% url 'public_booking' public_business.slug %}" data-public-booking-form data-booking-intent-id="{{ form.booking_intent.id_for_label }}" data-service-id="{{ form.service.id_for_label }}" data-client-type-id="{{ form.client_type.id_for_label }}" data-company-name-id="{{ form.company_name.id_for_label }}" data-staff-member-id="{{ form.staff_member.id_for_label }}" data-preferred-date-id="{{ form.preferred_date.id_for_label }}" data-preferred-time-id="{{ form.preferred_time.id_for_label }}" data-country-id="{{ form.country.id_for_label }}" data-street-address-id="{{ form.street_address.id_for_label }}" data-postal-code-id="{{ form.postal_code.id_for_label }}" data-district-id="{{ form.district.id_for_label }}" data-district-name="{{ form.district.html_name }}" data-business-zone="{% booking_zone public_business %}" novalidate>
+                {% csrf_token %}
+            {{ form.operation_key }}
+                {% if bookings_ui %}{% include "appointments/includes/error_summary.html" %}{% endif %}
+
+                {% if form.non_field_errors %}
+                  <div class="alert alert-danger">
+                    {{ form.non_field_errors }}
+                  </div>
+                {% endif %}
+
+                <div class="theme-wizard mt-4" data-public-booking-wizard>
+                  <div class="pt-3 pb-2 border-bottom">
+                    <ul class="nav justify-content-between nav-wizard nav-wizard-success" role="tablist">
+                      <li class="nav-item" role="presentation">
+                        <a class="nav-link active fw-semibold" href="#public-booking-step-service" role="tab" aria-controls="public-booking-step-service" aria-selected="true" data-booking-wizard-tab data-booking-wizard-step="0">
+                          <div class="text-center d-inline-block">
+                            <span class="nav-item-circle-parent"><span class="nav-item-circle position-relative"><span class="fas fa-briefcase nav-item-icon"></span><span class="fas fa-check check-icon"></span></span></span>
+                            <span class="nav-item-title d-none d-md-block mt-1 fs-9">Service</span>
+                          </div>
+                        </a>
+                      </li>
+                      <li class="nav-item" role="presentation">
+                        <a class="nav-link fw-semibold" href="#public-booking-step-availability" role="tab" aria-controls="public-booking-step-availability" aria-selected="false" data-booking-wizard-tab data-booking-wizard-step="1">
+                          <div class="text-center d-inline-block">
+                            <span class="nav-item-circle-parent"><span class="nav-item-circle position-relative"><span class="fas fa-calendar-days nav-item-icon"></span><span class="fas fa-check check-icon"></span></span></span>
+                            <span class="nav-item-title d-none d-md-block mt-1 fs-9">Availability</span>
+                          </div>
+                        </a>
+                      </li>
+                      <li class="nav-item" role="presentation">
+                        <a class="nav-link fw-semibold" href="#public-booking-step-contact" role="tab" aria-controls="public-booking-step-contact" aria-selected="false" data-booking-wizard-tab data-booking-wizard-step="2">
+                          <div class="text-center d-inline-block">
+                            <span class="nav-item-circle-parent"><span class="nav-item-circle position-relative"><span class="fas fa-user nav-item-icon"></span><span class="fas fa-check check-icon"></span></span></span>
+                            <span class="nav-item-title d-none d-md-block mt-1 fs-9">Contact</span>
+                          </div>
+                        </a>
+                      </li>
+                      <li class="nav-item" role="presentation">
+                        <a class="nav-link fw-semibold" href="#public-booking-step-location" role="tab" aria-controls="public-booking-step-location" aria-selected="false" data-booking-wizard-tab data-booking-wizard-step="3">
+                          <div class="text-center d-inline-block">
+                            <span class="nav-item-circle-parent"><span class="nav-item-circle position-relative"><span class="fas fa-location-dot nav-item-icon"></span><span class="fas fa-check check-icon"></span></span></span>
+                            <span class="nav-item-title d-none d-md-block mt-1 fs-9">Location</span>
+                          </div>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div class="tab-content py-4">
+                    <div class="tab-pane active show" id="public-booking-step-service" role="tabpanel" data-booking-wizard-pane data-booking-wizard-pane-index="0">
+                      <div class="mb-3 text-start">
+                        <label class="form-label" for="{{ form.booking_intent.id_for_label }}">When would you like to book?</label>
+                        {% if bookings_ui %}{% booking_widget form.booking_intent %}{% else %}{{ form.booking_intent }}{% endif %}
+                        {% if form.booking_intent.errors %}<div class="text-danger small" id="{{ form.booking_intent.auto_id }}_errors">{{ form.booking_intent.errors }}</div>{% endif %}
+                      </div>
+
+                      <div class="mb-3 text-start">
+                        <label class="form-label" for="{{ form.service.id_for_label }}">Service</label>
+                        {% if bookings_ui %}{% booking_widget form.service %}{% else %}{{ form.service }}{% endif %}
+                        {% if form.service.errors %}<div class="text-danger small" id="{{ form.service.auto_id }}_errors">{{ form.service.errors }}</div>{% endif %}
+                      </div>
+                      <div class="text-danger small d-none" data-wizard-step-error></div>
+                    </div>
+
+                    <div class="tab-pane" id="public-booking-step-availability" role="tabpanel" data-booking-wizard-pane data-booking-wizard-pane-index="1">
+                      <div class="alert alert-subtle-secondary py-2 px-3 mb-3 d-none text-start" role="status" data-book-later-section>
+                        The team will contact you before scheduling an appointment.
+                      </div>
+
+                      <div data-book-now-section>
+                        <div class="mb-3 text-start">
+                          <label class="form-label" for="{{ form.staff_member.id_for_label }}">Staff member{% include "includes/help_icon.html" with text=form.staff_member.help_text %}</label>
+                          {% if bookings_ui %}{% booking_widget form.staff_member %}{% else %}{{ form.staff_member }}{% endif %}
+                          {% if form.staff_member.errors %}<div class="text-danger small" id="{{ form.staff_member.auto_id }}_errors">{{ form.staff_member.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="booking-slot-picker d-none border rounded-2 p-3 mb-3 text-start" data-slot-picker>
+                          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div>
+                              <h5 class="mb-1">Available slots</h5>
+                              <p class="text-body-tertiary fs-9 mb-0" data-slot-range></p>
+                            </div>
+                            <span class="badge badge-phoenix badge-phoenix-primary" data-slot-staff-label></span>
+                          </div>
+
+                          <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                              <label class="form-label mb-0">Choose a day</label>
+                              <span class="text-body-tertiary fs-10" data-slot-date-status></span>
+                            </div>
+                            <div class="booking-slot-date-grid" data-slot-date-grid></div>
+                          </div>
+
+                          <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                              <label class="form-label mb-0">Choose a time</label>
+                              <span class="text-body-tertiary fs-10" data-slot-time-status></span>
+                            </div>
+                            <div class="booking-slot-time-grid" data-slot-time-grid></div>
+                          </div>
+
+                          <div class="alert alert-subtle-secondary py-2 px-3 mb-3 d-none" role="status" data-slot-empty></div>
+                          <div class="text-body-tertiary fs-9 mb-0" data-slot-summary></div>
+
+                          {% if form.preferred_date.errors or form.preferred_time.errors %}
+                            <div class="mt-3">
+                              {% if form.preferred_date.errors %}<div class="text-danger small" id="{{ form.preferred_date.auto_id }}_errors">{{ form.preferred_date.errors }}</div>{% endif %}
+                              {% if form.preferred_time.errors %}<div class="text-danger small" id="{{ form.preferred_time.auto_id }}_errors">{{ form.preferred_time.errors }}</div>{% endif %}
+                            </div>
+                          {% endif %}
+                        </div>
+
+                        <div class="row g-3 mb-3" data-manual-date-time>
+                          <div class="col-sm-6 text-start">
+                            <label class="form-label" for="{{ form.preferred_date.id_for_label }}">Available date{% include "includes/help_icon.html" with text=form.preferred_date.help_text %}</label>
+                            {% if bookings_ui %}{% booking_widget form.preferred_date %}{% else %}{{ form.preferred_date }}{% endif %}
+                            {% if form.preferred_date.errors %}<div class="text-danger small" id="{{ form.preferred_date.auto_id }}_errors">{{ form.preferred_date.errors }}</div>{% endif %}
+                          </div>
+                          <div class="col-sm-6 text-start">
+                            <label class="form-label" for="{{ form.preferred_time.id_for_label }}">Available time{% include "includes/help_icon.html" with text=form.preferred_time.help_text %}</label>
+                            {% if bookings_ui %}{% booking_widget form.preferred_time %}{% else %}{{ form.preferred_time }}{% endif %}
+                            {% if form.preferred_time.errors %}<div class="text-danger small" id="{{ form.preferred_time.auto_id }}_errors">{{ form.preferred_time.errors }}</div>{% endif %}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="text-danger small d-none" data-wizard-step-error></div>
+                    </div>
+
+                    <div class="tab-pane" id="public-booking-step-contact" role="tabpanel" data-booking-wizard-pane data-booking-wizard-pane-index="2">
+                      <div class="mb-3 text-start">
+                        <label class="form-label" for="{{ form.client_type.id_for_label }}">{{ form.client_type.label }}</label>
+                        {% if bookings_ui %}{% booking_widget form.client_type %}{% else %}{{ form.client_type }}{% endif %}
+                        {% if form.client_type.errors %}<div class="text-danger small" id="{{ form.client_type.auto_id }}_errors">{{ form.client_type.errors }}</div>{% endif %}
+                      </div>
+
+                      <div class="mb-3 text-start" data-booking-company-name>
+                        <label class="form-label" for="{{ form.company_name.id_for_label }}">{{ form.company_name.label }}</label>
+                        {% if bookings_ui %}{% booking_widget form.company_name %}{% else %}{{ form.company_name }}{% endif %}
+                        {% if form.company_name.errors %}<div class="text-danger small" id="{{ form.company_name.auto_id }}_errors">{{ form.company_name.errors }}</div>{% endif %}
+                      </div>
+
+                      <div class="row g-3 mb-3">
+                        <div class="col-sm-6 text-start">
+                          <label class="form-label" for="{{ form.first_name.id_for_label }}">First name</label>
+                          {% if bookings_ui %}{% booking_widget form.first_name %}{% else %}{{ form.first_name }}{% endif %}
+                          {% if form.first_name.errors %}<div class="text-danger small" id="{{ form.first_name.auto_id }}_errors">{{ form.first_name.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-sm-6 text-start">
+                          <label class="form-label" for="{{ form.last_name.id_for_label }}">Last name</label>
+                          {% if bookings_ui %}{% booking_widget form.last_name %}{% else %}{{ form.last_name }}{% endif %}
+                          {% if form.last_name.errors %}<div class="text-danger small" id="{{ form.last_name.auto_id }}_errors">{{ form.last_name.errors }}</div>{% endif %}
+                        </div>
+                      </div>
+
+                      <div class="mb-3 text-start">
+                        <label class="form-label" for="{{ form.email.id_for_label }}">Email address</label>
+                        {% if bookings_ui %}{% booking_widget form.email %}{% else %}{{ form.email }}{% endif %}
+                        {% if form.email.errors %}<div class="text-danger small" id="{{ form.email.auto_id }}_errors">{{ form.email.errors }}</div>{% endif %}
+                      </div>
+
+                      <div class="mb-3 text-start">
+                        <label class="form-label" for="{{ form.phone.id_for_label }}">Phone number</label>
+                        {% if bookings_ui %}{% booking_widget form.phone %}{% else %}{{ form.phone }}{% endif %}
+                        {% if form.phone.errors %}<div class="text-danger small" id="{{ form.phone.auto_id }}_errors">{{ form.phone.errors }}</div>{% endif %}
+                      </div>
+                      <div class="text-danger small d-none" data-wizard-step-error></div>
+                    </div>
+
+                    <div class="tab-pane" id="public-booking-step-location" role="tabpanel" data-booking-wizard-pane data-booking-wizard-pane-index="3">
+                      <div data-public-booking-address>
+                        <div class="mb-3 text-start">
+                          <label class="form-label" for="{{ form.country.id_for_label }}">{{ form.country.label }}</label>
+                          {% if bookings_ui %}{% booking_widget form.country %}{% else %}{{ form.country }}{% endif %}
+                          {% if form.country.errors %}<div class="text-danger small" id="{{ form.country.auto_id }}_errors">{{ form.country.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="mb-3 text-start">
+                          <label class="form-label" for="{{ form.street_address.id_for_label }}" data-address-label="street">{{ form.street_address.label }}</label>
+                          {% if bookings_ui %}{% booking_widget form.street_address %}{% else %}{{ form.street_address }}{% endif %}
+                          {% if form.street_address.errors %}<div class="text-danger small" id="{{ form.street_address.auto_id }}_errors">{{ form.street_address.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                          <div class="col-sm-6 text-start">
+                            <label class="form-label" for="{{ form.district.id_for_label }}" data-address-label="district">{{ form.district.label }}</label>
+                            <div data-address-control="district">{% if bookings_ui %}{% booking_widget form.district %}{% else %}{{ form.district }}{% endif %}</div>
+                            {% if form.district.errors %}<div class="text-danger small" id="{{ form.district.auto_id }}_errors">{{ form.district.errors }}</div>{% endif %}
+                          </div>
+                          <div class="col-sm-6 text-start">
+                            <label class="form-label" for="{{ form.postal_code.id_for_label }}" data-address-label="postal">{{ form.postal_code.label }}</label>
+                            <span class="field-help-icon{% if not form.postal_code.help_text %} d-none{% endif %}" tabindex="0" role="img" aria-label="{{ form.postal_code.help_text|striptags }}" data-bs-toggle="tooltip" data-bs-trigger="hover focus" data-bs-placement="top" data-bs-title="{{ form.postal_code.help_text|striptags }}" data-address-help="postal">
+                              <span class="fa-solid fa-circle-exclamation" aria-hidden="true"></span>
+                            </span>
+                            {% if bookings_ui %}{% booking_widget form.postal_code %}{% else %}{{ form.postal_code }}{% endif %}
+                            {% if form.postal_code.errors %}<div class="text-danger small" id="{{ form.postal_code.auto_id }}_errors">{{ form.postal_code.errors }}</div>{% endif %}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="mb-3 text-start">
+                        <label class="form-label" for="{{ form.message.id_for_label }}">Message / notes</label>
+                        {% if bookings_ui %}{% booking_widget form.message %}{% else %}{{ form.message }}{% endif %}
+                        {% if form.message.errors %}<div class="text-danger small" id="{{ form.message.auto_id }}_errors">{{ form.message.errors }}</div>{% endif %}
+                      </div>
+
+                      <div class="form-check mb-3">
+                        {% if bookings_ui %}{% booking_widget form.consent_to_contact %}{% else %}{{ form.consent_to_contact }}{% endif %}
+                        <label class="form-label fs-9 text-transform-none" for="{{ form.consent_to_contact.id_for_label }}">
+                          I consent to be contacted about this booking request.
+                        </label>
+                        {% if form.consent_to_contact.errors %}<div class="text-danger small" id="{{ form.consent_to_contact.auto_id }}_errors">{{ form.consent_to_contact.errors }}</div>{% endif %}
+                      </div>
+                      {% if bookings_ui %}{% include "crm/includes/public_booking_review.html" %}{% endif %}
+                      <div class="text-danger small d-none" data-wizard-step-error></div>
+                    </div>
+                  </div>
+
+                  <div class="d-flex justify-content-between align-items-center gap-2 pt-3 border-top">
+                    <button class="btn btn-phoenix-secondary" type="button" data-booking-wizard-prev>
+                      <span class="fas fa-arrow-left me-2"></span>Previous
+                    </button>
+                    <button class="btn btn-primary ms-auto" type="button" data-booking-wizard-next>
+                      Next<span class="fas fa-arrow-right ms-2"></span>
+                    </button>
+                    <button class="btn btn-primary ms-auto d-none" type="submit" data-booking-wizard-submit>
+                      <span class="fas fa-paper-plane me-2"></span>Send booking request
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ slot_picker_data|json_script:"public-booking-slot-data" }}
+{{ form.address_style_data|json_script:"public-booking-address-data" }}
+
+{% else %}
 <div class="row flex-center position-relative min-vh-100 g-0 py-5">
   <div class="col-12 col-lg-10 col-xl-8">
     <div class="card border border-translucent auth-card">
@@ -960,4 +1245,4 @@
     }
   })();
 </script>
-{% endblock %}
+{% endif %}{% endblock %}

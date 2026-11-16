@@ -1,0 +1,8 @@
+{% load services_bookings %}
+<div class="modal fade" id="bookingStatusConfirmation" tabindex="-1" aria-labelledby="bookingStatusTitle" aria-describedby="bookingStatusDescription" aria-hidden="true" data-booking-status-dialog>
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title" id="bookingStatusTitle">Change appointment status</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><p class="fw-semibold">{{ appointment.title }}</p><p>{{ appointment.start_time|booking_time:current_business }} · {% booking_zone current_business %}</p><p id="bookingStatusDescription">This updates the appointment status only. It does not change an invoice, issue a refund or send a change notification.</p></div>
+    <div class="modal-footer"><button type="button" class="btn btn-phoenix-secondary" data-bs-dismiss="modal">Keep current status</button><button type="button" class="btn btn-primary" data-booking-status-confirm>Confirm status change</button></div>
+  </div></div>
+</div>

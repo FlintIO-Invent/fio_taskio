@@ -79,7 +79,9 @@ class UnifiedAppointmentsBrowserChecks(ServicesFixture, StaticLiveServerTestCase
                 )
                 page.screenshot(path=str(evidence / f"internal-draft-{width}.png"), full_page=True)
                 page.get_by_role("button", name="Create appointment", exact=True).click()
-                expect(page.get_by_role("heading", name="Actions", exact=True)).to_be_visible()
+                expect(
+                    page.get_by_role("heading", name="Appointment status", exact=True)
+                ).to_be_visible()
                 page.get_by_role("link", name="Appointments", exact=True).last.click()
                 expect(
                     page.locator('[data-entry-kind="appointment"]').filter(has_text=title)
@@ -193,6 +195,8 @@ class UnifiedAppointmentsBrowserChecks(ServicesFixture, StaticLiveServerTestCase
                 expect(rows).to_have_count(5)
                 expect(page.locator('[data-entry-kind="request"]')).to_have_count(3)
                 page.get_by_label("State", exact=True).select_option("needs_follow_up")
+                if not page.locator(".mm-sb-filters").evaluate("el => el.open"):
+                    page.get_by_text("More filters", exact=True).click()
                 page.get_by_label("Source", exact=True).select_option("online")
                 page.get_by_label("Client classification", exact=True).select_option("LEAD")
                 page.get_by_role("button", name="Filter", exact=True).click()
@@ -203,6 +207,8 @@ class UnifiedAppointmentsBrowserChecks(ServicesFixture, StaticLiveServerTestCase
                     page.evaluate("document.documentElement.scrollWidth"), width + 1
                 )
                 page.get_by_role("link", name="Reset", exact=True).click()
+                if not page.locator(".mm-sb-filters").evaluate("el => el.open"):
+                    page.get_by_text("More filters", exact=True).click()
                 page.get_by_label("Staff", exact=True).select_option(str(self.owner.pk))
                 page.get_by_role("button", name="Filter", exact=True).click()
                 expect(rows).to_have_count(1)
@@ -215,13 +221,15 @@ class UnifiedAppointmentsBrowserChecks(ServicesFixture, StaticLiveServerTestCase
             callback = callbacks[-1]
             page.goto(self.live_server_url + reverse("appointment_list"))
             page.get_by_role("link", name="Callback 390 Customer", exact=True).click()
-            page.get_by_role("link", name="Confirm / Schedule Appointment", exact=True).click()
+            page.get_by_role("link", name="Schedule Appointment", exact=True).click()
             page.locator("#id_start_time").fill(self.start.strftime("%Y-%m-%dT%H:%M"))
             page.locator("#id_end_time").fill(
                 self.start.replace(hour=11).strftime("%Y-%m-%dT%H:%M")
             )
             page.get_by_role("button", name="Create appointment", exact=True).click()
-            expect(page.get_by_role("heading", name="Actions", exact=True)).to_be_visible()
+            expect(
+                page.get_by_role("heading", name="Appointment status", exact=True)
+            ).to_be_visible()
             page.goto(self.live_server_url + reverse("appointment_list"))
             expect(
                 page.locator(f'[data-entry-kind="request"][data-entry-id="{callback.pk}"]')
