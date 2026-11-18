@@ -16,5 +16,22 @@
     "scenarioParam": "scenario",
     "states": ["populated", "empty", "long", "admin", "staff", "accountant", "viewer", "read-only", "request-only", "appointments-only", "locked", "loading", "error", "invalid", "pagination"],
     "gallery": "services-appointments/evidence/gallery.html"
+  },
+  {
+    "id": "services-clients",
+    "title": "Services Clients \u00b7 design v1 \u00b7 Gate A",
+    "vertical": "SERVICE",
+    "path": "services-clients/dist/",
+    "scenarioParam": "scenario",
+    "states": [
+      "populated",
+      "empty",
+      "long",
+      "viewer",
+      "locked",
+      "loading",
+      "error"
+    ],
+    "gallery": "services-clients/evidence/v1/gallery.html"
   }
 ]

@@ -1,0 +1,35 @@
+{
+  "ports": {
+    "before_http": {
+      "port": 8860,
+      "free_at_read_only_preflight": true
+    },
+    "after_http": {
+      "port": 8861,
+      "free_at_read_only_preflight": true
+    },
+    "launcher": {
+      "port": 8862,
+      "free_at_read_only_preflight": true
+    },
+    "before_postgres": {
+      "port": 55610,
+      "free_at_read_only_preflight": true
+    },
+    "after_postgres": {
+      "port": 55611,
+      "free_at_read_only_preflight": true
+    },
+    "test_live_server": {
+      "port": 8768,
+      "free_at_read_only_preflight": true
+    }
+  },
+  "ordinary_databases_contacted": false,
+  "processes_started": false,
+  "font_already_present": true,
+  "font_matches_approved_lab": true,
+  "baseline_head": "3dc6b45723b0bfe6a7b67e721128159393590252",
+  "baseline_branch": "experiment/motionmate-ui-redesign",
+  "baseline_status": "M ui-lab/previews.json\n?? ui-lab/services-clients/.gitignore\n?? ui-lab/services-clients/README.md\n?? ui-lab/services-clients/final_delta.py\n?? ui-lab/services-clients/src/app.js\n?? ui-lab/services-clients/src/fixtures.js\n?? ui-lab/services-clients/src/index.html\n?? ui-lab/services-clients/src/input.css\n?? ui-lab/services-clients/src/render.js\n?? ui-lab/services-clients/supplement.py\n?? ui-lab/services-clients/validate.py"
+}

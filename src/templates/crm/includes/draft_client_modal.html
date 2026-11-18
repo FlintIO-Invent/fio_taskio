@@ -1,5 +1,6 @@
 {% load static %}
-<div class="modal fade" id="draftClientModal" tabindex="-1" aria-labelledby="draftClientModalLabel" aria-hidden="true" data-client-destination="{{ client_destination }}">
+{% if current_business.vertical == 'SERVICE' %}{% include "crm/services/clients/assets.html" %}{% endif %}
+<div class="modal fade{% if current_business.vertical == 'SERVICE' %} mm-services-clients-inline{% endif %}" id="draftClientModal" tabindex="-1" aria-labelledby="draftClientModalLabel" aria-hidden="true" data-client-destination="{{ client_destination }}">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <form class="d-flex flex-column overflow-hidden" method="post" action="{% url 'staff_client_quick_create' %}" data-draft-client-form>

@@ -1,0 +1,65 @@
+<div class="content mm-services-clients" data-services-clients="form">
+  <header class="mm-sc-header"><div><p class="mm-sc-eyebrow">Motionmate Services</p><h1>{% if clients_mode == 'edit' %}Edit {% if client.first_name or client.last_name %}{{ client.first_name }} {{ client.last_name }}{% else %}Client #{{ client.pk }}{% endif %}{% else %}Create client{% endif %}</h1><p class="mm-sc-supporting">Client details for {{ current_business.name }}. Required fields are marked.</p></div></header>
+  <nav class="mm-sc-breadcrumb" aria-label="Breadcrumb"><a href="{% url 'staff_client_list' %}">Clients</a><span aria-hidden="true">/</span>{% if clients_mode == 'edit' %}<a href="{% url 'staff_client_detail' client.pk %}">Back to details</a><span aria-hidden="true">/</span><span>Edit</span>{% else %}<span>Create</span>{% endif %}</nav>
+  {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="status">{{ message }}</div>{% endfor %}
+  <div id="client-form-error-summary" class="alert alert-danger{% if not form.errors %} d-none{% endif %}" role="alert" tabindex="-1" data-clients-error-summary>
+    <h2>Client was not saved. Please correct the following:</h2><ul>{% for field in form %}{% for error in field.errors %}<li><a href="#{{ field.id_for_label }}">{{ field.label }}: {{ error }}</a></li>{% endfor %}{% endfor %}{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  </div>
+  <div class="mm-sc-form-layout"><nav class="mm-sc-section-index" aria-label="Client form sections">
+<a href="#tab-basic" data-clients-section>Client identity</a>
+<a href="#tab-location" data-clients-section>Address</a>
+<a href="#tab-business" data-clients-section>Business details</a>
+<a href="#tab-contact" data-clients-section>Contact preferences</a>
+<a href="#tab-relationship" data-clients-section>Relationship & CRM</a>
+<a href="#tab-notes" data-clients-section>Notes & consent</a>
+</nav><form method="post" novalidate data-client-form class="mm-sc-stack">
+  {% csrf_token %}{% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+<details class="card mm-sc-disclosure" id="tab-basic" open><summary><h2>Client identity</h2></summary><div class="card-body"><div class="mm-sc-form-grid">
+{% include "crm/services/clients/field.html" with field=form.client_type %}
+{% include "crm/services/clients/field.html" with field=form.first_name %}
+{% include "crm/services/clients/field.html" with field=form.last_name %}
+{% include "crm/services/clients/field.html" with field=form.company_name %}
+<p class="mm-sc-supporting mm-sc-wide">Company name is required for both businesses and individuals.</p>
+{% include "crm/services/clients/field.html" with field=form.email %}
+{% include "crm/services/clients/field.html" with field=form.phone %}
+</div></div></details>
+<details class="card mm-sc-disclosure" id="tab-location" open><summary id="locationTab" data-bs-target="#locationTabContent"><h2>Address</h2></summary><div class="card-body" id="locationTabContent" data-client-create-address><div class="mm-sc-form-grid">
+{% include "crm/services/clients/field.html" with field=form.street_address wide=1 address_label="street" %}
+{% include "crm/services/clients/field.html" with field=form.country %}
+{% include "crm/services/clients/field.html" with field=form.district address_label="district" %}
+{% include "crm/services/clients/field.html" with field=form.postal_code address_label="postal" %}
+</div></div></details>
+<details class="card mm-sc-disclosure" id="tab-business"{% if form.business_legal_name.errors or form.trade_name.errors or form.industry.errors or form.website.errors or form.registration_number.errors or form.business_description.errors %} open{% endif %}><summary id="pricingTab" data-bs-target="#pricingTabContent"><h2>Business details</h2></summary><div class="card-body" id="pricingTabContent"><div class="mm-sc-form-grid">
+{% include "crm/services/clients/field.html" with field=form.business_legal_name %}
+{% include "crm/services/clients/field.html" with field=form.trade_name %}
+{% include "crm/services/clients/field.html" with field=form.industry %}
+{% include "crm/services/clients/field.html" with field=form.website %}
+{% include "crm/services/clients/field.html" with field=form.registration_number %}
+{% include "crm/services/clients/field.html" with field=form.business_description wide=1 %}
+</div></div></details>
+<details class="card mm-sc-disclosure" id="tab-contact"{% if form.job_title.errors or form.department.errors or form.secondary_email.errors or form.secondary_phone.errors or form.whatsapp_number.errors or form.preferred_language.errors or form.preferred_contact_method.errors %} open{% endif %}><summary id="restockTab" data-bs-target="#restockTabContent"><h2>Contact preferences</h2></summary><div class="card-body" id="restockTabContent"><div class="mm-sc-form-grid">
+{% include "crm/services/clients/field.html" with field=form.job_title %}
+{% include "crm/services/clients/field.html" with field=form.department %}
+{% include "crm/services/clients/field.html" with field=form.secondary_email %}
+{% include "crm/services/clients/field.html" with field=form.secondary_phone %}
+{% include "crm/services/clients/field.html" with field=form.whatsapp_number %}
+{% include "crm/services/clients/field.html" with field=form.preferred_language %}
+{% include "crm/services/clients/field.html" with field=form.preferred_contact_method %}
+</div></div></details>
+<details class="card mm-sc-disclosure" id="tab-relationship"{% if form.client_status.errors or form.priority.errors or form.lead_source.errors or form.assigned_to.errors or form.interested_services.errors %} open{% endif %}><summary><h2>Relationship & CRM</h2></summary><div class="card-body"><div class="mm-sc-form-grid">
+{% include "crm/services/clients/field.html" with field=form.client_status %}
+{% include "crm/services/clients/field.html" with field=form.priority %}
+{% include "crm/services/clients/field.html" with field=form.lead_source %}
+{% include "crm/services/clients/field.html" with field=form.assigned_to %}
+{% include "crm/services/clients/field.html" with field=form.interested_services wide=1 %}
+</div></div></details>
+<details class="card mm-sc-disclosure" id="tab-notes"{% if form.notes.errors or form.communication_notes.errors or form.message.errors or form.consent_to_contact.errors %} open{% endif %}><summary id="attributesTab" data-bs-target="#attributesTabContent"><h2>Notes & consent</h2></summary><div class="card-body" id="attributesTabContent"><div class="mm-sc-form-grid">
+{% include "crm/services/clients/field.html" with field=form.notes wide=1 %}
+{% include "crm/services/clients/field.html" with field=form.communication_notes wide=1 %}
+{% include "crm/services/clients/field.html" with field=form.message wide=1 %}
+{% include "crm/services/clients/field.html" with field=form.consent_to_contact wide=1 %}
+</div></div></details>
+<div class="mm-sc-form-footer">{% if clients_mode == 'edit' %}<a class="btn btn-phoenix-secondary" href="{% url 'staff_client_detail' client.pk %}">Cancel</a>{% else %}<a class="btn btn-phoenix-secondary" href="{% url 'staff_client_list' %}">Cancel</a>{% endif %}<button class="btn btn-primary" type="submit">{% if clients_mode == 'edit' %}Save Changes{% else %}Create client{% endif %}</button></div>
+  </form></div>
+  {{ form.address_style_data|json_script:"client-create-address-data" }}
+</div>

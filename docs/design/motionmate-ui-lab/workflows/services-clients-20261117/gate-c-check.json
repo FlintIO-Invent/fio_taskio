@@ -1,0 +1,10 @@
+{
+  "task_id": "services-clients-20261117",
+  "current_phase": "gate_c",
+  "gate": "C",
+  "next_permitted_action": "Stop for explicit Gate C approval; preserve completed work.",
+  "design_sha256": "619258b4942682ca18d2d2cd1a93fd6258bbe1d71f9c23a6c0344a280f586043",
+  "manifest_sha256": "f56c21795f58907ebf784b2afd8c0040534a533f069ec68d59a4531957edc48d",
+  "candidate_sha256": "c9b2403b9f84ad7092ba294aafdf76bf8cc3df497965789dd63c31f60ea18041",
+  "notice": "Offline consistency only; verify real user authorization and resource ownership."
+}

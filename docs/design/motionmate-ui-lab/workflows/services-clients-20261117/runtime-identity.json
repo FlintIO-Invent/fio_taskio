@@ -1,0 +1,31 @@
+{
+  "session": "/tmp/motionmate-preview-session-p29z5cgt",
+  "id": "7591125b691a5669",
+  "before_snapshot": "/tmp/motionmate-preview-snapshot-4lx1fn8s",
+  "settings": "ui_preview.settings",
+  "allocator_workaround": "debug",
+  "source_identities": {
+    "before": "dda9f43ff1920e110b80989e2b659513d2b7eb31772f606dc235168e63162da2",
+    "after": "dda9f43ff1920e110b80989e2b659513d2b7eb31772f606dc235168e63162da2"
+  },
+  "database_identities": {
+    "before": {
+      "host": "127.0.0.1",
+      "port": 55610,
+      "data_directory": "/tmp/motionmate-preview-session-p29z5cgt/before/pgdata",
+      "system_identifier": "7709218428792311491",
+      "database": "mm_preview_7591125b691a5669_before"
+    },
+    "after": {
+      "host": "127.0.0.1",
+      "port": 55611,
+      "data_directory": "/tmp/motionmate-preview-session-p29z5cgt/after/pgdata",
+      "system_identifier": "7709218582412722264",
+      "database": "mm_preview_7591125b691a5669_after"
+    }
+  },
+  "synthetic_fixture_parity": true,
+  "clients_inventory_sha256": "40d658fa4e77115328c5074db3f45302d6eabe495e4b677d8edd10b243c651b2",
+  "ordinary_database_access": false,
+  "providers": false
+}

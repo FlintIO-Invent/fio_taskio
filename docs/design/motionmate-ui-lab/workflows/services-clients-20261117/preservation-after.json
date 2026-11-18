@@ -1,0 +1,13 @@
+{
+  "pass": true,
+  "protected_files": 12619,
+  "changed_protected_files": [],
+  "registry_existing_entries_unchanged": true,
+  "branch": "experiment/motionmate-ui-redesign",
+  "head": "3dc6b45723b0bfe6a7b67e721128159393590252",
+  "authorized_outputs": [
+    "ui-lab/services-clients/",
+    "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/",
+    "ui-lab/previews.json (one new Services registry entry)"
+  ]
+}

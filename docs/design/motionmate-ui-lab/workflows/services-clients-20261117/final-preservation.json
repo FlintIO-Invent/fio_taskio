@@ -1,0 +1,115 @@
+{
+  "protected_files": 12619,
+  "protected_outside_manifest_unchanged": true,
+  "approved_design_artifacts_unchanged": 733,
+  "manifest_files": 31,
+  "runtime_candidate_files": 25,
+  "runtime_matches_candidate": true,
+  "source_identities": {
+    "before": "dda9f43ff1920e110b80989e2b659513d2b7eb31772f606dc235168e63162da2",
+    "after": "ed88487711b0554f6115d02068523d6b3f081cac93396a200a81d49a1193b083"
+  },
+  "database_identities": {
+    "before": {
+      "host": "127.0.0.1",
+      "port": 55610,
+      "data_directory": "/tmp/motionmate-preview-session-p29z5cgt/before/pgdata",
+      "system_identifier": "7709218428792311491",
+      "database": "mm_preview_7591125b691a5669_before"
+    },
+    "after": {
+      "host": "127.0.0.1",
+      "port": 55611,
+      "data_directory": "/tmp/motionmate-preview-session-p29z5cgt/after/pgdata",
+      "system_identifier": "7709218582412722264",
+      "database": "mm_preview_7591125b691a5669_after"
+    }
+  },
+  "original_client_records": 68,
+  "original_and_financial_records": {
+    "before": {
+      "crm_client": {
+        "count": 68,
+        "sha256": "fa7193742fc97a23bb7bd4cf896d90de9520cac3bce146eb43e6160a3f402917"
+      },
+      "billings_invoice": {
+        "count": 32,
+        "sha256": "3b3f5ca655c1a05cb546c27cceac125e8cba6d1ad86575c8ada1cd33c4bf5de1"
+      },
+      "billings_invoiceline": {
+        "count": 32,
+        "sha256": "71904222e5a9e7a1ce149ffe9f0f81a8271d020ee963818add62bcf7d0c3ec54"
+      },
+      "billings_invoicepayment": {
+        "count": 1,
+        "sha256": "da3f3380a4c1572313f7af91f9eebdc92590e95271f7f45d69defeeafadc76ea"
+      },
+      "billings_invoiceobligationshare": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "billings_invoicereceiptshare": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "billings_parcelcancellationsettlement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "billings_invoicecancellationcredit": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "billings_invoicerefundallocation": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    "after": {
+      "crm_client": {
+        "count": 68,
+        "sha256": "fa7193742fc97a23bb7bd4cf896d90de9520cac3bce146eb43e6160a3f402917"
+      },
+      "billings_invoice": {
+        "count": 32,
+        "sha256": "3b3f5ca655c1a05cb546c27cceac125e8cba6d1ad86575c8ada1cd33c4bf5de1"
+      },
+      "billings_invoiceline": {
+        "count": 32,
+        "sha256": "71904222e5a9e7a1ce149ffe9f0f81a8271d020ee963818add62bcf7d0c3ec54"
+      },
+      "billings_invoicepayment": {
+        "count": 1,
+        "sha256": "da3f3380a4c1572313f7af91f9eebdc92590e95271f7f45d69defeeafadc76ea"
+      },
+      "billings_invoiceobligationshare": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "billings_invoicereceiptshare": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "billings_parcelcancellationsettlement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "billings_invoicecancellationcredit": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "billings_invoicerefundallocation": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    }
+  },
+  "original_records_equal": true,
+  "excluded_setup_metadata": [
+    "created_at",
+    "updated_at",
+    "idempotency_key",
+    "recorded_at"
+  ],
+  "ordinary_database_access": false
+}

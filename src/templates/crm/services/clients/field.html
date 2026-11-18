@@ -1,0 +1,11 @@
+{% load services_bookings %}
+<div class="mm-sc-field{% if wide %} mm-sc-wide{% endif %}"{% if address_control %} data-address-control="{{ address_control }}"{% endif %}>
+  {% if field.field.widget.input_type == 'checkbox' %}
+    <label class="mm-sc-check" for="{{ field.id_for_label }}">{% booking_widget field %}<span>{{ field.label }}</span></label>
+  {% else %}
+    <label class="form-label" for="{{ field.id_for_label }}"{% if address_label %} data-address-label="{{ address_label }}"{% endif %}>{{ field.label|cut:" (optional)" }} <span class="mm-sc-optional">({% if field.field.required %}required{% else %}optional{% endif %})</span></label>
+    {% booking_widget field %}
+  {% endif %}
+  {% if field.help_text %}<p class="form-text" id="{{ field.auto_id }}_helptext"{% if address_label == 'postal' %} data-address-help="postal"{% endif %}>{{ field.help_text }}</p>{% elif address_label == 'postal' %}<p class="form-text d-none" id="{{ field.auto_id }}_helptext" data-address-help="postal"></p>{% endif %}
+  {% if field.errors %}<div class="invalid-feedback d-block" id="{{ field.auto_id }}_errors">{% for error in field.errors %}<p class="mb-0">{{ error }}</p>{% endfor %}</div>{% endif %}
+</div>
