@@ -1,6 +1,9 @@
-{% extends 'inheritance/dashboard_parent.html' %}
+{% extends 'crm/services/clients/base.html' %}
 {% load static %}
 {% block content %}
+{% if current_business.vertical == 'SERVICE' and single_client %}
+{% include "crm/services/clients/detail.html" %}
+{% else %}
 
 <div class="content">
   <nav class="mb-3" aria-label="breadcrumb">
@@ -712,4 +715,5 @@
     navbarVertical.setAttribute('data-navbar-appearance', 'darker');
   }
 </script>
+{% endif %}
 {% endblock %}

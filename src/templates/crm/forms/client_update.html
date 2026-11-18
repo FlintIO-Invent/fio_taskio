@@ -1,6 +1,9 @@
-{% extends 'inheritance/dashboard_parent.html' %}
+{% extends 'crm/services/clients/base.html' %}
 {% load static %}
 {% block content %}
+{% if current_business.vertical == 'SERVICE' %}
+{% include "crm/services/clients/form.html" with clients_mode="edit" %}
+{% else %}
 
 <div class="content">
   <h2 class="mb-4 text-body-emphasis">Edit Client: {{ client.first_name }} {{ client.last_name }}</h2>
@@ -303,4 +306,5 @@
   </form>
 </div>
 
+{% endif %}
 {% endblock %}

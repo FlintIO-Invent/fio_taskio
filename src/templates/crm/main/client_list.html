@@ -1,7 +1,10 @@
-{% extends 'inheritance/dashboard_parent.html'%}
+{% extends 'crm/services/clients/base.html'%}
 {% load static %}
 
 {% block content %}
+{% if current_business.vertical == 'SERVICE' %}
+{% include "crm/services/clients/list.html" %}
+{% else %}
 
 <style>
   .client-list-search-box {
@@ -340,4 +343,5 @@
   }
 </script>
 
+{% endif %}
 {% endblock %}

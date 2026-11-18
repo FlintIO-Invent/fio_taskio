@@ -241,14 +241,23 @@ def seed(session):
     from ui_preview.appointments_fixtures import seed as seed_appointments
 
     appointments_review = seed_appointments(session)
+    from ui_preview.clients_fixtures import enabled
+    from ui_preview.clients_fixtures import seed as seed_clients
+
+    clients_review = seed_clients(session) if enabled(session) else None
+    if clients_review:
+        accounts.extend(clients_review["accounts"])
     data = inventory()
-    return {
+    result = {
         "clock": session["clock"],
         "accounts": accounts,
         "appointments_review": appointments_review,
         "inventory": data,
         "sha256": hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(),
     }
+    if clients_review is not None:
+        result["clients_review"] = clients_review
+    return result
 
 
 def inventory():

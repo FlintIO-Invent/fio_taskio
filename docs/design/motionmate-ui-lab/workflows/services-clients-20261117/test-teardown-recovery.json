@@ -1,0 +1,11 @@
+{
+  "operation": "drop runner-owned test_services_rollout after connection leak at completed test teardown",
+  "verified_identity": {
+    "host": "127.0.0.1",
+    "port": 55611,
+    "directory": "/tmp/motionmate-preview-session-p29z5cgt/after/pgdata",
+    "system_identifier": "7709218582412722264"
+  },
+  "active_test_connections": 0,
+  "ordinary_database_access": false
+}
