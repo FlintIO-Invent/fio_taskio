@@ -199,7 +199,7 @@ class CRMBusinessScopingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Required fields")
         self.assertContains(response, "data-client-form")
-        self.assertContains(response, "showTabForElement(invalidFields[0])")
+        self.assertContains(response, "data-clients-error-summary")
 
     def test_client_create_missing_address_shows_error_summary(self):
         self.client.force_login(self.user)

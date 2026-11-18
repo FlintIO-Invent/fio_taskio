@@ -1,0 +1,37 @@
+{
+  "templates": [
+    {
+      "path": "src/templates/crm/main/client_list.html",
+      "original_branch_exact": true
+    },
+    {
+      "path": "src/templates/crm/main/client_detail.html",
+      "original_branch_exact": true
+    },
+    {
+      "path": "src/templates/crm/forms/client_create.html",
+      "original_branch_exact": true
+    },
+    {
+      "path": "src/templates/crm/forms/client_update.html",
+      "original_branch_exact": true
+    },
+    {
+      "path": "src/templates/crm/importing/client_upload.html",
+      "original_branch_exact": true
+    },
+    {
+      "path": "src/templates/crm/importing/client_preview.html",
+      "original_branch_exact": true
+    },
+    {
+      "path": "src/templates/crm/importing/client_result.html",
+      "original_branch_exact": true
+    },
+    {
+      "path": "src/templates/crm/importing/client_preview_unavailable.html",
+      "original_branch_exact": true
+    }
+  ],
+  "all_exact": true
+}

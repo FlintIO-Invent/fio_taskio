@@ -1,0 +1,9 @@
+{
+  "command": ".venv/bin/python -B scripts/check_ui_workflow.py",
+  "status": "fail",
+  "failure": "Approved Step 7 source changed: src/apps/crm/tests.py",
+  "historical_manifest_sha256": "c4fc60270a62cb107c707bcb5af55d2fc1a453d957093ca19c9673d47280301f",
+  "current_head_intake_sha256": "2f87d446cbc25ef9c14f4c21546965abb6753470d2acdfb8752feb0751fd1523",
+  "pre_existing": true,
+  "action": "Reported only; existing file and historical manifest retained."
+}

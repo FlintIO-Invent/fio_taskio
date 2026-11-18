@@ -6,9 +6,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const submit = form.querySelector('[type="submit"]');
   const status = document.querySelector('[data-draft-client-status]');
   const isLead = modal.dataset.clientDestination === 'lead';
+  const servicesClients = modal.classList.contains('mm-services-clients-inline');
+  const clearFieldErrors = () => {
+    if (!servicesClients) return;
+    form.querySelectorAll('[data-clients-inline-error]').forEach(node => node.remove());
+    form.querySelectorAll('[name^="new_client-"]').forEach(input => {
+      input.removeAttribute('aria-invalid');
+      const remaining = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(value => value && !value.endsWith('_clients_error'));
+      if (remaining.length) input.setAttribute('aria-describedby', remaining.join(' ')); else input.removeAttribute('aria-describedby');
+    });
+  };
 
   modal.addEventListener('show.bs.modal', () => {
     errorBox.classList.add('d-none');
+    clearFieldErrors();
     if (isLead) {
       for (const input of form.querySelectorAll('[name^="new_client-"]')) {
         const source = document.getElementById(`id_${input.name.replace('new_client-', '')}`);
@@ -25,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (submit.disabled) return;
     errorBox.classList.add('d-none');
     errorBox.replaceChildren();
+    clearFieldErrors();
     submit.disabled = true;
     try {
       const response = await fetch(form.action, {
@@ -38,6 +50,18 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const [field, errors] of Object.entries(data.errors || {})) {
           const input = form.elements.namedItem(`new_client-${field}`);
           const label = input?.labels?.[0]?.textContent.replace('*', '').trim();
+          if (servicesClients && input) {
+            const note = document.createElement('div');
+            note.id = input.id + '_clients_error';
+            note.className = 'invalid-feedback d-block';
+            note.dataset.clientsInlineError = '';
+            note.textContent = errors.map(error => error.message || error).join(' ');
+            input.setAttribute('aria-invalid', 'true');
+            const described = new Set((input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+            described.add(note.id);
+            input.setAttribute('aria-describedby', [...described].join(' '));
+            input.after(note);
+          }
           for (const error of errors) {
             const item = document.createElement('div');
             item.textContent = `${label ? `${label}: ` : ''}${error.message || error}`;
@@ -69,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       bootstrap.Modal.getOrCreateInstance(modal).hide();
       form.reset();
+      clearFieldErrors();
     } catch (error) {
       errorBox.textContent = 'Unable to confirm that the client was saved. Check your connection and client list before trying again.';
       errorBox.classList.remove('d-none');

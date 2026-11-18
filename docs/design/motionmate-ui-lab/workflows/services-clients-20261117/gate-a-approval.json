@@ -1,0 +1,12 @@
+{
+  "gate": "A",
+  "approval": {
+    "source": "User message approved immediately following Clients v1 Gate A review, 17 November 2026",
+    "quote": "approved",
+    "scope": "Visual layout and simulated interactions of Services Clients v1 only; permits integration proposal under the invoked workflow, not production implementation or runtime/database setup.",
+    "design_version": "v1",
+    "design_sha256": "619258b4942682ca18d2d2cd1a93fd6258bbe1d71f9c23a6c0344a280f586043"
+  },
+  "design_artifacts_verified": 733,
+  "next_scope": "Integration proposal only. Gate B remains pending."
+}

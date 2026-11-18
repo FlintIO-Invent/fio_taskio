@@ -1,7 +1,10 @@
-{% extends "inheritance/dashboard_parent.html" %}
+{% extends "crm/services/clients/base.html" %}
 {% load static %}
 
 {% block content %}
+{% if current_business.vertical == 'SERVICE' %}
+{% include "crm/services/clients/form.html" with clients_mode="create" %}
+{% else %}
   <div class="content">
 
   <form class="mb-9" method="POST" novalidate data-client-form>
@@ -684,4 +687,5 @@
     </div>
   </footer>
 </div>
+{% endif %}
 {% endblock %}

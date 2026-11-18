@@ -1,0 +1,13 @@
+{
+  "operation": "Drop only runner-owned test_services_rollout after passed draft assertions and GC teardown SIGSEGV",
+  "verified_identity": {
+    "host": "127.0.0.1",
+    "port": 55611,
+    "data_directory": "/tmp/motionmate-preview-session-p29z5cgt/after/pgdata",
+    "system_identifier": "7709218582412722264",
+    "database": "mm_preview_7591125b691a5669_after"
+  },
+  "active_test_connections": 0,
+  "sessions_terminated": 0,
+  "ordinary_database_access": false
+}

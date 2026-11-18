@@ -1,0 +1,333 @@
+{
+  "before_core": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/before/evidence/clients-capture-1794943334578845977/results.json",
+    "sha256": "bca44adba7cb4c42d7178fc7bae4e7f0d24d2952b2240eab7fea21e8bd13651f",
+    "cases": 56,
+    "successful_cases": 0,
+    "declared_pass": null,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/before/evidence/clients-capture-1794943334578845977",
+    "source_sha256": "dda9f43ff1920e110b80989e2b659513d2b7eb31772f606dc235168e63162da2",
+    "page_errors": [],
+    "http_statuses": {
+      "200": 48,
+      "500": 8
+    },
+    "scoped_axe_violations": 0,
+    "full_page_axe_rule_occurrences": {
+      "color-contrast": 36,
+      "select-name": 8,
+      "link-name": 32
+    }
+  },
+  "after_core": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-capture-1794943938359175020/results.json",
+    "sha256": "46d0f825c30a65e9de146c35c04eefb30b5a4de66ff20d29487ef8b70717fd34",
+    "cases": 56,
+    "successful_cases": 0,
+    "declared_pass": null,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-capture-1794943938359175020",
+    "source_sha256": "2b823afa3e9ad215cf6eb0628e0b67797ae10305debe6322a622b5d582ca8276",
+    "page_errors": [],
+    "http_statuses": {
+      "200": 56
+    },
+    "scoped_axe_violations": 0,
+    "full_page_axe_rule_occurrences": {
+      "color-contrast": 14,
+      "link-name": 38
+    }
+  },
+  "edge_states": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-states-1794944346649303241/results.json",
+    "sha256": "b9ca2314cf4f3c955b031e985c66fff0535c709a5c5db386b1f664f190a1e45f",
+    "cases": 76,
+    "successful_cases": 76,
+    "declared_pass": true,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-states-1794944346649303241",
+    "source_sha256": null,
+    "page_errors": []
+  },
+  "journeys_seven_passing": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-journey-1794944141109779631/results.json",
+    "sha256": "1cf601d15aef753a1f06a0fd31c6a229fdc54a08f7ca03638840445d8859e146",
+    "cases": 8,
+    "successful_cases": 7,
+    "declared_pass": false,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-journey-1794944141109779631",
+    "source_sha256": null,
+    "page_errors": []
+  },
+  "journey_desktop_light_delta": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-journey-1794945257626786393/results.json",
+    "sha256": "1c6d963689a52c3be65ab356dfd2897cf3378a6a7702b1f8d40971ab4a72e1fd",
+    "cases": 1,
+    "successful_cases": 1,
+    "declared_pass": true,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-journey-1794945257626786393",
+    "source_sha256": null,
+    "page_errors": []
+  },
+  "journey_final_address_mobile_dark": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-journey-1794945851581059518/results.json",
+    "sha256": "2f950921040c4635c3266cb4e96c52aa29afb19af7bea9f8c3f5229e75a4d1ba",
+    "cases": 1,
+    "successful_cases": 1,
+    "declared_pass": true,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-journey-1794945851581059518",
+    "source_sha256": null,
+    "page_errors": []
+  },
+  "active_logistics_final": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-logistics-browser-1794944791648617810/results.json",
+    "sha256": "bb0c72d502f6ebc7a8ffc26b8e992e0a025da1383f32434196c3a75443bd6b6f",
+    "cases": 80,
+    "successful_cases": 0,
+    "declared_pass": true,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-logistics-browser-1794944791648617810",
+    "source_sha256": null,
+    "page_errors": []
+  },
+  "read_only_equivalent_and_subscription": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-final-readonly-1794945351005439780/results.json",
+    "sha256": "a8256c4b23d3e7563ee05beb90114c8b3ac72031b797be61c88c207b6203873f",
+    "cases": 48,
+    "successful_cases": 40,
+    "declared_pass": false,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-final-readonly-1794945351005439780",
+    "source_sha256": null,
+    "page_errors": []
+  },
+  "contact_modal_delta": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-final-readonly-1794945475664880370/results.json",
+    "sha256": "9c0b5818a9c3523eb7f11606620924df17b4629684b6e0f72d20c480a7dbb473",
+    "cases": 8,
+    "successful_cases": 8,
+    "declared_pass": true,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-final-readonly-1794945475664880370",
+    "source_sha256": null,
+    "page_errors": []
+  },
+  "form_directory_final_delta": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-final-readonly-1794945837600359104/results.json",
+    "sha256": "429196a837f18a9edc4de4ae0df0c52680d5578e5563493d7546bc275ea20bf5",
+    "cases": 32,
+    "successful_cases": 32,
+    "declared_pass": true,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-final-readonly-1794945837600359104",
+    "source_sha256": null,
+    "page_errors": []
+  },
+  "journey_coverage": {
+    "passing_combinations": [
+      [
+        1440,
+        "dark"
+      ],
+      [
+        768,
+        "light"
+      ],
+      [
+        768,
+        "dark"
+      ],
+      [
+        390,
+        "light"
+      ],
+      [
+        390,
+        "dark"
+      ],
+      [
+        320,
+        "light"
+      ],
+      [
+        320,
+        "dark"
+      ],
+      [
+        1440,
+        "light"
+      ]
+    ],
+    "checks_per_case": 72,
+    "basis": "Seven successful original cases plus corrected desktop-light delta; final address change has 32 read-only checks and one full mobile-dark write journey."
+  },
+  "retained_attempt_logs": [
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/after-capture-01.log",
+      "sha256": "71c8628c8f7bbdffe9b7e0141196bf62cb1441a1b3fd5c6de9ec5e6b3b6db92f"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/after-capture-final.log",
+      "sha256": "eaf7a1f199d726a5cd1b3eda9fc39119ccb4c4fb9223c99b9e5b9fb643a53a51"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/after-refresh-01.log",
+      "sha256": "ba232214f62b3f96eaaead192a2a14a302a8351b311c774e3f2fe0507e1cf208"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/after-refresh-02.log",
+      "sha256": "ba232214f62b3f96eaaead192a2a14a302a8351b311c774e3f2fe0507e1cf208"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/after-refresh-03.log",
+      "sha256": "ba232214f62b3f96eaaead192a2a14a302a8351b311c774e3f2fe0507e1cf208"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/after-refresh-04.log",
+      "sha256": "ba232214f62b3f96eaaead192a2a14a302a8351b311c774e3f2fe0507e1cf208"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/after-refresh-address-final.log",
+      "sha256": "ba232214f62b3f96eaaead192a2a14a302a8351b311c774e3f2fe0507e1cf208"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/after-refresh-final.log",
+      "sha256": "ba232214f62b3f96eaaead192a2a14a302a8351b311c774e3f2fe0507e1cf208"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/after-refresh-polish.log",
+      "sha256": "ba232214f62b3f96eaaead192a2a14a302a8351b311c774e3f2fe0507e1cf208"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/backend-and-logistics-final.log",
+      "sha256": "201c7a4703af50904037b7d23c03eba76f7947da8417045902a3dd749b192b2a"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/backend-baseline-known-failure-02.log",
+      "sha256": "3265fecc257eff5c17a2782f3e71221b73fb62d3cb9cf343eebd33863f072f75"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/backend-baseline-known-failure.log",
+      "sha256": "1c11195dc8f300491b90b11a1ed047d57d688f2044d37f2f75aae9ef15a32cfa"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/backend-focused-01.log",
+      "sha256": "edfe6feae8d3c5fc3ed9a9688fbf2b17c26383593c6bab37e1ad9ecaefe128eb"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/backend-focused-02.log",
+      "sha256": "a2821d0a447fb49588ec886bbc2b2c7f52011a277bd9ce921bb49a6935b00f24"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/backend-regression-01.log",
+      "sha256": "4f205c1a6c504305e4330196732b92cc17a89d4555d7dc4b3f1d9db1d136c1b0"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/before-capture-complete.log",
+      "sha256": "f83a8d635c2de0892aa684551ee2c3ca9261f630885f8ce993e3b27711e0c6d6"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/before-capture-final.log",
+      "sha256": "b3c0d04b81103a7dac0c476428be21d27643fe799e5cff23c11101f8c2375860"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/before-capture.log",
+      "sha256": "9ef8ac9f907b32470e47200ebae1499fe084da2d73aacf2e87411652f1b97101"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/browser-journey-address-final.log",
+      "sha256": "ca1097f5c71906a3f807ca74dcca577e3ab272080dd706ae05be442aed0cd58c"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/browser-journey-final-delta-02.log",
+      "sha256": "22f79b5eb3aea1581da41744b4caaf1626d77837bd564d4366157fa113833935"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/browser-journey-final-delta.log",
+      "sha256": "5b13a5920148bc0643236780ba5b37050d751b24b22f8cf54aab8e9871bd5d37"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/browser-journeys-01.log",
+      "sha256": "1dea94e394846adb697ec8064b20c566ae572cb30ad4e787e84955a67326c903"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/browser-journeys-02.log",
+      "sha256": "890f89c329c63d5c14c46ebd99f58e72de55225329b3b4beca9fa841948a2a71"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/browser-journeys-03.log",
+      "sha256": "0b2afa2c466cd622b1b4738fca5ca967314bfaba749faffc9e345b3755ded251"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/browser-states-01.log",
+      "sha256": "30df6e66b427e3846b4d088163ccac4acd9b84b7c06e396dfb8caa59c6eeaedb"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/browser-states-02.log",
+      "sha256": "cc0d0b82d8b53da774924692047c56653f6a60784990a16aff3dea331e6d848f"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/existing-draft-browser-final.log",
+      "sha256": "cd00abd0e5443c03706ff145795c941cea00177bb6a1ea3d3574602077214e66"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/final-form-delta-02.log",
+      "sha256": "c28798fef0510fe6121aadadbd8d3395a952ea9aa559e87b5c296c005cd6e54c"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/final-form-delta-03.log",
+      "sha256": "e1bef66b97f9a5a0d68462b0c7fbf0a361f212ec1c3b5e05acebb6ec0df82e56"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/final-form-delta.log",
+      "sha256": "8ee6b5afac1e73da70c9d27cbca901cb01dbc0a6a5903d6f010fffd47133a707"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/final-readonly-contact-delta.log",
+      "sha256": "908620ff772e54f78d1b201ae0e775de48431390e72ef084f9c7b786b8c1e6ce"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/final-readonly-review-02.log",
+      "sha256": "7c5f78bd34489bf1d3e5803c84a4aff984e50c0f3aa64b2c21495504a0adb000"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/final-readonly-review.log",
+      "sha256": "c1e106aa1db168096423f140807dcdc21392d13823f103b8e592ebe651ad1d81"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/final-static-checks.log",
+      "sha256": "6175fb7cd88757e23bc9b44c063e6ea3beb50831389d6b61f082d06a5f77f04b"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/logistics-browser-01.log",
+      "sha256": "8cda3b4ee5b4b704c386beef5c6a840c553a46415033be419af25f16550421be"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/runtime-create-final.log",
+      "sha256": "6bfa3997b44c52ee1c661790cbde5b90680108a24c76f7108d730b6663b8abad"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/runtime-create-owned.log",
+      "sha256": "9100999494465780b8a0beab72c72cef727f297395ec366a88ea0c8b89e753ac"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/runtime-create-retry.log",
+      "sha256": "6f4be6c977a1bcafcb40ac7dd13df407471181583bfb826c9b3bb19928749d35"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-clients-20261117/runtime-create.log",
+      "sha256": "7718c7761188c1b3392b29e1f1506af957a4b4f2ebdff728079571a6a00eb451"
+    }
+  ],
+  "final_review_gallery": {
+    "path": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-final-review-1794946020418026106/results.json",
+    "sha256": "e8959dfd1912d2eb5caacb759df7bd3ed43133b84e0467b9b20d87e4e77c3fd1",
+    "cases": 6,
+    "declared_pass": true,
+    "screenshots": "/tmp/motionmate-preview-session-p29z5cgt/after/evidence/clients-final-review-1794946020418026106"
+  },
+  "candidate": {
+    "task_id": "services-clients-20261117",
+    "current_phase": "gate_c",
+    "gate": "C",
+    "next_permitted_action": "Stop for explicit Gate C approval; preserve completed work.",
+    "design_sha256": "619258b4942682ca18d2d2cd1a93fd6258bbe1d71f9c23a6c0344a280f586043",
+    "manifest_sha256": "f56c21795f58907ebf784b2afd8c0040534a533f069ec68d59a4531957edc48d",
+    "candidate_sha256": "c9b2403b9f84ad7092ba294aafdf76bf8cc3df497965789dd63c31f60ea18041",
+    "notice": "Offline consistency only; verify real user authorization and resource ownership."
+  }
+}

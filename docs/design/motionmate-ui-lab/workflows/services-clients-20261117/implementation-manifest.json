@@ -1,0 +1,277 @@
+{
+  "design_version": "v1",
+  "design_sha256": "619258b4942682ca18d2d2cd1a93fd6258bbe1d71f9c23a6c0344a280f586043",
+  "manifest_sha256": "f56c21795f58907ebf784b2afd8c0040534a533f069ec68d59a4531957edc48d",
+  "baseline": {
+    "branch": "experiment/motionmate-ui-redesign",
+    "head": "3dc6b45723b0bfe6a7b67e721128159393590252",
+    "status": "M ui-lab/previews.json\n?? ui-lab/services-clients/.gitignore\n?? ui-lab/services-clients/README.md\n?? ui-lab/services-clients/final_delta.py\n?? ui-lab/services-clients/src/app.js\n?? ui-lab/services-clients/src/fixtures.js\n?? ui-lab/services-clients/src/index.html\n?? ui-lab/services-clients/src/input.css\n?? ui-lab/services-clients/src/render.js\n?? ui-lab/services-clients/supplement.py\n?? ui-lab/services-clients/validate.py"
+  },
+  "files": [
+    {
+      "path": "src/templates/crm/main/client_list.html",
+      "action": "modify",
+      "purpose": "Dispatch SERVICE directory to the scoped Phoenix composition; retain existing Logistics branch and list route.",
+      "shared": true,
+      "shared_impact": "Shared CRM template; new composition and assets only under current Business vertical SERVICE. Other branches remain intact.",
+      "shared_regression": "Compare both verticals for the affected GET/invalid POST and permissions; preserve Logistics rendered branch and absence of Clients assets. Test legacy all-client detail separately.",
+      "before_sha256": "853eb62e3a03015574237156f20f15a3ccbc4f2af979eaa275b8105343ff8e23"
+    },
+    {
+      "path": "src/templates/crm/main/client_detail.html",
+      "action": "modify",
+      "purpose": "Dispatch only SERVICE single-client detail; preserve legacy all-clients and Logistics detail branches.",
+      "shared": true,
+      "shared_impact": "Shared CRM template; new composition and assets only under current Business vertical SERVICE. Other branches remain intact.",
+      "shared_regression": "Compare both verticals for the affected GET/invalid POST and permissions; preserve Logistics rendered branch and absence of Clients assets. Test legacy all-client detail separately.",
+      "before_sha256": "85292c58667afd06315749205784ab85237279a6ccdd6fc1cc3c8fb3ef41703d"
+    },
+    {
+      "path": "src/templates/crm/forms/client_create.html",
+      "action": "modify",
+      "purpose": "Dispatch SERVICE creation to the complete 32-field form; retain existing Logistics form and address script.",
+      "shared": true,
+      "shared_impact": "Shared CRM template; new composition and assets only under current Business vertical SERVICE. Other branches remain intact.",
+      "shared_regression": "Compare both verticals for the affected GET/invalid POST and permissions; preserve Logistics rendered branch and absence of Clients assets. Test legacy all-client detail separately.",
+      "before_sha256": "228609745d8a907a8aeffebb3089b543eb4274fdbb0f61603afa81d78c665d50"
+    },
+    {
+      "path": "src/templates/crm/forms/client_update.html",
+      "action": "modify",
+      "purpose": "Dispatch SERVICE editing to the complete form; preserve Logistics editing.",
+      "shared": true,
+      "shared_impact": "Shared CRM template; new composition and assets only under current Business vertical SERVICE. Other branches remain intact.",
+      "shared_regression": "Compare both verticals for the affected GET/invalid POST and permissions; preserve Logistics rendered branch and absence of Clients assets. Test legacy all-client detail separately.",
+      "before_sha256": "b49a9a3aec9da20cfb4059b9e04722f15f75acd1e8a1d74233f4de9ae3f18051"
+    },
+    {
+      "path": "src/templates/crm/importing/client_upload.html",
+      "action": "modify",
+      "purpose": "Dispatch SERVICE CSV upload presentation while retaining existing upload contract and Logistics branch.",
+      "shared": true,
+      "shared_impact": "Shared CRM template; new composition and assets only under current Business vertical SERVICE. Other branches remain intact.",
+      "shared_regression": "Compare both verticals for the affected GET/invalid POST and permissions; preserve Logistics rendered branch and absence of Clients assets. Test legacy all-client detail separately.",
+      "before_sha256": "927eb0d4a082bb23388be5ab6364c85b1d3ac8c65bc85694a6fa60ff6fc016f5"
+    },
+    {
+      "path": "src/templates/crm/importing/client_preview.html",
+      "action": "modify",
+      "purpose": "Dispatch SERVICE stored CSV preview; keep ready/blocked/file/capacity guards and Logistics branch.",
+      "shared": true,
+      "shared_impact": "Shared CRM template; new composition and assets only under current Business vertical SERVICE. Other branches remain intact.",
+      "shared_regression": "Compare both verticals for the affected GET/invalid POST and permissions; preserve Logistics rendered branch and absence of Clients assets. Test legacy all-client detail separately.",
+      "before_sha256": "793f895d3a01f7181fb930dea3c4e5ac40d62c6c693469b63c54cb9e714ed53b"
+    },
+    {
+      "path": "src/templates/crm/importing/client_result.html",
+      "action": "modify",
+      "purpose": "Dispatch SERVICE real import outcomes including retry/expired/capacity errors; retain Logistics branch.",
+      "shared": true,
+      "shared_impact": "Shared CRM template; new composition and assets only under current Business vertical SERVICE. Other branches remain intact.",
+      "shared_regression": "Compare both verticals for the affected GET/invalid POST and permissions; preserve Logistics rendered branch and absence of Clients assets. Test legacy all-client detail separately.",
+      "before_sha256": "5d1893dbc7d5d02f788cd5cec670339733055c913857471ad6dc9b421d5b9558"
+    },
+    {
+      "path": "src/templates/crm/importing/client_preview_unavailable.html",
+      "action": "modify",
+      "purpose": "Dispatch SERVICE expired/unavailable presentation; keep 410 response and existing recovery routes.",
+      "shared": true,
+      "shared_impact": "Shared CRM template; new composition and assets only under current Business vertical SERVICE. Other branches remain intact.",
+      "shared_regression": "Compare both verticals for the affected GET/invalid POST and permissions; preserve Logistics rendered branch and absence of Clients assets. Test legacy all-client detail separately.",
+      "before_sha256": "ddc0c01ae36ce89c348e424d228adb03a123edd334e233177db358a98fbbdba4"
+    },
+    {
+      "path": "src/templates/crm/includes/draft_client_modal.html",
+      "action": "modify",
+      "purpose": "Add a Services-only modal scope/assets and improve labeled client error presentation while retaining the existing six prefixed fields and destination hooks.",
+      "shared": true,
+      "shared_impact": "Consumed by appointment/request creation. Services modal presentation only; Logistics and other callers retain existing markup/behavior.",
+      "shared_regression": "Exercise appointment and request drafts, invalid/success/cancel/quota/JSON errors, focus return and repeated open; verify Logistics partials and callers unchanged.",
+      "before_sha256": "a51639f20188bd1d023edc98df61a0e9fc4609f0894c0951fe4d84f1be541a94"
+    },
+    {
+      "path": "src/templates/crm/services/clients/base.html",
+      "action": "add",
+      "purpose": "Extend the existing Phoenix dashboard parent; conditionally load Clients assets for SERVICE without changing global shell, navigation or theme handling.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/assets.html",
+      "action": "add",
+      "purpose": "Load new scoped CSS and progressive JS; reuse the installed local Manrope font without new dependencies.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/list.html",
+      "action": "add",
+      "purpose": "Render approved directory from actual clients queryset; retain GET filters, List.js hooks/10-row pagination, selection and six sort subjects.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/detail.html",
+      "action": "add",
+      "purpose": "Render approved profile from single_client, role/module guards and existing context; include authoritative invoice partial unchanged.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/form.html",
+      "action": "add",
+      "purpose": "Render one create/edit form with all bound fields, six sections, original field names/IDs, validation summary, hidden fields, CSRF and return routes.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/field.html",
+      "action": "add",
+      "purpose": "Reuse existing pure booking_widget helper for accessible bound widgets, labels, help and per-field errors.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/appointments.html",
+      "action": "add",
+      "purpose": "Present existing five upcoming/recent appointment query results and existing authorized list/create/detail links, without a new query or status policy.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/import_upload.html",
+      "action": "add",
+      "purpose": "Present actual CSV limits, optional-column help, csv_file upload field and existing template download.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/import_preview.html",
+      "action": "add",
+      "purpose": "Present server-owned preview rows, statuses, issues and capacity; confirm only under existing ready-job guard.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/import_result.html",
+      "action": "add",
+      "purpose": "Present existing execution_result variants, counts, duplicate/retry protections and permitted history/recovery links.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/clients/import_unavailable.html",
+      "action": "add",
+      "purpose": "Present the supplied unavailable/expired message and original recovery actions.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/css/services-clients.css",
+      "action": "add",
+      "purpose": "Translate approved v1 content into scoped Phoenix/Bootstrap CSS, semantic themes, existing local Manrope, logical spacing/RTL, reflow and motion/focus rules. Scope inline styles to Services modal only.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/js/services-clients.js",
+      "action": "add",
+      "purpose": "Progressively enhance existing List.js sort/selection hooks, section/error focus and address behavior, and Bootstrap archive confirmation; use existing forms for all writes. No synthetic records or AJAX replacement of full-page forms.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/js/draft-client.js",
+      "action": "modify",
+      "purpose": "Add Services-scoped field ARIA/error associations; preserve endpoint, FormData, JSON handling, prefixes, draft copy/select and Bootstrap lifecycle.",
+      "shared": true,
+      "shared_impact": "Shared draft helper. Presentation additions run only on the new Services modal class; existing non-Services code path and parent drafts remain unchanged.",
+      "shared_regression": "Run existing QuickClientTests and real appointment/request draft browser flows; verify non-Services modal branch, JSON failure, submit lock, repeated open and capacity rejection.",
+      "before_sha256": "8bb2edc6d2268933e0cb3bf2c0889ca12da5ceb320b8326a691ebc7d49373b0d"
+    },
+    {
+      "path": "src/apps/crm/tests.py",
+      "action": "modify",
+      "purpose": "Replace only the obsolete literal inline showTabForElement assertion with a behavior-relevant presentation hook expectation; retain all other tests and fixtures.",
+      "shared": true,
+      "shared_impact": "Shared CRM regression suite, no application behavior changes. The current file already differs from the historical Step 7 manifest and is not reset or rebased to that manifest.",
+      "shared_regression": "Run CRMBusinessScopingTests plus new Services/Logistics tests; diff must show only the specifically obsolete UI assertion adjustment.",
+      "before_sha256": "2f87d446cbc25ef9c14f4c21546965abb6753470d2acdfb8752feb0751fd1523"
+    },
+    {
+      "path": "src/apps/crm/test_services_clients_ui.py",
+      "action": "add",
+      "purpose": "Add disposable-only tests for form inventory/validation/return routes, role/module/quota/tenant behavior and Services-vs-Logistics branch/asset isolation; reuse existing policy services.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/services_clients_browser_check.py",
+      "action": "add",
+      "purpose": "Add actual Django Chromium interaction/reflow/theme/axe and draft/import/archive/browser checks; retain raw findings under the owned preview session only.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/clients_fixtures.py",
+      "action": "add",
+      "purpose": "Add verified-setup-only synthetic Clients review fixtures and canonical inventory for Services and Logistics regression tenants; refuse unowned settings/session/database before writes.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/fixtures.py",
+      "action": "modify",
+      "purpose": "Conditionally invoke Clients fixture adapter only for new owned Clients preview sessions, merge its account/fixture metadata and compare equivalent BEFORE/AFTER inventories.",
+      "shared": true,
+      "shared_impact": "Local preview tooling for all screens. Clients extension gated by Clients review route; default dashboard/Appointments fixture paths remain unchanged. No existing session is reseeded.",
+      "shared_regression": "Check fixture refusal paths, default metadata/inventory compatibility, side parity and route gating; all fixture writes confined to freshly created owned clusters.",
+      "before_sha256": "82d1f7acf3661cb4f72ae84daee783d087212a8cd13fcc1a243cdc554f25ad00"
+    },
+    {
+      "path": "scripts/ui_preview/clients_checks.py",
+      "action": "add",
+      "purpose": "Add ownership-verified backend/browser/interactive adapters using existing source/database/network guards and sanitized settings; preserve BEFORE and refresh AFTER alone.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/test_clients.py",
+      "action": "add",
+      "purpose": "Cover new adapter/fixture refusal and route/isolation behavior without touching application databases in tooling unit tests.",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "docs/services_clients_workspace.md",
+      "action": "add",
+      "purpose": "Document final Services client presentation, preserved contracts, validation evidence and review limitations without implying release authorization.",
+      "shared": false,
+      "before_sha256": null
+    }
+  ],
+  "proposed_resources": {
+    "status": "pending Gate B authorization",
+    "source_capture": "Freeze actual working-tree runtime bytes before production edits; no historical commit substitution, .env, customer media or ordinary records.",
+    "preview": "Two new independent private PostgreSQL clusters and real Django copies under tool-owned /tmp/motionmate-preview-session-* and /tmp/motionmate-preview-snapshot-* directories; verify UID/marker/process/data_directory/system_identifier and live DB identity before first writes.",
+    "settings": [
+      "ui_preview.settings for isolated runtime",
+      "taskio.services_test_settings for isolated regression database"
+    ],
+    "ports": {
+      "before_http": 8860,
+      "after_http": 8861,
+      "launcher": 8862,
+      "before_postgres": 55610,
+      "after_postgres": 55611,
+      "test_live_server": 8768
+    },
+    "migrations": "Apply only existing checked-in migrations to those empty owned databases/test databases; no schema or migration source changes.",
+    "fixtures": "Synthetic users/memberships/clients/requests/appointments/import jobs and read-only invoice/payment/review examples created only in owned setup/test phases; never copy ordinary data.",
+    "writes": "Browser create/edit/archive/quick-create/CSV confirmation and retry, login/CSRF/session operations and existing targeted backend tests only in owned resources; interactive runtime financial/platform writes remain blocked.",
+    "tests": "Create/drop runner-owned test_services_rollout only on the independently verified AFTER private cluster; isolated synthetic billing fixtures may be written by tests, never providers or ordinary records.",
+    "browser": "Existing installed Chromium executable and existing axe package only; local browser traffic limited to the chosen verified review/test servers. Capture 1440/768/390/320px, both themes, RTL/reflow/focus and raw failures.",
+    "limits": "No installs, ordinary DB access, live networking/providers/email/workers, schema changes, branch/worktree operations, staging, commits, pushes, merges, deploys or cleanup. Existing previews retained. Review launcher currently uses debug allocator; disclose as workaround and do not claim ordinary-runtime stability."
+  },
+  "implementation_approval": null
+}

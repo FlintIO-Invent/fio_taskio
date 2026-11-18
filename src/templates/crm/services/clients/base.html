@@ -1,0 +1,2 @@
+{% extends "inheritance/dashboard_parent.html" %}
+{% block page_assets %}{{ block.super }}{% if current_business.vertical == 'SERVICE' %}{% include "crm/services/clients/assets.html" %}{% endif %}{% endblock %}
