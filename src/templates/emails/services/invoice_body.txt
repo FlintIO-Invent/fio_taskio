@@ -1,0 +1,22 @@
+{% load money %}Hi {{ client_name|default:client.email }},
+
+{{ business.name }} sent invoice {{ invoice.invoice_number }}. The invoice PDF is attached for your records.
+
+Invoice number: {{ invoice.invoice_number }}
+Issue date: {{ issue_date }}
+Subtotal: {{ invoice_presentation.currency }} {{ invoice.subtotal|floatformat:2 }}
+{% if invoice.tax %}Tax ({{ invoice.tax_rate_percentage }}%): {{ invoice_presentation.currency }} {{ invoice.tax|floatformat:2 }}
+{% endif %}Total Amount: {{ invoice_presentation.currency }} {{ invoice.total|floatformat:2 }}
+{% if invoice_presentation.note %}
+{{ invoice_presentation.note }}
+{% endif %}{% if invoice_presentation.refund_note %}
+{{ invoice_presentation.refund_note }}
+{% endif %}{% for issue in invoice_presentation.issues %}
+{{ issue }}
+{% endfor %}
+Attachment: {{ attachment_filename }}
+
+Business contact:
+{{ business_contact }}
+
+{% if reply_to_email %}Questions? Reply to this email or contact {{ reply_to_email }}.{% else %}Please contact {{ business.name }} with any questions.{% endif %}

@@ -1,0 +1,44 @@
+{
+  "checks": [
+    {
+      "log": "docs/design/motionmate-ui-lab/workflows/services-invoices-20261118/tests-services-final-02.log",
+      "tests": 163,
+      "status": "pass"
+    },
+    {
+      "log": "docs/design/motionmate-ui-lab/workflows/services-invoices-20261118/tests-payment-concurrency-final.log",
+      "tests": 7,
+      "status": "pass"
+    },
+    {
+      "log": "docs/design/motionmate-ui-lab/workflows/services-invoices-20261118/tests-cancellation-final.log",
+      "tests": 26,
+      "status": "pass"
+    },
+    {
+      "log": "docs/design/motionmate-ui-lab/workflows/services-invoices-20261118/tests-browser-final-04.log",
+      "tests": 1,
+      "status": "pass"
+    },
+    {
+      "log": "docs/design/motionmate-ui-lab/workflows/services-invoices-20261118/tests-offline-final-02.log",
+      "tests": 4,
+      "status": "pass"
+    },
+    {
+      "log": "docs/design/motionmate-ui-lab/workflows/services-invoices-20261118/tests-print-ui-final.log",
+      "tests": 4,
+      "status": "pass"
+    },
+    {
+      "log": "tests-logistics-before.log and tests-logistics-after.log",
+      "tests_per_run": 48,
+      "passing_per_run": 44,
+      "same_inherited_failures_per_run": 4,
+      "status": "fail",
+      "limitation": "Four unchanged assertions fail identically against frozen BEFORE templates and AFTER: three expect obsolete Mark as Sent copy and one expects dollar-symbol HTML despite the current saved-currency presentation. These tests and Logistics production code remain unchanged."
+    }
+  ],
+  "source_scope": "The 163-test backend run precedes final presentation refinements; final browser journeys and four additional UI tests cover the preserved actions. The final 152-screen matrix precedes only one print-media text-color rule; 12 actual print cases validate that final rule. No backend/form/financial code changed. Exact source delta and current runtime file parity are recorded.",
+  "diagnostics": "Earlier failed attempts retained; disposable CSRF values redacted in three project logs, raw originals retained under the owned session."
+}

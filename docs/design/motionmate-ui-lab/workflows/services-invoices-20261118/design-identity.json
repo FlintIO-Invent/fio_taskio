@@ -1,0 +1,17 @@
+{
+  "task_id": "services-invoices-20261118",
+  "current_phase": "gate_a",
+  "gate": "A",
+  "next_permitted_action": "Stop for explicit Gate A approval; preserve completed work.",
+  "design_sha256": "08215da40bb17baeaa63d5a3482f02a45daf83e26ffecca0f6a78ec13ab77f80",
+  "manifest_sha256": "7f057c3e3fe1bd0b1a825bf17fc1982e62f25749765471d7d5e9b83ba84cae37",
+  "candidate_sha256": null,
+  "notice": "Offline consistency only; verify real user authorization and resource ownership.",
+  "design_version": "v1",
+  "artifact_count": 1257,
+  "prototype": "http://127.0.0.1:8766/services-invoices/dist/",
+  "gallery": "http://127.0.0.1:8766/services-invoices/evidence/v1/gallery.html",
+  "pdf": "http://127.0.0.1:8766/services-invoices/evidence/pdf-05/invoice-populated-light.pdf",
+  "approvals_pending": true,
+  "application_changes": []
+}

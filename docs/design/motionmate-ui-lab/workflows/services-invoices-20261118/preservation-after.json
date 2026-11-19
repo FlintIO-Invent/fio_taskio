@@ -1,0 +1,26 @@
+{
+  "protected_files": 12679,
+  "unchanged": true,
+  "changed": [],
+  "head": "d864d322061dfa03f50076c5381ec26efd0e1ec7",
+  "allowed_new_roots": [
+    "docs/design/motionmate-ui-lab/workflows/services-invoices-20261118/",
+    "ui-lab/services-invoices/"
+  ],
+  "production_changes": [],
+  "ordinary_database_access": false,
+  "deterministic_build": true,
+  "dist_hashes": {
+    "app.css": "3fda894885faeca48158dca400a31cae3b7513bf449285747e9e11fe152adea8",
+    "app.js": "5e441121f21ac1b0f4c5eb2044b81348605e698a2f712eba6e2a20985f82371e",
+    "assets/DaisyUI-MIT.txt": "8709e3ac65c84637c422dc8082b893d9997fce093751c77b2f1983bf29dbf9ea",
+    "assets/Feather-MIT.txt": "308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee",
+    "assets/Manrope-OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30",
+    "assets/Tailwind-MIT.txt": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985",
+    "assets/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "assets/motionmate-logo.svg": "01a44ff946297e3dd5fd882dda585d349e03b28dbab9af5fde8d3b0e4b75adf2",
+    "index.html": "0b769c6b98fbbe0943af9e85befbc748cd505934c3751521141c8f9033321d97",
+    "initial-theme.js": "c244fac0aa795b0a54f9d943dfbc514825332496a97a7820ee2cd14268cf08a2",
+    "tokens.css": "77d3c38d8ce609359b93b06ffd96a3dc53f4099ca352299b0d6106eaf0427be9"
+  }
+}

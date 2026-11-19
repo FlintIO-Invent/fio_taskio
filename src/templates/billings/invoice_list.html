@@ -1,7 +1,7 @@
-{% extends 'inheritance/dashboard_parent.html' %}
+{% extends "billings/services/invoices/base.html" %}
 {% load static %}
 {% load money %}
-{% block content %}
+{% block content %}{% if current_business.vertical == 'SERVICE' %}{% include "billings/services/invoices/list.html" %}{% else %}
 
 <div class="content">
   {% if messages %}
@@ -192,4 +192,4 @@
   </div>
 </div>
 
-{% endblock %}
+{% endif %}{% endblock %}

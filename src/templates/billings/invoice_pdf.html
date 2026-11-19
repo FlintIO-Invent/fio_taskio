@@ -1,4 +1,4 @@
-<!doctype html>
+{% if invoice.business.vertical == 'SERVICE' %}{% include 'billings/services/invoices/document.html' %}{% else %}<!doctype html>
 {% load money %}
 <html>
 <head>
@@ -112,3 +112,4 @@
   <div class="powered">{{ powered_by }}</div>
 </body>
 </html>
+{% endif %}

@@ -1,0 +1,41 @@
+{
+  "matrix-03": {
+    "result": "ui-lab/services-invoices/evidence/matrix-03/results.json",
+    "cases": 274,
+    "pass": true,
+    "source_sha256": "d8d2c468b9d818a3a4c417e36f99e67ee7a997a3af7a3a5284e44902509955ca",
+    "sha256": "a0093c7a49c613e0f27e4bb9ed147f2764a0c3ca5589fdf5b641e8f58a7062f9"
+  },
+  "journeys-04": {
+    "result": "ui-lab/services-invoices/evidence/journeys-04/results.json",
+    "cases": 8,
+    "pass": true,
+    "source_sha256": "d8d2c468b9d818a3a4c417e36f99e67ee7a997a3af7a3a5284e44902509955ca",
+    "sha256": "43134717eef7843501d91f46398dc561134080ed07621eb12f337670ba938d63"
+  },
+  "supplement-01": {
+    "result": "ui-lab/services-invoices/evidence/supplement-01/results.json",
+    "cases": 20,
+    "pass": true,
+    "source_sha256": "2d57cd115b84988ebc49546c9ebe94ee97c61de36b1d969b37d226bd999830cd",
+    "sha256": "6519b44337e24b10f4fafcc23a9ddb9a90928fe6aa544ffbe414acf6a67de099"
+  },
+  "final-delta": {
+    "result": "ui-lab/services-invoices/evidence/final-delta/results.json",
+    "cases": 24,
+    "pass": true,
+    "source_sha256": "58b75da483741984142a6d203bd4aaf8d9da908a63d428733c2f2a118ac97390",
+    "sha256": "66c9a99d33e4d16d1d439d9b0ec07eeb2e2b0902dcb15949bf0e68f49cb25036"
+  },
+  "pdf-05": {
+    "result": "ui-lab/services-invoices/evidence/pdf-05/results.json",
+    "cases": 20,
+    "pass": true,
+    "source_sha256": "58b75da483741984142a6d203bd4aaf8d9da908a63d428733c2f2a118ac97390",
+    "sha256": "68c1e10fe4b877063d75008cdbab932f19b052d7e735346bcf10a537b6959521"
+  },
+  "journey_assertions": 222,
+  "supplement_assertions": 160,
+  "browser": "148.0.7778.96",
+  "final_refinements": "Final delta checks edit/detail/customer document after narrow Qty heading and synthetic draft-entry consistency refinements. Other full matrix screens are unchanged. Final PDF set regenerated from current assets."
+}

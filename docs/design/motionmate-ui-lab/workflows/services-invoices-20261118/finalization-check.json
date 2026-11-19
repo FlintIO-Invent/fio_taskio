@@ -1,0 +1,10 @@
+{
+  "task_id": "services-invoices-20261118",
+  "current_phase": "done",
+  "gate": null,
+  "next_permitted_action": "Workflow complete; no release or cleanup is authorized.",
+  "design_sha256": "08215da40bb17baeaa63d5a3482f02a45daf83e26ffecca0f6a78ec13ab77f80",
+  "manifest_sha256": "929e62fa6d6c1288d878b590bfdb8bad26ffa673b6aaddab631883075ef24e9c",
+  "candidate_sha256": "936f7fa66278a40e5d90122d365b6d097d245e7c1822c55b54993b1a51a91abc",
+  "notice": "Offline consistency only; verify real user authorization and resource ownership."
+}

@@ -1,6 +1,6 @@
 {% extends "emails/base_email.html" %}
 
-{% block body %}
+{% block body %}{% if invoice.business.vertical == 'SERVICE' %}{% include 'emails/services/invoice_body.html' %}{% else %}
   <p>Hi {{ client_name|default:client.email }},</p>
   <p>{{ business.name }} sent invoice {{ invoice.invoice_number }}. The invoice PDF is attached for your records.</p>
   <p>
@@ -23,4 +23,4 @@
   {% else %}
     <p>Please contact {{ business.name }} with any questions.</p>
   {% endif %}
-{% endblock %}
+{% endif %}{% endblock %}

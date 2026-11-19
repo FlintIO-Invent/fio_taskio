@@ -102,9 +102,9 @@ class InvoicePresentationTests(TestCase):
             self.assertContains(response, "Invoice status")
             self.assertNotContains(response, ">Lifecycle<")
         for content in (pdf_html, pdf, email.body, email.alternatives[0].content):
-            self.assertIn("Invoice status:", content)
+            self.assertNotIn("Invoice status:", content)
             self.assertNotIn("Lifecycle:", content)
-            self.assertIn("Issued", content)
+            self.assertIn("Total Amount", content)
         for content in (pdf_html, pdf):
             self.assertNotIn("Payment status:", content)
             self.assertNotIn("Partially paid", content)
@@ -118,12 +118,12 @@ class InvoicePresentationTests(TestCase):
             ):
                 self.assertNotIn(label, content)
         for content in (email.body, email.alternatives[0].content):
-            self.assertIn("Partially paid", content)
-            self.assertIn("Original invoice total", content)
-            self.assertIn("Net payments received", content)
-            self.assertIn("Balance due", content)
-            self.assertIn("Refund due", content)
-            self.assertIn("USD 60.00", content)
+            self.assertIn("Subtotal", content)
+            self.assertIn("Total Amount", content)
+            self.assertNotIn("Partially paid", content)
+            self.assertNotIn("Net payments received", content)
+            self.assertNotIn("Balance due", content)
+            self.assertIn("USD 100.00", content)
         admin = InvoiceAdmin(Invoice, AdminSite())
         self.assertEqual(admin.lifecycle(self.invoice), "Issued")
         self.assertEqual(admin.payment_state(self.invoice), "Partially paid")
@@ -136,8 +136,8 @@ class InvoicePresentationTests(TestCase):
         self.assertEqual((financial.lifecycle_label, financial.payment_label), ("Issued", "Paid"))
         for content in (self.pdf_text(self.invoice), render_invoice_pdf_html(self.invoice)):
             self.assertNotIn("Payment status:", content)
-            self.assertIn("Invoice status:", content)
-            self.assertIn("Issued", content)
+            self.assertNotIn("Invoice status:", content)
+            self.assertIn("Total Amount", content)
         detail = self.client.get(reverse("invoice_detail", args=[self.invoice.pk]))
         self.assertContains(detail, ">Paid</span>")
         self.assertNotContains(detail, "Mark as Paid")
@@ -154,7 +154,7 @@ class InvoicePresentationTests(TestCase):
             count = InvoicePayment.objects.count()
             for _ in range(2):
                 message = self.email(invoice)
-                self.assertIn(f"Balance due: USD {100 - amount:.2f}", message.body)
+                self.assertIn("Total Amount: USD 100.00", message.body)
             invoice.refresh_from_db()
             self.assertEqual(invoice.status, "SENT")
             self.assertEqual(invoice.email_send_count, 2)
@@ -175,7 +175,7 @@ class InvoicePresentationTests(TestCase):
             financial = present_invoice(invoice)
             self.assertEqual(financial.payment_label, "")
             self.assertEqual(financial.balance_due, 0)
-            self.assertIn("Balance due: USD 0.00", self.email(invoice).body)
+            self.assertNotIn("Balance due:", self.email(invoice).body)
         zero = self.make_invoice(total=0)
         self.assertTrue(present_invoice(zero).no_payment_required)
         self.assertFalse(present_invoice(zero).verified_paid)
@@ -198,7 +198,7 @@ class InvoicePresentationTests(TestCase):
         for content, expected_amount in (
             (self.pdf_text(self.invoice), "100.00"),
             (render_invoice_pdf_html(self.invoice), "100.00"),
-            (self.email(self.invoice).body, "60.00"),
+            (self.email(self.invoice).body, "100.00"),
         ):
             self.assertIn(f"USD {expected_amount}", content)
             self.assertNotIn(f"EUR {expected_amount}", content)

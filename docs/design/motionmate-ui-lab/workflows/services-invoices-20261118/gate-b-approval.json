@@ -1,0 +1,20 @@
+{
+  "gate": "B",
+  "approval": {
+    "source": "User message approve immediately following the exact 40-file Services Invoices Gate B implementation/resource proposal in this conversation, 19 November 2026",
+    "quote": "approve",
+    "scope": "Implement the exact 40-file Services Invoices manifest and described fresh disposable Django/PostgreSQL/test/browser resources, including the three pinned font-asset reads. Preserve financial logic, records, Notes-sharing behavior and Logistics. No ordinary DB access, installations, migration-source changes, release operations or cleanup.",
+    "design_version": "v1",
+    "manifest_sha256": "929e62fa6d6c1288d878b590bfdb8bad26ffa673b6aaddab631883075ef24e9c"
+  },
+  "verified_check": {
+    "task_id": "services-invoices-20261118",
+    "current_phase": "gate_b",
+    "gate": "B",
+    "next_permitted_action": "Stop for explicit Gate B approval; preserve completed work.",
+    "design_sha256": "08215da40bb17baeaa63d5a3482f02a45daf83e26ffecca0f6a78ec13ab77f80",
+    "manifest_sha256": "929e62fa6d6c1288d878b590bfdb8bad26ffa673b6aaddab631883075ef24e9c",
+    "candidate_sha256": null,
+    "notice": "Offline consistency only; verify real user authorization and resource ownership."
+  }
+}

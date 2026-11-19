@@ -1,7 +1,7 @@
-{% extends 'inheritance/dashboard_parent.html' %}
+{% extends "billings/services/invoices/base.html" %}
 {% load static %}
 {% load money %}
-{% block content %}
+{% block content %}{% if current_business.vertical == 'SERVICE' %}{% include "billings/services/invoices/editor.html" with invoice_editor_mode="edit" %}{% else %}
 
 <div class="content">
   <nav class="mb-3" aria-label="breadcrumb">
@@ -508,4 +508,4 @@ document.querySelectorAll('.line-item:not(#line-item-template)').forEach(lineIte
 updateTotals();
 </script>
 
-{% endblock %}
+{% endif %}{% endblock %}
