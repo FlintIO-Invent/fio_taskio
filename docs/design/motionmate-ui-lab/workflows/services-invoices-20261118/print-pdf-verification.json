@@ -1,0 +1,66 @@
+{
+  "pdfs": [
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/cancelled-1440-light.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/cancelled-390-dark.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/draft-1440-light.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/draft-390-dark.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/legacy-1440-light.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/legacy-390-dark.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/many-lines-1440-light.pdf",
+      "pages": 6,
+      "line_header_pages": 5
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/many-lines-390-dark.pdf",
+      "pages": 6,
+      "line_header_pages": 5
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/partial-1440-light.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/partial-390-dark.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/zero-tax-1440-light.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    },
+    {
+      "file": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/zero-tax-390-dark.pdf",
+      "pages": 1,
+      "line_header_pages": 1
+    }
+  ],
+  "short_invoices_one_page": true,
+  "customer_status_payment_labels_hidden": true
+}

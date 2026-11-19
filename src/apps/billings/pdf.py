@@ -127,6 +127,10 @@ def render_invoice_pdf(
 
         require_invoice_access(business=invoice.business, actor=actor, invoice=invoice)
         project_invoice_references(business=invoice.business, actor=actor, invoice=invoice)
+    if invoice.business.vertical == "SERVICE":
+        from .services_invoice_pdf import render_services_invoice_pdf
+
+        return render_services_invoice_pdf(_invoice_context(invoice, include_notes=include_notes))
     buffer = BytesIO()
     pdf = canvas.Canvas(
         buffer,

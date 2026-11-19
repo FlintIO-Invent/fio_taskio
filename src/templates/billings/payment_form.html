@@ -1,5 +1,5 @@
-{% extends 'inheritance/dashboard_parent.html' %}
-{% block content %}
+{% extends "billings/services/invoices/base.html" %}
+{% block content %}{% if current_business.vertical == 'SERVICE' %}{% include "billings/services/invoices/payment_form.html" %}{% else %}
 <div class="content">
   <h2 class="mb-3">{{ title }}</h2>
   <p>Invoice {{ invoice.invoice_number }}{% if original_payment %} · Original receipt {{ original_payment.reference }}{% endif %}</p>
@@ -24,4 +24,4 @@
     </form>
   </div></div>
 </div>
-{% endblock %}
+{% endif %}{% endblock %}

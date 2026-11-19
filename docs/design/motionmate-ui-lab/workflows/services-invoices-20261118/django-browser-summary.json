@@ -1,0 +1,501 @@
+{
+  "evidence": {
+    "before_core": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-capture-1795046449367098164",
+    "after_core": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-capture-1795049755975821904",
+    "before_states": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033",
+    "before_context": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795047311838869342",
+    "after_states": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499"
+  },
+  "before_core_cases": 48,
+  "after_core_cases": 48,
+  "after_supplement_cases": 104,
+  "after_total_cases": 152,
+  "scoped_axe_cases": 112,
+  "scoped_axe_violations": [],
+  "scoped_axe_incomplete_occurrences": 112,
+  "full_document_violation_occurrences": {
+    "color-contrast": 24,
+    "link-name": 60
+  },
+  "overflows": [
+    {
+      "screen": "detail",
+      "width": 390,
+      "scenario": "logistics",
+      "actual": 475
+    },
+    {
+      "screen": "payment",
+      "width": 390,
+      "scenario": "logistics",
+      "actual": 542
+    }
+  ],
+  "page_errors": {},
+  "role_route_status_differences": [],
+  "logistics_pixel_comparisons": [
+    {
+      "case": [
+        "logistics",
+        "owner",
+        "list",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-owner-list-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-owner-list-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "owner",
+        "list",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-owner-list-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-owner-list-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "owner",
+        "detail",
+        1440,
+        "dark"
+      ],
+      "same_pixels": false,
+      "difference_bbox": [
+        18,
+        73,
+        57,
+        836
+      ],
+      "comparison": "sidebar animation/hover",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-owner-detail-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-owner-detail-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "owner",
+        "detail",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-owner-detail-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-owner-detail-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "owner",
+        "payment",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-owner-payment-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-owner-payment-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "owner",
+        "payment",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-owner-payment-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-owner-payment-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "admin",
+        "list",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-admin-list-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-admin-list-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "admin",
+        "list",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-admin-list-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-admin-list-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "admin",
+        "detail",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-admin-detail-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-admin-detail-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "admin",
+        "detail",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-admin-detail-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-admin-detail-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "admin",
+        "payment",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-admin-payment-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-admin-payment-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "admin",
+        "payment",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-admin-payment-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-admin-payment-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "staff",
+        "list",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-staff-list-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-staff-list-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "staff",
+        "list",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-staff-list-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-staff-list-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "staff",
+        "detail",
+        1440,
+        "dark"
+      ],
+      "same_pixels": false,
+      "difference_bbox": [
+        388,
+        127,
+        397,
+        139
+      ],
+      "comparison": "debug Request URL port 8870/8871",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-staff-detail-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-staff-detail-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "staff",
+        "detail",
+        390,
+        "light"
+      ],
+      "same_pixels": false,
+      "difference_bbox": [
+        271,
+        146,
+        280,
+        158
+      ],
+      "comparison": "debug Request URL port 8870/8871",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-staff-detail-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-staff-detail-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "staff",
+        "payment",
+        1440,
+        "dark"
+      ],
+      "same_pixels": false,
+      "difference_bbox": [
+        388,
+        127,
+        397,
+        139
+      ],
+      "comparison": "debug Request URL port 8870/8871",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-staff-payment-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-staff-payment-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "staff",
+        "payment",
+        390,
+        "light"
+      ],
+      "same_pixels": false,
+      "difference_bbox": [
+        271,
+        146,
+        280,
+        158
+      ],
+      "comparison": "debug Request URL port 8870/8871",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-staff-payment-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-staff-payment-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "accountant",
+        "list",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-accountant-list-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-accountant-list-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "accountant",
+        "list",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-accountant-list-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-accountant-list-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "accountant",
+        "detail",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-accountant-detail-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-accountant-detail-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "accountant",
+        "detail",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-accountant-detail-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-accountant-detail-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "accountant",
+        "payment",
+        1440,
+        "dark"
+      ],
+      "same_pixels": false,
+      "difference_bbox": [
+        40,
+        73,
+        57,
+        836
+      ],
+      "comparison": "sidebar animation/hover",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-accountant-payment-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-accountant-payment-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "accountant",
+        "payment",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-accountant-payment-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-accountant-payment-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "viewer",
+        "list",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-viewer-list-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-viewer-list-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "viewer",
+        "list",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-viewer-list-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-viewer-list-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "viewer",
+        "detail",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-viewer-detail-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-viewer-detail-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "viewer",
+        "detail",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-viewer-detail-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-viewer-detail-390-light.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "viewer",
+        "payment",
+        1440,
+        "dark"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-viewer-payment-1440-dark.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-viewer-payment-1440-dark.png"
+    },
+    {
+      "case": [
+        "logistics",
+        "viewer",
+        "payment",
+        390,
+        "light"
+      ],
+      "same_pixels": true,
+      "difference_bbox": null,
+      "comparison": "identical full screenshot",
+      "before": "/tmp/motionmate-preview-session-7su4ughv/before/evidence/invoices-supplement-1795046545485629033/logistics-viewer-payment-390-light.png",
+      "after": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-supplement-1795049755969656499/logistics-viewer-payment-390-light.png"
+    }
+  ],
+  "logistics_pixels_equal": false,
+  "logistics_content_preserved": true,
+  "financial_guard": {
+    "status": 409,
+    "blocked": true
+  },
+  "sources": {
+    "before_core": "ed88487711b0554f6115d02068523d6b3f081cac93396a200a81d49a1193b083",
+    "after_core": "3827c588fff3389d4652c9c82c04b11ab1cb46be36c15e61763e7749d04247db",
+    "before_states": "ed88487711b0554f6115d02068523d6b3f081cac93396a200a81d49a1193b083",
+    "before_context": "ed88487711b0554f6115d02068523d6b3f081cac93396a200a81d49a1193b083",
+    "after_states": "3827c588fff3389d4652c9c82c04b11ab1cb46be36c15e61763e7749d04247db"
+  }
+}

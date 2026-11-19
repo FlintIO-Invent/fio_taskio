@@ -1,0 +1,50 @@
+    <div class="modal fade" id="quickClientModal" tabindex="-1" aria-labelledby="quickClientModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <form id="quick-client-form" method="post" action="{% url 'invoice_quick_create_client' %}">
+            {% csrf_token %}
+            <div class="modal-header">
+              <div>
+                <h5 class="modal-title" id="quickClientModalLabel">Add a client</h5>
+                <p class="mb-0 text-body-secondary small">All fields below are required. You can complete the rest of the client profile later.</p>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="quick-client-errors" class="alert alert-danger d-none" role="alert"></div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="quick_client_first_name">First name <span class="text-danger">*</span></label>
+                  <input class="form-control" id="quick_client_first_name" name="first_name" maxlength="80" autocomplete="given-name" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="quick_client_last_name">Last name <span class="text-danger">*</span></label>
+                  <input class="form-control" id="quick_client_last_name" name="last_name" maxlength="80" autocomplete="family-name" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label" for="quick_client_company_name">Company name <span class="text-danger">*</span></label>
+                  <input class="form-control" id="quick_client_company_name" name="company_name" maxlength="120" autocomplete="organization" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="quick_client_email">Email <span class="text-danger">*</span></label>
+                  <input type="email" class="form-control" id="quick_client_email" name="email" maxlength="254" autocomplete="email" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="quick_client_phone">Phone <span class="text-danger">*</span></label>
+                  <input type="tel" class="form-control" id="quick_client_phone" name="phone" maxlength="40" autocomplete="tel" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label" for="quick_client_street_address">Street address <span class="text-danger">*</span></label>
+                  <input class="form-control" id="quick_client_street_address" name="street_address" maxlength="255" autocomplete="street-address" required>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-phoenix-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Add and select client</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+

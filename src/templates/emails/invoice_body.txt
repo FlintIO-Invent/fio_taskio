@@ -1,6 +1,6 @@
 {% extends "emails/base_email.txt" %}
 
-{% block body %}Hi {{ client_name|default:client.email }},
+{% block body %}{% if invoice.business.vertical == 'SERVICE' %}{% include 'emails/services/invoice_body.txt' %}{% else %}Hi {{ client_name|default:client.email }},
 
 {{ business.name }} sent invoice {{ invoice.invoice_number }}. The invoice PDF is attached for your records.
 
@@ -19,4 +19,4 @@ Business contact:
 {{ business_contact }}
 
 {% if reply_to_email %}Questions? Reply to this email or contact {{ reply_to_email }}.{% else %}Please contact {{ business.name }} with any questions.{% endif %}
-{% endblock %}
+{% endif %}{% endblock %}

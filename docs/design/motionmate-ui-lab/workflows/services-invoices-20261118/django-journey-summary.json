@@ -1,0 +1,18 @@
+{
+  "evidence": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-journeys-1795047797488801649/results.json",
+  "journeys": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "invoice": 3,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "invoice": 4,
+      "passed": true
+    }
+  ],
+  "page_errors": []
+}

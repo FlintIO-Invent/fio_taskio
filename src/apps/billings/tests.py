@@ -385,9 +385,9 @@ class BillingBusinessScopingTests(TestCase):
         self.assertIn("Hi Alicia Client", message.body)
         self.assertIn("Invoice number: INV-ALPHA-001", message.body)
         self.assertIn("Issue date:", message.body)
-        self.assertIn("Original invoice total: XCD 133.13", message.body)
-        self.assertIn("Balance due: XCD 0.00", message.body)
-        self.assertIn("Invoice status: Draft", message.body)
+        self.assertIn("Total Amount: XCD 133.13", message.body)
+        self.assertNotIn("Balance due:", message.body)
+        self.assertNotIn("Draft", message.body)
         self.assertNotIn("Draft — not collectible.", message.body)
         self.assertIn("Attachment: invoice-INV-ALPHA-001.pdf", message.body)
         self.assertIn("billing@alpha.test", message.body)
@@ -611,8 +611,8 @@ class BillingBusinessScopingTests(TestCase):
         self.assertIn("Save to services", html)
         self.assertIn('class="manual-service-action" name="save_as_service"', html)
         self.assertNotIn('step="0.01"', html)
-        self.assertIn("function isWholeUnitQuantity(value)", html)
-        self.assertIn("quantityInput.value = '1.00';", html)
+        self.assertIn("assets/js/services-invoices.js", html)
+        self.assertIn('data-services="true"', html)
 
     def test_invoice_list_create_button_opens_invoice_create_page(self):
         self.client.force_login(self.user)
@@ -631,7 +631,7 @@ class BillingBusinessScopingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'name="client_id"')
-        self.assertContains(response, "new window.Choices(clientSelect")
+        self.assertContains(response, "assets/js/services-invoices.js")
         self.assertContains(response, "Search or select a client")
         self.assertContains(response, "Alicia Client")
         self.assertNotContains(response, "Boris Client")
@@ -1238,9 +1238,9 @@ class BillingBusinessScopingTests(TestCase):
             'name="quantity" value="1.00" step="1.00" min="1.00" inputmode="numeric"',
             html,
         )
-        self.assertIn(
-            'name="new_quantity" step="1.00" min="1.00" inputmode="numeric" disabled',
+        self.assertRegex(
             html,
+            r'name="new_quantity"[^>]*step="1.00"[^>]*min="1.00"[^>]*inputmode="numeric"[^>]*disabled',
         )
         self.assertIn('name="unit_price" value="125.00" step="1.00" min="0"', html)
         self.assertIn("Service type", html)
@@ -1250,11 +1250,8 @@ class BillingBusinessScopingTests(TestCase):
         self.assertIn("Save to services", html)
         self.assertIn('class="manual-service-action" name="save_as_service"', html)
         self.assertNotIn('step="0.01"', html)
-        self.assertIn("function isWholeUnitQuantity(value)", html)
-        self.assertIn(
-            "setInputValue(lineItem, 'quantity', 'new_quantity', '1.00');",
-            html,
-        )
+        self.assertIn("assets/js/services-invoices.js", html)
+        self.assertIn('data-services="true"', html)
 
     def test_admin_can_create_invoice_from_appointment(self):
         admin_user = self._create_admin_user()

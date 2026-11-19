@@ -1,0 +1,11 @@
+{
+  "gate": "C",
+  "source": "User message explicitly approving Gate C and finalization of the reviewed Services Invoices candidate in this conversation, 19 November 2026",
+  "quote": "Gate C approved. Finalize the Services Invoices redesign.",
+  "constraints_quote": "Do not commit, push, or deploy.",
+  "scope": "Human acceptance and local workflow finalization of the exact reviewed 40-file Services Invoices candidate, with all disclosed validation limitations retained. No staging, commit, push, merge, deployment, cleanup, provider changes or ordinary database access is authorized.",
+  "design_version": "v1",
+  "candidate_sha256": "936f7fa66278a40e5d90122d365b6d097d245e7c1822c55b54993b1a51a91abc",
+  "recorded_at": "2026-11-19T18:48:47.093577+00:00",
+  "release_authorized": false
+}

@@ -1,0 +1,92 @@
+{
+  "evidence": "/tmp/motionmate-preview-session-7su4ughv/after/evidence/invoices-print-1795050013522780922/results.json",
+  "cases": [
+    {
+      "kind": "draft",
+      "width": 1440,
+      "theme": "light",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "partial",
+      "width": 1440,
+      "theme": "light",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "cancelled",
+      "width": 1440,
+      "theme": "light",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "legacy",
+      "width": 1440,
+      "theme": "light",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "zero-tax",
+      "width": 1440,
+      "theme": "light",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "many-lines",
+      "width": 1440,
+      "theme": "light",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "draft",
+      "width": 390,
+      "theme": "dark",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "partial",
+      "width": 390,
+      "theme": "dark",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "cancelled",
+      "width": 390,
+      "theme": "dark",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "legacy",
+      "width": 390,
+      "theme": "dark",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "zero-tax",
+      "width": 390,
+      "theme": "dark",
+      "pass_": true,
+      "screen_axe_violations": 0
+    },
+    {
+      "kind": "many-lines",
+      "width": 390,
+      "theme": "dark",
+      "pass_": true,
+      "screen_axe_violations": 0
+    }
+  ],
+  "source": "c9cbeaeefdea6a09a02cb5d00671d4461a98bd0b409c2c7f49ba37d4bd3b719c",
+  "pass": true,
+  "page_errors": []
+}
