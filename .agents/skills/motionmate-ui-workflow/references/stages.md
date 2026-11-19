@@ -1,122 +1,110 @@
-# Phase execution and existing tools
+# v2 phases and existing tools
 
-Read only the domain documentation relevant to the route; `AGENTS.md` supplies
-the authoritative links. For shared components, trace both verticals' consumers.
-Use the existing [preview workflow](../../../../docs/design/motionmate-ui-lab/PREVIEW-WORKFLOW.md)
-and [setup](../../../../docs/design/motionmate-ui-lab/REPRODUCIBILITY.md).
-Neither these commands nor a historical run is present authorization.
+Use the [preview workflow](../../../../docs/design/motionmate-ui-lab/PREVIEW-WORKFLOW.md)
+and [setup](../../../../docs/design/motionmate-ui-lab/REPRODUCIBILITY.md). Commands
+and historical runs grant no runtime permission. Read only relevant domain docs.
 
-## Audit and plan
+## Audit, brief and Gate A
 
-Trace route → resolver/guard → view/service → form/model → template/asset and
-downstream effects. Inspect scripts before running them: even GET navigation
-can write (request scheduling and Booking Settings are documented examples).
-Inspect branch/status, unrelated changes, generated/ignored evidence and target
-hashes. Record workflow, form/JS, financial, permission and tenant contracts.
-Use `brief.md` for the audit, Quick Change plan or Full Redesign brief.
+Trace route → Business resolver/guards → view/service → form/model → templates/
+assets and downstream effects. Inspect scripts before running them: some GETs
+write data. Record existing contracts, shared consumers, unrelated edits and
+known failures. Audit actual functionality automatically within authorization;
+source findings and browser observations must remain distinct.
 
-Quick Change stops after `plan` unless explicit implementation authorization
-already covers the repair. Do not infer it from “review”, “suggest” or approval
-of appearance. Record an initially authorized repair as implementation approval,
-bound to the narrow manifest; do not invent a second gate.
+Use `brief.md` for the audit and versioned proposed improvements: hierarchy,
+composition, controls, mobile behavior, themes, accessible interaction and the
+actual workflow problem each change addresses. Consult approved design references
+and read-only Phoenix examples. Defer finance/server/permission policy decisions.
 
-## Design and Gate A (Full Redesign)
+At Gate A present the hashed brief/design direction and decisions for review.
+A design brief is sufficient; do not build a duplicate interactive prototype.
+If a user requests exploration, or authorizes a justified major uncertainty,
+record `optional_prototype` and use `prototype-review.md` only then. Existing
+UI Lab tools write into their package by default: inspect them and obtain the
+exact scope before use; prefer an owned external build/output directory when
+supported. Never rerun into historical evidence. Prototypes remain optional.
 
-Compose connected journeys in a **new task-owned** `ui-lab/<screen>/` package
-with supplied synthetic scenarios. Reuse `ui-lab/design-system/`, local Manrope,
-existing shell/components and pinned tools. Preserve dashboard/Appointments
-sources, frozen builds and historical review records. Use `scenario` for review
-variants where `state` is already an application filter. Intercept out-of-scope
-destinations; label proposed server outcomes outside the product frame.
-
-Existing tools, when their required resources and writes are authorized:
-
-```sh
-node ui-lab/tools/build.mjs TASK_SCREEN
-.venv/bin/python -B ui-lab/services-dashboard/tools/serve.py --root ui-lab --port FREE_PORT
-.venv/bin/python -B ui-lab/tools/capture.py --screen TASK_SCREEN
-```
-
-Check the builder's supported package structure first. The generic capture
-currently covers **1440/768/390 only**; add task-scoped 320px and connected
-journey/state checks rather than declaring its default sufficient. Appointments'
-`validate_step3.py` / `validate_states_step3.py` are five-composition examples,
-not general validators. Do not rerun them into historical evidence directories.
-
-Use `prototype-review.md`: 1440×900, 768×1024, 390×844 and 320×844; light/dark
-where supported; long/empty/error/loading/restricted states; overflow, labels,
-contrast, keyboard/focus, touch targets, dialogs, draft continuity, reduced
-motion and affected interactions. Preserve raw axe violations/incompletes,
-console failures and initial failures. Record unsupported browser/AT/RTL/native
-zoom checks rather than claiming full accessibility conformance.
-
-At Gate A save the design version and immutable artifact hashes. Ask for that
-version's visual/interaction approval and identify still-open functional choices.
-New design bytes invalidate the old approval until the change is reconciled.
+Quick Change uses `audit → plan`. Bind an already explicit repair request to the
+exact manifest without a new approval prompt; otherwise stop at the plan.
 
 ## Integration and Gate B
 
-Use `integration.md` for the exact proposed additions/modifications, purpose,
-shared consumers, contracts, exclusions, risk/compatibility and validation plan.
-No wildcard manifest entries, implicit generated outputs or follow-on files.
-Inspect existing source, not just a historical prototype's apparent behavior.
-Separate presentation from decisions about financial, permission, data or server
-semantics. A file manifest alone never authorizes those decisions.
+After A automatically fill `integration.md`: exact paths/actions/categories,
+vertical and shared impact, compatibility, risks, preserved contracts, excluded
+files and validation plan. Include required runtime assets/licenses, tests and
+fixture/check source. No wildcards or implicit follow-on files. Identify the
+specific disposable PostgreSQL resources/actions and whether existing migrations
+will be applied there. No ordinary databases, provider activity or schema changes.
 
-Run `baseline STATE` before recording B. It saves current branch/HEAD/status and
-target hashes; review any dirty target with the user/session ownership evidence.
-Record excluded dirty files, deferred decisions and protected evidence. Review
-the emitted manifest digest; bind implementation approval to it and the design
-version. Runtime/test permissions must identify resources/actions separately.
-Do not automatically create or switch branches/worktrees.
+Run `baseline STATE` before B to save branch/HEAD/status, target hashes and the
+protected dirty-file baseline. Review ownership of pre-existing edits. B binds
+this manifest/design and actual resource authorization. Design approval alone
+cannot authorize implementation. Never silently rebaseline a clash.
 
-## Actual BEFORE, implementation and validation
+## BEFORE, implementation and validation
 
-Before edits, capture **actual working-tree bytes**, including authorized
-uncommitted/untracked runtime sources. HEAD is not a substitute. Under explicit
-disposable-runtime permission, follow the existing ownership-checked tooling:
+Immediately before edits run `check STATE --pre-implementation`. Capture actual
+working-tree bytes, including approved uncommitted/untracked runtime sources;
+HEAD is not the baseline. Follow existing ownership-checked tooling only under
+explicit disposable-runtime permission:
 
 ```sh
 .venv/bin/python -B scripts/motionmate_preview.py capture
 .venv/bin/python -B scripts/motionmate_preview.py create \
   --before-snapshot BEFORE_SNAPSHOT --route ACTUAL_ROUTE
-# After authorized edits and checks:
+# After scoped implementation:
 .venv/bin/python -B scripts/motionmate_preview.py refresh-after --session SESSION_PATH
 ```
 
-Record real identities: settings module, disposable database name/owner,
-canonical cluster directory/system identifier, port/process and sanitized
-source/session IDs. A test-looking name or nonstandard port is insufficient.
-Keep providers/email/workers disabled and do not load ordinary `.env` files or
-copy records. Distinct session/CSRF cookies and identical initial synthetic
-fixtures support both sides. Review writes persist independently; never reset or
-reseed them to manufacture parity. Preserve BEFORE throughout.
+One pair is the review. Preserve BEFORE; refresh AFTER alone. Record actual
+settings, sanitized database/owner, cluster directory/system identifier, port/
+process, source/session identities and ownership proof for both sides. Do not
+load ordinary `.env`, secrets, uploads or customer records. Disable providers,
+email and workers; use distinct session/CSRF cookies. Equivalent initial synthetic
+fixtures support comparison; later review writes persist independently. Never
+reset/reseed them silently. No new schema/migration sources in this workflow.
 
 `motionmate_preview.py validate` and `check-dashboard` target dashboard contracts;
-`--route` only changes the launch destination. The Appointments adapter exists
-at `scripts/ui_preview/appointments_checks.py`; inspect its module entrypoint,
-guards, fixture contract and side effects before using it. New screens need an
-audited adapter within the authorized tooling manifest, or a disclosed missing
-validation capability. Do not weaken financial/network/ownership guards.
+`--route` changes the launch destination, not the validator. Inspect existing
+screen adapters under `scripts/ui_preview/` (including Appointments, Clients and
+Invoices) for guards, contracts and side effects. New adapters belong in B's
+manifest. Do not weaken ownership, network or financial guards.
 
-Use `validation.md` for backend contracts, real form POST/CSRF/retry checks,
-responsive/themes, affected roles/modules/subscriptions/location states and
-cross-vertical regressions. Quick Change needs focused checks without inventing
-tests for simple copy/markup changes. Check rendered PDFs when relevant. Keep
-static, synthetic-browser, isolated Django/backend, actual interactive Django,
-manual and provider evidence distinct. A historical debug-allocator workaround
-does not prove ordinary-runtime health. Runtime failures stay visible.
+Use `validation.md` for actual POST/CSRF/retry/draft/navigation behavior and
+permitted/restricted roles, modules, subscriptions, quotas and Logistics locations.
+Shared files require both verticals; a scoped shared consumer must also prove the
+other vertical unchanged. Check relevant PDF/email outputs, authoritative values
+and forms. Keep static, isolated backend, real Django/browser, manual and provider
+evidence distinct. Runtime workarounds do not establish ordinary-runtime health.
 
-Record actual results and commands once; repair scoped failures and repeat only
-affected checks. If runtime setup is not authorized/available, finish independent
-source work and report the limitation; do not label missing checks as passed.
+Exercise representative desktop/tablet/mobile widths (e.g. 1440/768/390), light/
+dark, long/empty/error/loading/restricted states, keyboard/focus/labels/contrast/
+touch targets and reduced motion; add 320px reflow/RTL/zoom where relevant.
+Validation coverage is not a screenshot count. Save a small representative set
+and exceptional failure evidence; use compact results for other cases, not a
+full screenshot matrix. Keep meaningful initial failures and axe incompletes.
+Repair in-scope failures and rerun affected checks only.
 
-## Gate C and final handoff
+Keep logs, browser output, temporary source/builds and databases in the verified
+owned session or external temporary task directory. Existing tools may hardcode
+output paths: record that limitation and use a narrow new-task ignore only when
+necessary, preserving required source/assets and historical evidence.
 
-Present real BEFORE/AFTER URLs, immutable sources, fixture context, changed file
-list, representative evidence and unresolved findings. Quick Change reports its
-result without adding a full-redesign acceptance ceremony. Full Redesign stops
-at C for explicit acceptance, including any acknowledged limitations. A new
-design, manifest expansion or modified candidate invalidates the corresponding
-approval; routine fixes inside approved scope do not require B again.
-Leave review resources available. No automatic cleanup or release follows.
+Checkpoint partial implementation and verify `check STATE --resume` before
+continuing. Missing permission/tooling leaves Full Redesign review pending; do
+independent authorized work and report the gap. Quick repairs may report focused
+source checks with a disclosed blocked browser result, without adding A/C.
+
+## Gate C and commit preparation
+
+Present one actual interactive Django BEFORE/AFTER pair, immutable sources,
+matching initial fixtures, current candidate, representative evidence and limits.
+Stop for C; passing tests are not acceptance. Keep resources available.
+
+After explicit C acceptance, automatically classify task files, dependencies and
+disposable output, verify the accepted hashes and generate `prepare-commit STATE`.
+Resolve any ownership gap/concurrent edit before proposing the exact selection.
+One completed redesign should normally have one commit. The helper never stages
+or commits; explicit commit authorization is separate. Do not reopen completed
+v1 redesigns or revise their historical packaging. No automatic cleanup/release.

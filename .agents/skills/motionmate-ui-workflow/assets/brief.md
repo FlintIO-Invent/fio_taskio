@@ -1,28 +1,44 @@
-# Task brief and audit
+# Task audit and design brief
 
-Task / mode / vertical / route / objective:
+Task / mode / vertical / route / objective / design version:
 
-User authorization (source, exact quote, scope, exclusions):
+Actual user authorization (source, quote, scope, exclusions):
 
-## Actual Django source and existing behavior
+## Existing Django functionality
 
-Route, resolver/guards, view/service, form/model, template/assets, dependencies:
+Route → Business resolver/guards → view/service → form/model → templates/assets:
 
-Tenant/role/module/subscription/quota/location states and shared consumers:
+Existing workflows, forms/routes/field names/CSRF/retry keys/DOM hooks/drafts:
 
-Forms, routes, field names, CSRF/retry keys, DOM hooks, drafts, finance contracts:
+Tenant/role/module/subscription/quota/location and financial contracts:
 
-Existing interactive BEFORE identity, or pending resource authorization:
+Shared consumers in Services/Logistics and intended impact:
 
-## Proposed change
+Source findings versus actual browser observations and missing capabilities:
 
-Smallest change and exact files (Quick Change), or connected journeys and
-versioned visual/interaction brief (Full Redesign):
+Git baseline, unrelated/concurrent edits, protected prior records/references:
 
-Presentation versus separately deferred functional decisions:
+## Proposed improvements
 
-Existing Git/ignored/concurrent work to preserve:
+Workflow problem → proposed hierarchy/composition/interaction → expected benefit:
 
-Validation plan and authorized resources:
+Mobile/tablet/desktop, light/dark, difficult states and accessibility direction:
 
-Phase evidence and next permitted action:
+Phoenix composition and approved Motionmate references; required assets:
+
+Deferred server/finance/permission/data decisions and explicit exclusions:
+
+Validation plan and required disposable resources (not authorization):
+
+## Gate A (Full Redesign)
+
+Identifiable brief/design version, exact artifact hashes, proposed direction:
+
+Record actual approval source/quote/scope in state.json only after it is granted.
+Keep this version's hashed brief immutable; do not insert approval text into it.
+
+No prototype is required. Optional exploration needs a recorded request or major
+uncertainty plus authorization. It never replaces real Django BEFORE/AFTER review.
+
+Quick Change: concise plan/exact files, bind an already authorized bounded repair;
+otherwise stop at the plan. No separate A/C or prototype report.

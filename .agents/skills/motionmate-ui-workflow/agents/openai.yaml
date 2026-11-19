@@ -1,4 +1,4 @@
 interface:
   display_name: "Motionmate UI Workflow"
-  short_description: "Resume scoped UI work with explicit approval gates"
+  short_description: "Real Django reviews with scoped v2 approval gates"
   default_prompt: "Use $motionmate-ui-workflow to run or resume this Motionmate UI task in the appropriate mode."

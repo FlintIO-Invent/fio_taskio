@@ -1,45 +1,53 @@
-# Implementation evidence and review
+# Implementation evidence and real Django review
 
 Task / mode / vertical / authorized manifest digest / final candidate digest:
 
-## Changed and preserved files
+Changed files, preserved functionality/data, shared impact and concurrent edits:
 
-Actual file manifest, purpose, diff review, protected files and concurrent edits:
+## One interactive Django BEFORE/AFTER pair
 
-## Real interactive comparison
+Actual URLs / frozen BEFORE source / refreshed AFTER source / candidate hash:
 
-BEFORE/AFTER URLs, source hashes, fixture/session identities and fixed context:
+Actual templates/routes/authentication/forms/permissions and synthetic records:
 
-Verified disposable settings/DB owner/directory/system identifier/port/process
-(sanitized; no connection strings, passwords, cookies or customer data):
+Sanitized settings, DB/owner, cluster directory/system identifier, ports/processes,
+ownership evidence and applicable authorization for each disposable PostgreSQL:
 
-Equivalent initial fixtures and independently retained review writes:
+Equivalent initial fixture digests; independently retained review writes:
 
-For a blocked runtime, record the missing permission/capability explicitly.
+No ordinary DB/provider verification is implied. Do not record secrets here.
 
-## Results
+## Validation
 
-| Evidence class | Command / cases | Result | Raw artifact / limitations |
+| Evidence class | Checks / command / cases | Result | Evidence / limitations |
 | --- | --- | --- | --- |
 | Source/static | | Pending | |
-| Synthetic prototype | | Pending | |
-| Disposable backend | | Pending | |
-| Real Django/browser | | Pending | |
-| Manual accessibility/interaction | | Pending | |
+| Disposable Django/backend | | Pending | |
+| Actual Django/browser | | Pending | |
+| Accessibility/interaction | | Pending | |
+| Shared Services regression (if applicable) | | Pending | |
+| Shared Logistics regression (if applicable) | | Pending | |
 
-Cover 1440/768/390/320, applicable light/dark, difficult states, keyboard/focus,
-labels/errors, contrast and raw axe incompletes, responsive overflow, actual
-POST/CSRF/retry/draft/navigation and affected role/entitlement/location states.
-For shared changes record both verticals' checks. Mark irrelevant checks N/A with
-a reason; never turn unavailable checks or historical results into passes.
+Exercise mobile/tablet/desktop and light/dark, long/empty/error/loading/restricted
+states, keyboard/focus, labels/errors/contrast/touch targets/reduced motion, real
+POST/CSRF/retry/draft/navigation and affected roles/entitlements/locations. Add
+320px reflow/RTL/zoom and PDF/email checks where relevant. Capture representative
+screenshots; do not save every test combination. Record initial failures, focused
+reruns, raw axe violations/incompletes and unsupported checks honestly.
 
-Retained initial failures, corrections and focused reruns:
+External browser/log/build/database output locations and essential evidence index:
 
-Known issues, deferred differences, ordinary-runtime/provider limitations:
+Known issues, deferred differences and ordinary-runtime/provider limitations:
 
-## Acceptance handoff
+## Gate C and commit handoff
 
-Quick Change: report the scoped result and evidence without adding a redesign
-approval cycle. Full Redesign: present identifiable real BEFORE/AFTER applications
-and the candidate for Gate C; record acceptance only from actual user evidence.
-No automatic release or cleanup follows either mode.
+Full Redesign: present the actual pair and candidate for explicit human acceptance;
+missing real preview keeps review pending. Record actual source/quote/scope only.
+Quick Change: report scoped checks and blocked runtime evidence if needed, with no
+extra acceptance cycle. A synthetic prototype cannot establish application behavior.
+
+After C acceptance automatically prepare commit-manifest.json with implementation,
+tests, documentation, required assets and generated exclusions. Include runtime/
+reproducibility dependencies and selected essential evidence. Recommend one commit
+per redesign. Commit authorization remains separate; no automatic Git/release or
+cleanup action. Do not change completed historical evidence.
