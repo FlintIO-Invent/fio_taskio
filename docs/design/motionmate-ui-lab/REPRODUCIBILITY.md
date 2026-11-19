@@ -205,6 +205,18 @@ Do not clean up the only saved BEFORE/evidence. Nothing is deleted automatically
 
 ## Optional prototypes and Phoenix reference
 
+Automated [workflow v2](AUTOMATED-WORKFLOW.md) needs one actual Django BEFORE/AFTER
+pair after implementation, not an additional standalone lab. The prototype
+commands below apply only to separately requested/authorized exploration. Existing
+lab tools may write builds/captures inside their package; inspect output locations
+and preserve historical packages instead of rerunning them. Prefer owned external
+output or a narrowly scoped new-task ignore when a tool requires in-tree output.
+Keep representative screenshots and compact results; do not generate a screenshot
+matrix just to populate a report. Runtime assets, licenses, pinned tool manifests
+and fixture/check source remain required even when some are generated. Temporary
+PostgreSQL directories, raw logs/caches and rebuildable lab output stay outside
+the proposed commit. Do not delete or alter completed evidence.
+
 For a new synthetic screen, install the pinned lab build tools only after approval:
 
 ```sh

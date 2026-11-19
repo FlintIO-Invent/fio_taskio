@@ -1,38 +1,50 @@
-# Production integration and exact proposed manifest
+# Production integration and exact file manifest
 
-Task / vertical / approved design version / verified approval reference:
+Task / vertical / approved design version / verified Gate A reference:
 
-Quick Change: bind the initial implementation request if it covers this plan.
+Quick Change: bind the initial bounded implementation request when applicable.
 
 ## Closed manifest
 
-| Path | Add/modify | Purpose | Baseline SHA-256 or absent | Shared consumers / impact / regression |
-| --- | --- | --- | --- | --- |
+| Exact path | Add/modify | Category | Vertical / shared consumers | Purpose | Baseline hash or absent |
+| --- | --- | --- | --- | --- | --- |
 
-Copy these entries to state.json with `path`, `action`, `purpose`, `shared`
-(boolean), `shared_impact`, `shared_regression`, `before_sha256` (set by baseline).
-List every production, test, tooling, documentation and generated file proposed
-for implementation. No wildcards. Task-state/report files already authorized as
-workflow infrastructure remain identified separately from production consent.
+Copy entries to state.json: path, action, purpose, category, vertical, shared,
+shared_impact/shared_regression/regression_verticals when shared, before_sha256
+(set by baseline). Categories: implementation, tests, documentation, required_asset,
+generated. Include every implementation/test/tool/asset proposed; no wildcards.
+Keep authorized workflow records separately identified. List runtime/reproducibility
+assets and licenses even when generated. Disposable output belongs outside Git.
 
-## Contracts and compatibility
+## Compatibility and preservation
 
-Phoenix/Django composition, assets/order/RTL/themes and responsive behavior:
+Actual Phoenix/Django composition, assets/order/themes/RTL/responsive states:
 
-Preserved server, form, tenant, role/module/subscription/quota/location contracts:
+Preserved forms/routes, tenant/role/module/subscription/quota/location guards,
+drafts/booking rules, authoritative finance logic and existing data:
 
-Services and Logistics consumer assessment and regression states:
+Shared impact and planned regressions for both Services and Logistics:
 
-Explicit exclusions and deferred functional decisions:
+Exclusions, deferred decisions, risks, rollback, dirty files/overlap ownership:
 
-Risks, rollback approach, unrelated dirty files and overlap ownership:
+## Verified disposable validation plan
 
-Verified disposable runtime/test resources and required explicit permissions:
+Specific PostgreSQL settings/cluster/DB ownership and verification approach:
 
-Backend/browser/accessibility/regression plan and known baseline failures:
+Applicable explicit resource authorization; existing migrations only in empty
+owned disposable databases; synthetic fixtures, providers/email/workers disabled:
+
+Actual Django BEFORE capture, AFTER refresh and one interactive pair:
+
+Focused backend/browser/accessibility/regression checks and baseline failures:
+
+Representative screenshot selection and external output locations:
 
 ## Gate B
 
-Manifest digest / design version / exact implementation scope to authorize:
+Manifest digest / design version / exact implementation and resource scope:
 
-User approval source and exact quote (pending until actually granted):
+Actual approval source and quote (pending until actually granted):
+
+A is not implementation consent. No ordinary database/schema/provider/dependency/
+Git release operation or cleanup is authorized by this plan.

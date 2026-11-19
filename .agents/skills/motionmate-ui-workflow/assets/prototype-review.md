@@ -1,31 +1,20 @@
-# Design review — Full Redesign only
+# Optional prototype exploration — not a default workflow artifact
 
-Task / vertical / design version / source-build hashes / fixed clock / timezone:
+Create this report only for an explicitly requested prototype, or an authorized
+major design uncertainty. Initialization does not copy it into new tasks.
 
-Connected interactive URLs and supplied synthetic scenario inventory:
+Task / vertical / design version / uncertainty or explicit request:
 
-Current-contract interactions versus labeled functional proposals:
+Actual exploration authorization (source, quote, scope/resources):
 
-## Validation evidence
+Synthetic interactive URL, source hashes, scenarios and simulated contracts:
 
-| Width | Light | Dark | Overflow / long content | Raw evidence |
-| --- | --- | --- | --- | --- |
-| 1440 | Pending | Pending | Pending | |
-| 768 | Pending | Pending | Pending | |
-| 390 | Pending | Pending | Pending | |
-| 320 | Pending | Pending | Pending | |
+Focused interaction/accessibility/responsive results and representative evidence:
 
-Empty/error/loading/restricted states, role/entitlement projections:
+Raw failures, axe incompletes, untested browser/AT/RTL/zoom and deferred decisions:
 
-Keyboard/focus, labels/errors, target sizes, contrast, reduced motion, dialogs,
-draft continuity and connected task results:
+Output/build location outside Git, or narrowly scoped exception and reason:
 
-Console/network failures, axe violations and retained incompletes:
-
-Protected prior artifacts, missing tooling and untested browser/AT/RTL/zoom:
-
-## Gate A
-
-Review the identified visual/interaction version. List deferred server/financial/
-permission decisions. Save actual approval source/quote/scope only after the user
-grants it; approval does not authorize production implementation.
+This exploration supports the design brief and Gate A; it adds no required stage.
+Gate B is separate. Real Django BEFORE/AFTER remains mandatory for Full Redesign
+implementation review. Never overwrite historical prototypes or evidence.

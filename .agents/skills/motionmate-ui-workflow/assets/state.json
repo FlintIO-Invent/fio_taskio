@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "task_id": "",
   "vertical": "SERVICE",
   "mode": "quick",
@@ -23,5 +23,15 @@
   "known_issues": [],
   "validation": [],
   "evidence": {},
-  "updated_at": null
+  "updated_at": null,
+  "optional_prototype": {
+    "enabled": false,
+    "reason": null,
+    "authorization": null
+  },
+  "artifact_inventory": [],
+  "protected_workspace": null,
+  "implementation_checkpoint": null,
+  "preview": null,
+  "before_identity_sha256": null
 }
