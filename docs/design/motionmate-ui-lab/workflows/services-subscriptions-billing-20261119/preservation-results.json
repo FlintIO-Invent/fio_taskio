@@ -1,0 +1,30 @@
+{
+  "before": {
+    "identity": {
+      "host": "127.0.0.1",
+      "port": 55650,
+      "data_directory": "/tmp/motionmate-preview-session-z9qu5gsy/before/pgdata",
+      "system_identifier": "7710375086553205480",
+      "database": "mm_preview_a5154631498133cc_before"
+    },
+    "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+    "initial_inventory_unchanged": true,
+    "complete_business_plan_subscription_facts_unchanged": true,
+    "full_facts_sha256": "72b9e5632d372eaa30ee4829beec9dfe9da3685b6834fbb9cb4c6baaa73b9e22",
+    "evidence": "/tmp/motionmate-preview-session-z9qu5gsy/before/evidence/preservation-final.json"
+  },
+  "after": {
+    "identity": {
+      "host": "127.0.0.1",
+      "port": 55651,
+      "data_directory": "/tmp/motionmate-preview-session-z9qu5gsy/after/pgdata",
+      "system_identifier": "7710375265471126995",
+      "database": "mm_preview_a5154631498133cc_after"
+    },
+    "source_sha256": "b8cd3a376449b0a9360a0a0f8a67d4dc5899d9caeaee02e32eca98d30c2ae1c3",
+    "initial_inventory_unchanged": true,
+    "complete_business_plan_subscription_facts_unchanged": true,
+    "full_facts_sha256": "fe3d5182989240d9e87aa3cf2c53edaa41ad5c2d9af51ea2c50d625e778c5d62",
+    "evidence": "/tmp/motionmate-preview-session-z9qu5gsy/after/evidence/preservation-final.json"
+  }
+}

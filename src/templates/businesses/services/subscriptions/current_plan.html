@@ -1,0 +1,35 @@
+<section class="card mm-section" aria-labelledby="current-plan-heading"><div class="card-body">
+  <p class="mm-eyebrow">Current Plan</p><h2 id="current-plan-heading">{{ subscription.plan.name|default:"No subscription" }}</h2>
+  <p class="mm-supporting">{{ business.name }}</p>
+  {% if subscription %}<p><span class="badge badge-phoenix {% if access_state.code == 'trial_active' %}badge-phoenix-info{% elif access_state.has_access %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">{{ subscription.get_status_display }}</span></p><p>
+              {% if access_state.code == "pending_checkout" %}
+                {% if logistics_usage %}Complete your annual payment setup to open the workspace.{% else %}Complete your payment setup to start your 14-day trial.{% endif %}
+              {% elif access_state.code == "trial_active" %}
+                Your {{ subscription.plan.name }} trial ends on {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.
+              {% elif access_state.code == "trial_expired" or access_state.code == "subscription_expired" %}
+                Your free trial has ended. Complete your subscription setup to continue using paid features.
+              {% elif access_state.code == "subscription_active" %}
+                Your {{ subscription.plan.name }} subscription is active.
+              {% elif access_state.code == "cancels_at_period_end" %}
+                Your {{ subscription.plan.name }} subscription will remain available until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.
+              {% elif access_state.code == "past_due_grace" %}
+                We could not process your latest Motionmate payment. Your account will remain available until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.
+              {% elif access_state.code == "past_due_grace_expired" %}
+                Your Motionmate workspace is temporarily read-only because the payment grace period has ended. Full access returns after Stripe confirms a successful payment.
+              {% elif access_state.code == "past_due_missing_grace_state" or access_state.code == "billing_past_due" %}
+                There is a payment issue with your subscription. Paid features are temporarily unavailable.
+              {% elif access_state.code == "subscription_cancelled" %}
+                Your subscription is no longer active.
+              {% elif access_state.code == "provider_state_stale" or access_state.code == "provider_period_missing" or access_state.code == "trial_missing_end" %}
+                We could not confirm your latest subscription period. Please contact support if this does not resolve shortly.
+              {% elif access_state.code == "plan_inactive" %}
+                This workspace plan is inactive. Please contact support.
+              {% elif access_state.code == "business_inactive" %}
+                This workspace is inactive. Please contact support.
+              {% else %}
+                Workspace access is unavailable. Please contact support.
+              {% endif %}
+            </p>
+  {% else %}<div class="alert alert-warning" role="alert">This workspace does not have an active subscription record yet. Choose a plan below to start access.</div>{% endif %}
+  <dl class="mm-workspace-facts"><div><dt>Workspace</dt><dd>{{ business.slug }}</dd></div><div><dt>Your role</dt><dd>{{ membership.get_role_display }}</dd></div></dl>
+</div></section>

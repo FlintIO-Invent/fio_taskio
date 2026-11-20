@@ -1,0 +1,62 @@
+{
+  "task_id": "services-subscriptions-billing-20261119",
+  "audit_date": "2026-11-19",
+  "evidence_kind": "offline_source_inspection",
+  "branch": "experiment/motionmate-ui-redesign",
+  "head": "6d65bc4d5e80f772e1822572f8ee20b4686fd7da",
+  "initial_git_status": "",
+  "note": "Initial status was clean before the three task directories. These hashes are audit evidence, not a Gate B baseline or frozen Django BEFORE.",
+  "source_sha256": {
+    ".agents/skills/motionmate-ui-workflow/SKILL.md": "47c1e89276363189a3f21cbfa3592d262a35a5a43c491ecd38a00b4dc05596c0",
+    ".agents/skills/motionmate-ui-workflow/references/stages.md": "149af1fbe97fe754879a852d238bbc1647ddd1a99abae9349c6c41cc03751260",
+    ".agents/skills/motionmate-ui-workflow/references/state.md": "7c9d0a1debbd4fb42dc4afdf135554e17262a2f59933cfabb831ca49cda432d1",
+    ".agents/skills/motionmate-ui/SKILL.md": "11c9b0569165ac76a40127581f4ebb33e2a93d0525b3357b44a55ba02a3309c1",
+    "AGENTS.md": "6db6648293db9a6294517120b197c5ae91e0c7c3ad58d6a1c6b16f7c24617d53",
+    "docs/design/motionmate-design-system/COMPONENTS.md": "ac3f5c839df75b672d2b7050ab24e00678437bd11858a23ca2ad32f7ece641b0",
+    "docs/design/motionmate-design-system/DESIGN.md": "95099bfb5adff919f273b7c974eeb42c37e8d8f3e7bcb4cda5956b9b52fdb793",
+    "docs/design/motionmate-design-system/VERTICALS.md": "fe9e5e26aba9c83e6aeddd933537c2725d6be65d9d8bc71ddf987f9fa3df5207",
+    "docs/design/motionmate-ui-lab/AUTOMATED-WORKFLOW.md": "3c78249645ccf5678d3e6c02f69bbde80dd8be89df4f76f6097fb29c3e3eee75",
+    "docs/design/motionmate-ui-lab/PREVIEW-WORKFLOW.md": "c71ff3729ffa2d2b13a74383c8edba191df0c179fb1e28aa8312f85047a661b7",
+    "docs/design/motionmate-ui-lab/REPRODUCIBILITY.md": "84df486561f98f7ed64364fea70b3479b805d67f393737befde8c4b5f921a51b",
+    "docs/invoice_payment_terminology.md": "7bc4a31d1cd91a9e310fe0f0d68d4fcf19e0f1f3962e8c0c7854fccec7312f44",
+    "docs/unified_business_settings.md": "f37fbfea8be554cd707d51f2450a2beb77899d94023fbfbdf13be84a7ca649a6",
+    "scripts/ui_preview/guard.py": "10bf7b91a508e339ec485c84ac9871bd269570a549b6a1f5fb31ae77f16a8de0",
+    "scripts/ui_preview/settings.py": "e4a2284ccdebde2822e878ba0550950e9aa90036a7f6ab7618dd21af48f4643f",
+    "src/apps/businesses/forms.py": "774b64d7a1c381f69260e9be13812bf55e65a5934f3d0271f41b50ac7431165c",
+    "src/apps/businesses/models.py": "8ed99e364e57cc9b1febbc248d70a370599cf406ae0fc88c9000db25f14247cf",
+    "src/apps/businesses/plan_catalog.py": "e3fb467471b75f9bfe30336c55aaa2ca9803fbca7c509f04135e7eb4198de310",
+    "src/apps/businesses/stripe_portal.py": "fde52eaa53e7397b537e41ea1814e50f4a2e6e44d629fefcd534495630b3174d",
+    "src/apps/businesses/urls.py": "80641d3ed9e02f7ddd64dad2927a5a4d48b7341da1ecf543edcb418da558e0b2",
+    "src/apps/businesses/utils.py": "15f105a81db47632353791eca9dc1a06a8e2496db51c25afc3890b75a7597892",
+    "src/apps/businesses/views.py": "028e736b9e4ec40b6b9cab7a666aa6010c90e2b1795c784bd41f9ec44055c0b8",
+    "src/apps/crm/urls.py": "550691300e8700a83c1d86f38a0e94bb1acd7951bafa342cd33e4f476e1198d3",
+    "src/apps/crm/views.py": "240f014d65dacf9d0247a92c918fbc0b21af744f7f661a4fe333e01cccc68160",
+    "src/taskio/urls.py": "910ca2f5c7099c61c52705df78fcc9adbeea93705b024a41e7a4b36f743998a4",
+    "src/templates/businesses/subscription.html": "8b84696febb030d1baac22c321fce4fc9d2824ec7f49ad5d8c9334f960b5833c",
+    "src/templates/inheritance/dashboard_parent.html": "24fb9822688e9ba7a504a6478424d689eb28f5c50e68713fd21a85da489ae929"
+  },
+  "read_only_ignored_reference_sha256": {
+    "design_references/phoenix/package.json": "a598d78c1cb75053cc5dc005bb768c6400d5bdc8c99a3ae5e07612c65f76343d",
+    "design_references/phoenix/public/modules/forms/wizard.html": "aba4074a18b5a5cc89f6bcb3a7896180249a5014fac37c54a56d57536df7f315",
+    "design_references/phoenix/public/pages/pricing/pricing-column.html": "9d1036ec625e97766a538017b7403ae6e61ce921acacdbfb0e1051a212be3988"
+  },
+  "phoenix_reference_version": "1.23.0",
+  "runtime_observations": [],
+  "database_access": false,
+  "provider_calls": false,
+  "browser_runs": false,
+  "application_changes": false,
+  "authorization": {
+    "source": "Current user request, 2026-11-19",
+    "quote": "Use Workflow v2: audit and design planning first, then one real Django BEFORE/AFTER review after implementation.",
+    "scope": "Three independent Services audit/design workstreams, saved workflow records, stop at Gate A; no application implementation/runtime setup/release actions."
+  },
+  "protected_prior_workflows": [
+    "services-clients-20261117",
+    "services-invoices-20261118"
+  ],
+  "independent_peer_workstreams": [
+    "services-catalogue-20261119",
+    "services-data-import-20261119"
+  ]
+}

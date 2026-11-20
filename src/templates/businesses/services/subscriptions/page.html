@@ -1,0 +1,34 @@
+<div class="content mm-services-subscriptions" id="services-subscriptions">
+  <header class="mm-page-header">
+    <div><p class="mm-eyebrow">Motionmate Services</p><h1>Subscription &amp; billing</h1><p class="mm-supporting">Review your plan, workspace access and subscription billing.</p></div>
+    <nav class="mm-actions" aria-label="Subscription navigation">{% if workspace_can_modify %}<a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>{% endif %}<a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a></nav>
+  </header>
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if billing_portal_returned %}
+    <div class="alert alert-info mb-4" role="alert">
+      <div class="fw-semibold mb-1">Your billing update is being confirmed.</div>
+      <div>Full access will return after Stripe confirms a successful payment.</div>
+    </div>
+  {% endif %}
+
+
+  <div class="mm-status-layout">
+    {% include 'businesses/services/subscriptions/current_plan.html' %}
+    {% include 'businesses/services/subscriptions/billing_actions.html' %}
+  </div>
+  {% include 'businesses/services/subscriptions/usage.html' %}
+  <section class="mm-section" aria-labelledby="plans-heading">
+    <header class="mm-section-heading"><h2 id="plans-heading">Available plans</h2><p class="mm-supporting">Compare allowances and review a plan change.</p></header>
+    <div class="alert alert-info" role="note"><strong>Plan changes during the pilot</strong><p class="mb-0">Plan selection updates your workspace subscription record so modules and limits can react to the selected plan. These changes remain manual and do not start a new checkout session. Secure payment setup can be used during initial signup when enabled.</p></div>
+    {% if plan_form.errors %}<div class="alert alert-danger" role="alert"><h3 class="mt-0">Review your plan selection</h3>{{ plan_form.non_field_errors }}{% for field in plan_form %}{% if field.errors %}<div>{{ field.label }}: {{ field.errors }}</div>{% endif %}{% endfor %}</div>{% endif %}
+    {% include 'businesses/services/subscriptions/plan_change_review.html' %}
+    {% include 'businesses/services/subscriptions/plans.html' %}
+  </section>
+</div>
