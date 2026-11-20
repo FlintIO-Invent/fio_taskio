@@ -1,0 +1,65 @@
+{
+  "task_id": "services-data-import-20261119",
+  "status": "proposed_only_no_resources_created_or_authorized",
+  "checked_date": "2026-11-20",
+  "source_capture": "Fresh owned /tmp/motionmate-preview-snapshot-* from actual working-tree bytes immediately after B and before manifest edits.",
+  "new_review_session": "Fresh owned /tmp/motionmate-preview-session-*; no existing session is reused, reset or cleaned.",
+  "resource_ids": {
+    "before": "services-data-import-20261119-before",
+    "after": "services-data-import-20261119-after",
+    "test": "services-data-import-20261119-test"
+  },
+  "ports": {
+    "before_http": 8900,
+    "after_http": 8901,
+    "launcher_http": 8902,
+    "before_postgres": 55640,
+    "after_postgres": 55641
+  },
+  "port_read_only_preflight": "Selected ports had no LISTEN entry in /proc/net/tcp or tcp6. This is not a reservation; recheck and refuse occupied ports without stopping any process.",
+  "settings": {
+    "review": "ui_preview.settings",
+    "test": "taskio.services_test_settings"
+  },
+  "review_database_naming": {
+    "before": "mm_preview_<new-session-id>_before",
+    "after": "mm_preview_<new-session-id>_after"
+  },
+  "test_database": {
+    "cluster": "new module AFTER cluster only",
+    "name": "test_services_rollout",
+    "http_port": 8768,
+    "serialization": "One runner/LiveServer at a time across all modules; no review identity preflight while test DB exists."
+  },
+  "existing_prerequisites_observed": {
+    "postgres_server_tools": "PostgreSQL 14.24; initdb, pg_ctl, pg_controldata and postgres present",
+    "python_modules": [
+      "django",
+      "playwright",
+      "psycopg2"
+    ],
+    "chromium_cache": true,
+    "axe_core_local": true,
+    "local_manrope_and_license": "Already tracked and hash-verified; no downloads or new dependency."
+  },
+  "live_resource_ownership_verified": false,
+  "ownership_requirement": "Before creation/migration/fixture/test writes, use existing owner marker/UID/canonical path checks; after initialization verify PID/process/listener, pg_controldata system identifier and actual loopback DB/catalog identity. Record actual paths/IDs/owner/process/source/fixture hashes. Proposed names are not proof.",
+  "requested_after_b_actions": [
+    "Capture actual working-tree BEFORE to a new owned snapshot.",
+    "Create two empty owned PostgreSQL clusters/session, apply existing migrations there only, add synthetic module fixtures and compare canonical initial data.",
+    "Start both real Django apps with distinct cookies and providers/email/workers disabled; keep BEFORE immutable, refresh AFTER alone.",
+    "Run allowlisted backend and real-form/browser/accessibility/regression checks in synthetic review/test resources; drop only runner-created test DB in normal teardown.",
+    "Keep sessions/evidence available for Gate C; no automatic cleanup."
+  ],
+  "guard_policy": "Human review pair keeps existing financial/subscription SQL blocks, /billing/ route blocks, external redirect/network blocks and identity checks. Isolated LiveServer on owned test DB uses existing guarded dashboard-check execution boundary; synthetic provider responses only, browser external requests aborted.",
+  "authorization": null,
+  "excluded": [
+    "Ordinary local/staging/production/Test Lab DB access or writes",
+    "Customer data, .env, secrets or upload copying",
+    "Live Stripe/provider/email calls",
+    "New schema/migration sources",
+    "Dependencies/downloads/global theme changes",
+    "Staging/commits/pushes/merges/deployment",
+    "Destructive resource or Git cleanup"
+  ]
+}

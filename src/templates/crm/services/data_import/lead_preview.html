@@ -1,0 +1,97 @@
+
+<div class="content mm-services-data-import" data-import-page="lead_preview">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'lead_import_upload' %}">Import Leads</a></li>
+      <li class="breadcrumb-item active">Preview</li>
+    </ol>
+  </nav><ol class="mm-process" aria-label="Import progress"><li>1. Upload</li><li>2. Validate</li><li aria-current="step">3. Preview</li><li>4. Confirm</li><li>5. Result</li></ol>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="mb-2">Lead Import Preview</h1>
+      <p class="mm-supporting mb-0">{{ job.original_filename }} for {{ business.name }}</p>
+    </div>
+    {% if preview.ready %}
+      <span class="badge badge-phoenix badge-phoenix-success fs-8"><span class="visually-hidden">Import status: </span>Ready</span>
+    {% else %}
+      <span class="badge badge-phoenix badge-phoenix-warning fs-8"><span class="visually-hidden">Import status: </span>Import blocked</span>
+    {% endif %}
+  </div>
+
+  {% if preview.ready %}
+    <div class="alert alert-success" role="status">
+      <h2 class="h5 alert-heading">Ready to confirm</h2>
+      <p class="mb-0">Review the summary and row results below. Motionmate will use this server-side preview when you confirm.</p>
+    </div>
+  {% else %}
+    <div class="alert alert-warning" role="alert">
+      <h2 class="h5 alert-heading">This import cannot continue yet</h2>
+      <p class="mb-0">Fix every row marked Review or Error, then upload a revised CSV. No leads have been saved.</p>
+    </div>
+  {% endif %}
+
+  {% if file_issues %}
+    <div class="alert alert-danger" role="alert">
+      <h2 class="h5 alert-heading">Blocking file issues</h2>
+      <ul class="mb-0">
+        {% for issue in file_issues %}<li>{% include "crm/importing/includes/issue.html" with issue=issue only %}</li>{% endfor %}
+      </ul>
+      <p class="mt-2 mb-0">Download the current template, copy your data beneath its headers, and upload the corrected CSV.</p>
+    </div>
+  {% endif %}
+  {% if summary.warning_count or summary.review_count %}
+    <div class="alert alert-warning" role="alert">
+      <h2 class="h5 alert-heading">Warnings and review rows</h2>
+      <p class="mb-0">Duplicate rows will be skipped. Review rows may match existing workspace data and must be resolved in the CSV before confirmation.</p>
+    </div>
+  {% endif %}
+
+  <dl class="mm-summary"><div><dt>Rows detected</dt><dd>{{ summary.rows_detected }}</dd></div><div><dt>Create</dt><dd>{{ summary.ready_count }}</dd></div><div><dt>Duplicate</dt><dd>{{ summary.duplicate_count }}</dd></div><div><dt>Review</dt><dd>{{ summary.review_count }}</dd></div><div><dt>Warnings</dt><dd>{{ summary.warning_count }}</dd></div><div><dt>Error</dt><dd>{{ summary.error_count }}</dd></div></dl>
+
+  {% include "crm/importing/includes/status_key.html" with show_duplicate=1 %}
+  <div class="card  ">
+    <div class="card-body p-0">
+      <div class="mm-record-region">
+        <table class="table mm-records table-hover mb-0">
+          <caption class="visually-hidden">Lead import row-by-row results</caption>
+          <thead><tr><th scope="col">Row</th><th scope="col">Type</th><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Phone</th><th scope="col">Category</th><th scope="col">Validation status</th><th scope="col">Issues</th></tr></thead>
+          <tbody>
+            {% for row in preview_rows %}
+              <tr>
+                <td data-label="Row">{{ row.row_number }}</td>
+                <td data-label="Type">{{ row.display.lead_type }}</td>
+                <td data-label="Name">{{ row.display.first_name }} {{ row.display.last_name }}</td>
+                <td data-label="Email">{{ row.display.email }}</td>
+                <td data-label="Phone">{{ row.display.phone }}</td>
+                <td data-label="Category">{{ row.display.category|default:"—" }}</td>
+                <td data-label="Validation status">{% include "crm/importing/includes/status_badge.html" with status=row.status %}</td>
+                <td data-label="Issues">{% for issue in row.issues %}<div>{% include "crm/importing/includes/issue.html" with issue=issue only %}</div>{% empty %}<span class="mm-supporting">—</span>{% endfor %}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="8" class="text-center mm-supporting py-4">No previewable rows.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card   mt-4">
+    <div class="card-body">
+      <h2 class="h4">Confirm this import</h2>
+      {% if job.status == "ready" and preview.ready %}
+        <p><strong>{{ summary.ready_count }}</strong> leads will be created. <strong>{{ summary.duplicate_count }}</strong> duplicates will be skipped.</p>
+        <p class="mm-supporting">Confirmation uses the reviewed server-side data above. Import rows cannot be edited in the browser.</p>
+        <form class="d-inline" method="post" action="{% url 'lead_import_execute' job.id %}">
+          {% csrf_token %}
+          <button class="btn btn-primary" type="submit">Confirm Lead Import</button>
+        </form>
+      {% else %}
+        <p class="mm-supporting">Confirmation is unavailable until blocking issues are resolved.</p>
+      {% endif %}
+      <a class="btn btn-outline-secondary" href="{% url 'lead_import_upload' %}">Upload a revised CSV</a>
+    </div>
+  </div>
+</div>

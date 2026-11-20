@@ -1,0 +1,70 @@
+{
+  "session": "/tmp/motionmate-preview-session-_k8z05ah",
+  "before_snapshot": "/tmp/motionmate-preview-snapshot-belh42zd",
+  "launcher": "http://127.0.0.1:8902/",
+  "preview": {
+    "kind": "django",
+    "vertical": "SERVICE",
+    "synthetic_records": true,
+    "contracts": [
+      "templates",
+      "routes",
+      "authentication",
+      "forms",
+      "permissions"
+    ],
+    "before": {
+      "url": "http://127.0.0.1:8900/crm/staff/data-import/",
+      "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+      "initial_fixture_sha256": "851b07d5b0d28c105aba2f52910643be451c666d4ab389714131e753b8846fba",
+      "environment_id": "services-data-import-20261119-before"
+    },
+    "after": {
+      "url": "http://127.0.0.1:8901/crm/staff/data-import/",
+      "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+      "initial_fixture_sha256": "851b07d5b0d28c105aba2f52910643be451c666d4ab389714131e753b8846fba",
+      "environment_id": "services-data-import-20261119-after",
+      "candidate_sha256": "3419fa3e05be53706084a8482771b780452e3306d46eb0e58177a4bb640625fe"
+    }
+  },
+  "environments": [
+    {
+      "id": "services-data-import-20261119-before",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_7a97f1b934b29ce0_before",
+      "cluster_directory": "/tmp/motionmate-preview-session-_k8z05ah/before/pgdata",
+      "system_identifier": "7710362936311811793",
+      "port": 55640,
+      "process": {
+        "pid": 950014,
+        "start": "59681102"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/runtime.json"
+    },
+    {
+      "id": "services-data-import-20261119-after",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_7a97f1b934b29ce0_after",
+      "cluster_directory": "/tmp/motionmate-preview-session-_k8z05ah/after/pgdata",
+      "system_identifier": "7710363058220810269",
+      "port": 55641,
+      "process": {
+        "pid": 950328,
+        "start": "59683634"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/runtime.json"
+    }
+  ],
+  "initial_import_jobs_sha256": "22b9b0b8fb14764a40c60aa277d8ee05e7890b4ebf574635ffde9a2490a167de",
+  "initial_import_job_count": 44,
+  "accounts": "Synthetic imports.owner@preview.test and scenario/role accounts in private local launcher; no password stored here.",
+  "allocator": "Existing debug allocator; ordinary-runtime health unverified.",
+  "candidate_sha256": "3419fa3e05be53706084a8482771b780452e3306d46eb0e58177a4bb640625fe",
+  "review_sha256": "b39740fdf66a38e425555d2a29d38975b18f340d3035bdc25d3c17177c2c714d"
+}

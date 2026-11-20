@@ -1,0 +1,67 @@
+
+<div class="content mm-services-data-import" data-import-page="history">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'agent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item active">Import History</li>
+    </ol>
+  </nav>
+
+  <div class="mb-4">
+    <h1 class="mb-2">Import History</h1>
+    <p class="mm-supporting mb-0">Import activity for {{ business.name }}. Preview and uploaded customer data are never shown here.</p>
+  </div>
+
+  <div class="card  ">
+    <div class="card-body p-0">
+      <div class="mm-record-region">
+        <table class="table mm-records table-hover mb-0">
+          <caption class="visually-hidden">Import record details</caption><thead>
+            <tr>
+              <th scope="col">Type</th><th scope="col">Filename</th><th scope="col">User</th><th scope="col">Status</th>
+              <th scope="col">Detected</th><th scope="col">Created</th><th scope="col">Updated</th><th scope="col">Skipped</th>
+              <th scope="col">Errors</th><th scope="col">Started</th><th scope="col">Completed</th><th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for job in page.object_list %}
+              <tr>
+                <td data-label="Type">{{ job.get_import_type_display }}</td>
+                <td data-label="Filename">{{ job.original_filename }}</td>
+                <td data-label="User">{{ job.created_by.email }}</td>
+                <td data-label="Status"><span class="badge badge-phoenix">{{ job.get_status_display }}</span></td>
+                <td data-label="Detected">{{ job.rows_detected }}</td>
+                <td data-label="Created">{{ job.rows_created }}</td>
+                <td data-label="Updated">{{ job.rows_updated }}</td>
+                <td data-label="Skipped">{{ job.rows_skipped }}</td>
+                <td data-label="Errors">{{ job.rows_error }}</td>
+                <td data-label="Started">{{ job.created_at|date:"M j, Y H:i" }}</td>
+                <td data-label="Completed">{% if job.completed_at %}{{ job.completed_at|date:"M j, Y H:i" }}{% else %}—{% endif %}</td>
+                <td data-label="Actions">
+                  {% if job.status == "completed" or job.status == "failed" or job.status == "expired" %}
+                    <a href="{% url 'import_history_detail' job.id %}">View</a>
+                  {% else %}
+                    <span class="mm-supporting">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="12" class="text-center mm-supporting py-5">No imports have been recorded for this workspace.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if page.paginator.num_pages > 1 %}
+    <nav class="mt-4" aria-label="Import history pages">
+      <ul class="pagination mb-0">
+        {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}">Previous</a></li>{% endif %}
+        <li class="page-item disabled"><span class="page-link">Page {{ page.number }} of {{ page.paginator.num_pages }}</span></li>
+        {% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}">Next</a></li>{% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+</div>
