@@ -1,0 +1,602 @@
+{
+  "schema_version": 2,
+  "task_id": "services-catalogue-20261119",
+  "vertical": "SERVICE",
+  "mode": "full",
+  "route": "/crm/settings/services/",
+  "objective": "Modernize the Services catalogue, category management and service forms while preserving pricing, booking settings, permissions and all existing records; stop at Gate A.",
+  "current_phase": "done",
+  "completed_phases": [
+    "audit",
+    "brief",
+    "integration",
+    "before",
+    "implementation",
+    "validation",
+    "comparison",
+    "report"
+  ],
+  "next_permitted_action": "Exact per-module file selection prepared; preserve accepted source and wait for explicit Git/release authorization. Stock helper peer-drift warning remains documented.",
+  "design_version": "v1",
+  "design_artifacts": {
+    "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/brief.md": "2548cc9959621f50faae1939365cf7054ba6635e8e926ba3e4b9d404ebc15de4",
+    "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/source-audit.json": "d0714248bd66aac6535e8905ba875907f863298da6dcb8011fa8fe45bf63fc21"
+  },
+  "manifest": [
+    {
+      "path": "src/templates/crm/settings/business_service_list.html",
+      "action": "modify",
+      "purpose": "Select Services catalogue include; retain original non-Services content and form blocks.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "0eb7440cd97efe1089ed4e645b9db48f901cccf26d84676560b39d820f1ae472"
+    },
+    {
+      "path": "src/templates/crm/settings/business_service_form.html",
+      "action": "modify",
+      "purpose": "Select grouped Services editor; preserve original Logistics editor, all existing fields and draft/error handling.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "5ab1858d149c17fc8906487ed6762121e026cfa15b72d858d2c1dba08e53188c"
+    },
+    {
+      "path": "src/templates/crm/settings/service_category_form.html",
+      "action": "modify",
+      "purpose": "Select Services category editor; retain original Logistics content and route/form contracts.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "f76d7d3e686cd18fd66ec5bc2762779bcf28abe9d9493f09fa746d3ea72a26e1"
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/base.html",
+      "action": "add",
+      "purpose": "Module base extends existing Phoenix shell; load assets only for current SERVICE business.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/assets.html",
+      "action": "add",
+      "purpose": "Load this module CSS through the existing page_assets block.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/list.html",
+      "action": "add",
+      "purpose": "Approved two-section service/category list, existing summaries and guarded actions.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/service_form.html",
+      "action": "add",
+      "purpose": "Grouped existing bound service form with complete fields/errors, pricing and booking guidance.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/category_form.html",
+      "action": "add",
+      "purpose": "Existing bound category form with code/status guidance and save/cancel.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/css/services-catalogue.css",
+      "action": "add",
+      "purpose": "Module-scoped Manrope/theme/record/form styles; retain Phoenix shell and global tokens.",
+      "category": "required_asset",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/apps/crm/test_services_catalogue_ui.py",
+      "action": "add",
+      "purpose": "Meaningful real Django route/form/CSRF/permission/tenant/data-preservation and Logistics fallback regression checks.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/services_catalogue_browser_check.py",
+      "action": "add",
+      "purpose": "Real guarded pair capture/interaction/accessibility plus isolated LiveServer form checks; no ordinary DB/provider calls.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/catalogue_fixtures.py",
+      "action": "add",
+      "purpose": "Setup-only module synthetic fixtures and canonical initial parity through existing identity guards.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/catalogue_preview.py",
+      "action": "add",
+      "purpose": "Fresh module preview entrypoint using existing owned snapshot/session/cluster tools and proposed ports.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/catalogue_checks.py",
+      "action": "add",
+      "purpose": "Allowlisted isolated tests/browser dispatch through unchanged existing source/database/network guards.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/test_catalogue.py",
+      "action": "add",
+      "purpose": "Refusal tests for wrong route/settings/phase/session/source/cluster and provider/network boundary; no database setup in offline tests.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    }
+  ],
+  "approvals": {
+    "design": {
+      "source": "User message, 2026-11-20, immediately following the three named v1 Gate A proposals.",
+      "quote": "proceed",
+      "scope": "Approve services-catalogue-20261119 design v1 and its unchanged scope-bound design identity; prepare the exact production integration and validation-resource proposal, then stop at Gate B. No implementation or runtime setup is authorized.",
+      "design_version": "v1",
+      "design_sha256": "146bd111bff46aadb8f3574772e610bed838ba9f6521ea5c7a5d41421939ba5e"
+    },
+    "implementation": {
+      "source": "User Gate B authorization for all three modules, 2026-11-20; explicit sequential order Catalogue, Data Import, Subscriptions & Billing.",
+      "quote": "Authorize the implementation scopes and disposable validation resources described in each respective Gate B proposal.",
+      "scope": "Local implementation of services-catalogue-20261119 v1, exact approved 15-file manifest, fresh owned synthetic PostgreSQL review/test resources, existing migrations there, loopback Django/browser/accessibility/regressions; stop at Gate C. No new dependencies, schema sources or release actions.",
+      "design_version": "v1",
+      "manifest_sha256": "5a0177576e4228f15796e6ef18239680febf9779654d7d1631ee9fc63dd16419"
+    },
+    "acceptance": {
+      "source": "User message on 2026-11-21 following the three Gate C review links and evidence handoff.",
+      "quote": "all approved",
+      "scope": "Gate C final acceptance of Services Catalogue candidate and its presented current-resource review, including documented limitations. This is one of the three independently accepted Services modules. No staging, commit, push, merge, ordinary database/provider action, deployment or cleanup authorization.",
+      "candidate_sha256": "6f333832eee6787bbe74d657fc567242285dcfec5d842bb34e231c3703ce16bb",
+      "review_sha256": "8ef835e47cbe1a0f10ca1a22c1565a2394bbd959140ce42d1271b4bcadffe5c7",
+      "current_resource_review_sha256": "f777048ec0fe74a6f74946f6238cc8a38d59d51b4f322f3602d3c5ed93ba332a",
+      "current_resource_review_reference": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/current-reviews.json"
+    }
+  },
+  "baseline": {
+    "branch": "experiment/motionmate-ui-redesign",
+    "head": "6d65bc4d5e80f772e1822572f8ee20b4686fd7da",
+    "status": "?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation.md"
+  },
+  "resource_authorizations": [
+    {
+      "environment_id": "services-catalogue-20261119-before",
+      "source": "User Gate B authorization for all three modules, 2026-11-20; explicit sequential order Catalogue, Data Import, Subscriptions & Billing.",
+      "quote": "Authorize the implementation scopes and disposable validation resources described in each respective Gate B proposal.",
+      "scope": "Fresh owned before resource and actions described in validation-resources.json; synthetic data only; independently verify live ownership before writes."
+    },
+    {
+      "environment_id": "services-catalogue-20261119-after",
+      "source": "User Gate B authorization for all three modules, 2026-11-20; explicit sequential order Catalogue, Data Import, Subscriptions & Billing.",
+      "quote": "Authorize the implementation scopes and disposable validation resources described in each respective Gate B proposal.",
+      "scope": "Fresh owned after resource and actions described in validation-resources.json; synthetic data only; independently verify live ownership before writes."
+    },
+    {
+      "environment_id": "services-catalogue-20261119-test",
+      "source": "User Gate B authorization for all three modules, 2026-11-20; explicit sequential order Catalogue, Data Import, Subscriptions & Billing.",
+      "quote": "Authorize the implementation scopes and disposable validation resources described in each respective Gate B proposal.",
+      "scope": "Fresh owned test resource and actions described in validation-resources.json; synthetic data only; independently verify live ownership before writes."
+    }
+  ],
+  "environments": [
+    {
+      "id": "services-catalogue-20261119-before",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_3be9a0bbb46e58dc_before",
+      "cluster_directory": "/tmp/motionmate-preview-session-1g0dntl_/before/pgdata",
+      "system_identifier": "7710356189505751654",
+      "port": 55630,
+      "process": {
+        "pid": 932478,
+        "start": "59528512"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/runtime.json"
+    },
+    {
+      "id": "services-catalogue-20261119-after",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_3be9a0bbb46e58dc_after",
+      "cluster_directory": "/tmp/motionmate-preview-session-1g0dntl_/after/pgdata",
+      "system_identifier": "7710356285146241909",
+      "port": 55631,
+      "process": {
+        "pid": 932753,
+        "start": "59530711"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/runtime.json"
+    }
+  ],
+  "deferred_decisions": [
+    "Booking help/policy discrepancy; no booking behavior or backend changes.",
+    "Search, sorting, pagination, bulk operations and data/schema changes excluded."
+  ],
+  "known_issues": [
+    "Two unchanged shared Phoenix sidebar contrast findings and raw axe incompletes require human consideration.",
+    "Human readonly fixture correctly goes to billing attention; valid restricted catalogue read/write policy covered in isolated Django test.",
+    "Original debug allocator workaround does not establish ordinary-runtime health.",
+    "Later authorized sibling work may invalidate this helper global protected-work snapshot; this Gate C checkpoint is frozen and candidate-owned files remain independently hash-bound. No silent rebaseline."
+  ],
+  "validation": [
+    {
+      "check": "approved_scope_and_fallback_bytes",
+      "status": "pass",
+      "vertical": "SERVICE",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation.md"
+    },
+    {
+      "check": "django_contract_regressions_47_and_focused_8_overlap",
+      "status": "pass",
+      "vertical": "SERVICE",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-results.md"
+    },
+    {
+      "check": "native_live_server_form_journey",
+      "status": "pass",
+      "vertical": "SERVICE",
+      "evidence": "/tmp/motionmate-preview-session-1g0dntl_/after/focused-native-4.log"
+    },
+    {
+      "check": "real_browser_matrix_and_current_source_capture",
+      "status": "pass",
+      "vertical": "SERVICE",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-results.md"
+    },
+    {
+      "check": "logistics_original_rendering_and_role_asset_preservation",
+      "status": "pass",
+      "vertical": "LOGISTICS",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-results.md"
+    },
+    {
+      "check": "initial_synthetic_domain_financial_inventory_preserved",
+      "status": "pass",
+      "vertical": "SERVICE",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-results.md"
+    },
+    {
+      "check": "full_page_shared_shell_axe",
+      "status": "fail",
+      "evidence": "/tmp/motionmate-preview-session-1g0dntl_/after/evidence/catalogue-1795207888723186468/report.json",
+      "limitation": "Two pre-existing shared sidebar contrast findings outside approved scope; module content has no axe violations."
+    },
+    {
+      "check": "manual_accessibility_followup",
+      "status": "blocked",
+      "evidence": "/tmp/motionmate-preview-session-1g0dntl_/after/evidence/catalogue-1795207888723186468/report.json",
+      "limitation": "16 raw axe incomplete case findings retained; no full accessibility certification."
+    },
+    {
+      "check": "ordinary_runtime_provider_readiness",
+      "status": "not_applicable",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-results.md",
+      "limitation": "No ordinary database/provider access authorized or performed; existing debug allocator workaround retained."
+    }
+  ],
+  "evidence": {
+    "audit": [
+      {
+        "kind": "source_inspection",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/source-audit.json",
+        "summary": "Traced actual route, resolver, guards, handler, form/model, template/assets and shared consumers; no runtime observations."
+      }
+    ],
+    "brief": [
+      {
+        "kind": "versioned_design_brief",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/brief.md",
+        "summary": "v1 layout, interactions, mobile/themes/accessibility, independent scope, shared-consumer preservation and deferred functional decisions; ready for Gate A only."
+      }
+    ],
+    "integration": [
+      {
+        "kind": "closed_integration_plan",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/integration.md",
+        "summary": "15 exact paths with no peer overlap, Services-only dispatch, unchanged Logistics consumers, required assets, guarded runtime/test resources and serial baseline activation."
+      }
+    ],
+    "before": [
+      {
+        "kind": "django_before",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/runtime.json",
+        "summary": "Actual working-tree source captured before manifest edits; owned independent PostgreSQL clusters and initial canonical fixtures verified equal. BEFORE frozen and both apps running."
+      }
+    ],
+    "implementation": [
+      {
+        "kind": "scoped_implementation",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation.md",
+        "summary": "Exact 15 approved paths implemented; preserved Logistics fallback bytes checked against actual frozen working-tree BEFORE; no backend/schema/dependency/provider changes."
+      }
+    ],
+    "validation": [
+      {
+        "kind": "django_browser_accessibility_regression",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-results.md",
+        "summary": "Real Django and browser cases passed with disclosed pre-existing shell contrast/manual axe limits; both verticals and retained synthetic inventory verified."
+      }
+    ],
+    "comparison": [
+      {
+        "kind": "real_django_comparison",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-c-review.md",
+        "summary": "One independent frozen Django BEFORE/AFTER pair with equivalent initial fixtures, current candidate/source and verified cluster identities."
+      }
+    ],
+    "report": [
+      {
+        "kind": "gate_c_handoff",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-c-review.md",
+        "summary": "Actual URLs, candidate/source/fixture hashes, representative screenshots and validation limitations; acceptance remains pending."
+      }
+    ]
+  },
+  "updated_at": "2026-11-20T23:06:44.566680+00:00",
+  "optional_prototype": {
+    "enabled": false,
+    "reason": null,
+    "authorization": null
+  },
+  "artifact_inventory": [
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/source-audit.json",
+      "category": "documentation",
+      "purpose": "Offline source evidence and audit hashes, not runtime or implementation baseline.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-a-review.md",
+      "category": "documentation",
+      "purpose": "Pending Gate A review with helper-derived design identity and artifact hashes.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/approval-log.md",
+      "category": "documentation",
+      "purpose": "Actual user Gate A approval with context and explicit Gate B boundary.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-manifest.json",
+      "category": "documentation",
+      "purpose": "Closed exact source/test/asset scope for Gate B.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-resources.json",
+      "category": "documentation",
+      "purpose": "Proposed owned disposable resources/actions, not current runtime authority.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-baseline.json",
+      "category": "documentation",
+      "purpose": "Read-only integration source/worktree capture, separate from real BEFORE/helper activation.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-b-review.md",
+      "category": "documentation",
+      "purpose": "Concrete module Gate B review and bound identities.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/evidence/after-desktop.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/evidence/after-editor-mobile-dark.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/evidence/before-desktop.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/evidence/before-mobile-dark.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "ownership": "task"
+    }
+  ],
+  "protected_workspace": {
+    "status": "?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation.md\n",
+    "files": {
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/approval-log.md": "9d12c813c52d291694bfc430e85a4c3f6af531441c2a6c3c7669877405092b0c",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/brief.md": "9c918d6b09f6f1e200a8eaf6895600705229c6301b54664c3ddd32e23b4c5e9c",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-a-review.md": "3f02d5fc86db80a69f674bc6c6fb5649cc51a4775271d63a57bfc07ddf6087ca",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-b-review.md": "db2b4961156e853fb4a2804145946c033156e42ec1d2e3be1af5c388cdf3bff1",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-baseline.json": "c286528284973f34a0c6cdf41039bd3d1d56f1e3515ca5306f4eb80836d48b0c",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-manifest.json": "15aeba992ddb75ef00f1a351f07101528935b0e538536f4c74762f252e12abcf",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/integration.md": "99e1842aeda2d199872c8f3876938e92e4a2c3e715e5c6e146d62708d6e9bc14",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/source-audit.json": "487cc8768318c6e8fcdb1140d59aa5cd5045b2646b8aa2357fdc41b7f0add801",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/state.json": "1842309670e4a381adc902535f361e78765cd2d2e2fd89e1a51a97f5edee38f0",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation-resources.json": "248a6565ad56b6f61d806e81acad7d2920512fbbb181aca33fd2cfea150fbbba",
+      "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation.md": "40e9720ee43dc57d259041282896f144eb0385698bd061bfe8895db550c51ecd",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/approval-log.md": "f33ebd86aa9ab3061060cdea252f5793fb0d5871f8ff3e30ff4d1d7e2b492f85",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/brief.md": "f81bf029b94bd91c4b5e92e58286c28d0862cdd4391a1cdd6f5356ef95638444",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-a-review.md": "0630476a745052dfeded09f7421c96fe9da0e1021e4731d14f4b2bbe748b9768",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-b-review.md": "cef4825d041eb4c6942f4e56045ff1100d9bbedf6c352d481635c878bf0280cf",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-baseline.json": "cfb3ac7f0169c76b9955d08dd4077cab3304d22d736641fa6364853d69e39c13",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-manifest.json": "73591ea91909457780d5ba2fb50046b543dbc9e088813fccd7a95de02d60d623",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/integration.md": "d647b85ed0e9e6a482b2b8b7600c509a4819ae2feb8447d98d859d98dc175bf8",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-audit.json": "551fe89db1fdb48db133e3e490fc295edb0f3287f7c401c07a855a0ed63ded04",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/state.json": "40a4c0c5eda7acb8c2787e9e6f0d3922ed937ce99e1fd4c070a284f53cec3ef6",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation-resources.json": "2895c5afc6546a285cb1dab14dbee05c1ec71b7d357ec07bf7517c75f1c00d6f",
+      "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation.md": "8b204919ce7fb9cfe4b877cfec64112b5c6fbb4b704cc1261842b8246323f9fe"
+    },
+    "index_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "implementation_checkpoint": {
+    "src/templates/crm/settings/business_service_list.html": "7fdd23db182e05daa9c8876bad85d386f2afe7d4ae579af3797d891fe4b5ece2",
+    "src/templates/crm/settings/business_service_form.html": "d652a9b63ac340db0741b823e98f68d7ef409cac62693efe67e7e1caefa0ba23",
+    "src/templates/crm/settings/service_category_form.html": "133bc9c8a7a0f4108c68deb84a73636d5f6d9ab674018927c26bbdee923e8603",
+    "src/templates/crm/services/catalogue/base.html": "43f5e0479d6c6b5342e722db6cc20acc4fc27f257da077eb760ed62dffd6f307",
+    "src/templates/crm/services/catalogue/assets.html": "983eb87b7149051e18cfa7a815c446c35ef55eb07923dce0683b8ecf1333130c",
+    "src/templates/crm/services/catalogue/list.html": "3a22e221ee6d9cc6352c751ffc020aafedc7a88e4531b125de889304c36045e9",
+    "src/templates/crm/services/catalogue/service_form.html": "004340b9944a2273cea66dae9ae0661cf6b6a82046b4a825f0267b6cf398dd5e",
+    "src/templates/crm/services/catalogue/category_form.html": "707650a46e854150456df261aa34cf2f0328b646b03baae0ce4f7ce2f177158d",
+    "src/static/assets/css/services-catalogue.css": "02431631d5cb6e3d31bddcce323c39745016c28465683e492f8a4f1be1b94fd4",
+    "src/apps/crm/test_services_catalogue_ui.py": "6af69e0f87f57ca30f6a4972302e119a04053a82d9814e5490b7fbe22d09261e",
+    "scripts/services_catalogue_browser_check.py": "8e07acbf589a6f76bcb485e8e1d4a363bae6dc60bb48c1d6952d1e85d4a02c06",
+    "scripts/ui_preview/catalogue_fixtures.py": "89b12a32385504386a224b19d80194c5cbd14349fc9c7c79f9e3a18b6b6700f6",
+    "scripts/ui_preview/catalogue_preview.py": "426ac3725a1221b8d5d9547e5b29613f3803c7b31410a512bef735ab7f3243e8",
+    "scripts/ui_preview/catalogue_checks.py": "ff119f0bb2d4b6e9b8c63ee0e5fae45869bed4a79d1ebf43da06e29af4cf9457",
+    "scripts/ui_preview/test_catalogue.py": "123dd18ed6e68ee3a155b75fd6cac8ff68e8f701f28118c1a4a5b6f723e5532b"
+  },
+  "preview": {
+    "kind": "django",
+    "vertical": "SERVICE",
+    "synthetic_records": true,
+    "contracts": [
+      "templates",
+      "routes",
+      "authentication",
+      "forms",
+      "permissions"
+    ],
+    "before": {
+      "url": "http://127.0.0.1:8880/crm/settings/services/",
+      "source_sha256": "c9cbeaeefdea6a09a02cb5d00671d4461a98bd0b409c2c7f49ba37d4bd3b719c",
+      "initial_fixture_sha256": "a783d50bf9c9d53588105ff8fab624ba7cc6d47acf20698064bfda7619d965c0",
+      "environment_id": "services-catalogue-20261119-before"
+    },
+    "after": {
+      "url": "http://127.0.0.1:8881/crm/settings/services/",
+      "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+      "initial_fixture_sha256": "a783d50bf9c9d53588105ff8fab624ba7cc6d47acf20698064bfda7619d965c0",
+      "environment_id": "services-catalogue-20261119-after",
+      "candidate_sha256": "6f333832eee6787bbe74d657fc567242285dcfec5d842bb34e231c3703ce16bb"
+    }
+  },
+  "before_identity_sha256": "bde60b8fff713926d385a607236a48ee4c0cc92a2fbe1c335ab80724f2b3dad3",
+  "task_authorization": {
+    "source": "Current user request, 2026-11-19",
+    "quote": "Use Workflow v2: audit and design planning first, then one real Django BEFORE/AFTER review after implementation.",
+    "scope": "Three independent Services audit/design workstreams, saved workflow records, stop at Gate A; no application implementation/runtime setup/release actions."
+  },
+  "independent_peer_workstreams": [
+    "services-data-import-20261119",
+    "services-subscriptions-billing-20261119"
+  ],
+  "scope_coordination": {
+    "service_csv_owner": "services-data-import-20261119",
+    "catalogue_scope": "Catalogue list and existing service/category forms; retain links to Data Import-owned service CSV.",
+    "client_import_scope": "Preserve existing Services Client Import implementation/assets and historical records.",
+    "subscription_scope": "Services subscription page only; no public checkout/pricing/provider or customer-invoice redesign.",
+    "approvals_are_independent": true
+  },
+  "authorization_history": [
+    {
+      "source": "User message, 2026-11-20, immediately following the three named v1 Gate A proposals.",
+      "quote": "proceed",
+      "scope": "Approve services-catalogue-20261119 design v1 and its unchanged scope-bound design identity; prepare the exact production integration and validation-resource proposal, then stop at Gate B. No implementation or runtime setup is authorized.",
+      "design_version": "v1",
+      "design_sha256": "146bd111bff46aadb8f3574772e610bed838ba9f6521ea5c7a5d41421939ba5e"
+    },
+    {
+      "source": "User Gate B authorization for all three modules, 2026-11-20; explicit sequential order Catalogue, Data Import, Subscriptions & Billing.",
+      "quote": "Authorize the implementation scopes and disposable validation resources described in each respective Gate B proposal.",
+      "scope": "Local implementation of services-catalogue-20261119 v1, exact approved 15-file manifest, fresh owned synthetic PostgreSQL review/test resources, existing migrations there, loopback Django/browser/accessibility/regressions; stop at Gate C. No new dependencies, schema sources or release actions.",
+      "design_version": "v1",
+      "manifest_sha256": "5a0177576e4228f15796e6ef18239680febf9779654d7d1631ee9fc63dd16419"
+    },
+    {
+      "source": "User message on 2026-11-21 following the three Gate C review links and evidence handoff.",
+      "quote": "all approved",
+      "scope": "Gate C final acceptance of Services Catalogue candidate and its presented current-resource review, including documented limitations. This is one of the three independently accepted Services modules. No staging, commit, push, merge, ordinary database/provider action, deployment or cleanup authorization.",
+      "candidate_sha256": "6f333832eee6787bbe74d657fc567242285dcfec5d842bb34e231c3703ce16bb",
+      "review_sha256": "8ef835e47cbe1a0f10ca1a22c1565a2394bbd959140ce42d1271b4bcadffe5c7",
+      "current_resource_review_sha256": "f777048ec0fe74a6f74946f6238cc8a38d59d51b4f322f3602d3c5ed93ba332a",
+      "current_resource_review_reference": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/current-reviews.json"
+    }
+  ],
+  "execution_baseline_strategy": {
+    "source_review_capture": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-baseline.json",
+    "helper_activation": "Catalogue first after all proposals are frozen; remaining modules before their own B recording/execution, with explicit drift reconciliation.",
+    "reason": "Protect peer task records without circular mutable state hashes; no helper guard is weakened."
+  },
+  "integration_approval_boundary": "Gate A approved; exact Gate B source/resource scope proposed only. No implementation/runtime setup consent.",
+  "integration_artifacts": {
+    "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/integration.md": "f0a7a5e88c4541750715c3f133738da4e32cdaaa2339d7ba1ad8703a661508ba",
+    "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-manifest.json": "1aa1fa1319e4795afdfdbef5331896a3ace5d598781a91fccaf95dbafeefd9bc",
+    "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-baseline.json": "0dcd6a2c1d96a8cab56d12624f9e9f6181f1b9720dd9ab28686890a6de42e94d",
+    "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-resources.json": "c411e9a31af3ef7ccc42ff3f57b9d6cb1d389945f76656a94b365527b9a5ce9b",
+    "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation.md": "f8165274fe386bc16502ae35e0ed84f183b1e78365e42fc8ba91635b4d1a7bea",
+    "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-b-review.md": "b5fd0416cb393c788fc10a70e9a400a1fd436d98b40f2a4fae58430e82ab956b"
+  },
+  "acceptance_record": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/acceptance.md",
+  "post_acceptance_scope": {
+    "original_baseline_digest_unchanged": "442b9e6e2a5ab9f4be028ea76011307d3fdf4dc6692cd3a4282d1473921c1871",
+    "implementation_files_unchanged": true,
+    "release_authorized": false,
+    "note": "Per-module candidate/review hashes verified directly. Original global workspace protection remains intact; later authorized sibling work is reconciled separately for packaging.",
+    "packaging": {
+      "method": "explicit accepted-peer ownership reconciliation",
+      "stock_helper_status": "blocked_by_broad_workspace_snapshot",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/commit-preparation-verification.json",
+      "manifest": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/commit-manifest.json",
+      "baseline_rewritten": false
+    }
+  }
+}

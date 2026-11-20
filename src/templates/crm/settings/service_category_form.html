@@ -1,6 +1,9 @@
-{% extends "inheritance/dashboard_parent.html" %}
+{% extends "crm/services/catalogue/base.html" %}
 
 {% block content %}
+{% if current_business.vertical == 'SERVICE' %}
+{% include "crm/services/catalogue/category_form.html" %}
+{% else %}
 <div class="content">
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
@@ -78,4 +81,5 @@
     </div>
   </form>
 </div>
+{% endif %}
 {% endblock %}

@@ -1,7 +1,10 @@
-{% extends "inheritance/dashboard_parent.html" %}
+{% extends "crm/services/catalogue/base.html" %}
 {% load money %}
 
 {% block content %}
+{% if current_business.vertical == 'SERVICE' %}
+{% include "crm/services/catalogue/list.html" %}
+{% else %}
 <div class="content">
   <nav class="mb-3" aria-label="breadcrumb">
     <ol class="breadcrumb mb-0">
@@ -253,4 +256,5 @@
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,71 @@
+{
+  "session": "/tmp/motionmate-preview-session-1g0dntl_",
+  "before_snapshot": "/tmp/motionmate-preview-snapshot-z5ishlx6",
+  "launcher": "http://127.0.0.1:8882/",
+  "initial_fixture_sha256": "a783d50bf9c9d53588105ff8fab624ba7cc6d47acf20698064bfda7619d965c0",
+  "preview": {
+    "kind": "django",
+    "vertical": "SERVICE",
+    "synthetic_records": true,
+    "contracts": [
+      "templates",
+      "routes",
+      "authentication",
+      "forms",
+      "permissions"
+    ],
+    "before": {
+      "url": "http://127.0.0.1:8880/crm/settings/services/",
+      "source_sha256": "c9cbeaeefdea6a09a02cb5d00671d4461a98bd0b409c2c7f49ba37d4bd3b719c",
+      "initial_fixture_sha256": "a783d50bf9c9d53588105ff8fab624ba7cc6d47acf20698064bfda7619d965c0",
+      "environment_id": "services-catalogue-20261119-before"
+    },
+    "after": {
+      "url": "http://127.0.0.1:8881/crm/settings/services/",
+      "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+      "initial_fixture_sha256": "a783d50bf9c9d53588105ff8fab624ba7cc6d47acf20698064bfda7619d965c0",
+      "environment_id": "services-catalogue-20261119-after",
+      "candidate_sha256": "6f333832eee6787bbe74d657fc567242285dcfec5d842bb34e231c3703ce16bb"
+    }
+  },
+  "environments": [
+    {
+      "id": "services-catalogue-20261119-before",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_3be9a0bbb46e58dc_before",
+      "cluster_directory": "/tmp/motionmate-preview-session-1g0dntl_/before/pgdata",
+      "system_identifier": "7710356189505751654",
+      "port": 55630,
+      "process": {
+        "pid": 932478,
+        "start": "59528512"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/runtime.json"
+    },
+    {
+      "id": "services-catalogue-20261119-after",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_3be9a0bbb46e58dc_after",
+      "cluster_directory": "/tmp/motionmate-preview-session-1g0dntl_/after/pgdata",
+      "system_identifier": "7710356285146241909",
+      "port": 55631,
+      "process": {
+        "pid": 932753,
+        "start": "59530711"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/runtime.json"
+    }
+  ],
+  "accounts": "See private loopback launcher; synthetic catalogue.owner@preview.test and scenario/role accounts. No password stored in repository.",
+  "guards": "Original source/ownership/network/provider/financial guards unchanged.",
+  "allocator": "Existing PYTHONMALLOC=debug preview workaround; no ordinary-runtime readiness claim.",
+  "candidate_sha256": "6f333832eee6787bbe74d657fc567242285dcfec5d842bb34e231c3703ce16bb",
+  "review_sha256": "8ef835e47cbe1a0f10ca1a22c1565a2394bbd959140ce42d1271b4bcadffe5c7",
+  "browser": "Chrome for Testing 148.0.7778.96"
+}
