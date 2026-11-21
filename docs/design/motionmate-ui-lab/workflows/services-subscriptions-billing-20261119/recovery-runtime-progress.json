@@ -1,0 +1,128 @@
+[
+  {
+    "module": "catalogue",
+    "session": "/tmp/motionmate-preview-session-7za2dvs_",
+    "reason": "Fresh resources after execution environment restart; old resource identities retained as historical evidence only.",
+    "before_snapshot": "/tmp/motionmate-preview-snapshot-9l4odmfh",
+    "initial_fixture_sha256": "cc96761435dcfe109cabfee5bd4e5f4223fde60b669bdc7d3c85c63e0ace14f7",
+    "launcher": "http://127.0.0.1:8882/",
+    "sides": {
+      "before": {
+        "url": "http://127.0.0.1:8880/crm/settings/services/",
+        "source_sha256": "c9cbeaeefdea6a09a02cb5d00671d4461a98bd0b409c2c7f49ba37d4bd3b719c",
+        "source": "/tmp/motionmate-preview-session-7za2dvs_/sources/before",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55630,
+          "data_directory": "/tmp/motionmate-preview-session-7za2dvs_/before/pgdata",
+          "system_identifier": "7710374401376784630",
+          "database": "mm_preview_b86f30e581daeef8_before"
+        },
+        "process": {
+          "pid": 5339,
+          "start": "31268"
+        }
+      },
+      "after": {
+        "url": "http://127.0.0.1:8881/crm/settings/services/",
+        "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+        "source": "/tmp/motionmate-preview-session-7za2dvs_/sources/recovered-after",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55631,
+          "data_directory": "/tmp/motionmate-preview-session-7za2dvs_/after/pgdata",
+          "system_identifier": "7710374512921662121",
+          "database": "mm_preview_b86f30e581daeef8_after"
+        },
+        "process": {
+          "pid": 5393,
+          "start": "31432"
+        }
+      }
+    }
+  },
+  {
+    "module": "data_import",
+    "session": "/tmp/motionmate-preview-session-g6z_174n",
+    "reason": "Fresh resources after execution environment restart; old resource identities retained as historical evidence only.",
+    "before_snapshot": "/tmp/motionmate-preview-snapshot-7fzxinb6",
+    "initial_fixture_sha256": "904a4023e415c69ba8ab41a9df5cb27243c687290b1479046f0b4b998b69a1ae",
+    "launcher": "http://127.0.0.1:8902/",
+    "sides": {
+      "before": {
+        "url": "http://127.0.0.1:8900/crm/staff/data-import/",
+        "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+        "source": "/tmp/motionmate-preview-session-g6z_174n/sources/before",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55640,
+          "data_directory": "/tmp/motionmate-preview-session-g6z_174n/before/pgdata",
+          "system_identifier": "7710374741803255185",
+          "database": "mm_preview_2cbf6c2abc631465_before"
+        },
+        "process": {
+          "pid": 6719,
+          "start": "39039"
+        }
+      },
+      "after": {
+        "url": "http://127.0.0.1:8901/crm/staff/data-import/",
+        "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+        "source": "/tmp/motionmate-preview-session-g6z_174n/sources/recovered-after",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55641,
+          "data_directory": "/tmp/motionmate-preview-session-g6z_174n/after/pgdata",
+          "system_identifier": "7710374851356153655",
+          "database": "mm_preview_2cbf6c2abc631465_after"
+        },
+        "process": {
+          "pid": 6768,
+          "start": "39243"
+        }
+      }
+    }
+  },
+  {
+    "module": "subscriptions",
+    "session": "/tmp/motionmate-preview-session-z9qu5gsy",
+    "reason": "Fresh resources after execution environment restart. Metadata canonicalization excludes only migration-generated plan audit times; original per-side metadata and full facts retained. No SQL/data synchronization or reseeding.",
+    "before_snapshot": "/tmp/motionmate-preview-snapshot-2x69qd_l",
+    "initial_fixture_sha256": "554419a9d47d864d34a42b0f2e53f1df7d0a7cf4c46d5547a12164b873fbaf7f",
+    "launcher": "http://127.0.0.1:8912/",
+    "sides": {
+      "before": {
+        "url": "http://127.0.0.1:8910/businesses/subscription/",
+        "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+        "source": "/tmp/motionmate-preview-session-z9qu5gsy/sources/before",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55650,
+          "data_directory": "/tmp/motionmate-preview-session-z9qu5gsy/before/pgdata",
+          "system_identifier": "7710375086553205480",
+          "database": "mm_preview_a5154631498133cc_before"
+        },
+        "process": {
+          "pid": 8972,
+          "start": "51758"
+        }
+      },
+      "after": {
+        "url": "http://127.0.0.1:8911/businesses/subscription/",
+        "source_sha256": "28a0625bf79be2a4b6f624c240aa2883bcc11572e89022d4b75ee5310ccba01a",
+        "source": "/tmp/motionmate-preview-session-z9qu5gsy/sources/after",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55651,
+          "data_directory": "/tmp/motionmate-preview-session-z9qu5gsy/after/pgdata",
+          "system_identifier": "7710375265471126995",
+          "database": "mm_preview_a5154631498133cc_after"
+        },
+        "process": {
+          "pid": 9021,
+          "start": "51949"
+        }
+      }
+    }
+  }
+]

@@ -1,7 +1,12 @@
 {% extends 'inheritance/dashboard_parent.html' %}
 {% load static %}
 
+{% block page_assets %}{{ block.super }}{% if current_business.vertical == 'SERVICE' %}{% include 'businesses/services/settings/assets.html' %}{% endif %}{% endblock %}
+
 {% block content %}
+{% if current_business.vertical == 'SERVICE' %}
+{% include 'businesses/services/settings/page.html' %}
+{% else %}
 <link href="{% static 'assets/css/business-settings.css' %}?v=20261019-1" rel="stylesheet">
 <div class="content business-settings">
   <nav class="mb-3" aria-label="breadcrumb">
@@ -258,4 +263,5 @@
   </div>
 </div>
 {% if business.vertical == 'LOGISTICS' %}{% include 'logistics/includes/scripts.html' %}{% endif %}
+{% endif %}
 {% endblock %}

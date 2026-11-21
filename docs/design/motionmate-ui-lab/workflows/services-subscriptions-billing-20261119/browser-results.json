@@ -1,0 +1,215 @@
+[
+  {
+    "module": "catalogue",
+    "session": "/tmp/motionmate-preview-session-7za2dvs_",
+    "sides": {
+      "before": {
+        "report": "/tmp/motionmate-preview-session-7za2dvs_/before/evidence/catalogue-1795211557133556517/report.json",
+        "report_sha256": "7349dec9474bc1d674b3817f218863798c1aba54bb704d93367559bcd68db0da",
+        "source_sha256": "c9cbeaeefdea6a09a02cb5d00671d4461a98bd0b409c2c7f49ba37d4bd3b719c",
+        "core_cases": 40,
+        "state_cases": 5,
+        "role_cases": 10,
+        "core_module_violations": 40,
+        "core_incomplete_findings": 54,
+        "full_page_violations": [
+          {
+            "id": "color-contrast",
+            "targets": [
+              [
+                ".nav-item:nth-child(2) > .navbar-vertical-label"
+              ],
+              [
+                ".nav-item:nth-child(3) > .navbar-vertical-label"
+              ],
+              [
+                ".breadcrumb-item:nth-child(1) > a[href$=\"dashboard/\"]"
+              ],
+              [
+                ".breadcrumb-item:nth-child(2) > a[href$=\"settings/\"]"
+              ],
+              [
+                ".col-auto > .btn-primary.btn[href$=\"create/\"]"
+              ],
+              [
+                ".alert"
+              ],
+              [
+                ".shadow-sm.border-0.mb-4 > .p-0.card-body > .table-responsive > table > tbody > tr:nth-child(2) > .text-end.pe-4 > .d-inline-flex.gap-2 > form > .btn-outline-danger[type=\"submit\"]"
+              ],
+              [
+                "tr:nth-child(3) > .text-end.pe-4 > .d-inline-flex.gap-2 > form > .btn-outline-danger[type=\"submit\"]"
+              ],
+              [
+                ".gap-3 > .btn-primary.btn"
+              ],
+              [
+                "tr:nth-child(1) > .text-end.pe-4 > .d-inline-flex.gap-2 > form > .btn-outline-danger[type=\"submit\"]"
+              ],
+              [
+                ".shadow-sm.border-0.card:nth-child(6) > .p-0.card-body > .table-responsive > table > tbody > tr:nth-child(2) > .text-end.pe-4 > .d-inline-flex.gap-2 > form > .btn-outline-danger[type=\"submit\"]"
+              ]
+            ]
+          }
+        ]
+      },
+      "after": {
+        "report": "/tmp/motionmate-preview-session-7za2dvs_/after/evidence/catalogue-1795211674778279354/report.json",
+        "report_sha256": "0410e664a49b628f69a8b4ae61f526467b2d7c44c5f1592854aab0461ddcd05b",
+        "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+        "core_cases": 40,
+        "state_cases": 5,
+        "role_cases": 10,
+        "core_module_violations": 0,
+        "core_incomplete_findings": 16,
+        "full_page_violations": [
+          {
+            "id": "color-contrast",
+            "targets": [
+              [
+                ".nav-item:nth-child(2) > .navbar-vertical-label"
+              ],
+              [
+                ".nav-item:nth-child(3) > .navbar-vertical-label"
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "module": "data_import",
+    "session": "/tmp/motionmate-preview-session-g6z_174n",
+    "sides": {
+      "before": {
+        "report": "/tmp/motionmate-preview-session-g6z_174n/before/evidence/data_import-1795211774237062418/report.json",
+        "report_sha256": "ba0733ac07e097672866656425108a00b94dc1a59855178471b84fea428d3cf9",
+        "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+        "core_cases": 48,
+        "state_cases": 11,
+        "role_cases": 10,
+        "core_module_violations": 63,
+        "core_incomplete_findings": 47,
+        "full_page_violations": [
+          {
+            "id": "color-contrast",
+            "targets": [
+              [
+                ".nav-item:nth-child(2) > .navbar-vertical-label"
+              ],
+              [
+                ".nav-item:nth-child(3) > .navbar-vertical-label"
+              ],
+              [
+                ".breadcrumb-item:nth-child(1) > a[href$=\"dashboard/\"]"
+              ],
+              [
+                ".alert > .mb-0"
+              ],
+              [
+                ".col-md-6.col-xl-3.col-12:nth-child(1) > .h-100.shadow-sm.card > .card-body.p-4.flex-column > .flex-wrap.gap-2.d-flex > .btn-primary.btn"
+              ],
+              [
+                ".flex-wrap.gap-2.d-flex > a[href$=\"import/\"]"
+              ],
+              [
+                "a[href$=\"leads/\"]"
+              ],
+              [
+                ".btn-outline-primary"
+              ]
+            ]
+          }
+        ]
+      },
+      "after": {
+        "report": "/tmp/motionmate-preview-session-g6z_174n/after/evidence/data_import-1795211789343924722/report.json",
+        "report_sha256": "3821f6358b38a58936ed3959e1b32e9c76b7747520a03f5f6fb271aabbf9375c",
+        "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+        "core_cases": 48,
+        "state_cases": 11,
+        "role_cases": 10,
+        "core_module_violations": 0,
+        "core_incomplete_findings": 24,
+        "full_page_violations": [
+          {
+            "id": "color-contrast",
+            "targets": [
+              [
+                ".nav-item:nth-child(2) > .navbar-vertical-label"
+              ],
+              [
+                ".nav-item:nth-child(3) > .navbar-vertical-label"
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "module": "subscriptions",
+    "session": "/tmp/motionmate-preview-session-z9qu5gsy",
+    "sides": {
+      "before": {
+        "report": "/tmp/motionmate-preview-session-z9qu5gsy/before/evidence/subscriptions-1795211774320438180/report.json",
+        "report_sha256": "1e864e23dc7d7cd63ec7fda26f682ee2e83d2ec26c3640ec9536f0aaa58a56c6",
+        "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+        "core_cases": 8,
+        "state_cases": 26,
+        "role_cases": 10,
+        "core_module_violations": 8,
+        "core_incomplete_findings": 8,
+        "full_page_violations": [
+          {
+            "id": "color-contrast",
+            "targets": [
+              [
+                ".nav-item:nth-child(2) > .navbar-vertical-label"
+              ],
+              [
+                ".nav-item:nth-child(3) > .navbar-vertical-label"
+              ],
+              [
+                ".alert-info"
+              ],
+              [
+                ".col-lg-4.col-12:nth-child(1) > .card.h-100 > .card-body.p-4 > form > .btn-primary[type=\"submit\"]"
+              ],
+              [
+                ".alert-primary"
+              ],
+              [
+                ".col-lg-4.col-12:nth-child(3) > .card.h-100 > .card-body.p-4 > form > .btn-primary[type=\"submit\"]"
+              ]
+            ]
+          }
+        ]
+      },
+      "after": {
+        "report": "/tmp/motionmate-preview-session-z9qu5gsy/after/evidence/subscriptions-1795212986516647358/report.json",
+        "report_sha256": "07cde6b4b85e05d6b0943ab7cc8a3c7a91f5ca5e80d44f3f069214eca5ecfb6e",
+        "source_sha256": "b8cd3a376449b0a9360a0a0f8a67d4dc5899d9caeaee02e32eca98d30c2ae1c3",
+        "core_cases": 8,
+        "state_cases": 26,
+        "role_cases": 10,
+        "core_module_violations": 0,
+        "core_incomplete_findings": 0,
+        "full_page_violations": [
+          {
+            "id": "color-contrast",
+            "targets": [
+              [
+                ".nav-item:nth-child(2) > .navbar-vertical-label"
+              ],
+              [
+                ".nav-item:nth-child(3) > .navbar-vertical-label"
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  }
+]

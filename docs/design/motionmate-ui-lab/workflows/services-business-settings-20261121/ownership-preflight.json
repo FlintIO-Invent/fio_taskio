@@ -1,0 +1,25 @@
+{
+  "team_candidate_sha256": "75eff468999c7f9360ba94327784190615d008be0a896cf7e49dbb57de587319",
+  "team_candidate_files": {
+    "src/templates/businesses/team_members.html": "c23e80fc9de034aa9f8676dd3f6e3470145f8af95750cc9c2730f6dfe591ee36",
+    "src/templates/businesses/services/team/assets.html": "4f13711fda332af8f60f931ea70a047e08ddd87141e13f36b4248796d8058f38",
+    "src/templates/businesses/services/team/page.html": "038ff3c5209e47728980612444bc1a2064ecadabe7fbebc7b6a9a5ed1bcdaaa0",
+    "src/templates/businesses/services/team/directory.html": "1d2e9db6e72aad1a3e3e29e2620e4bb5e7977a808af68e8b34c7645ee1b62f42",
+    "src/templates/businesses/services/team/invite_form.html": "42f1abfced6c27929d689c9075753c521e9cee1885ba44deecc15b3baabc0b4b",
+    "src/templates/businesses/services/team/pending_invitations.html": "907385be608b47bbb64c4dba742aba5d5cc44982a35f705a20ff0c0cbbc1f0be",
+    "src/templates/businesses/services/team/field.html": "ca5a24e3bb9ac26763320c05af97f81a7f91f1ea396c7964b21a70b6dad629dd",
+    "src/static/assets/css/services-team.css": "754d50f53f1aed927611a9a74e469d838458d6774d6dbe8251cd6c50d0f69fb8",
+    "src/apps/businesses/test_services_team_ui.py": "f1bcff65b0cf1167124770b8c4f2b32c8be5701a6c21e65e76689abd969f85a8",
+    "scripts/services_team_browser_check.py": "722b20b9c9b3e8b7e38dd1da4616475a71a6bcf55201544d204afdb38a0f308f",
+    "scripts/ui_preview/team_fixtures.py": "c317b1cbe4773608754be47f1c75d826eb3b74aab3903ac14b25830955723a0a",
+    "scripts/ui_preview/team_preview.py": "0d116de078be57dedaccb74b75e574b3aa39f5eacecd9b86a142a1cd0308b653",
+    "scripts/ui_preview/team_checks.py": "8ea9d4207359b4d4d56d2e582b4444c9cd03c6776a55b1a0438ce96f95cf6dd3",
+    "scripts/ui_preview/test_team.py": "be72fb62a714cf51e26eb21b22394d4daf7093301f452ff671f2371f4247a63a",
+    "scripts/ui_preview/guard.py": "1e1982bc9f98c282adab089353cb04401fdf4666d011a7b8c652c74b0191d086"
+  },
+  "settings_targets_unchanged": true,
+  "settings_approved_artifacts_unchanged": true,
+  "first_baseline_activation": true,
+  "original_offline_proposal_baseline_retained": true,
+  "authorized_dependency_drift": "Team one-file guard extension explicitly approved; original Settings read-only guard hash retained in proposal baseline, current guard byte hash is part of verified Team candidate. No other dependency or target drift accepted."
+}

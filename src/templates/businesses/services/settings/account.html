@@ -1,0 +1,30 @@
+<section class="card mb-4" id="my-account" data-mm-settings-panel aria-labelledby="my-account-title">
+        <div class="card-header border-bottom border-dashed p-3 p-sm-4">
+          <h2 class="mb-1" id="my-account-title">My account</h2>
+          <p class="text-body-secondary mb-0">Personal details for your sign-in. Changes here apply only to your account.</p>
+        </div>
+        <form method="post" action="{% url 'business_settings' %}#my-account" data-mm-has-errors="{% if account_form.errors %}true{% else %}false{% endif %}" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="section" value="account">
+          <div class="card-body p-3 p-sm-4">
+            {% if account_form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ account_form.non_field_errors }}</div>{% endif %}
+            <div class="row g-3">
+              {% for field in account_form %}
+                <div class="col-12{% if field.name != 'address' %} col-md-6{% endif %}">{% include 'businesses/services/settings/field.html' with field=field only %}</div>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="card-footer bg-body-highlight p-3 p-sm-4 d-flex justify-content-end">
+            <button class="btn btn-primary settings-save-button" type="submit">Save personal details</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card mb-4" id="security" data-mm-settings-panel aria-labelledby="security-title">
+        <div class="card-body p-3 p-sm-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+          <div><h2 class="mb-1" id="security-title">Security</h2><p class="text-body-secondary mb-0">Manage the password you use to sign in.</p></div>
+          <a class="btn btn-phoenix-secondary" href="{% url 'password_change' %}"><span class="fa-solid fa-key me-2" aria-hidden="true"></span>Change password</a>
+        </div>
+      </section>
+
+      

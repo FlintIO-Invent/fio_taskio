@@ -1,0 +1,8 @@
+{
+  "session": "/tmp/motionmate-preview-session-g2_q9ufd",
+  "tooling_guard_sha256": "1e1982bc9f98c282adab089353cb04401fdf4666d011a7b8c652c74b0191d086",
+  "both_sides_use_same_tooling": true,
+  "frozen_Django_before_source_unchanged": true,
+  "authorization": "Approve the one-file guard extension",
+  "financial_and_schema_negative_tests": "passed"
+}

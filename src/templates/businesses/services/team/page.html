@@ -1,0 +1,19 @@
+<div class="content mm-services-team">
+  <header class="mm-page-header">
+    <div><p class="mm-eyebrow">Motionmate Services · {{ business.name }}</p><h1>Employees &amp; Team</h1><p class="mm-supporting">Manage workspace membership and invite your colleagues.</p></div>
+    <div class="mm-actions">
+      {% if workspace_can_modify %}<a class="btn btn-primary" href="#invite-team-member">Invite team member</a>{% endif %}
+      {% if role_access.can_manage_business_settings and workspace_can_modify %}<a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Business Settings</a>{% endif %}
+      {% if role_access.can_manage_subscription %}<a class="btn btn-phoenix-secondary" href="{% url 'business_subscription' %}">Subscription</a>{% endif %}
+      <a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a>
+    </div>
+  </header>
+  <p class="mm-supporting">Your workspace role: <strong>{{ membership.get_role_display }}</strong></p>
+  {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}
+  {% if not workspace_can_modify %}<div class="alert alert-warning" role="status">Workspace changes are unavailable with the current subscription. You can review existing members and invitations.</div>{% endif %}
+  {% include 'businesses/services/team/directory.html' %}
+  <div class="mm-team-invitations">
+    {% if workspace_can_modify %}{% include 'businesses/services/team/invite_form.html' %}{% endif %}
+    {% include 'businesses/services/team/pending_invitations.html' %}
+  </div>
+</div>

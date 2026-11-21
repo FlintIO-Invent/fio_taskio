@@ -1,0 +1,356 @@
+{
+  "task_id": "services-data-import-20261119",
+  "design_version": "v1",
+  "status": "proposed_gate_b_not_implemented",
+  "files": [
+    {
+      "path": "src/templates/crm/importing/data_import.html",
+      "action": "modify",
+      "purpose": "Select Services task-choice hub with unchanged per-type/history guards.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "11ed949faed9c3cac137f7421e5bf9836dfa7cbf3075168c50a01fae2dfdc86d"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_upload.html",
+      "action": "modify",
+      "purpose": "Select Services lead upload composition; preserve Logistics markup and multipart form contract.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "7fd6f68303ddb565a535d58c5e9e07e25f413c1b716d45f8c943a15d121ac3e8"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_preview.html",
+      "action": "modify",
+      "purpose": "Select Services read-only preview; preserve ready/blocked state, row data, issues and confirm POST.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "3ffbcd82e428cc8ff977090102ef42de2692ccdeba391937dbaea30fdf4f881b"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_result.html",
+      "action": "modify",
+      "purpose": "Select Services result composition with original codes/counts/next actions.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "e1b7def19c6b53b2bfcbbe4c484c5a8c65c7a6be245c69747c4cd325b098c520"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_preview_unavailable.html",
+      "action": "modify",
+      "purpose": "Select Services unavailable state; retain status, message and recovery links.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "6b5b012a893cee6bdf4b0f148beec5edd3020f8fd44cf055fafed1782713150e"
+    },
+    {
+      "path": "src/templates/crm/settings/business_service_import.html",
+      "action": "modify",
+      "purpose": "Select Services combined CSV upload/examples; retain Logistics fallback and exact fields/hooks.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "c54adb6af73ae37c61bf6adbfe6a34b92d89cb677d3ca424e568b08f7833fb4a"
+    },
+    {
+      "path": "src/templates/crm/importing/service_preview.html",
+      "action": "modify",
+      "purpose": "Select Services create/update/category preview with complete changes, notes and confirm contract.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "fbbb03676df9e2520fe7eebc5e571beef8bb4781122e9ab9ecc80bf61358ee99"
+    },
+    {
+      "path": "src/templates/crm/importing/service_result.html",
+      "action": "modify",
+      "purpose": "Select Services result with exact execution messages/counts/recovery.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "e11e189656bb15ee236a98ce1c5e660678ec9a1782367cc9af988fdb0d2c39f5"
+    },
+    {
+      "path": "src/templates/crm/importing/service_preview_unavailable.html",
+      "action": "modify",
+      "purpose": "Select Services unavailable state; retain original status/message/recovery.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "e19fbe5e21285e26bd86cca280e0d1e406bd082c046bb94ed8bad1e2e85db03d"
+    },
+    {
+      "path": "src/templates/crm/importing/history.html",
+      "action": "modify",
+      "purpose": "Select Services metadata-only history with existing page size/links/guards.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "2831490ee3077eb0b726177d19276835ab30eb223a5bd0bb2612b5b8afda79f5"
+    },
+    {
+      "path": "src/templates/crm/importing/history_detail.html",
+      "action": "modify",
+      "purpose": "Select Services terminal-job metadata detail without exposing preview/customer rows.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "2e3a62ebad01f6e1897cda7d1759f088f4c52febfb281097cbf7ce81c8c7876d"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/base.html",
+      "action": "add",
+      "purpose": "Services-only assets on existing Phoenix shell.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/assets.html",
+      "action": "add",
+      "purpose": "Load only this module CSS; no existing Clients assets are changed.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/hub.html",
+      "action": "add",
+      "purpose": "Guarded three-type task rows, existing history link and five-stage process.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_upload.html",
+      "action": "add",
+      "purpose": "Existing CSV multipart form and optional-field guidance.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_preview.html",
+      "action": "add",
+      "purpose": "Read-only row results, exact summary/issues/statuses and existing confirmation.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_result.html",
+      "action": "add",
+      "purpose": "Existing outcome codes/counts and permitted next actions.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_unavailable.html",
+      "action": "add",
+      "purpose": "Existing expired/unusable message and lead upload recovery.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_upload.html",
+      "action": "add",
+      "purpose": "Existing bound CSV form, header/example disclosures and copyable sample text.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_preview.html",
+      "action": "add",
+      "purpose": "Complete server create/update/category changes/notes and existing confirm form.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_result.html",
+      "action": "add",
+      "purpose": "Exact service execution outcomes/counts/next links.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_unavailable.html",
+      "action": "add",
+      "purpose": "Existing unusable message and service upload recovery.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/history.html",
+      "action": "add",
+      "purpose": "Current metadata list and 50-job pagination with responsive labels.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/data_import/history_detail.html",
+      "action": "add",
+      "purpose": "Sanitized terminal-job metadata/counts; no uploaded rows or payloads.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/css/services-data-import.css",
+      "action": "add",
+      "purpose": "Module-scoped Manrope/theme/record/form styles; retain Phoenix shell and global tokens.",
+      "category": "required_asset",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/apps/crm/test_services_data_import_ui.py",
+      "action": "add",
+      "purpose": "Meaningful real Django route/form/CSRF/permission/tenant/data-preservation and Logistics fallback regression checks.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/services_data_import_browser_check.py",
+      "action": "add",
+      "purpose": "Real guarded pair capture/interaction/accessibility plus isolated LiveServer form checks; no ordinary DB/provider calls.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/data_import_fixtures.py",
+      "action": "add",
+      "purpose": "Setup-only module synthetic fixtures and canonical initial parity through existing identity guards.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/data_import_preview.py",
+      "action": "add",
+      "purpose": "Fresh module preview entrypoint using existing owned snapshot/session/cluster tools and proposed ports.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/data_import_checks.py",
+      "action": "add",
+      "purpose": "Allowlisted isolated tests/browser dispatch through unchanged existing source/database/network guards.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/test_data_import.py",
+      "action": "add",
+      "purpose": "Refusal tests for wrong route/settings/phase/session/source/cluster and provider/network boundary; no database setup in offline tests.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    }
+  ],
+  "read_only_required_assets": {
+    "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "src/static/assets/fonts/manrope/OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30"
+  }
+}

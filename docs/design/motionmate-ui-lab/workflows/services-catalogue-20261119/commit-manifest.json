@@ -1,0 +1,266 @@
+{
+  "schema_version": 2,
+  "task_id": "services-catalogue-20261119",
+  "vertical": "SERVICE",
+  "candidate_sha256": "6f333832eee6787bbe74d657fc567242285dcfec5d842bb34e231c3703ce16bb",
+  "manifest_sha256": "5a0177576e4228f15796e6ef18239680febf9779654d7d1631ee9fc63dd16419",
+  "review_sha256": "8ef835e47cbe1a0f10ca1a22c1565a2394bbd959140ce42d1271b4bcadffe5c7",
+  "current_resource_review_sha256": "f777048ec0fe74a6f74946f6238cc8a38d59d51b4f322f3602d3c5ed93ba332a",
+  "recommendation": "One commit for this accepted redesign; explicit user commit authorization required.",
+  "preparation": {
+    "method": "Independent exact selection after explicit accepted-peer ownership reconciliation",
+    "stock_helper_result": "Blocked: broad protected-workspace snapshot includes later accepted sibling changes.",
+    "verification": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/commit-preparation-verification.json",
+    "original_baselines_unchanged": true,
+    "guard_unchanged": true
+  },
+  "files": [
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/acceptance-index.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "b0d93c8c397bf165e8bde1673479eccc2cec165294093fe86c4cba964086f049"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/acceptance.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "518f1ced1eb840a0e1cdef4322338b9465683fe51a4e24ad83ba89c037d3a90b"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/approval-log.md",
+      "category": "documentation",
+      "purpose": "Actual user Gate A approval with context and explicit Gate B boundary.",
+      "sha256": "6541b63b1215b735ec8346c96ac804735535f27d45eafeef77cf85361f6a1545"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/brief.md",
+      "category": "documentation",
+      "purpose": "Approved design direction",
+      "sha256": "2548cc9959621f50faae1939365cf7054ba6635e8e926ba3e4b9d404ebc15de4"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/commit-preparation-verification.json",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "5565f32853fccf5a7e14b94883b81443d152ba0cb042c45a3f8d89c564612024"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/commit-preparation.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "f1f145f8f2c2020d6ae8b5e1f4e3e5de8cead397dbcca8c7d2675d16fdb0a128"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/evidence/after-desktop.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "sha256": "7c3bfe138cb785e41416863b83e80031f43aa621d0d7a1a96418e70a35a5393e"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/evidence/after-editor-mobile-dark.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "sha256": "08ba8f6dc020b5f31e7af49f1364d9f6be1b02e26cfb8314434b39fc87250642"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/evidence/before-desktop.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "sha256": "cc5d0264385e274fa9385fbe6c4cc1672cb6ca49035b4faa1c0b07bf76e4c6ac"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/evidence/before-mobile-dark.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "sha256": "4a22e3ca9d816182a3e7c41b17fd147bf204b6707eff787795a2004f542542cc"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-a-review.md",
+      "category": "documentation",
+      "purpose": "Pending Gate A review with helper-derived design identity and artifact hashes.",
+      "sha256": "caf6f92b5122c47ca437a6d4553dee9dd5e9b4814993a24a014b7e52286f0372"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-b-review.md",
+      "category": "documentation",
+      "purpose": "Concrete module Gate B review and bound identities.",
+      "sha256": "b5fd0416cb393c788fc10a70e9a400a1fd436d98b40f2a4fae58430e82ab956b"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-c-review.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "2410d3f864a4e967bd02dd17b83e515db095da7d19d2d518cce43fcdaac6c596"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-baseline.json",
+      "category": "documentation",
+      "purpose": "Read-only integration source/worktree capture, separate from real BEFORE/helper activation.",
+      "sha256": "0dcd6a2c1d96a8cab56d12624f9e9f6181f1b9720dd9ab28686890a6de42e94d"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-manifest.json",
+      "category": "documentation",
+      "purpose": "Closed exact source/test/asset scope for Gate B.",
+      "sha256": "1aa1fa1319e4795afdfdbef5331896a3ace5d598781a91fccaf95dbafeefd9bc"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "50f5856d56aac24b9682f6eec2ad125e3872caa851aaebc86cdac599417cd319"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/integration.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "f0a7a5e88c4541750715c3f133738da4e32cdaaa2339d7ba1ad8703a661508ba"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/runtime.json",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "b8adc6a9740d8d3542d4c1ff58ba446c132e3225eb7a3c6777759e7fe0b4c3c6"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/source-audit.json",
+      "category": "documentation",
+      "purpose": "Offline source evidence and audit hashes, not runtime or implementation baseline.",
+      "sha256": "d0714248bd66aac6535e8905ba875907f863298da6dcb8011fa8fe45bf63fc21"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/state.json",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "b2d6ec63e2ee5ef571d0f3b584efc061fdaeb37444c8cef9b148a465f423591a"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-resources.json",
+      "category": "documentation",
+      "purpose": "Proposed owned disposable resources/actions, not current runtime authority.",
+      "sha256": "c411e9a31af3ef7ccc42ff3f57b9d6cb1d389945f76656a94b365527b9a5ce9b"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-results.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "23feb4af3cedf50b376aca296d29bcf313f6da983156b63029a09f2f82b46000"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "f8165274fe386bc16502ae35e0ed84f183b1e78365e42fc8ba91635b4d1a7bea"
+    },
+    {
+      "path": "scripts/services_catalogue_browser_check.py",
+      "category": "tests",
+      "purpose": "Real guarded pair capture/interaction/accessibility plus isolated LiveServer form checks; no ordinary DB/provider calls.",
+      "sha256": "8e07acbf589a6f76bcb485e8e1d4a363bae6dc60bb48c1d6952d1e85d4a02c06"
+    },
+    {
+      "path": "scripts/ui_preview/catalogue_checks.py",
+      "category": "tests",
+      "purpose": "Allowlisted isolated tests/browser dispatch through unchanged existing source/database/network guards.",
+      "sha256": "ff119f0bb2d4b6e9b8c63ee0e5fae45869bed4a79d1ebf43da06e29af4cf9457"
+    },
+    {
+      "path": "scripts/ui_preview/catalogue_fixtures.py",
+      "category": "implementation",
+      "purpose": "Setup-only module synthetic fixtures and canonical initial parity through existing identity guards.",
+      "sha256": "89b12a32385504386a224b19d80194c5cbd14349fc9c7c79f9e3a18b6b6700f6"
+    },
+    {
+      "path": "scripts/ui_preview/catalogue_preview.py",
+      "category": "implementation",
+      "purpose": "Fresh module preview entrypoint using existing owned snapshot/session/cluster tools and proposed ports.",
+      "sha256": "426ac3725a1221b8d5d9547e5b29613f3803c7b31410a512bef735ab7f3243e8"
+    },
+    {
+      "path": "scripts/ui_preview/test_catalogue.py",
+      "category": "tests",
+      "purpose": "Refusal tests for wrong route/settings/phase/session/source/cluster and provider/network boundary; no database setup in offline tests.",
+      "sha256": "123dd18ed6e68ee3a155b75fd6cac8ff68e8f701f28118c1a4a5b6f723e5532b"
+    },
+    {
+      "path": "src/apps/crm/test_services_catalogue_ui.py",
+      "category": "tests",
+      "purpose": "Meaningful real Django route/form/CSRF/permission/tenant/data-preservation and Logistics fallback regression checks.",
+      "sha256": "6af69e0f87f57ca30f6a4972302e119a04053a82d9814e5490b7fbe22d09261e"
+    },
+    {
+      "path": "src/static/assets/css/services-catalogue.css",
+      "category": "required_asset",
+      "purpose": "Module-scoped Manrope/theme/record/form styles; retain Phoenix shell and global tokens.",
+      "sha256": "02431631d5cb6e3d31bddcce323c39745016c28465683e492f8a4f1be1b94fd4"
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/assets.html",
+      "category": "implementation",
+      "purpose": "Load this module CSS through the existing page_assets block.",
+      "sha256": "983eb87b7149051e18cfa7a815c446c35ef55eb07923dce0683b8ecf1333130c"
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/base.html",
+      "category": "implementation",
+      "purpose": "Module base extends existing Phoenix shell; load assets only for current SERVICE business.",
+      "sha256": "43f5e0479d6c6b5342e722db6cc20acc4fc27f257da077eb760ed62dffd6f307"
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/category_form.html",
+      "category": "implementation",
+      "purpose": "Existing bound category form with code/status guidance and save/cancel.",
+      "sha256": "707650a46e854150456df261aa34cf2f0328b646b03baae0ce4f7ce2f177158d"
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/list.html",
+      "category": "implementation",
+      "purpose": "Approved two-section service/category list, existing summaries and guarded actions.",
+      "sha256": "3a22e221ee6d9cc6352c751ffc020aafedc7a88e4531b125de889304c36045e9"
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/service_form.html",
+      "category": "implementation",
+      "purpose": "Grouped existing bound service form with complete fields/errors, pricing and booking guidance.",
+      "sha256": "004340b9944a2273cea66dae9ae0661cf6b6a82046b4a825f0267b6cf398dd5e"
+    },
+    {
+      "path": "src/templates/crm/settings/business_service_form.html",
+      "category": "implementation",
+      "purpose": "Select grouped Services editor; preserve original Logistics editor, all existing fields and draft/error handling.",
+      "sha256": "d652a9b63ac340db0741b823e98f68d7ef409cac62693efe67e7e1caefa0ba23"
+    },
+    {
+      "path": "src/templates/crm/settings/business_service_list.html",
+      "category": "implementation",
+      "purpose": "Select Services catalogue include; retain original non-Services content and form blocks.",
+      "sha256": "7fdd23db182e05daa9c8876bad85d386f2afe7d4ae579af3797d891fe4b5ece2"
+    },
+    {
+      "path": "src/templates/crm/settings/service_category_form.html",
+      "category": "implementation",
+      "purpose": "Select Services category editor; retain original Logistics content and route/form contracts.",
+      "sha256": "133bc9c8a7a0f4108c68deb84a73636d5f6d9ab674018927c26bbdee923e8603"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/commit-manifest.json",
+      "category": "documentation",
+      "purpose": "Exact commit selection (self descriptor)",
+      "sha256": null
+    }
+  ],
+  "excluded": [],
+  "existing_tracked_runtime_dependencies": [
+    {
+      "path": "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2",
+      "sha256": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972"
+    },
+    {
+      "path": "src/static/assets/fonts/manrope/OFL.txt",
+      "sha256": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30"
+    }
+  ],
+  "external_generated_artifacts": "Browser output, logs, preview/test databases, caches and temporary snapshots remain outside Git selection; no cleanup.",
+  "notice": "Preparation only. Nothing staged, committed, pushed, merged, deployed or deleted. Stock helper warning is retained; no automated helper pass claimed."
+}

@@ -1,0 +1,88 @@
+<div class="content mm-services-settings">
+<header class="mm-page-header"><div><p class="mm-eyebrow">Motionmate Services</p><h1>Business Settings</h1><p class="mm-supporting">Your business identity, preferences and everyday tools.</p></div><a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}"><span class="fa-solid fa-arrow-left me-2" aria-hidden="true"></span>Back to dashboard</a></header>
+{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}
+<div class="mm-profile-layout">
+  <section class="mm-business-profile" aria-labelledby="workspace-profile-title">
+    <div class="mm-profile-heading">
+      <div class="mm-business-avatar" aria-hidden="true">{% if invoice_logo %}<img src="{{ invoice_logo.data_uri }}" alt="">{% else %}<span class="fa-solid fa-building"></span>{% endif %}</div>
+      <div class="mm-profile-identity"><p class="mm-eyebrow">Current business</p><h2 id="workspace-profile-title">{{ business.name }}</h2><p class="mm-supporting">{{ business.business_type|default:business.get_vertical_display }}</p><span class="mm-role">{{ membership.get_role_display }} access</span></div>
+      {% if can_edit_business_settings %}<a class="btn btn-phoenix-secondary mm-profile-edit" href="#business-details"><span class="fa-solid fa-pen me-2" aria-hidden="true"></span>Edit business profile</a>{% endif %}
+    </div>
+    <dl class="mm-business-facts"><div><dt>Workspace</dt><dd>{{ business.get_vertical_display }}</dd></div><div><dt>Country</dt><dd>{{ business.country|default:'Not set' }}</dd></div><div><dt>Currency</dt><dd>{{ business.currency }}</dd></div><div><dt>Timezone</dt><dd>{{ business.timezone }}</dd></div></dl>
+    <div class="mm-profile-contact"><span><span class="fa-regular fa-envelope" aria-hidden="true"></span>{{ business.email|default:'Business email not set' }}</span><span><span class="fa-solid fa-phone" aria-hidden="true"></span>{{ business.phone|default:'Phone not set' }}</span>{% if can_edit_business_settings %}<a href="#invoice-defaults">{% if invoice_logo %}Manage invoice logo{% else %}Add invoice logo{% endif %}<span class="fa-solid fa-arrow-right" aria-hidden="true"></span></a>{% endif %}</div>
+  </section>
+  <section class="mm-account-profile" aria-labelledby="account-profile-title"><p class="mm-eyebrow"><span class="fa-regular fa-user me-2" aria-hidden="true"></span>Personal account</p><h2 id="account-profile-title">{{ request.user.full_name|default:request.user.email }}</h2><p class="mm-supporting">{{ request.user.email }}</p><p class="mm-supporting">Your sign-in and personal details have their own settings.</p><a href="#my-account" class="mm-personal-link">Edit personal details<span class="fa-solid fa-arrow-right" aria-hidden="true"></span></a></section>
+</div>
+{% if not can_edit_business_settings %}<div class="alert alert-info" role="status">You can update your personal details and password. Workspace settings require owner or admin access and a subscription that allows changes.</div>{% endif %}
+<div class="mm-settings-layout">
+<aside class="mm-settings-index"><nav aria-label="Settings sections">
+{% if can_edit_business_settings %}
+<p class="mm-nav-heading">Business workspace</p>
+<a href="#workspace-tools" data-mm-settings-link><span class="fa-solid fa-grip" aria-hidden="true"></span>Overview &amp; tools</a>
+<a href="#business-details" data-mm-settings-link><span class="fa-regular fa-building" aria-hidden="true"></span>Business details</a>
+<a href="#business-address" data-mm-settings-link><span class="fa-solid fa-location-dot" aria-hidden="true"></span>Business address</a>
+<a href="#regional-defaults" data-mm-settings-link><span class="fa-solid fa-globe" aria-hidden="true"></span>Regional defaults</a>
+<a href="#invoice-defaults" data-mm-settings-link><span class="fa-solid fa-file-invoice" aria-hidden="true"></span>Invoice branding &amp; defaults</a>
+{% if module_capabilities.public_booking %}<a href="#online-booking" data-mm-settings-link><span class="fa-regular fa-calendar" aria-hidden="true"></span>Online booking</a>{% endif %}
+{% endif %}
+<p class="mm-nav-heading mm-nav-personal">Personal account</p>
+<a href="#my-account" data-mm-settings-link><span class="fa-regular fa-user" aria-hidden="true"></span>My account</a>
+<a href="#security" data-mm-settings-link><span class="fa-solid fa-shield-halved" aria-hidden="true"></span>Security</a>
+</nav></aside>
+<div class="mm-settings-main">
+<p class="mm-draft-note" data-mm-draft-status role="status"></p>
+{% if can_edit_business_settings %}{% include 'businesses/services/settings/configuration.html' %}{% include 'businesses/services/settings/business_form.html' %}{% endif %}
+{% include 'businesses/services/settings/account.html' %}
+{% if can_edit_business_settings and module_capabilities.public_booking %}<section id="online-booking" data-mm-settings-panel aria-label="Online booking">{% include 'businesses/services/settings/share_panel.html' %}</section>{% endif %}
+</div></div></div>
+<script>
+(() => {
+  const root = document.querySelector('.mm-services-settings');
+  const panels = [...root.querySelectorAll('[data-mm-settings-panel]')];
+  const byId = new Map(panels.map(panel => [panel.id, panel]));
+  const links = [...root.querySelectorAll('[data-mm-settings-link]')];
+  const businessForm = root.querySelector('#business-settings-form');
+  const save = root.querySelector('[data-mm-business-save]');
+  const fallback = byId.has('workspace-tools') ? 'workspace-tools' : 'my-account';
+  const fromHash = () => location.hash.slice(1);
+  function show(id, focus = false) {
+    const panel = byId.get(id) || byId.get(fallback);
+    panels.forEach(item => { item.hidden = item !== panel; });
+    links.forEach(link => {
+      if (link.hash === '#' + panel.id) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+    if (save) save.hidden = !businessForm.contains(panel);
+    if (focus) {
+      const heading = panel.querySelector('h2');
+      if (heading) { heading.tabIndex = -1; heading.focus({preventScroll: true}); }
+      panel.scrollIntoView({block: 'start'});
+    }
+  }
+  panels.forEach(panel => {
+    if (!panel.querySelector('[aria-invalid="true"], .alert-danger')) return;
+    const link = links.find(item => item.hash === '#' + panel.id);
+    if (link) {
+      const label = document.createElement('span');
+      label.className = 'mm-section-error'; label.textContent = 'Error'; link.append(label);
+    }
+  });
+  root.addEventListener('click', event => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link || !byId.has(link.hash.slice(1)) || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault(); show(link.hash.slice(1), true);
+    if (location.hash !== link.hash) location.hash = link.hash;
+  });
+  window.addEventListener('hashchange', () => show(fromHash(), true));
+  const invalid = root.querySelector('[aria-invalid="true"]');
+  const errorPanel = invalid && invalid.closest('[data-mm-settings-panel]');
+  const failedForm = root.querySelector('form[data-mm-has-errors="true"]');
+  show(errorPanel ? errorPanel.id : failedForm ? (failedForm === businessForm ? 'business-details' : 'my-account') : fromHash());
+  if (invalid) invalid.focus();
+  const dirty = new Set();
+  root.querySelectorAll('form').forEach(form => form.addEventListener('input', () => {
+    dirty.add(form === businessForm ? 'Unsaved business changes' : 'Unsaved personal changes');
+    root.querySelector('[data-mm-draft-status]').textContent = [...dirty].join(' · ');
+  }));
+})();
+</script>

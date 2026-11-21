@@ -1,0 +1,153 @@
+{
+  "files": [
+    {
+      "path": "src/templates/businesses/team_members.html",
+      "action": "modify",
+      "purpose": "Select Services-only content/assets; preserve original non-Service body and backend guards.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "before_sha256": "e7c4d9fc76c3fa148d4c0bae9dc4a0df91c4a1505ec3685dd0ab3aa38ab6b397",
+      "shared_impact": "Entry template consumed by both verticals. Only SERVICE selects new includes/assets; preserve original other-vertical/fallback body, route/forms/navigation/guards.",
+      "shared_regression": "Verify preserved legacy body and absence of new Services assets; exercise existing Logistics Owner/Admin/restricted-role/subscription/location behavior and no-business fallback where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ]
+    },
+    {
+      "path": "src/templates/businesses/services/team/assets.html",
+      "action": "add",
+      "purpose": "Load the task-specific Services stylesheet only.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/team/page.html",
+      "action": "add",
+      "purpose": "Directory-first composition, role/access context, guarded anchors and navigation.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/team/directory.html",
+      "action": "add",
+      "purpose": "All existing membership fields, inactive rows and original guarded Remove POST/confirmation.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/team/invite_form.html",
+      "action": "add",
+      "purpose": "Existing email/role form, exact choice/error/CSRF behavior and truthful invitation guidance.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/team/pending_invitations.html",
+      "action": "add",
+      "purpose": "Existing pending records, expiry/inviter/role and selectable wrapping fallback URL.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/team/field.html",
+      "action": "add",
+      "purpose": "Native bound-field rendering with existing IDs/names and associated help/errors.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/css/services-team.css",
+      "action": "add",
+      "purpose": "Services-wrapper-only Manrope/tokens/layout, responsive records, both themes, focus/reflow/RTL/reduced motion.",
+      "category": "required_asset",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/apps/businesses/test_services_team_ui.py",
+      "action": "add",
+      "purpose": "Meaningful permission/POST/form-preservation and unchanged Logistics rendering regressions.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/services_team_browser_check.py",
+      "action": "add",
+      "purpose": "Real Django browser/forms/accessibility/reflow and protected-consumer evidence on owned resources.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/team_fixtures.py",
+      "action": "add",
+      "purpose": "Guarded fresh synthetic team/invitation and Logistics regression fixture source; no ordinary data.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/team_preview.py",
+      "action": "add",
+      "purpose": "Task route/port adapter through existing session initialization and start guards.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/team_checks.py",
+      "action": "add",
+      "purpose": "Allowlisted owned-source/backend/browser checks through existing verified test boundary.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/test_team.py",
+      "action": "add",
+      "purpose": "Negative ownership/phase/route guard tests before any Django/model/database import.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/guard.py",
+      "action": "modify",
+      "purpose": "Narrow single-statement invitation-expiry UPDATE exception for read-only subscription joins; retain financial/schema/network/identity blocks. Explicit one-file extension approved.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "before_sha256": "10bf7b91a508e339ec485c84ac9871bd269570a549b6a1f5fb31ae77f16a8de0",
+      "shared_impact": "Preview SQL guard used by both verticals; only invitation UPDATE false-positive changes, no production code or provider policy.",
+      "shared_regression": "Positive invitation read-join and negative direct/nested/multi-statement financial/schema guards; existing ownership tests; real Services/Logistics team reviews.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ]
+    }
+  ],
+  "manifest_sha256": "33e69031fe071d7091a93032557dc247ccda2afa6dee477b093cf5c5e90ed6ec",
+  "original_manifest_retained": "implementation-manifest.json"
+}

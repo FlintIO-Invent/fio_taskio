@@ -1,0 +1,40 @@
+{
+  "scope": "Offline documentation/source checks only",
+  "task_id": "services-business-settings-20261121",
+  "status": "pass",
+  "branch": "experiment/motionmate-ui-redesign",
+  "head": "17cb241ff17503db9cf04f51d050f19f899e9e29",
+  "workflow_gate": "A",
+  "completed_phases": [
+    "audit",
+    "brief"
+  ],
+  "source_files_verified": 29,
+  "design_reference_files_verified": 14,
+  "protected_tracked_files_verified": 12866,
+  "protected_tracked_tree_sha256": "b56a62b568b3800116f49fe61014d46201a6e2372ca89ec267f8f2a3d5c0e94a",
+  "local_markdown_links_checked": 17,
+  "checks": [
+    "All bound design/source/reference hashes match",
+    "All local Markdown targets exist",
+    "JSON parses and text has no trailing whitespace",
+    "All tracked source, prior workflows, assets and index unchanged",
+    "New files confined to these two workflow directories",
+    "All approvals null; production manifest and runtime authorization absent"
+  ],
+  "not_run": [
+    "Django initialization/checks/tests",
+    "Browser/screenshots/axe",
+    "Database/fixture/migration/provider operations",
+    "Interactive BEFORE/AFTER capture"
+  ],
+  "errors": [],
+  "design_sha256": "fda72105714e92f4723c17c68a1495877229fc6876470f7ae230f8360399ec39",
+  "git_baseline_verified": {
+    "branch": "experiment/motionmate-ui-redesign",
+    "head": "17cb241ff17503db9cf04f51d050f19f899e9e29",
+    "initial_tracked_and_untracked_status": [],
+    "initial_staged_diff": [],
+    "observation": "Initial git status --short was empty before either workflow directory was initialized."
+  }
+}

@@ -1,0 +1,14 @@
+<section class="card mm-team-directory" aria-labelledby="current-team-title">
+  <div class="card-header mm-section-heading"><div><h2 id="current-team-title">Current team <span class="badge badge-phoenix badge-phoenix-secondary">{{ team_memberships|length }}</span></h2><p class="mm-supporting">Everyone attached to this workspace, including inactive members.</p></div></div>
+  <div class="mm-record-region"><table class="table mm-records"><caption class="visually-hidden">Current members of {{ business.name }}</caption>
+    <thead><tr><th scope="col">Member</th><th scope="col">Role</th><th scope="col">Status</th>{% if role_access.can_remove_team_members and workspace_can_modify %}<th scope="col">Actions</th>{% endif %}</tr></thead>
+    <tbody>{% for team_membership in team_memberships %}<tr data-membership-id="{{ team_membership.id }}">
+      <th scope="row"><span class="mm-record-name">{{ team_membership.user.full_name|default:'—' }}</span><span class="mm-block mm-supporting">{{ team_membership.user.email }}</span></th>
+      <td data-label="Role">{{ team_membership.get_role_display }}</td>
+      <td data-label="Status"><span class="badge badge-phoenix {% if team_membership.is_active %}badge-phoenix-success{% else %}badge-phoenix-secondary{% endif %}">{% if team_membership.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+      {% if role_access.can_remove_team_members and workspace_can_modify %}<td data-label="Actions">
+        {% if team_membership.is_active and team_membership.id != current_business_membership.id %}<form method="post" action="{% url 'business_team_member_deactivate' team_membership.id %}">{% csrf_token %}<button class="btn btn-outline-danger" type="submit" aria-label="Remove {{ team_membership.user.email }}" onclick="return confirm('Remove {{ team_membership.user.email|escapejs }} from the active team?');">Remove</button></form>{% else %}<span class="mm-supporting">—</span>{% endif %}
+      </td>{% endif %}
+    </tr>{% empty %}<tr><td colspan="{% if role_access.can_remove_team_members and workspace_can_modify %}4{% else %}3{% endif %}"><p class="mm-empty">No team members are attached to this workspace yet.</p></td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>

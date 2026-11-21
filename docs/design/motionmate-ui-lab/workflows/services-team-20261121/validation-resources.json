@@ -1,0 +1,84 @@
+{
+  "task_id": "services-team-20261121",
+  "status": "proposed_only_not_created_or_authorized",
+  "source_capture": "New owned /tmp/motionmate-preview-snapshot-* from actual current worktree, immediately before this task implementation. No historical Git baseline.",
+  "new_review_session": "New owned /tmp/motionmate-preview-session-*; existing previews/data/evidence are not reused, reset or cleaned.",
+  "resource_ids": {
+    "before": "services-team-20261121-before",
+    "after": "services-team-20261121-after",
+    "test": "services-team-20261121-test"
+  },
+  "ports": {
+    "before_http": 8810,
+    "after_http": 8811,
+    "launcher_http": 8812,
+    "before_postgres": 55510,
+    "after_postgres": 55511
+  },
+  "port_preflight": {
+    "8810": "no LISTEN entry observed; not reserved",
+    "8811": "no LISTEN entry observed; not reserved",
+    "8812": "no LISTEN entry observed; not reserved",
+    "55510": "no LISTEN entry observed; not reserved",
+    "55511": "no LISTEN entry observed; not reserved",
+    "8768": "no LISTEN entry observed; not reserved"
+  },
+  "settings": {
+    "review": "ui_preview.settings",
+    "test": "taskio.services_test_settings"
+  },
+  "review_database_names": {
+    "before": "mm_preview_<new-session-id>_before",
+    "after": "mm_preview_<new-session-id>_after"
+  },
+  "test_database": {
+    "name": "test_services_rollout",
+    "cluster": "This task AFTER cluster only",
+    "live_http_port": 8768,
+    "policy": "One runner/LiveServer at a time. Verify owned AFTER cluster before test creation; no review identity/catalog preflight while test database exists. Normal teardown may drop only this runner-created test DB."
+  },
+  "prerequisites_observed_offline": {
+    "python_package_metadata": {
+      "Django": "5.2.11",
+      "playwright": "1.63.0",
+      "Pillow": "12.2.0",
+      "reportlab": "4.5.1",
+      "pypdf": "6.20.0",
+      "pypdfium2": "5.14.0"
+    },
+    "postgres_tools": {
+      "initdb": "/usr/lib/postgresql/14/bin/initdb",
+      "pg_ctl": "/usr/lib/postgresql/14/bin/pg_ctl",
+      "pg_controldata": "/usr/lib/postgresql/14/bin/pg_controldata",
+      "psql": "/usr/lib/postgresql/14/bin/psql"
+    },
+    "chromium_cache_exists": true,
+    "axe_min_js_exists": true,
+    "readiness_limit": "Metadata/file/proc inspection only; no browser launch, temporary output, network, Django or database connection. No install/download is authorized."
+  },
+  "resource_created": false,
+  "live_ownership_verified": false,
+  "authorization": null,
+  "requested_actions": [
+    "Create owned source snapshots from current working-tree runtime bytes.",
+    "Create two fresh empty owned loopback PostgreSQL clusters, apply existing migrations there only and populate equivalent task-owned synthetic fixtures.",
+    "Start two real Django applications and a local launcher with separate session/CSRF cookies.",
+    "Run task-specific server/form/browser/accessibility/Logistics regression checks and synthetic local-memory email tests; create/drop only runner-owned disposable test DB.",
+    "Refresh AFTER only; retain source/fixture identities and review writes; keep resources available at Gate C."
+  ],
+  "ownership_requirement": "Before initialization: new canonical directories, owner marker/UID, free exact listeners and no symlinks. Before migration/fixtures/tests: verify process/listener, owned data directory and pg_controldata system identifier, then identity-only SQL/catalog match through existing guards. Record real identities. Proposed ports/names are not verification.",
+  "guard_policy": "Reuse core/cli/runtime/settings/guard and existing verified test execution boundary unchanged. No provider credentials, external network/redirects, live email/workers or review financial/subscription writes. Browser requests confined to this loopback review/test server. Fixture model writes only in setup phase and only synthetic owned databases.",
+  "runtime_limitations": [
+    "Existing preview child environment uses PYTHONMALLOC=debug; a passing isolated run would not establish ordinary-runtime or production readiness.",
+    "Unavailable external integrations and existing acceptance-template gap remain explicit limitations.",
+    "If a proposed port is occupied, refuse setup and report it; do not stop another service or silently substitute ports."
+  ],
+  "excluded": [
+    "Any ordinary local/staging/production/Test Lab database access or write",
+    "Customer records, uploads, secrets or .env copying",
+    "New migration/schema source or migrations outside fresh empty disposable clusters",
+    "Dependencies/downloads/external services/live providers",
+    "Branch/worktree operations, staging, commits, pushes, merges, deployment",
+    "Automatic reset, reseed, synchronization or cleanup"
+  ]
+}

@@ -1,0 +1,244 @@
+{
+  "session": "/tmp/motionmate-preview-session-z9qu5gsy",
+  "before_snapshot": "/tmp/motionmate-preview-snapshot-2x69qd_l",
+  "launcher": "http://127.0.0.1:8912/",
+  "preview": {
+    "kind": "django",
+    "vertical": "SERVICE",
+    "synthetic_records": true,
+    "contracts": [
+      "templates",
+      "routes",
+      "authentication",
+      "forms",
+      "permissions"
+    ],
+    "before": {
+      "url": "http://127.0.0.1:8910/businesses/subscription/",
+      "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+      "initial_fixture_sha256": "554419a9d47d864d34a42b0f2e53f1df7d0a7cf4c46d5547a12164b873fbaf7f",
+      "environment_id": "services-subscriptions-billing-20261119-before"
+    },
+    "after": {
+      "url": "http://127.0.0.1:8911/businesses/subscription/",
+      "source_sha256": "b8cd3a376449b0a9360a0a0f8a67d4dc5899d9caeaee02e32eca98d30c2ae1c3",
+      "initial_fixture_sha256": "554419a9d47d864d34a42b0f2e53f1df7d0a7cf4c46d5547a12164b873fbaf7f",
+      "environment_id": "services-subscriptions-billing-20261119-after",
+      "candidate_sha256": "ec6791a414ad1c7435f07efd1481a8af9983beb42dbf1186bd049400991ccf0c"
+    }
+  },
+  "environments": [
+    {
+      "id": "services-subscriptions-billing-20261119-before",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_a5154631498133cc_before",
+      "cluster_directory": "/tmp/motionmate-preview-session-z9qu5gsy/before/pgdata",
+      "system_identifier": "7710375086553205480",
+      "port": 55650,
+      "process": {
+        "pid": 8972,
+        "start": "51758"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/runtime.json",
+      "postgres_pid": 6961
+    },
+    {
+      "id": "services-subscriptions-billing-20261119-after",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_a5154631498133cc_after",
+      "cluster_directory": "/tmp/motionmate-preview-session-z9qu5gsy/after/pgdata",
+      "system_identifier": "7710375265471126995",
+      "port": 55651,
+      "process": {
+        "pid": 24166,
+        "start": "169743"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/runtime.json",
+      "postgres_pid": 7753
+    }
+  ],
+  "accounts": [
+    {
+      "business": "Harbour Services \u00b7 populated",
+      "email": "subscriptions.owner@preview.test",
+      "role": "owner",
+      "scenario": "populated",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 populated",
+      "email": "subscriptions.admin@preview.test",
+      "role": "admin",
+      "scenario": "populated",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 populated",
+      "email": "subscriptions.staff@preview.test",
+      "role": "staff",
+      "scenario": "populated",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 populated",
+      "email": "subscriptions.accountant@preview.test",
+      "role": "accountant",
+      "scenario": "populated",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 populated",
+      "email": "subscriptions.viewer@preview.test",
+      "role": "viewer",
+      "scenario": "populated",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 empty",
+      "email": "subscriptions.empty.owner@preview.test",
+      "role": "owner",
+      "scenario": "empty",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Community Association for Waterfront Property Administration and Seasonal Services",
+      "email": "subscriptions.long.owner@preview.test",
+      "role": "owner",
+      "scenario": "long",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 trial",
+      "email": "subscriptions.trial.owner@preview.test",
+      "role": "owner",
+      "scenario": "trial",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 pending",
+      "email": "subscriptions.pending.owner@preview.test",
+      "role": "owner",
+      "scenario": "pending",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 cancel",
+      "email": "subscriptions.cancel.owner@preview.test",
+      "role": "owner",
+      "scenario": "cancel",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 grace",
+      "email": "subscriptions.grace.owner@preview.test",
+      "role": "owner",
+      "scenario": "grace",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 readonly",
+      "email": "subscriptions.readonly.owner@preview.test",
+      "role": "owner",
+      "scenario": "readonly",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 stale",
+      "email": "subscriptions.stale.owner@preview.test",
+      "role": "owner",
+      "scenario": "stale",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 missing-period",
+      "email": "subscriptions.missing-period.owner@preview.test",
+      "role": "owner",
+      "scenario": "missing-period",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 cancelled",
+      "email": "subscriptions.cancelled.owner@preview.test",
+      "role": "owner",
+      "scenario": "cancelled",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 beta",
+      "email": "subscriptions.beta.owner@preview.test",
+      "role": "owner",
+      "scenario": "beta",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 free-test",
+      "email": "subscriptions.free-test.owner@preview.test",
+      "role": "owner",
+      "scenario": "free-test",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Services \u00b7 no-subscription",
+      "email": "subscriptions.no-subscription.owner@preview.test",
+      "role": "owner",
+      "scenario": "no-subscription",
+      "vertical": "SERVICE"
+    },
+    {
+      "business": "Harbour Logistics \u00b7 Subscription",
+      "email": "subscriptions.logistics.owner@preview.test",
+      "role": "owner",
+      "scenario": "logistics",
+      "vertical": "LOGISTICS"
+    },
+    {
+      "business": "Harbour Logistics \u00b7 Subscription",
+      "email": "subscriptions.logistics.admin@preview.test",
+      "role": "admin",
+      "scenario": "logistics",
+      "vertical": "LOGISTICS"
+    },
+    {
+      "business": "Harbour Logistics \u00b7 Subscription",
+      "email": "subscriptions.logistics.staff@preview.test",
+      "role": "staff",
+      "scenario": "logistics",
+      "vertical": "LOGISTICS"
+    },
+    {
+      "business": "Harbour Logistics \u00b7 Subscription",
+      "email": "subscriptions.logistics.accountant@preview.test",
+      "role": "accountant",
+      "scenario": "logistics",
+      "vertical": "LOGISTICS"
+    },
+    {
+      "business": "Harbour Logistics \u00b7 Subscription",
+      "email": "subscriptions.logistics.viewer@preview.test",
+      "role": "viewer",
+      "scenario": "logistics",
+      "vertical": "LOGISTICS"
+    }
+  ],
+  "initial_configuration_facts_sha256": "88554a73a3eff3fdaa24fc7ff10977fb1ef6bf2054cd5aa637f1c8de57c84bd4",
+  "allocator": "debug",
+  "recovery": "source-recovery.json; recovery-runtime-progress.json",
+  "preservation": "preservation-results.json",
+  "test_results": {
+    "django_tests": 142,
+    "native_browser_tests": 4,
+    "backend_log": "/tmp/motionmate-preview-session-z9qu5gsy/after/backend-validated.log",
+    "native_log": "/tmp/motionmate-preview-session-z9qu5gsy/after/native-final.log",
+    "database": "test_services_rollout",
+    "settings": "taskio.services_test_settings",
+    "test_database_lifecycle": "Runner created and destroyed on verified AFTER cluster; ordinary DBs never used."
+  },
+  "candidate_sha256": "ec6791a414ad1c7435f07efd1481a8af9983beb42dbf1186bd049400991ccf0c",
+  "review_sha256": "16580d1e9aca403da16559b6ee135f653d9e21079667414a812f3ad3eda9eab9"
+}

@@ -1,0 +1,164 @@
+{
+  "task_id": "services-catalogue-20261119",
+  "design_version": "v1",
+  "status": "proposed_gate_b_not_implemented",
+  "files": [
+    {
+      "path": "src/templates/crm/settings/business_service_list.html",
+      "action": "modify",
+      "purpose": "Select Services catalogue include; retain original non-Services content and form blocks.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "0eb7440cd97efe1089ed4e645b9db48f901cccf26d84676560b39d820f1ae472"
+    },
+    {
+      "path": "src/templates/crm/settings/business_service_form.html",
+      "action": "modify",
+      "purpose": "Select grouped Services editor; preserve original Logistics editor, all existing fields and draft/error handling.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "5ab1858d149c17fc8906487ed6762121e026cfa15b72d858d2c1dba08e53188c"
+    },
+    {
+      "path": "src/templates/crm/settings/service_category_form.html",
+      "action": "modify",
+      "purpose": "Select Services category editor; retain original Logistics content and route/form contracts.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "f76d7d3e686cd18fd66ec5bc2762779bcf28abe9d9493f09fa746d3ea72a26e1"
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/base.html",
+      "action": "add",
+      "purpose": "Module base extends existing Phoenix shell; load assets only for current SERVICE business.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/assets.html",
+      "action": "add",
+      "purpose": "Load this module CSS through the existing page_assets block.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/list.html",
+      "action": "add",
+      "purpose": "Approved two-section service/category list, existing summaries and guarded actions.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/service_form.html",
+      "action": "add",
+      "purpose": "Grouped existing bound service form with complete fields/errors, pricing and booking guidance.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/crm/services/catalogue/category_form.html",
+      "action": "add",
+      "purpose": "Existing bound category form with code/status guidance and save/cancel.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/css/services-catalogue.css",
+      "action": "add",
+      "purpose": "Module-scoped Manrope/theme/record/form styles; retain Phoenix shell and global tokens.",
+      "category": "required_asset",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/apps/crm/test_services_catalogue_ui.py",
+      "action": "add",
+      "purpose": "Meaningful real Django route/form/CSRF/permission/tenant/data-preservation and Logistics fallback regression checks.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/services_catalogue_browser_check.py",
+      "action": "add",
+      "purpose": "Real guarded pair capture/interaction/accessibility plus isolated LiveServer form checks; no ordinary DB/provider calls.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/catalogue_fixtures.py",
+      "action": "add",
+      "purpose": "Setup-only module synthetic fixtures and canonical initial parity through existing identity guards.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/catalogue_preview.py",
+      "action": "add",
+      "purpose": "Fresh module preview entrypoint using existing owned snapshot/session/cluster tools and proposed ports.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/catalogue_checks.py",
+      "action": "add",
+      "purpose": "Allowlisted isolated tests/browser dispatch through unchanged existing source/database/network guards.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/test_catalogue.py",
+      "action": "add",
+      "purpose": "Refusal tests for wrong route/settings/phase/session/source/cluster and provider/network boundary; no database setup in offline tests.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    }
+  ],
+  "read_only_required_assets": {
+    "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "src/static/assets/fonts/manrope/OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30"
+  }
+}

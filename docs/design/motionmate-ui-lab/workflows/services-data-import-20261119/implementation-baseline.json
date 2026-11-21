@@ -1,0 +1,71 @@
+{
+  "kind": "offline_integration_review_baseline",
+  "captured_date": "2026-11-20",
+  "task_id": "services-data-import-20261119",
+  "branch": "experiment/motionmate-ui-redesign",
+  "head": "6d65bc4d5e80f772e1822572f8ee20b4686fd7da",
+  "git_status_porcelain_all": "?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation.md\n",
+  "design_version": "v1",
+  "design_sha256": "5030d8f2b0a120c98d66e5a7630e52f844b9b3e614f3511f0a3cf3ca451adf5e",
+  "targets": {
+    "src/templates/crm/importing/data_import.html": "11ed949faed9c3cac137f7421e5bf9836dfa7cbf3075168c50a01fae2dfdc86d",
+    "src/templates/crm/importing/lead_upload.html": "7fd6f68303ddb565a535d58c5e9e07e25f413c1b716d45f8c943a15d121ac3e8",
+    "src/templates/crm/importing/lead_preview.html": "3ffbcd82e428cc8ff977090102ef42de2692ccdeba391937dbaea30fdf4f881b",
+    "src/templates/crm/importing/lead_result.html": "e1b7def19c6b53b2bfcbbe4c484c5a8c65c7a6be245c69747c4cd325b098c520",
+    "src/templates/crm/importing/lead_preview_unavailable.html": "6b5b012a893cee6bdf4b0f148beec5edd3020f8fd44cf055fafed1782713150e",
+    "src/templates/crm/settings/business_service_import.html": "c54adb6af73ae37c61bf6adbfe6a34b92d89cb677d3ca424e568b08f7833fb4a",
+    "src/templates/crm/importing/service_preview.html": "fbbb03676df9e2520fe7eebc5e571beef8bb4781122e9ab9ecc80bf61358ee99",
+    "src/templates/crm/importing/service_result.html": "e11e189656bb15ee236a98ce1c5e660678ec9a1782367cc9af988fdb0d2c39f5",
+    "src/templates/crm/importing/service_preview_unavailable.html": "e19fbe5e21285e26bd86cca280e0d1e406bd082c046bb94ed8bad1e2e85db03d",
+    "src/templates/crm/importing/history.html": "2831490ee3077eb0b726177d19276835ab30eb223a5bd0bb2612b5b8afda79f5",
+    "src/templates/crm/importing/history_detail.html": "2e3a62ebad01f6e1897cda7d1759f088f4c52febfb281097cbf7ce81c8c7876d",
+    "src/templates/crm/services/data_import/base.html": null,
+    "src/templates/crm/services/data_import/assets.html": null,
+    "src/templates/crm/services/data_import/hub.html": null,
+    "src/templates/crm/services/data_import/lead_upload.html": null,
+    "src/templates/crm/services/data_import/lead_preview.html": null,
+    "src/templates/crm/services/data_import/lead_result.html": null,
+    "src/templates/crm/services/data_import/lead_unavailable.html": null,
+    "src/templates/crm/services/data_import/service_upload.html": null,
+    "src/templates/crm/services/data_import/service_preview.html": null,
+    "src/templates/crm/services/data_import/service_result.html": null,
+    "src/templates/crm/services/data_import/service_unavailable.html": null,
+    "src/templates/crm/services/data_import/history.html": null,
+    "src/templates/crm/services/data_import/history_detail.html": null,
+    "src/static/assets/css/services-data-import.css": null,
+    "src/apps/crm/test_services_data_import_ui.py": null,
+    "scripts/services_data_import_browser_check.py": null,
+    "scripts/ui_preview/data_import_fixtures.py": null,
+    "scripts/ui_preview/data_import_preview.py": null,
+    "scripts/ui_preview/data_import_checks.py": null,
+    "scripts/ui_preview/test_data_import.py": null
+  },
+  "tracked_runtime_tooling_file_count": 12450,
+  "tracked_runtime_tooling_sha256": "1b3900ec1cc417cd1e2e703c6a348f599ea06e054e69b401e1f50798452dfb89",
+  "protected_ignored_reference_sha256": {
+    "design_references/phoenix/package.json": "a598d78c1cb75053cc5dc005bb768c6400d5bdc8c99a3ae5e07612c65f76343d",
+    "design_references/phoenix/public/modules/forms/wizard.html": "aba4074a18b5a5cc89f6bcb3a7896180249a5014fac37c54a56d57536df7f315",
+    "design_references/phoenix/public/pages/pricing/pricing-column.html": "9d1036ec625e97766a538017b7403ae6e61ce921acacdbfb0e1051a212be3988"
+  },
+  "read_only_dependency_sha256": {
+    "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "src/static/assets/fonts/manrope/OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30",
+    "scripts/ui_preview/core.py": "57f44546d0c47a3bc2e57704095998aba60f105841ba05217f27b38e656be4b9",
+    "scripts/ui_preview/guard.py": "10bf7b91a508e339ec485c84ac9871bd269570a549b6a1f5fb31ae77f16a8de0",
+    "scripts/ui_preview/dashboard_checks.py": "b50d525ebde2fd83746245452bcf8274c3f8ec604a035c25ed60aa9375cfe563",
+    "scripts/ui_preview/appointments_checks.py": "4556c74bc061b99755b48b994ae3ab4abf945631afefcdb45992ce72e2b6725f",
+    "src/taskio/services_test_settings.py": "65c8465aada33fb72307e8bd38dfcffd2339173dcd68cba219b019f5f7e85ddb"
+  },
+  "protected_prior_workflows": [
+    "services-clients-20261117",
+    "services-invoices-20261118"
+  ],
+  "peer_workstreams": [
+    "services-catalogue-20261119",
+    "services-subscriptions-billing-20261119"
+  ],
+  "runtime_snapshot_created": false,
+  "database_access": false,
+  "helper_execution_baseline": "Catalogue activated after all proposals are frozen; peers activate once before their own B recording/execution. No existing baseline is overwritten.",
+  "scope_note": "Three authorized planning directories are owned independently. Their mutable state cannot be mutually hash-bound by simultaneous helper baseline captures. This separate immutable source/worktree review record is not a real Django BEFORE or a claim of live resource ownership."
+}

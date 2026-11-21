@@ -1,0 +1,33 @@
+[
+  {
+    "module": "catalogue",
+    "proof": {
+      "before": {
+        "inventory_matches_initial": true,
+        "report": "/tmp/motionmate-preview-session-7za2dvs_/before/evidence/preservation-current.json"
+      },
+      "after": {
+        "inventory_matches_initial": true,
+        "report": "/tmp/motionmate-preview-session-7za2dvs_/after/evidence/preservation-current.json"
+      }
+    }
+  },
+  {
+    "module": "data_import",
+    "proof": {
+      "before": {
+        "inventory_matches_initial": true,
+        "report": "/tmp/motionmate-preview-session-g6z_174n/before/evidence/preservation-current.json",
+        "job_audit_times_match_seed_clock": true
+      },
+      "after": {
+        "inventory_matches_initial": true,
+        "report": "/tmp/motionmate-preview-session-g6z_174n/after/evidence/preservation-current.json",
+        "job_audit_times_match_seed_clock": true
+      },
+      "full_44_jobs_equal_across_pair": true,
+      "jobs_sha256": "9e02777273f4e4b66c336530c44c44b0563df128283a96c3d3b203b48a3bf084",
+      "limitation": "Replacement full-job baseline was not captured before browser reads. Current complete pair equality and original seed audit timestamps supplement unchanged initial domain/financial inventory."
+    }
+  }
+]
