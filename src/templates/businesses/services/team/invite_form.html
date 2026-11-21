@@ -1,0 +1,11 @@
+<section class="card" id="invite-team-member" aria-labelledby="invite-title"><div class="card-body">
+  <h2 id="invite-title">Invite team member</h2><p class="mm-supporting">Give a colleague access to {{ business.name }}.</p>
+  <form method="POST" novalidate data-team-invite>{% csrf_token %}
+    {% if invite_form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ invite_form.non_field_errors }}</div>{% endif %}
+    {% include 'businesses/services/team/field.html' with field=invite_form.email only %}
+    {% include 'businesses/services/team/field.html' with field=invite_form.role only %}
+    <button class="btn btn-primary w-100" type="submit">Send invitation</button>
+  </form>
+  <p class="mm-supporting mm-note">Invitations belong to this workspace and expire after 7 days. Submitting a pending email again refreshes its invitation and attempts email delivery again.</p>
+  <details class="mm-role-guide"><summary>About roles and invitations</summary><p>Each teammate has one role in this workspace. Owners can assign roles allowed by the plan. Admins can invite Staff, Accountants and Viewers where the plan permits.</p><p>Use Admin when someone needs both staff and accountant access. Use a company-specific email address; the current workspace has no workspace switcher.</p></details>
+</div></section>

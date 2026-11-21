@@ -1,0 +1,721 @@
+{
+  "schema_version": 2,
+  "task_id": "services-business-settings-20261121",
+  "vertical": "SERVICE",
+  "mode": "full",
+  "route": "/businesses/settings/",
+  "objective": "Modernize existing Services business and personal settings, invoice branding and configuration navigation while preserving separate save scopes, permissions, records and shared authentication.",
+  "current_phase": "gate_c",
+  "completed_phases": [
+    "audit",
+    "brief",
+    "integration",
+    "before",
+    "implementation",
+    "validation",
+    "comparison",
+    "report"
+  ],
+  "next_permitted_action": "Stop for explicit Gate C approval; preserve completed work.",
+  "design_version": "v1",
+  "design_artifacts": {
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/brief.md": "bfb99aa9e3e3c87151911d3ef02133581d6e8c90fc3d84e57598b4ac8e17a710",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/audit.md": "bce5b3539d985a8e42ab262ca197d2c340dd912faf603e4f859162e76da3d474",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/source-audit.json": "a4dda71e70e448a30ab912f4ff4355a933214d7de58437f0197a02a4ca5a0536",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation.md": "d40cef143a99b08ef6eb5c3b7cedf7ac2067db9b39f79db4222a261a87af0b80"
+  },
+  "manifest": [
+    {
+      "path": "src/templates/businesses/settings.html",
+      "action": "modify",
+      "purpose": "Select Services settings/assets; retain original Logistics/no-business body, forms and stylesheet.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "before_sha256": "7d7eddf2e6bf014ac8e669746915441e60350d38b74399b899898e9e892bf40d",
+      "shared_impact": "Entry template consumed by both verticals. Only SERVICE selects new includes/assets; preserve original other-vertical/fallback body, route/forms/navigation/guards.",
+      "shared_regression": "Verify preserved legacy body and absence of new Services assets; exercise existing Logistics Owner/Admin/restricted-role/subscription/location behavior and no-business fallback where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ]
+    },
+    {
+      "path": "src/templates/businesses/booking_settings.html",
+      "action": "modify",
+      "purpose": "Select Services booking composition/assets; preserve existing non-Service path and all route guards.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "before_sha256": "97a941da0b5ee87655d905b5f994f9e76ea29a3e9a3fb75239fcb2089550b5e0",
+      "shared_impact": "Entry template consumed by both verticals. Only SERVICE selects new includes/assets; preserve original other-vertical/fallback body, route/forms/navigation/guards.",
+      "shared_regression": "Verify preserved legacy body and absence of new Services assets; exercise existing Logistics Owner/Admin/restricted-role/subscription/location behavior and no-business fallback where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ]
+    },
+    {
+      "path": "src/templates/businesses/services/settings/assets.html",
+      "action": "add",
+      "purpose": "Load independent settings stylesheet only for SERVICE.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/page.html",
+      "action": "add",
+      "purpose": "Compact identity/index, role/write feedback and existing anchor/section layout.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/business_form.html",
+      "action": "add",
+      "purpose": "Complete existing multipart Business form with grouped company/address/region/invoice/logo controls.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/account.html",
+      "action": "add",
+      "purpose": "Separate account-prefixed personal save and unchanged password navigation.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/configuration.html",
+      "action": "add",
+      "purpose": "Existing capability/role-guarded configuration destinations.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/booking.html",
+      "action": "add",
+      "purpose": "Existing booking page hierarchy, plan feedback, rule/availability composition and return links.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/booking_rules.html",
+      "action": "add",
+      "purpose": "Unchanged settings form_kind/fields/choices and staff read-only summary.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/availability_entry.html",
+      "action": "add",
+      "purpose": "Original Single/Bulk tab hooks and independent forms; explicit bulk DOM-ID accessibility repair only.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/availability_list.html",
+      "action": "add",
+      "purpose": "All existing availability fields/inactive count and guarded deactivation POST.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/share_panel.html",
+      "action": "add",
+      "purpose": "Services-specific semantic headings around identical authoritative readiness and Copy/Open/Finish setup actions.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/field.html",
+      "action": "add",
+      "purpose": "Persistent labels, errors/help and bound widgets; no field-name or form-prefix changes.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/css/services-settings.css",
+      "action": "add",
+      "purpose": "Independent Services-only settings/booking styles and both-theme responsive/accessibility states.",
+      "category": "required_asset",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/apps/businesses/templatetags/services_settings.py",
+      "action": "add",
+      "purpose": "Pure scoped widget rendering/IDs/error associations; no form, validation, permission or data mutation.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/apps/businesses/test_services_settings_ui.py",
+      "action": "add",
+      "purpose": "Save separation, tenant/permission/logo/booking contracts, unique bulk IDs and Logistics/no-business parity.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/services_settings_browser_check.py",
+      "action": "add",
+      "purpose": "Owned real Django settings/booking forms, labels/themes/reflow/axe and relevant logo/PDF evidence.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/business_settings_fixtures.py",
+      "action": "add",
+      "purpose": "Fresh synthetic settings/account/logo/availability and Logistics regression scenarios.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/business_settings_preview.py",
+      "action": "add",
+      "purpose": "Task-specific creation through current guarded session/cluster tooling.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/business_settings_checks.py",
+      "action": "add",
+      "purpose": "Owned source/backend/browser/targeted document checks; fixed allowlisted labels.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/test_business_settings.py",
+      "action": "add",
+      "purpose": "Wrong phase/settings/route/source-ownership refusal before Django or database access.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    }
+  ],
+  "approvals": {
+    "design": {
+      "source": "User message in this conversation immediately following the two v1 Gate A review links",
+      "quote": "approved",
+      "scope": "Design direction approval for Employees & Team Management v1 and Business Settings v1, independently as presented. Authorizes preparing separate Gate B proposals only; no application implementation, runtime setup, data/schema/provider or release action.",
+      "design_version": "v1",
+      "design_sha256": "fda72105714e92f4723c17c68a1495877229fc6876470f7ae230f8360399ec39"
+    },
+    "implementation": {
+      "source": "User reply immediately after both Gate B proposals and sequential implementation/resource authorization question",
+      "quote": "approved all",
+      "scope": "Local implementation of only this exact closed manifest plus creation/use of only the listed new independently verified disposable PostgreSQL resources and synthetic tests/real Django BEFORE-AFTER. Existing migrations only on fresh empty disposable databases. No ordinary database or external-service/release actions. Implement Team first then Settings. Settings includes the explicitly described DOM-only bulk field ID repair. No release actions.",
+      "design_version": "v1",
+      "manifest_sha256": "aa152af533dec2a8163f3cf089c20cbc09b236a9e96d74eba72f8c9171276a40",
+      "integration_artifacts_sha256": {
+        "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/integration.md": "fb48a766a1d68d181e6bb949f168127f832efd75b818478633952cedb1ed736c",
+        "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-manifest.json": "bfde4248cb89426632b8eefd084eb8d863af0c1ac3add4e6fd490f1004359e9b",
+        "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-resources.json": "c06facba198765048d023391b19b2ab7f2a4b34777004ee8a39b9fa2379ad63b",
+        "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-baseline.json": "513e76252c2559ae90af0d81fec3b1174436e7dfa8a5cc24d556b0f50c7bf317"
+      }
+    },
+    "acceptance": null
+  },
+  "baseline": {
+    "branch": "experiment/motionmate-ui-redesign",
+    "head": "17cb241ff17503db9cf04f51d050f19f899e9e29",
+    "status": "M scripts/ui_preview/guard.py\n M src/templates/businesses/team_members.html\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/audit.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/evidence/after-team-1440-light.png\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/evidence/after-team-390-dark.png\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/evidence/before-team-1440-light.png\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/execution-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-a-approval.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-approval.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-checks.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-guard-extension-approval.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-scope.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-c-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/guard-extension.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/guard-extension.patch\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/guard-runtime-update.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-manifest-guard-extension.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/offline-checks.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/runtime.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/setup-failures.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-results.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-results.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation.md\n?? scripts/services_team_browser_check.py\n?? scripts/ui_preview/team_checks.py\n?? scripts/ui_preview/team_fixtures.py\n?? scripts/ui_preview/team_preview.py\n?? scripts/ui_preview/test_team.py\n?? src/apps/businesses/test_services_team_ui.py\n?? src/static/assets/css/services-team.css\n?? src/templates/businesses/services/team/assets.html\n?? src/templates/businesses/services/team/directory.html\n?? src/templates/businesses/services/team/field.html\n?? src/templates/businesses/services/team/invite_form.html\n?? src/templates/businesses/services/team/page.html\n?? src/templates/businesses/services/team/pending_invitations.html"
+  },
+  "resource_authorizations": [
+    {
+      "environment_id": "services-business-settings-20261121-before",
+      "source": "User reply immediately after both Gate B proposals and sequential implementation/resource authorization question",
+      "quote": "approved all",
+      "scope": "Local implementation of only this exact closed manifest plus creation/use of only the listed new independently verified disposable PostgreSQL resources and synthetic tests/real Django BEFORE-AFTER. Existing migrations only on fresh empty disposable databases. No ordinary database or external-service/release actions. Implement Team first then Settings. Settings includes the explicitly described DOM-only bulk field ID repair. No release actions."
+    },
+    {
+      "environment_id": "services-business-settings-20261121-after",
+      "source": "User reply immediately after both Gate B proposals and sequential implementation/resource authorization question",
+      "quote": "approved all",
+      "scope": "Local implementation of only this exact closed manifest plus creation/use of only the listed new independently verified disposable PostgreSQL resources and synthetic tests/real Django BEFORE-AFTER. Existing migrations only on fresh empty disposable databases. No ordinary database or external-service/release actions. Implement Team first then Settings. Settings includes the explicitly described DOM-only bulk field ID repair. No release actions."
+    },
+    {
+      "environment_id": "services-business-settings-20261121-test",
+      "source": "User reply immediately after both Gate B proposals and sequential implementation/resource authorization question",
+      "quote": "approved all",
+      "scope": "Local implementation of only this exact closed manifest plus creation/use of only the listed new independently verified disposable PostgreSQL resources and synthetic tests/real Django BEFORE-AFTER. Existing migrations only on fresh empty disposable databases. No ordinary database or external-service/release actions. Implement Team first then Settings. Settings includes the explicitly described DOM-only bulk field ID repair. No release actions."
+    }
+  ],
+  "environments": [
+    {
+      "id": "services-business-settings-20261121-before",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_7e575f86ce5aa2fb_before",
+      "cluster_directory": "/tmp/motionmate-preview-session-6_a8stg9/before/pgdata",
+      "system_identifier": "7710744224570980564",
+      "port": 55520,
+      "process": {
+        "pid": 674584,
+        "start": "8380952"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/runtime-current.json"
+    },
+    {
+      "id": "services-business-settings-20261121-after",
+      "engine": "postgresql",
+      "disposable": true,
+      "ownership_verified": true,
+      "settings": "ui_preview.settings",
+      "database": "mm_preview_7e575f86ce5aa2fb_after",
+      "cluster_directory": "/tmp/motionmate-preview-session-6_a8stg9/after/pgdata",
+      "system_identifier": "7710744321151920601",
+      "port": 55521,
+      "process": {
+        "pid": 724967,
+        "start": "8704014"
+      },
+      "identity_evidence": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/runtime-current.json"
+    }
+  ],
+  "deferred_decisions": [
+    {
+      "decision": "Production integration manifest, baseline and exact disposable resources",
+      "status": "Exact Gate B manifest and disposable resources explicitly authorized by approved all; retained without expansion. Latest revision is separately recorded and remains within those paths."
+    },
+    {
+      "decision": "Separate functionality and existing gaps",
+      "status": "excluded from v1 unless separately proposed and authorized; see audit/brief"
+    }
+  ],
+  "known_issues": [
+    {
+      "id": "booking-get-creates-settings",
+      "summary": "Booking settings GET can create a row; browser audit deferred to authorized disposable runtime.",
+      "reference": "audit.md",
+      "resolution": "Existing behavior preserved. All GET/POST reviews run only on verified owned disposable resources."
+    },
+    {
+      "id": "confirmation-help-vs-model-choices",
+      "summary": "Manual-only help/template wording differs from exposed model confirmation choices; preserve values/behavior, defer policy clarification.",
+      "reference": "audit.md"
+    },
+    {
+      "id": "availability-duplicate-ids",
+      "summary": "Unprefixed single/bulk forms repeat generated IDs; rendered verification and explicit compatibility proposal required before ID repair.",
+      "reference": "audit.md",
+      "resolution": "Gate B explicitly authorized scoped DOM-only bulk IDs. Isolated tests/browser pointer and label checks pass; no payload/prefix/backend changes."
+    },
+    {
+      "id": "historical-validation-scope",
+      "summary": "Historical SQLite/test counts are not current PostgreSQL validation or authorization.",
+      "reference": "audit.md"
+    }
+  ],
+  "validation": [
+    {
+      "check": "Revised Services settings, native saves, focused navigation, fallback and browser matrix",
+      "status": "pass",
+      "vertical": "SERVICE",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-results.json"
+    },
+    {
+      "check": "Logistics frozen BEFORE parity, permissions/contracts and no Services assets",
+      "status": "pass",
+      "vertical": "LOGISTICS",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-results.json"
+    },
+    {
+      "check": "Full-page shared-shell accessibility and external assets",
+      "status": "fail",
+      "evidence": "/tmp/motionmate-preview-session-6_a8stg9/after/evidence/settings-revision-1/supplemental.json",
+      "limitation": "Unchanged shared-header search link lacks an accessible name in full-page axe at 720px; scoped page checks pass. Prior Team shared-sidebar contrast findings remain outside scope. External vendor URLs are intentionally blocked by preview routing/CSP; raw request and console errors retained. No page JavaScript exceptions."
+    },
+    {
+      "check": "Team broad helper after authorized sibling work",
+      "status": "blocked",
+      "evidence": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/preservation-results.json",
+      "limitation": "Team broad helper retains the previously documented sibling-workspace drift warning; Team candidate and protected workflow/source bytes remain unchanged."
+    }
+  ],
+  "evidence": {
+    "audit": [
+      {
+        "kind": "source_audit",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/audit.md",
+        "summary": "Traced actual Django routes, forms, Business scoping, permission/subscription checks, GET side effects and existing presentation gaps."
+      },
+      {
+        "kind": "source_identity",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/source-audit.json",
+        "summary": "Read-only source/reference hashes and initial clean branch/HEAD; runtime and browser explicitly unverified."
+      }
+    ],
+    "brief": [
+      {
+        "kind": "design_brief",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/brief.md",
+        "summary": "Specific v1 direction with responsive/theme/accessibility behavior, separate functional proposals and preservation boundaries."
+      },
+      {
+        "kind": "validation_plan",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation.md",
+        "summary": "Prospective actual Django/POST/permissions/Logistics and browser checks, no tests or runtime claimed."
+      }
+    ],
+    "integration": [
+      {
+        "kind": "production_integration",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/integration.md",
+        "summary": "Closed task-owned file manifest, Services-only integration boundary, shared-consumer regression, compatibility/risks and explicit exclusions."
+      },
+      {
+        "kind": "proposal_baseline",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-baseline.json",
+        "summary": "Actual current Git/target/protected-source/reference hashes before Gate B; no runtime snapshot or DB access. Serial helper execution activation documented."
+      },
+      {
+        "kind": "resource_proposal",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-resources.json",
+        "summary": "Exact proposed isolated ports/settings/resources/actions and ownership requirements; no resource created or authorized."
+      }
+    ],
+    "before": [
+      {
+        "kind": "actual_django_before",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/runtime.json",
+        "summary": "Real pair with verified owned PostgreSQL; BEFORE matches captured worktree with completed Team; initial settings/logo fixture parity verified."
+      }
+    ],
+    "implementation": [
+      {
+        "kind": "scoped_application_change",
+        "reference": "src/templates/businesses/services/settings/page.html",
+        "summary": "21 approved paths implemented; separate existing saves, grouped booking forms, DOM-only bulk IDs; original non-Service bodies retained. Team candidate unchanged."
+      },
+      {
+        "kind": "user_requested_revision",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/revision-1.md",
+        "summary": "Seven paths inside existing 21-file manifest revised for prominent business profile, focused navigation and workspace tools. User rejected prior candidate; no new backend behavior or acceptance."
+      }
+    ],
+    "validation": [
+      {
+        "kind": "django_and_browser",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-results.json",
+        "summary": "57 backend, 3 boundary, 16 screen cases per side, 64 section cases, native drafts/errors/history/clipboard/fallback/logo checks; limitations retained."
+      }
+    ],
+    "comparison": [
+      {
+        "kind": "real_django_pair",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/runtime-current.json",
+        "summary": "Reused existing verified pair and fixtures; original BEFORE immutable, refreshed AFTER only, new source/candidate identities."
+      }
+    ],
+    "report": [
+      {
+        "kind": "revised_gate_c_review",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-c-review.md",
+        "summary": "Revised candidate for independent human acceptance; previous rejected review archived."
+      }
+    ]
+  },
+  "updated_at": "2026-11-21T22:44:17.487943+00:00",
+  "optional_prototype": {
+    "enabled": false,
+    "reason": null,
+    "authorization": null
+  },
+  "artifact_inventory": [
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/audit.md",
+      "category": "documentation",
+      "purpose": "Task audit/design/approval record",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/brief.md",
+      "category": "documentation",
+      "purpose": "Task audit/design/approval record",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/integration.md",
+      "category": "documentation",
+      "purpose": "Task audit/design/approval record",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation.md",
+      "category": "documentation",
+      "purpose": "Task audit/design/approval record",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/source-audit.json",
+      "category": "documentation",
+      "purpose": "Task audit/design/approval record",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/approval-log.md",
+      "category": "documentation",
+      "purpose": "Task audit/design/approval record",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/state.json",
+      "category": "documentation",
+      "purpose": "Task audit/design/approval record",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-a-review.md",
+      "category": "documentation",
+      "purpose": "Gate A handoff and offline consistency evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/offline-checks.json",
+      "category": "documentation",
+      "purpose": "Gate A handoff and offline consistency evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-a-approval.json",
+      "category": "documentation",
+      "purpose": "Independent Gate A consent / Gate B scope, baseline and offline evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-manifest.json",
+      "category": "documentation",
+      "purpose": "Independent Gate A consent / Gate B scope, baseline and offline evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-resources.json",
+      "category": "documentation",
+      "purpose": "Independent Gate A consent / Gate B scope, baseline and offline evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-baseline.json",
+      "category": "documentation",
+      "purpose": "Independent Gate A consent / Gate B scope, baseline and offline evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-review.md",
+      "category": "documentation",
+      "purpose": "Independent Gate A consent / Gate B scope, baseline and offline evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-scope.json",
+      "category": "documentation",
+      "purpose": "Independent Gate A consent / Gate B scope, baseline and offline evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-checks.json",
+      "category": "documentation",
+      "purpose": "Independent Gate A consent / Gate B scope, baseline and offline evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/evidence/settings-1440-light.png",
+      "category": "documentation",
+      "purpose": "Representative real Django Gate C evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/evidence/settings-390-dark.png",
+      "category": "documentation",
+      "purpose": "Representative real Django Gate C evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/evidence/booking-390-dark.png",
+      "category": "documentation",
+      "purpose": "Representative real Django Gate C evidence",
+      "ownership": "task"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/review-runbook.md",
+      "category": "documentation",
+      "purpose": "Local synthetic sign-in and review resource lifecycle handoff",
+      "ownership": "task"
+    }
+  ],
+  "protected_workspace": {
+    "status": " M scripts/ui_preview/guard.py\n M src/templates/businesses/team_members.html\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/audit.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/evidence/after-team-1440-light.png\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/evidence/after-team-390-dark.png\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/evidence/before-team-1440-light.png\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/execution-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-a-approval.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-approval.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-checks.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-guard-extension-approval.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-scope.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-c-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/guard-extension.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/guard-extension.patch\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/guard-runtime-update.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-manifest-guard-extension.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/offline-checks.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/runtime.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/setup-failures.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-results.json\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-results.md\n?? docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation.md\n?? scripts/services_team_browser_check.py\n?? scripts/ui_preview/team_checks.py\n?? scripts/ui_preview/team_fixtures.py\n?? scripts/ui_preview/team_preview.py\n?? scripts/ui_preview/test_team.py\n?? src/apps/businesses/test_services_team_ui.py\n?? src/static/assets/css/services-team.css\n?? src/templates/businesses/services/team/assets.html\n?? src/templates/businesses/services/team/directory.html\n?? src/templates/businesses/services/team/field.html\n?? src/templates/businesses/services/team/invite_form.html\n?? src/templates/businesses/services/team/page.html\n?? src/templates/businesses/services/team/pending_invitations.html\n",
+    "files": {
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/approval-log.md": "3a5746e5bccc65d0e9f4b61c4bf5194a6ffb16112d041e2e42cee505d2557d71",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/audit.md": "3ec44f5ddf232b1868208499ccc89d8c6cb4904e832ae6e3e547a989f6d2923e",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/brief.md": "2e4d95f31775785ee7d51505cc5ad9a8c57c4653b3aa8a0340d0fed11147bebd",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/evidence/after-team-1440-light.png": "b1cf323a7a084f543caefc0e79fec6ab7767f9c06832271237182c619fc65b01",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/evidence/after-team-390-dark.png": "d97ec5c0c62fa617e2486df252fa83bd3904505b193265209f14bde5998fefc8",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/evidence/before-team-1440-light.png": "ba0dbcb38e411fdb0323839a81938577f40824cacd26bd18680a1fb021e50976",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/execution-baseline.json": "5bf9d672ff221825d4c896bab3ea6eb788f61dcdca26a133feab1d3ce3b16b33",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-a-approval.json": "771774bedcb3ac796b104f387f5cb76850b3446d3cabf72dafb5909ec4c5bad1",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-a-review.md": "0b784b7f1e7bc91bff9b4abe5f55e5c950040f5669f3736e8a6c97a9561a0a62",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-approval.json": "ff7355a47a0e6d5fa609ecc6a4db53ed9b15dbac13979c52a2277799a81fa439",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-checks.json": "37b04b860a2bcccc194d0ff6dd2e4987398fed52b94de100a211cacb95623be4",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-guard-extension-approval.json": "4729829d12511e0603fcdfadc45e9311ed7746d04b634148b3ddebbec2f7c8d6",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-review.md": "151afd02d7bbfacbe590787c2eb193457e666cf303116dc3327dbfa671b7ae75",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-b-scope.json": "e69c7815c440554a475e06b458ae270af639a64024c68dd8664019f8e717a39a",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/gate-c-review.md": "d6ff1b08fbb919a744917c04e6a1e98257a5d55c33846efde2d88bb0d1ada1ad",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/guard-extension.md": "77328c1f15213f2fb2853f1b7a62d3f8f0068f9561451c679b71e4316c4844ba",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/guard-extension.patch": "68b226e6e2876a903ea7ec42ccbcb5b5963da0adc7b39dec6c0c76c12bd5977a",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/guard-runtime-update.json": "5f80d5a73983d1f90f1996333a7de15b78df60d12d2a93ca61cbd00a1eecfb37",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-baseline.json": "04f8cae2c89a8571e726fef8a11a6c1b1c476c9faf6f92b5ad607cef71878852",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-manifest-guard-extension.json": "cc2792075fcb6254b334f278860dc26c584a2368be0502f7c74187813540c739",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-manifest.json": "17e514494fa32196eedf67bf733d965f2647e6bd9a76e6cba5f8f72304edba5f",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/integration.md": "79b73cb533aaea371abfdd579e7238e4e8db5510fb0bf679fc2086c1d17bd9fe",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/offline-checks.json": "8740aa9c4809fb57aed907f09bcd1cfcf980f907cb4c8d2588cbf2e402d9479d",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/runtime.json": "8c72d0ba3615aa4b150475c57d651e1e438295a2840a68f8a30a66d55ea5e0dc",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/setup-failures.md": "266fb41995aebdfef9174be525537bfbc8a5fe04e243efd4e40722be9a2e957f",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/source-audit.json": "a55ccc6f8bd1ca3f7991ee963e0458022bfd869f1de593df2d7e4093811afd3a",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/state.json": "9c14a623f33d588c17ae0a297d79fd5a3d4339e74e68a62b0bddd06da88985e1",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-resources.json": "7edd397e6d1fb6ea5969f03d706143535930ff4430648a1353cda6f9d234fd7f",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-results.json": "e52c7db51fcb080926283789a9b724a67ac7f4aed55691eccad8ad0d412d0a45",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-results.md": "56157992b405108b0f1703997f111a7e7d53c09617e996078fa1413ee83c96ad",
+      "docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation.md": "59e10c0c21e4369ce6adf1db0ff1ad74338be5f0e3dca4292069207e9f891016",
+      "scripts/services_team_browser_check.py": "722b20b9c9b3e8b7e38dd1da4616475a71a6bcf55201544d204afdb38a0f308f",
+      "scripts/ui_preview/guard.py": "1e1982bc9f98c282adab089353cb04401fdf4666d011a7b8c652c74b0191d086",
+      "scripts/ui_preview/team_checks.py": "8ea9d4207359b4d4d56d2e582b4444c9cd03c6776a55b1a0438ce96f95cf6dd3",
+      "scripts/ui_preview/team_fixtures.py": "c317b1cbe4773608754be47f1c75d826eb3b74aab3903ac14b25830955723a0a",
+      "scripts/ui_preview/team_preview.py": "0d116de078be57dedaccb74b75e574b3aa39f5eacecd9b86a142a1cd0308b653",
+      "scripts/ui_preview/test_team.py": "be72fb62a714cf51e26eb21b22394d4daf7093301f452ff671f2371f4247a63a",
+      "src/apps/businesses/test_services_team_ui.py": "f1bcff65b0cf1167124770b8c4f2b32c8be5701a6c21e65e76689abd969f85a8",
+      "src/static/assets/css/services-team.css": "754d50f53f1aed927611a9a74e469d838458d6774d6dbe8251cd6c50d0f69fb8",
+      "src/templates/businesses/services/team/assets.html": "4f13711fda332af8f60f931ea70a047e08ddd87141e13f36b4248796d8058f38",
+      "src/templates/businesses/services/team/directory.html": "1d2e9db6e72aad1a3e3e29e2620e4bb5e7977a808af68e8b34c7645ee1b62f42",
+      "src/templates/businesses/services/team/field.html": "ca5a24e3bb9ac26763320c05af97f81a7f91f1ea396c7964b21a70b6dad629dd",
+      "src/templates/businesses/services/team/invite_form.html": "42f1abfced6c27929d689c9075753c521e9cee1885ba44deecc15b3baabc0b4b",
+      "src/templates/businesses/services/team/page.html": "038ff3c5209e47728980612444bc1a2064ecadabe7fbebc7b6a9a5ed1bcdaaa0",
+      "src/templates/businesses/services/team/pending_invitations.html": "907385be608b47bbb64c4dba742aba5d5cc44982a35f705a20ff0c0cbbc1f0be",
+      "src/templates/businesses/team_members.html": "c23e80fc9de034aa9f8676dd3f6e3470145f8af95750cc9c2730f6dfe591ee36"
+    },
+    "index_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "implementation_checkpoint": {
+    "src/templates/businesses/settings.html": "1db070aec8c7341624614c48879bb6819b70471096752b7bbe3f1125eca2b694",
+    "src/templates/businesses/booking_settings.html": "89f3197834dacf9e3e50b311145762b9089b308544e80be94e167820faf3573d",
+    "src/templates/businesses/services/settings/assets.html": "146fdcec0bffd07a91ddfc30f156a6942f24f38afc1e646270d743030c4c8cd5",
+    "src/templates/businesses/services/settings/page.html": "902eb12207b43b5185ce61d44b93c48b9a316f58bc1032cc257f43d3c7c1fb2a",
+    "src/templates/businesses/services/settings/business_form.html": "67ca016903ea127592826eb44e8b47969169b684d90e7a17f66f4ae956124f1b",
+    "src/templates/businesses/services/settings/account.html": "03273e2f95d1bc7d37a03ddb195a1c32ea9d936bfd97accf58c1b9e6bb134858",
+    "src/templates/businesses/services/settings/configuration.html": "03dadf678f8db5856d2ffddd8c965aa4142c7d8e282a389dc00d238d0c71165f",
+    "src/templates/businesses/services/settings/booking.html": "d4f5e73ba75f15806ca9af47b10bd0d87df1699a2ed24a5ebaf95595970a670c",
+    "src/templates/businesses/services/settings/booking_rules.html": "5344c600c7630b63de601d4d21dbfcdc1e1bfd70394dcb7d230b5e1ea1b310e6",
+    "src/templates/businesses/services/settings/availability_entry.html": "46b3b5b2ce35faef2e25c893e85fe2d4d84ade1ce7b24061c778926561a3ff23",
+    "src/templates/businesses/services/settings/availability_list.html": "f48aba2e2e42c80d69f8ad89af831fcb1bc68d4cbb3b577cc2eba8c65b9de723",
+    "src/templates/businesses/services/settings/share_panel.html": "aa40e92dc33855e6e419acbe3953666aee7b5cbd0bcd369d88cb130c9fcbc9b5",
+    "src/templates/businesses/services/settings/field.html": "6093290b1b2bbdf456f869e55088ed5d1ffb8a72179d5c70d428567927c61921",
+    "src/static/assets/css/services-settings.css": "e648239c9999edd761f8ad560c9eb6a2c16d8de494f66b938df3c7d84dcbbf77",
+    "src/apps/businesses/templatetags/services_settings.py": "f1a8939baef2e79a7ffdd0a9d51a89debc345f45f80652774041ed7d200f7c6d",
+    "src/apps/businesses/test_services_settings_ui.py": "5177f08ed1b71efb64dd9fb5d9c7e205fcec7c072eaaf463ef0ba5b38f6810a2",
+    "scripts/services_settings_browser_check.py": "a93424b8b0e745c393aa677e032093dbc69b11aaa636982a0910aa2b97fa1a17",
+    "scripts/ui_preview/business_settings_fixtures.py": "8af10ab85725d952aeaad3687088c71183c4bce4c72eae1b8a1ad688af9bc3f9",
+    "scripts/ui_preview/business_settings_preview.py": "b685180d357e3c387970f285321e8b7e09ded024f1473f50d77d83c1d8c0f76a",
+    "scripts/ui_preview/business_settings_checks.py": "59e750b61cbf383ec0d52019871d2be5069fc741600cc970ff4b66870e129fe5",
+    "scripts/ui_preview/test_business_settings.py": "f7d0ec6fbfc1719225aa31b8e4e78565699b3d9dec73d8ce529bf7b463e5c69c"
+  },
+  "preview": {
+    "kind": "django",
+    "vertical": "SERVICE",
+    "synthetic_records": true,
+    "contracts": [
+      "templates",
+      "routes",
+      "authentication",
+      "forms",
+      "permissions"
+    ],
+    "before": {
+      "url": "http://127.0.0.1:8820/businesses/settings/",
+      "source_sha256": "29ee204efa0027842d410bfb010f9f8eb6209cdebcb61363424104ddb32cc751",
+      "initial_fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db",
+      "environment_id": "services-business-settings-20261121-before"
+    },
+    "after": {
+      "url": "http://127.0.0.1:8821/businesses/settings/",
+      "source_sha256": "39123574b8522345711fbf337b5ec3438a2790248cf790366afa700e8c27a2d0",
+      "initial_fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db",
+      "environment_id": "services-business-settings-20261121-after",
+      "candidate_sha256": "8362c35dd775edded30926bd32df525853c0794bfde59892cf26d0213253d8ea"
+    }
+  },
+  "before_identity_sha256": "9130d480a0de51adbe84f70b909ab4bba7405354393b73d7b6c4ad31f0ab9cf0",
+  "planning_authorization": {
+    "source": "User request in this conversation on 2026-11-21",
+    "quote": "Automatically complete both audits and design plans.",
+    "scope": "Offline source audits and separate saved workflow/design records for Employees & Team Management and Business Settings; stop at Gate A. No implementation or runtime setup."
+  },
+  "related_task": "services-team-20261121",
+  "integration_sequence": {
+    "position": 2,
+    "peer_task": "services-team-20261121",
+    "policy": "Team first, Settings second. Each gets its own actual working-tree BEFORE, manifest, resources and Gate C. Validate peer ownership before first execution-baseline activation; never rebaseline an existing baseline."
+  },
+  "integration_artifacts": {
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/integration.md": "fb48a766a1d68d181e6bb949f168127f832efd75b818478633952cedb1ed736c",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-manifest.json": "bfde4248cb89426632b8eefd084eb8d863af0c1ac3add4e6fd490f1004359e9b",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-resources.json": "c06facba198765048d023391b19b2ab7f2a4b34777004ee8a39b9fa2379ad63b",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-baseline.json": "513e76252c2559ae90af0d81fec3b1174436e7dfa8a5cc24d556b0f50c7bf317"
+  },
+  "representative_evidence": {
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/evidence/revision-1/settings-final-1440-light.png": "0e0bf8f4b02c42b0561baa32c624f8fb190c7493465ebdb6d7cbf76dfd691d2c",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/evidence/revision-1/settings-final-390-dark.png": "5113aaa45f4572049123eac9f12b65964aa976056fa2a176834c666a0a9eb51d",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/evidence/revision-1/before-1440-light.png": "ddb92ef50445ef347a280bfd810dd51a96bd1e930e99c093395cf2f673f552f7",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/evidence/revision-1/invoice-final-1440-light.png": "c1b04373125b8c88ed7cc2e2b502cbcf55e377eb7cb9bb75e329dfd51a4e7781"
+  },
+  "revision_history": [
+    {
+      "candidate_sha256": "b7e55cfdbf1b7cbb3b30a5aa3a1e95cf3e65e154590427343f1132fc8975d27b",
+      "status": "rejected_by_user",
+      "archive": "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/revisions/rejected-candidate-1",
+      "reason": "User reports static composition and lost business-profile identity; explicitly requests in-scope revision and a new real Django review."
+    }
+  ],
+  "revision_authorization": {
+    "source": "Latest user message in this conversation, Business Settings revision requested",
+    "quote": "If corrections fit within the existing authorized implementation scope, revise and validate the Business Settings design locally.",
+    "scope": "Revise only existing authorized Business Settings paths for business identity, navigation and presentation, including local progressive section navigation within page.html. No new settings/backend behavior, paths, providers or ordinary database writes. Preserve Team exactly. Reuse verified disposable pair; refresh AFTER only; stop for revised Gate C approval."
+  },
+  "candidate_revision": "revision-1"
+}

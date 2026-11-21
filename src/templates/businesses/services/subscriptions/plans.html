@@ -1,0 +1,80 @@
+  <div class="mm-plan-grid">
+    {% for plan in available_plans %}
+      <div class="mm-plan-cell">
+        <div class="card h-100 {% if subscription and subscription.plan_id == plan.id %}border-primary shadow-sm{% elif plan.is_recommended %}border-info shadow-sm{% endif %}">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <h3 class="mt-0 mb-1">{{ plan.name }}</h3>
+                <p class="mm-supporting mb-0">{{ plan.description|default:"Motionmate workspace access and module availability." }}</p>
+              </div>
+              {% if subscription and subscription.plan_id == plan.id %}
+                <span class="badge badge-phoenix badge-phoenix-primary">Current Plan</span>
+              {% elif plan.is_recommended %}
+                <span class="badge badge-phoenix badge-phoenix-info">Recommended</span>
+              {% endif %}
+            </div>
+
+            <div class="d-flex align-items-end gap-3 mb-4">
+              <div>
+                <div class="mm-caption mm-supporting">USD monthly</div>
+                <div class="mm-price">{{ plan.usd_display_pricing.monthly_display }}</div>
+                <div class="mm-caption mm-supporting">{{ plan.usd_display_pricing.yearly_display }} yearly</div>
+              </div>
+              <div>
+                <div class="mm-caption mm-supporting">EUR monthly</div>
+                <div class="mm-price">{{ plan.eur_display_pricing.monthly_display }}</div>
+                <div class="mm-caption mm-supporting">{{ plan.eur_display_pricing.yearly_display }} yearly</div>
+              </div>
+            </div>
+
+            <dl class="mm-plan-limits">
+              <div><dt>Seats</dt><dd>{{ plan.user_limit_summary }}</dd></div>
+              <div><dt>Staff capacity</dt><dd>{{ plan.staff_capacity_summary }}</dd></div>
+              <div><dt>Active clients</dt><dd>{{ plan.max_clients|default_if_none:"Unlimited" }}</dd></div>
+              <div><dt>Invoices / month</dt><dd>{% if plan.max_invoices_per_month == None %}Unlimited{% else %}{{ plan.max_invoices_per_month|floatformat:"0g" }}{% endif %}</dd></div>
+              <div><dt>Appointments / month</dt><dd>{% if plan.max_appointments_per_month == None %}Unlimited{% else %}{{ plan.max_appointments_per_month|floatformat:"0g" }}{% endif %}</dd></div>
+              <div><dt>Online booking page</dt><dd>Included</dd></div>
+            </dl>
+            <div class="mb-4">
+              <div class="fs-9 fw-semibold text-body-emphasis mb-2">Main services</div>
+              <div class="d-flex flex-wrap gap-2">
+                <span class="badge badge-phoenix badge-phoenix-success">Client Management</span>
+                <span class="badge badge-phoenix {% if plan.allow_invoicing %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Invoicing</span>
+                <span class="badge badge-phoenix {% if plan.allow_appointments %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Appointments</span>
+                <span class="badge badge-phoenix {% if plan.allow_public_booking %}badge-phoenix-success{% else %}badge-phoenix-warning{% endif %}">Online Booking</span>
+                <span class="badge badge-phoenix badge-phoenix-secondary">Team roles and permissions</span>
+              </div>
+              <p class="mm-caption mm-supporting mt-2 mb-0">
+                Book now schedules an appointment immediately. Contact-first requests can be scheduled later by your team.
+              </p>
+            </div>
+
+            {% if subscription and subscription.plan_id == plan.id %}
+              <div class="alert alert-primary mb-0" role="alert">
+                This workspace is already on {{ plan.name }}.
+              </div>
+            {% elif workspace_can_modify %}
+              <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="plan" value="{{ plan.id }}">
+                <button class="btn btn-primary w-100" type="submit">
+                  Select {{ plan.name }}
+                </button>
+              </form>
+            {% else %}
+              <div class="alert alert-subtle-secondary border mb-0" role="alert">
+                Plan changes are unavailable while this workspace is read-only.
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="col-12">
+        <div class="alert alert-warning mb-0" role="alert">
+          No active Motionmate plans are configured yet. Registration can still work, but a trial plan cannot be attached until an active plan exists.
+        </div>
+      </div>
+    {% endfor %}
+  </div>

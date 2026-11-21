@@ -1,0 +1,31 @@
+{
+  "protected_files": 12679,
+  "changed": [
+    "src/apps/billings/pdf.py",
+    "src/apps/billings/test_pdf_layout.py",
+    "src/apps/billings/test_presentation.py",
+    "src/apps/billings/tests.py",
+    "src/templates/billings/invoice_create.html",
+    "src/templates/billings/invoice_detail.html",
+    "src/templates/billings/invoice_edit.html",
+    "src/templates/billings/invoice_list.html",
+    "src/templates/billings/invoice_pdf.html",
+    "src/templates/billings/payment_form.html",
+    "src/templates/emails/invoice_body.html",
+    "src/templates/emails/invoice_body.txt"
+  ],
+  "unexpected": [],
+  "frozen_design_files": 1257,
+  "frozen_changes": [],
+  "legacy_template_branches": {
+    "src/templates/billings/invoice_list.html": true,
+    "src/templates/billings/invoice_detail.html": true,
+    "src/templates/billings/invoice_create.html": true,
+    "src/templates/billings/invoice_edit.html": true,
+    "src/templates/billings/payment_form.html": true,
+    "src/templates/emails/invoice_body.html": true,
+    "src/templates/emails/invoice_body.txt": true,
+    "src/templates/billings/invoice_pdf.html": true
+  },
+  "pass_": true
+}

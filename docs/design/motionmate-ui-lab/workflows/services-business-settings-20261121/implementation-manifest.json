@@ -1,0 +1,219 @@
+{
+  "task_id": "services-business-settings-20261121",
+  "design_version": "v1",
+  "design_sha256": "fda72105714e92f4723c17c68a1495877229fc6876470f7ae230f8360399ec39",
+  "status": "proposed_not_authorized",
+  "file_count": 21,
+  "files": [
+    {
+      "path": "src/templates/businesses/settings.html",
+      "action": "modify",
+      "purpose": "Select Services settings/assets; retain original Logistics/no-business body, forms and stylesheet.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "before_sha256": "7d7eddf2e6bf014ac8e669746915441e60350d38b74399b899898e9e892bf40d",
+      "shared_impact": "Entry template consumed by both verticals. Only SERVICE selects new includes/assets; preserve original other-vertical/fallback body, route/forms/navigation/guards.",
+      "shared_regression": "Verify preserved legacy body and absence of new Services assets; exercise existing Logistics Owner/Admin/restricted-role/subscription/location behavior and no-business fallback where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ]
+    },
+    {
+      "path": "src/templates/businesses/booking_settings.html",
+      "action": "modify",
+      "purpose": "Select Services booking composition/assets; preserve existing non-Service path and all route guards.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "before_sha256": "97a941da0b5ee87655d905b5f994f9e76ea29a3e9a3fb75239fcb2089550b5e0",
+      "shared_impact": "Entry template consumed by both verticals. Only SERVICE selects new includes/assets; preserve original other-vertical/fallback body, route/forms/navigation/guards.",
+      "shared_regression": "Verify preserved legacy body and absence of new Services assets; exercise existing Logistics Owner/Admin/restricted-role/subscription/location behavior and no-business fallback where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ]
+    },
+    {
+      "path": "src/templates/businesses/services/settings/assets.html",
+      "action": "add",
+      "purpose": "Load independent settings stylesheet only for SERVICE.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/page.html",
+      "action": "add",
+      "purpose": "Compact identity/index, role/write feedback and existing anchor/section layout.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/business_form.html",
+      "action": "add",
+      "purpose": "Complete existing multipart Business form with grouped company/address/region/invoice/logo controls.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/account.html",
+      "action": "add",
+      "purpose": "Separate account-prefixed personal save and unchanged password navigation.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/configuration.html",
+      "action": "add",
+      "purpose": "Existing capability/role-guarded configuration destinations.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/booking.html",
+      "action": "add",
+      "purpose": "Existing booking page hierarchy, plan feedback, rule/availability composition and return links.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/booking_rules.html",
+      "action": "add",
+      "purpose": "Unchanged settings form_kind/fields/choices and staff read-only summary.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/availability_entry.html",
+      "action": "add",
+      "purpose": "Original Single/Bulk tab hooks and independent forms; explicit bulk DOM-ID accessibility repair only.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/availability_list.html",
+      "action": "add",
+      "purpose": "All existing availability fields/inactive count and guarded deactivation POST.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/share_panel.html",
+      "action": "add",
+      "purpose": "Services-specific semantic headings around identical authoritative readiness and Copy/Open/Finish setup actions.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/settings/field.html",
+      "action": "add",
+      "purpose": "Persistent labels, errors/help and bound widgets; no field-name or form-prefix changes.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/css/services-settings.css",
+      "action": "add",
+      "purpose": "Independent Services-only settings/booking styles and both-theme responsive/accessibility states.",
+      "category": "required_asset",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/apps/businesses/templatetags/services_settings.py",
+      "action": "add",
+      "purpose": "Pure scoped widget rendering/IDs/error associations; no form, validation, permission or data mutation.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/apps/businesses/test_services_settings_ui.py",
+      "action": "add",
+      "purpose": "Save separation, tenant/permission/logo/booking contracts, unique bulk IDs and Logistics/no-business parity.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/services_settings_browser_check.py",
+      "action": "add",
+      "purpose": "Owned real Django settings/booking forms, labels/themes/reflow/axe and relevant logo/PDF evidence.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/business_settings_fixtures.py",
+      "action": "add",
+      "purpose": "Fresh synthetic settings/account/logo/availability and Logistics regression scenarios.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/business_settings_preview.py",
+      "action": "add",
+      "purpose": "Task-specific creation through current guarded session/cluster tooling.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/business_settings_checks.py",
+      "action": "add",
+      "purpose": "Owned source/backend/browser/targeted document checks; fixed allowlisted labels.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/test_business_settings.py",
+      "action": "add",
+      "purpose": "Wrong phase/settings/route/source-ownership refusal before Django or database access.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    }
+  ],
+  "read_only_required_assets": [
+    "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2",
+    "src/static/assets/fonts/manrope/OFL.txt"
+  ],
+  "excluded_functionality": [
+    "Existing-user invitation acceptance repair",
+    "New employee CRUD/custom role editor/resend/revoke/bulk/search",
+    "New business preferences/booking policy/provider/financial/authentication changes"
+  ]
+}

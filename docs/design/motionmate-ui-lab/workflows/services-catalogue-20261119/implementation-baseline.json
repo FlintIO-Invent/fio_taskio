@@ -1,0 +1,55 @@
+{
+  "kind": "offline_integration_review_baseline",
+  "captured_date": "2026-11-20",
+  "task_id": "services-catalogue-20261119",
+  "branch": "experiment/motionmate-ui-redesign",
+  "head": "6d65bc4d5e80f772e1822572f8ee20b4686fd7da",
+  "git_status_porcelain_all": "?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/validation.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation.md\n",
+  "design_version": "v1",
+  "design_sha256": "146bd111bff46aadb8f3574772e610bed838ba9f6521ea5c7a5d41421939ba5e",
+  "targets": {
+    "src/templates/crm/settings/business_service_list.html": "0eb7440cd97efe1089ed4e645b9db48f901cccf26d84676560b39d820f1ae472",
+    "src/templates/crm/settings/business_service_form.html": "5ab1858d149c17fc8906487ed6762121e026cfa15b72d858d2c1dba08e53188c",
+    "src/templates/crm/settings/service_category_form.html": "f76d7d3e686cd18fd66ec5bc2762779bcf28abe9d9493f09fa746d3ea72a26e1",
+    "src/templates/crm/services/catalogue/base.html": null,
+    "src/templates/crm/services/catalogue/assets.html": null,
+    "src/templates/crm/services/catalogue/list.html": null,
+    "src/templates/crm/services/catalogue/service_form.html": null,
+    "src/templates/crm/services/catalogue/category_form.html": null,
+    "src/static/assets/css/services-catalogue.css": null,
+    "src/apps/crm/test_services_catalogue_ui.py": null,
+    "scripts/services_catalogue_browser_check.py": null,
+    "scripts/ui_preview/catalogue_fixtures.py": null,
+    "scripts/ui_preview/catalogue_preview.py": null,
+    "scripts/ui_preview/catalogue_checks.py": null,
+    "scripts/ui_preview/test_catalogue.py": null
+  },
+  "tracked_runtime_tooling_file_count": 12450,
+  "tracked_runtime_tooling_sha256": "1b3900ec1cc417cd1e2e703c6a348f599ea06e054e69b401e1f50798452dfb89",
+  "protected_ignored_reference_sha256": {
+    "design_references/phoenix/package.json": "a598d78c1cb75053cc5dc005bb768c6400d5bdc8c99a3ae5e07612c65f76343d",
+    "design_references/phoenix/public/modules/forms/wizard.html": "aba4074a18b5a5cc89f6bcb3a7896180249a5014fac37c54a56d57536df7f315",
+    "design_references/phoenix/public/pages/pricing/pricing-column.html": "9d1036ec625e97766a538017b7403ae6e61ce921acacdbfb0e1051a212be3988"
+  },
+  "read_only_dependency_sha256": {
+    "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "src/static/assets/fonts/manrope/OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30",
+    "scripts/ui_preview/core.py": "57f44546d0c47a3bc2e57704095998aba60f105841ba05217f27b38e656be4b9",
+    "scripts/ui_preview/guard.py": "10bf7b91a508e339ec485c84ac9871bd269570a549b6a1f5fb31ae77f16a8de0",
+    "scripts/ui_preview/dashboard_checks.py": "b50d525ebde2fd83746245452bcf8274c3f8ec604a035c25ed60aa9375cfe563",
+    "scripts/ui_preview/appointments_checks.py": "4556c74bc061b99755b48b994ae3ab4abf945631afefcdb45992ce72e2b6725f",
+    "src/taskio/services_test_settings.py": "65c8465aada33fb72307e8bd38dfcffd2339173dcd68cba219b019f5f7e85ddb"
+  },
+  "protected_prior_workflows": [
+    "services-clients-20261117",
+    "services-invoices-20261118"
+  ],
+  "peer_workstreams": [
+    "services-data-import-20261119",
+    "services-subscriptions-billing-20261119"
+  ],
+  "runtime_snapshot_created": false,
+  "database_access": false,
+  "helper_execution_baseline": "Catalogue activated after all proposals are frozen; peers activate once before their own B recording/execution. No existing baseline is overwritten.",
+  "scope_note": "Three authorized planning directories are owned independently. Their mutable state cannot be mutually hash-bound by simultaneous helper baseline captures. This separate immutable source/worktree review record is not a real Django BEFORE or a claim of live resource ownership."
+}

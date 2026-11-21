@@ -1,0 +1,48 @@
+{
+  "task_id": "services-team-20261121",
+  "kind": "first_execution_helper_baseline",
+  "baseline": {
+    "branch": "experiment/motionmate-ui-redesign",
+    "head": "17cb241ff17503db9cf04f51d050f19f899e9e29",
+    "status": "?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/audit.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-a-approval.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-checks.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-scope.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/offline-checks.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation.md"
+  },
+  "protected_workspace": {
+    "status": "?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/approval-log.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/audit.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/brief.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-a-approval.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-a-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-checks.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-review.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-scope.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-baseline.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-manifest.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/integration.md\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/offline-checks.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/source-audit.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/state.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-resources.json\n?? docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation.md\n",
+    "files": {
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/approval-log.md": "a689d98331e96522aa88064ab4f3d9fbb9ded005d8bf8ec33890081dcc4ab3be",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/audit.md": "bce5b3539d985a8e42ab262ca197d2c340dd912faf603e4f859162e76da3d474",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/brief.md": "bfb99aa9e3e3c87151911d3ef02133581d6e8c90fc3d84e57598b4ac8e17a710",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-a-approval.json": "ac7867a00404c0b0f644c8c43f282066957376ab80cc1661f19f277015d26832",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-a-review.md": "606745bff8c99cc9220b337a34930dbb8068869d8f4aa02572ff9b6f1aedfcd6",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-checks.json": "b30e3ccad6198dbd385818079ca9105bd9e45195bea3c69aadc94811f191d558",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-review.md": "8ed33f7dcbded5cfce486493207c7a33a960f955b51fd366c9a4e238d92199c6",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/gate-b-scope.json": "8ca212523a52646dbe8d37d4fd03780999042ba65bdcc6b7a494c771b46016df",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-baseline.json": "513e76252c2559ae90af0d81fec3b1174436e7dfa8a5cc24d556b0f50c7bf317",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-manifest.json": "bfde4248cb89426632b8eefd084eb8d863af0c1ac3add4e6fd490f1004359e9b",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/integration.md": "fb48a766a1d68d181e6bb949f168127f832efd75b818478633952cedb1ed736c",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/offline-checks.json": "d5c1fc2a3a5cc467bce75f1d21d10b1ac0a74e61f656e04e4d02359966f381a6",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/source-audit.json": "a4dda71e70e448a30ab912f4ff4355a933214d7de58437f0197a02a4ca5a0536",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/state.json": "198db4fbdcd95e876704f503d33a2527127de8f0fc98d85d62ef7ef2e5945cf7",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-resources.json": "c06facba198765048d023391b19b2ab7f2a4b34777004ee8a39b9fa2379ad63b",
+      "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation.md": "d40cef143a99b08ef6eb5c3b7cedf7ac2067db9b39f79db4222a261a87af0b80"
+    },
+    "index_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "targets": {
+    "src/templates/businesses/team_members.html": "e7c4d9fc76c3fa148d4c0bae9dc4a0df91c4a1505ec3685dd0ab3aa38ab6b397",
+    "src/templates/businesses/services/team/assets.html": null,
+    "src/templates/businesses/services/team/page.html": null,
+    "src/templates/businesses/services/team/directory.html": null,
+    "src/templates/businesses/services/team/invite_form.html": null,
+    "src/templates/businesses/services/team/pending_invitations.html": null,
+    "src/templates/businesses/services/team/field.html": null,
+    "src/static/assets/css/services-team.css": null,
+    "src/apps/businesses/test_services_team_ui.py": null,
+    "scripts/services_team_browser_check.py": null,
+    "scripts/ui_preview/team_fixtures.py": null,
+    "scripts/ui_preview/team_preview.py": null,
+    "scripts/ui_preview/team_checks.py": null,
+    "scripts/ui_preview/test_team.py": null
+  },
+  "note": "Captured after both Gate B proposal record sets froze. Settings remains frozen until its later first serial activation; no existing baseline replaced. No runtime or DB action."
+}

@@ -1,0 +1,63 @@
+  {% if subscription %}
+    {% if not subscription.is_beta_plan %}
+      {% if customer_portal_availability.can_open or payment_recovery_portal_availability.can_open or access_state.code == "pending_checkout" or customer_portal_availability.user_message or payment_recovery_portal_availability.user_message %}
+        <section class="card mm-section" aria-labelledby="billing-heading">
+          <div class="card-body">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+              <div>
+                <h2 id="billing-heading">Motionmate subscription billing</h2>
+                {% if payment_recovery_portal_availability.can_open %}
+                  {% if access_state.code == "past_due_grace" %}
+                    <p class="mm-supporting mb-1">We could not process your latest Motionmate payment.</p>
+                    <p class="mm-supporting mb-0">Your account will remain available until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}. Update your payment method to prevent an interruption.</p>
+                  {% elif access_state.code == "past_due_grace_expired" %}
+                    <p class="mm-supporting mb-1">Your Motionmate workspace is temporarily read-only because the payment grace period has ended.</p>
+                    <p class="mm-supporting mb-0">Update your payment method to restore full access after Stripe confirms a successful payment.</p>
+                  {% else %}
+                    <p class="mm-supporting mb-0">Payment recovery is available through Stripe's secure billing page.</p>
+                  {% endif %}
+                {% elif customer_portal_availability.can_open %}
+                  {% if access_state.code == "trial_active" %}
+                    <p class="mm-supporting mb-1">Your 14-day trial is active until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.</p>
+                    <p class="mm-supporting mb-0">You can update your payment method or cancel before your first charge.</p>
+                  {% elif access_state.code == "cancels_at_period_end" %}
+                    <p class="mm-supporting mb-1">Your subscription remains available until {{ access_state.access_ends_at|date:"M j, Y, g:i a" }}.</p>
+                    <p class="mm-supporting mb-0">Billing management is securely hosted by Stripe.</p>
+                  {% else %}
+                    <p class="mm-supporting mb-0">Manage your payment method, billing details, invoices, or cancellation.</p>
+                  {% endif %}
+                {% elif access_state.code == "pending_checkout" %}
+                  <p class="mm-supporting mb-0">{% if logistics_usage %}Complete your annual payment setup to open the workspace.{% else %}Complete payment setup to start your 14-day trial.{% endif %}</p>
+                {% elif payment_recovery_portal_availability.user_message %}
+                  <p class="mm-supporting mb-0">{{ payment_recovery_portal_availability.user_message }}</p>
+                {% else %}
+                  <p class="mm-supporting mb-0">{{ customer_portal_availability.user_message }}</p>
+                {% endif %}
+              </div>
+              <div class="align-self-lg-start">
+                {% if payment_recovery_portal_availability.can_open %}
+                  <form method="POST" action="{% url 'billing_payment_recovery' %}">
+                    {% csrf_token %}
+                    <button class="btn btn-warning" type="submit">Fix payment</button>
+                  </form>
+                  <div class="mm-supporting mt-2">Payment recovery is securely hosted by Stripe.</div>
+                {% elif customer_portal_availability.can_open %}
+                  <form method="POST" action="{% url 'billing_customer_portal' %}">
+                    {% csrf_token %}
+                    <button class="btn btn-primary" type="submit">Manage billing</button>
+                  </form>
+                  <div class="mm-supporting mt-2">Billing management is securely hosted by Stripe.</div>
+                {% elif access_state.code == "pending_checkout" and access_state.can_resume_checkout %}
+                  <form method="POST" action="{% url 'billing_checkout_resume' %}">
+                    {% csrf_token %}
+                    <button class="btn btn-primary" type="submit">Complete payment setup</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </section>
+      {% endif %}
+    {% endif %}
+
+  {% endif %}

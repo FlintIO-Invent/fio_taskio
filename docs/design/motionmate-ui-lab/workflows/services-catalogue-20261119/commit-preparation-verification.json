@@ -1,0 +1,452 @@
+{
+  "task_id": "services-catalogue-20261119",
+  "helper_command": [
+    ".venv/bin/python",
+    "-B",
+    ".agents/skills/motionmate-ui-workflow/scripts/workflow.py",
+    "prepare-commit",
+    "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/state.json"
+  ],
+  "helper_exit_code": 1,
+  "helper_output": "Workflow check failed: Concurrent edits outside approved scope; preserve and reconcile",
+  "original_baselines_retained": true,
+  "branch_head_unchanged": true,
+  "index_unchanged_and_empty": true,
+  "accepted_source_hashes_verified": 62,
+  "manifest_overlap": false,
+  "all_dirty_paths_owned": true,
+  "peer_deltas": [
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/acceptance.md",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/approval-log.md",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/commit-preparation.md",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/evidence/after-hub-desktop.png",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/evidence/after-preview-mobile.png",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/evidence/before-hub-desktop.png",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/evidence/before-upload-mobile.png",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-c-review.md",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation.md",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/ownership-preflight.md",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/runtime.json",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/state.json",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation-results.md",
+      "owner": "services-data-import-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/acceptance.md",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/approval-log.md",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/browser-results.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/commit-manifest.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/commit-preparation.md",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/current-reviews.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/after-desktop.png",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/after-mobile.png",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/before-desktop.png",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/before-mobile.png",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/native-plan-confirmation.png",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/native-recovery.png",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/fixture-investigation.md",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-c-review.md",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation.md",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/ownership-preflight.md",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/preservation-results.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/recovery-keyboard.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/recovery-preservation.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/recovery-runtime-progress.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/review-index.md",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/runtime.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-contracts.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-recovery.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/state.json",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation-results.md",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "workflow_documentation"
+    },
+    {
+      "path": "scripts/services_data_import_browser_check.py",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "scripts/services_subscriptions_browser_check.py",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "scripts/ui_preview/data_import_checks.py",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "scripts/ui_preview/data_import_fixtures.py",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "scripts/ui_preview/data_import_preview.py",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "scripts/ui_preview/subscriptions_checks.py",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "scripts/ui_preview/subscriptions_fixtures.py",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "scripts/ui_preview/subscriptions_preview.py",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "scripts/ui_preview/test_data_import.py",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "scripts/ui_preview/test_subscriptions.py",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/apps/businesses/test_services_subscriptions_ui.py",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/apps/crm/test_services_data_import_ui.py",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/static/assets/css/services-data-import.css",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/static/assets/css/services-subscriptions.css",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/assets.html",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/base.html",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/billing_actions.html",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/current_plan.html",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/page.html",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/plan_change_review.html",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/plans.html",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/usage.html",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/businesses/subscription.html",
+      "owner": "services-subscriptions-billing-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/data_import.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/history.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/history_detail.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_preview.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_preview_unavailable.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_result.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_upload.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/service_preview.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/service_preview_unavailable.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/importing/service_result.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/assets.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/base.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/history.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/history_detail.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/hub.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_preview.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_result.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_unavailable.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_upload.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_preview.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_result.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_unavailable.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_upload.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    },
+    {
+      "path": "src/templates/crm/settings/business_service_import.html",
+      "owner": "services-data-import-20261119",
+      "kind": "approved_manifest_source"
+    }
+  ],
+  "interpretation": "Every delta belongs to another explicitly accepted manifest or its workflow documentation. No helper/baseline modification, guard bypass or historical evidence rewrite. This is independent packaging verification, not a stock-helper pass.",
+  "later_packaging_documentation": "Subsequent file-selection documentation is confined to these same three task directories; final selections are separately hash-verified."
+}

@@ -1,0 +1,319 @@
+{
+  "schema_version": 2,
+  "task_id": "services-subscriptions-billing-20261119",
+  "vertical": "SERVICE",
+  "candidate_sha256": "ec6791a414ad1c7435f07efd1481a8af9983beb42dbf1186bd049400991ccf0c",
+  "manifest_sha256": "0dd8564ddb540d772d8c181dbcbe7c5f142515f4ac47d0716bcd873bb74ee7df",
+  "review_sha256": "16580d1e9aca403da16559b6ee135f653d9e21079667414a812f3ad3eda9eab9",
+  "recommendation": "One commit for this completed redesign; explicit user commit authorization required.",
+  "files": [
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/acceptance.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "111a3a9a88bd8a7c0b2e6f97c0ce9481691043d2db4986a3c3d13618c5f607c1"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/approval-log.md",
+      "category": "documentation",
+      "purpose": "Actual user Gate A approval with context and explicit Gate B boundary.",
+      "sha256": "6c106b63da141110b374d75479c1533ae33d4487fd96b9f9642e8cc002cfb2cb"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/brief.md",
+      "category": "documentation",
+      "purpose": "Approved design direction",
+      "sha256": "f81bf029b94bd91c4b5e92e58286c28d0862cdd4391a1cdd6f5356ef95638444"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/browser-results.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "a576d56af6920c8fd3d556f19f9741bccd5496e922cf8a2e2d13742a9940a470"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/commit-preparation.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "37ddbee2f572fe61016f0b715c12828d17e850fab754377729b76020147b37c6"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/current-reviews.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "2fcc89f7bb7195091cae01a07261f73991134e2dfd8e8e5f6ab72f5b6be24508"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/after-desktop.png",
+      "category": "documentation",
+      "purpose": "Selected real Django comparison/native validation screenshot; retain as durable review evidence.",
+      "sha256": "6f289faedf108fd2247a856e75b35fe5b8f507a656ec716379481c946fccf62c"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/after-mobile.png",
+      "category": "documentation",
+      "purpose": "Selected real Django comparison/native validation screenshot; retain as durable review evidence.",
+      "sha256": "8328ccb2f26ba0719473f533b5fd9c52cddd30a837c17b0a2e6ac58681ef2cbc"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/before-desktop.png",
+      "category": "documentation",
+      "purpose": "Selected real Django comparison/native validation screenshot; retain as durable review evidence.",
+      "sha256": "75fc568d4d10b53a4545fc38c2d8c83fde8701476f87a7793fee5a5bf9aa7606"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/before-mobile.png",
+      "category": "documentation",
+      "purpose": "Selected real Django comparison/native validation screenshot; retain as durable review evidence.",
+      "sha256": "f92da57968e278c8733c1c188c34bcd6f9bd727146a8870c6aacb371a001cea8"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/native-plan-confirmation.png",
+      "category": "documentation",
+      "purpose": "Selected real Django comparison/native validation screenshot; retain as durable review evidence.",
+      "sha256": "943df41e10150f6573464445b599b5911bf982ddae40e230de7742d90f8a4224"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/evidence/native-recovery.png",
+      "category": "documentation",
+      "purpose": "Selected real Django comparison/native validation screenshot; retain as durable review evidence.",
+      "sha256": "f20d25447bc864bffb0f01cd3a3363de61f228a97877b0d7df0467d9ae0339a1"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/fixture-investigation.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "3aa8ca2486b0802ccf207ef6b8484ed27eccc593062c3469f7b38c5bf0371745"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-a-review.md",
+      "category": "documentation",
+      "purpose": "Pending Gate A review with helper-derived design identity and artifact hashes.",
+      "sha256": "0630476a745052dfeded09f7421c96fe9da0e1021e4731d14f4b2bbe748b9768"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-b-review.md",
+      "category": "documentation",
+      "purpose": "Concrete module Gate B review and bound identities.",
+      "sha256": "cef4825d041eb4c6942f4e56045ff1100d9bbedf6c352d481635c878bf0280cf"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/gate-c-review.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "4f92c38fc615732b066bfca1994f909d2d466e47ae02d3077c76c04aa329bd13"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-baseline.json",
+      "category": "documentation",
+      "purpose": "Read-only integration source/worktree capture, separate from real BEFORE/helper activation.",
+      "sha256": "cfb3ac7f0169c76b9955d08dd4077cab3304d22d736641fa6364853d69e39c13"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation-manifest.json",
+      "category": "documentation",
+      "purpose": "Closed exact source/test/asset scope for Gate B.",
+      "sha256": "73591ea91909457780d5ba2fb50046b543dbc9e088813fccd7a95de02d60d623"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/implementation.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "7c0be0e07e31ed0b0344215d920dccd8be6ba2947acaa4d6744f3ee76044d9ff"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/integration.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "d647b85ed0e9e6a482b2b8b7600c509a4819ae2feb8447d98d859d98dc175bf8"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/ownership-preflight.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "1d87f3b18873b0237765f9809b3b7bb8b54cf038607a7ec31f0d0e1f86e9ffb5"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/preservation-results.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "f169528093750530581a31ed1f218d881d3ce799a52167b5c84fc5bd9fc144b6"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/recovery-keyboard.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "a51d6bd5ecc86f61e924cdda0445affa880b3c4483b3eb23da78eec346c4c61a"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/recovery-preservation.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "17ea3d0ba2cfe8d240e092f21fa93776ce6a0727d595c24f6e41d5e0a27b7033"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/recovery-runtime-progress.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "d8b8b2fd32451df96816c3bc0b0a6bf73878e8c59a438550f58b7806904a9d3b"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/review-index.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "dac7d76cb4041cb62861c5ca04dcb3f8a93e32e4a158f6f01eb2d2da50266968"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/runtime.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "05f467d0922e574fb6b4df41460ea24cae69d201aa4e1eb250e0ff1dcbc0cc33"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-audit.json",
+      "category": "documentation",
+      "purpose": "Offline source evidence and audit hashes, not runtime or implementation baseline.",
+      "sha256": "551fe89db1fdb48db133e3e490fc295edb0f3287f7c401c07a855a0ed63ded04"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-contracts.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "cb109cecd198d41fe16152dff3d99d4ca1d5dad491ee04a2ed4865bee8769250"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/source-recovery.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "c296d724325757ba41bee7677e5798c70e21783954a2174b3fb9376235e8a783"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/state.json",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "84cdbf07d6cada2753daaeb46fbdf45b724c188a46ae70ca570056b67bdb5596"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation-resources.json",
+      "category": "documentation",
+      "purpose": "Proposed owned disposable resources/actions, not current runtime authority.",
+      "sha256": "2895c5afc6546a285cb1dab14dbee05c1ec71b7d357ec07bf7517c75f1c00d6f"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation-results.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "67ddfa86562532b60d5ca9e568ba89971a0d01f585b2f4357cc08a7a47780681"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/validation.md",
+      "category": "documentation",
+      "purpose": "Audit, approval, design or test record",
+      "sha256": "8b204919ce7fb9cfe4b877cfec64112b5c6fbb4b704cc1261842b8246323f9fe"
+    },
+    {
+      "path": "scripts/services_subscriptions_browser_check.py",
+      "category": "tests",
+      "purpose": "Real guarded pair capture/interaction/accessibility plus isolated LiveServer form checks; no ordinary DB/provider calls.",
+      "sha256": "d727c3adfbe6b4be07e0bc69edb2764768ce0d1a116d72a2951d709aa2863259"
+    },
+    {
+      "path": "scripts/ui_preview/subscriptions_checks.py",
+      "category": "tests",
+      "purpose": "Allowlisted isolated tests/browser dispatch through unchanged existing source/database/network guards.",
+      "sha256": "8faeddd05852bbd8012b37df94cb9d286376002ef6e5247ad09bb72c8af6eaaf"
+    },
+    {
+      "path": "scripts/ui_preview/subscriptions_fixtures.py",
+      "category": "implementation",
+      "purpose": "Setup-only module synthetic fixtures and canonical initial parity through existing identity guards.",
+      "sha256": "9e3eb64ad3adbefec9b2bac6433b2a5b7cba9863a5d06a601398b3875552d310"
+    },
+    {
+      "path": "scripts/ui_preview/subscriptions_preview.py",
+      "category": "implementation",
+      "purpose": "Fresh module preview entrypoint using existing owned snapshot/session/cluster tools and proposed ports.",
+      "sha256": "78d4c18affe5f5bbc444cc9daf7abff0c569d8985531fbd9d27a4b74b7e7ce8d"
+    },
+    {
+      "path": "scripts/ui_preview/test_subscriptions.py",
+      "category": "tests",
+      "purpose": "Refusal tests for wrong route/settings/phase/session/source/cluster and provider/network boundary; no database setup in offline tests.",
+      "sha256": "f60794e91cb54b785b6d7806da90bd052aef165b2968e034ffc1f91c125f053f"
+    },
+    {
+      "path": "src/apps/businesses/test_services_subscriptions_ui.py",
+      "category": "tests",
+      "purpose": "Meaningful real Django route/form/CSRF/permission/tenant/data-preservation and Logistics fallback regression checks.",
+      "sha256": "9dfdb3609e723b51a020be60cd1697a92b99f2a3642f4b239d7e0a244c74cb49"
+    },
+    {
+      "path": "src/static/assets/css/services-subscriptions.css",
+      "category": "required_asset",
+      "purpose": "Module-scoped Manrope/theme/record/form styles; retain Phoenix shell and global tokens.",
+      "sha256": "908a8a46dc75443b0f2703961508aadf0e2f64db73facdd638d0614603700d3b"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/assets.html",
+      "category": "implementation",
+      "purpose": "Load this module CSS only.",
+      "sha256": "48450667c31d747d918727ce3d60578f0e0ebfb85676a15669a84096ae0cfc3b"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/base.html",
+      "category": "implementation",
+      "purpose": "Services-only asset loading on existing Phoenix shell.",
+      "sha256": "a51fc69c198bff4150d84e37d98682a3a5814cda63e59b20cba64a4d99226bd1"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/billing_actions.html",
+      "category": "implementation",
+      "purpose": "Preserve beta guard and exact recovery/portal/resume branch order, POST/CSRF and unavailable messages.",
+      "sha256": "5c0c6aa1d5f2dd53a0ac083c1f8a62b581e92b259bb697eeb0ec58fe1e29cd37"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/current_plan.html",
+      "category": "implementation",
+      "purpose": "Stored plan/status plus authoritative effective-access message/date.",
+      "sha256": "f478f45e7685f228847c1bf29b80f7759d0980fbe2a75dc6024f58a460e77a9c"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/page.html",
+      "category": "implementation",
+      "purpose": "Compose approved status-first page and existing messages/navigation.",
+      "sha256": "15d1ac88d23052bc7b5470b740dc30d987ac13a8efa6e71d0c217d927db5c981"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/plan_change_review.html",
+      "category": "implementation",
+      "purpose": "Complete server module-loss/quota evidence and exact second-submit plan/confirm_plan_change form.",
+      "sha256": "dfe9a421a04869f23d01b1877cfcdf32a015d3994dd3113921e5ec026f5fc132"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/plans.html",
+      "category": "implementation",
+      "purpose": "Existing server plans/USD/EUR prices/limits/modules/current and read-only forms; render bound plan_form errors.",
+      "sha256": "a9def9d44f9f4d8d8423733891deedb24c09b34445ea18bb0efbec1bca8e9e9b"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/usage.html",
+      "category": "implementation",
+      "purpose": "Render authoritative usage/staff capacity without new arithmetic.",
+      "sha256": "7415d01e694d81f32d14064308de12834c922e5345262648dfe28dca2ee5cbac"
+    },
+    {
+      "path": "src/templates/businesses/subscription.html",
+      "category": "implementation",
+      "purpose": "Select Services-only subscription composition; preserve original Logistics owner page, includes and asset loading.",
+      "sha256": "563a03d744202489b7e65f3ef32d05403d63e73a5cd50fd641b54e9a86a8062d"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/commit-manifest.json",
+      "category": "documentation",
+      "purpose": "Exact commit selection (self descriptor)",
+      "sha256": null
+    }
+  ],
+  "excluded": [],
+  "notice": "Preparation only. Nothing staged, committed, pushed, merged, deployed or deleted."
+}

@@ -1,0 +1,6 @@
+<section class="card" aria-labelledby="request-rules-title"><div class="card-header"><h2 id="request-rules-title">Booking rules</h2><p class="mm-supporting">Existing timing, instructions and confirmation preferences.</p></div><div class="card-body">
+{% if can_manage_booking_rules %}<form method="post" novalidate>{% csrf_token %}<input type="hidden" name="form_kind" value="settings">
+{% if settings_form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ settings_form.non_field_errors }}</div>{% endif %}
+{% for field in settings_form %}{% include 'businesses/services/settings/field.html' with field=field only %}{% endfor %}<button class="btn btn-primary" type="submit">Save booking settings</button></form>
+{% else %}<dl><dt>Online Booking</dt><dd>{% if booking_settings.booking_enabled %}Enabled{% else %}Disabled{% endif %}</dd><dt>Default duration</dt><dd>{{ booking_settings.default_duration_minutes }} minutes</dd><dt>Minimum notice</dt><dd>{{ booking_settings.minimum_notice_hours }} hours</dd><dt>Booking window</dt><dd>{{ booking_settings.maximum_days_ahead }} days ahead</dd></dl>{% endif %}
+</div></section>

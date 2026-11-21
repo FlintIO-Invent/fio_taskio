@@ -1,0 +1,149 @@
+{
+  "task_id": "services-business-settings-20261121",
+  "candidate_sha256": "b7e55cfdbf1b7cbb3b30a5aa3a1e95cf3e65e154590427343f1132fc8975d27b",
+  "source_after_sha256": "77a9687bdb245b87c5875ad8aa01127b58540b4f7259da0eeecb23680bce2268",
+  "initial_fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db",
+  "candidate_files": {
+    "src/templates/businesses/settings.html": "1db070aec8c7341624614c48879bb6819b70471096752b7bbe3f1125eca2b694",
+    "src/templates/businesses/booking_settings.html": "89f3197834dacf9e3e50b311145762b9089b308544e80be94e167820faf3573d",
+    "src/templates/businesses/services/settings/assets.html": "146fdcec0bffd07a91ddfc30f156a6942f24f38afc1e646270d743030c4c8cd5",
+    "src/templates/businesses/services/settings/page.html": "5baf83d0197a1651ddc4997af2990e5d7c2eec34fc8d090c01e777dcee2caf03",
+    "src/templates/businesses/services/settings/business_form.html": "322fe1ceb1dd628e1cc43b776a9f2c5d7e3f8698264e1bb4f5c41651eaf63e5f",
+    "src/templates/businesses/services/settings/account.html": "290a4f8f5bade2894a779aab5e22fc38d425a2954f9bcdaf6291c38caac5c680",
+    "src/templates/businesses/services/settings/configuration.html": "b18e41f111339270594f2fbcf0e983cac218972cd09a33c7520a1df31c88f798",
+    "src/templates/businesses/services/settings/booking.html": "d4f5e73ba75f15806ca9af47b10bd0d87df1699a2ed24a5ebaf95595970a670c",
+    "src/templates/businesses/services/settings/booking_rules.html": "5344c600c7630b63de601d4d21dbfcdc1e1bfd70394dcb7d230b5e1ea1b310e6",
+    "src/templates/businesses/services/settings/availability_entry.html": "46b3b5b2ce35faef2e25c893e85fe2d4d84ade1ce7b24061c778926561a3ff23",
+    "src/templates/businesses/services/settings/availability_list.html": "f48aba2e2e42c80d69f8ad89af831fcb1bc68d4cbb3b577cc2eba8c65b9de723",
+    "src/templates/businesses/services/settings/share_panel.html": "aa40e92dc33855e6e419acbe3953666aee7b5cbd0bcd369d88cb130c9fcbc9b5",
+    "src/templates/businesses/services/settings/field.html": "a81df598423bac31bafa09770ddb36805584a97645430017e0be84c3f62d1756",
+    "src/static/assets/css/services-settings.css": "9fb86729319b899eec57024f13ffc50b10d10d66e86e02b382befb50e0fa197a",
+    "src/apps/businesses/templatetags/services_settings.py": "f1a8939baef2e79a7ffdd0a9d51a89debc345f45f80652774041ed7d200f7c6d",
+    "src/apps/businesses/test_services_settings_ui.py": "5177f08ed1b71efb64dd9fb5d9c7e205fcec7c072eaaf463ef0ba5b38f6810a2",
+    "scripts/services_settings_browser_check.py": "a42cf7310071fe2d7812f7cab89ef1c296d4aa5157326a8fffc7966c9ef3e123",
+    "scripts/ui_preview/business_settings_fixtures.py": "8af10ab85725d952aeaad3687088c71183c4bce4c72eae1b8a1ad688af9bc3f9",
+    "scripts/ui_preview/business_settings_preview.py": "b685180d357e3c387970f285321e8b7e09ded024f1473f50d77d83c1d8c0f76a",
+    "scripts/ui_preview/business_settings_checks.py": "59e750b61cbf383ec0d52019871d2be5069fc741600cc970ff4b66870e129fe5",
+    "scripts/ui_preview/test_business_settings.py": "f7d0ec6fbfc1719225aa31b8e4e78565699b3d9dec73d8ce529bf7b463e5c69c"
+  },
+  "backend": "57 tests passed; 5 focused Settings tests rerun after fieldset markup correction also passed. Last subsequent change was checkbox-group CSS layout only.",
+  "boundary_tests": "3 passed",
+  "browser": {
+    "cases_per_side": 16,
+    "widths": [
+      1440,
+      768,
+      390,
+      320
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "bulk_pointer_and_scoped_axe_cases": 8,
+    "scoped_axe_violations": 0,
+    "duplicate_ids": 0,
+    "small_targets": 0,
+    "roles": [
+      {
+        "role": "admin",
+        "business_form": 1,
+        "personal_form": 1
+      },
+      {
+        "role": "staff",
+        "business_form": 0,
+        "personal_form": 1
+      },
+      {
+        "role": "accountant",
+        "business_form": 0,
+        "personal_form": 1
+      },
+      {
+        "role": "viewer",
+        "business_form": 0,
+        "personal_form": 1
+      }
+    ],
+    "journeys": {
+      "personal_save": true,
+      "business_logo_save": true,
+      "invalid_preserves_logo": true,
+      "remove_logo": true,
+      "theme_draft": true,
+      "keyboard": true,
+      "bulk_invalid_panel_ids": true,
+      "bulk_native_two_rows": true,
+      "deactivate": true,
+      "rtl": true
+    },
+    "scenarios": [
+      {
+        "scenario": "empty",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "scenario": "long",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "scenario": "restricted",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "scenario": "locked",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "scenario": "eur",
+        "status": 200,
+        "overflow": false
+      }
+    ],
+    "logistics": {
+      "new_assets": 0,
+      "transport": 1
+    },
+    "page_errors": []
+  },
+  "preservation": {
+    "team_candidate_sha256": "75eff468999c7f9360ba94327784190615d008be0a896cf7e49dbb57de587319",
+    "team_files_verified": 15,
+    "combined_source_paths": 36,
+    "modified_existing_paths": [
+      "scripts/ui_preview/guard.py",
+      "src/templates/businesses/booking_settings.html",
+      "src/templates/businesses/settings.html",
+      "src/templates/businesses/team_members.html"
+    ],
+    "reconstructed_original_tracked_tree_sha256": "b56a62b568b3800116f49fe61014d46201a6e2372ca89ec267f8f2a3d5c0e94a",
+    "tracked_file_count": 12866,
+    "git_index_empty": true,
+    "ordinary_database_access": false
+  },
+  "team_global_helper_recheck": {
+    "status": "blocked_by_expected_sibling_workspace_drift",
+    "exit_code": 1,
+    "message": "Workflow check failed: Concurrent edits outside approved scope; preserve and reconcile",
+    "reconciliation": "Every Team candidate file matches its frozen hash. All changes outside it are the authorized independent Settings manifest and workflow records. Original Team helper baseline is retained; no failed helper check is described as passed."
+  },
+  "initial_failures_retained": [
+    "settings-backend.log: three heading-case assertions and one whitespace-only rendering comparison; corrected; final 57-test suite passed.",
+    "browser-settings.log: 42.5px checkbox label; scoped target size corrected.",
+    "browser-settings-final.log and browser-settings-fixed-bulk.log: fieldset and widget-group overlap; corrected with closed fieldset and scoped container layout. Final native Bulk journey and 8 pointer/axe cases pass."
+  ],
+  "limitations": [
+    "Full-page Settings axe at 720px flags the unchanged shared-header search link without an accessible name; the Team desktop full-page run also flags two unchanged sidebar contrast nodes. Browser-native select backgrounds create raw contrast incompletes. Scoped page/Single/Bulk checks have zero violations.",
+    "Supplemental console/request failures from unchanged external vendor URLs are retained; all non-preview requests aborted/CSP-blocked, no provider traffic.",
+    "720px CSS viewport checked as desktop-200-percent reflow proxy; actual browser zoom, assistive technologies, other browsers and ordinary-runtime/provider readiness not certified.",
+    "Legacy Team audit Settings assertions reproduce on BEFORE; those unrelated tests and shared sidebar source remain unchanged."
+  ],
+  "review_writes": "AFTER browser verification saved a synthetic personal first name/business name, uploaded then removed a synthetic logo, and added/deactivated weekly windows. Initial fixtures matched; later review writes remain independent. No reset/reseed/synchronization.",
+  "session": "/tmp/motionmate-preview-session-6_a8stg9",
+  "evidence": "/tmp/motionmate-preview-session-6_a8stg9/after/evidence/settings"
+}

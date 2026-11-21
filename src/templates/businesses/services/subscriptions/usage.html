@@ -1,0 +1,7 @@
+{% if subscription %}
+<section class="card mm-section" aria-labelledby="usage-heading"><div class="card-body">
+  <header class="mm-section-heading"><h2 id="usage-heading">Current Usage</h2><p class="mm-supporting">Appointments scheduled by your team and appointments booked online share the same monthly allowance. Each appointment counts once. Your user allowance includes the business owner.</p></header>
+  <p><span class="badge badge-phoenix badge-phoenix-secondary">{{ subscription.plan.user_limit_summary }}</span></p>
+  <dl class="mm-usage-grid">{% for usage in current_usage_summary %}<div><dt>{{ usage.label }}</dt><dd><strong>{{ usage.usage }}</strong> of {{ usage.limit_display }} <span class="badge badge-phoenix {% if usage.exceeded %}badge-phoenix-danger{% elif usage.at_limit %}badge-phoenix-warning{% else %}badge-phoenix-success{% endif %}">{% if usage.exceeded %}Over{% elif usage.at_limit %}Full{% else %}OK{% endif %}</span></dd>{% if usage.name == 'users' and staff_capacity %}<dd class="mm-supporting">Staff accounts available: {{ staff_capacity.available_display }} of {{ staff_capacity.limit_display }}</dd>{% endif %}</div>{% endfor %}</dl>
+</div></section>
+{% endif %}

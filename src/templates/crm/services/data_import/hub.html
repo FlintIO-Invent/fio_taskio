@@ -1,0 +1,59 @@
+<div class="content mm-services-data-import" data-import-page="hub">
+<header class="mm-page-header">
+<div>
+<p class="mm-eyebrow">Motionmate Services</p>
+<h1>Data Import</h1>
+<p class="mm-supporting">Bring the data you have into {{ business.name }}. Review every import before confirming.</p>
+</div>{% if can_view_import_history %}<a class="btn btn-phoenix-secondary" href="{% url 'import_history' %}">View Import History</a>{% endif %}</header>
+<nav class="mm-breadcrumb" aria-label="Breadcrumb">
+<a href="{% url 'agent_dashboard' %}">Dashboard</a>
+<span aria-hidden="true">/</span>
+<span aria-current="page">Data Import</span>
+</nav>
+<ol class="mm-process" aria-label="Import progress">
+<li>1. Upload</li>
+<li>2. Validate</li>
+<li>3. Preview</li>
+<li>4. Confirm</li>
+<li>5. Result</li>
+</ol>
+<section class="card mm-section" aria-labelledby="import-options-heading">
+<div class="card-header">
+<div>
+<h2 id="import-options-heading">Choose what to import</h2>
+<p class="mm-supporting">Use the matching CSV template headers. Template downloads are optional.</p>
+</div>
+</div>{% if can_import_clients %}<div class="mm-import-choice">
+<div>
+<h3>Clients</h3>
+<p class="mm-supporting">Create client records from contact and company details. Duplicates and plan capacity are checked before confirmation.</p>
+</div>
+<div class="mm-actions">
+<a class="btn btn-primary" href="{% url 'client_import_upload' %}">Import Clients</a>
+<a class="btn btn-phoenix-secondary" href="{% url 'client_import_template' %}" aria-label="Clients CSV template">Template</a>
+</div>
+</div>{% endif %}{% if can_import_services %}<div class="mm-import-choice">
+<div>
+<h3>Services &amp; Categories</h3>
+<p class="mm-supporting">Upload categories and their services together. Review prices, booking details and proposed updates before confirming.</p>
+</div>
+<div class="mm-actions">
+<a class="btn btn-primary" href="{% url 'business_service_import' %}">Upload categories and services</a>
+<a class="btn btn-phoenix-secondary" href="{% url 'business_service_sample_csv' %}" aria-label="Services &amp; Categories CSV template">Template</a>
+</div>
+</div>{% endif %}{% if can_import_leads %}<div class="mm-import-choice">
+<div>
+<h3>Leads</h3>
+<p class="mm-supporting">Import historical leads and service requests, reviewing duplicates and possible existing matches.</p>
+</div>
+<div class="mm-actions">
+<a class="btn btn-primary" href="{% url 'lead_import_upload' %}">Import Leads</a>
+<a class="btn btn-phoenix-secondary" href="{% url 'lead_import_template' %}" aria-label="Leads CSV template">Template</a>
+</div>
+</div>{% endif %}</section>
+<section class="card card-body">
+<h2>Start with what you have</h2>
+<p class="mm-supporting">All fields are optional. Use the template header names for the columns you include; omit unused columns or leave cells blank. Supplied values are still validated and empty rows are skipped.</p>
+<p class="mm-supporting">No clients, leads or services are created or updated until you review the preview and confirm. Export your data as CSV UTF-8 when moving from another system.</p>
+</section>
+</div>

@@ -1,0 +1,13 @@
+{
+  "source": "User reply immediately after both Gate B proposals and sequential implementation/resource authorization question",
+  "quote": "approved all",
+  "scope": "Local implementation of only this exact closed manifest plus creation/use of only the listed new independently verified disposable PostgreSQL resources and synthetic tests/real Django BEFORE-AFTER. Existing migrations only on fresh empty disposable databases. No ordinary database or external-service/release actions. Implement Team first then Settings. Settings includes the explicitly described DOM-only bulk field ID repair. No release actions.",
+  "design_version": "v1",
+  "manifest_sha256": "aa152af533dec2a8163f3cf089c20cbc09b236a9e96d74eba72f8c9171276a40",
+  "integration_artifacts_sha256": {
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/integration.md": "fb48a766a1d68d181e6bb949f168127f832efd75b818478633952cedb1ed736c",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-manifest.json": "bfde4248cb89426632b8eefd084eb8d863af0c1ac3add4e6fd490f1004359e9b",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/validation-resources.json": "c06facba198765048d023391b19b2ab7f2a4b34777004ee8a39b9fa2379ad63b",
+    "docs/design/motionmate-ui-lab/workflows/services-business-settings-20261121/implementation-baseline.json": "513e76252c2559ae90af0d81fec3b1174436e7dfa8a5cc24d556b0f50c7bf317"
+  }
+}

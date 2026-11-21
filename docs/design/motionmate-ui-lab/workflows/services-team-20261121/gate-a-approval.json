@@ -1,0 +1,7 @@
+{
+  "source": "User message in this conversation immediately following the two v1 Gate A review links",
+  "quote": "approved",
+  "scope": "Design direction approval for Employees & Team Management v1 and Business Settings v1, independently as presented. Authorizes preparing separate Gate B proposals only; no application implementation, runtime setup, data/schema/provider or release action.",
+  "design_version": "v1",
+  "design_sha256": "edd7fd937770227d5e748b8bafa0a6bc3fdc4b26887fe412d094d8004fc54cf8"
+}

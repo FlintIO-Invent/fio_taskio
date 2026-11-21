@@ -132,7 +132,9 @@ class InvoicePDFLayoutTests(SimpleTestCase):
 
         for page in reader.pages:
             page.extract_text(visitor_text=collect_total_font)
-        self.assertEqual(total_fonts, [("/Helvetica-Bold", 12)])
+        self.assertEqual(len(total_fonts), 1)
+        self.assertIn("Manrope", total_fonts[0][0])
+        self.assertEqual(total_fonts[0][1], 12)
 
     def test_issuer_customer_invoice_identity_status_and_notes_are_preserved(self):
         for content in self.rendered()[2:]:
@@ -145,8 +147,6 @@ class InvoicePDFLayoutTests(SimpleTestCase):
                 self.customer.email,
                 self.invoice.invoice_number,
                 "Nov 16, 2026",
-                "Invoice status:",
-                "Issued",
                 "Notes",
                 "Second note line.",
             ):
@@ -191,7 +191,10 @@ class InvoicePDFLayoutTests(SimpleTestCase):
             with self.subTest(status=status):
                 self.invoice.status = status
                 for content in self.rendered()[2:]:
-                    self.assertIn(label, content)
+                    if status == Invoice.Status.CANCELLED:
+                        self.assertIn(label, content)
+                    self.assertNotIn("Draft", content)
+                    self.assertNotIn("Invoice status:", content)
                     self.assertIn("Total Amount", content)
                 self.assertEqual(self.invoice.status, status)
 
@@ -199,7 +202,7 @@ class InvoicePDFLayoutTests(SimpleTestCase):
         self.lines *= 70
         _, reader, text, _ = self.rendered()
         self.assertGreater(len(reader.pages), 1)
-        self.assertEqual(text.count("Total Amount:"), 1)
+        self.assertEqual(text.count("Total Amount"), 1)
         self.assertIn("USD 115.00", text)
         self.assertIn("Second note line.", text)
 

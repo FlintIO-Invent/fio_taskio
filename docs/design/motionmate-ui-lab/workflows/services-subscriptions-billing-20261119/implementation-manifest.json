@@ -1,0 +1,161 @@
+{
+  "task_id": "services-subscriptions-billing-20261119",
+  "design_version": "v1",
+  "status": "proposed_gate_b_not_implemented",
+  "files": [
+    {
+      "path": "src/templates/businesses/subscription.html",
+      "action": "modify",
+      "purpose": "Select Services-only subscription composition; preserve original Logistics owner page, includes and asset loading.",
+      "category": "implementation",
+      "vertical": "SHARED",
+      "shared": true,
+      "shared_impact": "Change SERVICE rendering only; retain original non-SERVICE content, route/form/permission guards and assets. No Logistics redesign.",
+      "shared_regression": "Compare preserved non-SERVICE template body and rendered Logistics output, asset list and affected allowed/denied role/module/subscription states; preserve location policy where applicable.",
+      "regression_verticals": [
+        "SERVICE",
+        "LOGISTICS"
+      ],
+      "before_sha256": "8b84696febb030d1baac22c321fce4fc9d2824ec7f49ad5d8c9334f960b5833c"
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/base.html",
+      "action": "add",
+      "purpose": "Services-only asset loading on existing Phoenix shell.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/assets.html",
+      "action": "add",
+      "purpose": "Load this module CSS only.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/page.html",
+      "action": "add",
+      "purpose": "Compose approved status-first page and existing messages/navigation.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/current_plan.html",
+      "action": "add",
+      "purpose": "Stored plan/status plus authoritative effective-access message/date.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/billing_actions.html",
+      "action": "add",
+      "purpose": "Preserve beta guard and exact recovery/portal/resume branch order, POST/CSRF and unavailable messages.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/usage.html",
+      "action": "add",
+      "purpose": "Render authoritative usage/staff capacity without new arithmetic.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/plans.html",
+      "action": "add",
+      "purpose": "Existing server plans/USD/EUR prices/limits/modules/current and read-only forms; render bound plan_form errors.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/templates/businesses/services/subscriptions/plan_change_review.html",
+      "action": "add",
+      "purpose": "Complete server module-loss/quota evidence and exact second-submit plan/confirm_plan_change form.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/static/assets/css/services-subscriptions.css",
+      "action": "add",
+      "purpose": "Module-scoped Manrope/theme/record/form styles; retain Phoenix shell and global tokens.",
+      "category": "required_asset",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "src/apps/businesses/test_services_subscriptions_ui.py",
+      "action": "add",
+      "purpose": "Meaningful real Django route/form/CSRF/permission/tenant/data-preservation and Logistics fallback regression checks.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/services_subscriptions_browser_check.py",
+      "action": "add",
+      "purpose": "Real guarded pair capture/interaction/accessibility plus isolated LiveServer form checks; no ordinary DB/provider calls.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/subscriptions_fixtures.py",
+      "action": "add",
+      "purpose": "Setup-only module synthetic fixtures and canonical initial parity through existing identity guards.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/subscriptions_preview.py",
+      "action": "add",
+      "purpose": "Fresh module preview entrypoint using existing owned snapshot/session/cluster tools and proposed ports.",
+      "category": "implementation",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/subscriptions_checks.py",
+      "action": "add",
+      "purpose": "Allowlisted isolated tests/browser dispatch through unchanged existing source/database/network guards.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    },
+    {
+      "path": "scripts/ui_preview/test_subscriptions.py",
+      "action": "add",
+      "purpose": "Refusal tests for wrong route/settings/phase/session/source/cluster and provider/network boundary; no database setup in offline tests.",
+      "category": "tests",
+      "vertical": "SERVICE",
+      "shared": false,
+      "before_sha256": null
+    }
+  ],
+  "read_only_required_assets": {
+    "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "src/static/assets/fonts/manrope/OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30"
+  }
+}

@@ -1,0 +1,414 @@
+[
+  {
+    "module": "Services Catalogue",
+    "task_id": "services-catalogue-20261119",
+    "manifest_files": 15,
+    "candidate_sha256": "6f333832eee6787bbe74d657fc567242285dcfec5d842bb34e231c3703ce16bb",
+    "saved_helper_review_sha256": "8ef835e47cbe1a0f10ca1a22c1565a2394bbd959140ce42d1271b4bcadffe5c7",
+    "saved_runtime_record": "docs/design/motionmate-ui-lab/workflows/services-catalogue-20261119/runtime.json",
+    "current_session": "/tmp/motionmate-preview-session-7za2dvs_",
+    "launcher": "http://127.0.0.1:8882/",
+    "pair": {
+      "before": {
+        "url": "http://127.0.0.1:8880/crm/settings/services/",
+        "source_sha256": "c9cbeaeefdea6a09a02cb5d00671d4461a98bd0b409c2c7f49ba37d4bd3b719c",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55630,
+          "data_directory": "/tmp/motionmate-preview-session-7za2dvs_/before/pgdata",
+          "system_identifier": "7710374401376784630",
+          "database": "mm_preview_b86f30e581daeef8_before"
+        },
+        "django_process": {
+          "pid": 5339,
+          "start": "31268"
+        },
+        "postgres_pid": 4375
+      },
+      "after": {
+        "url": "http://127.0.0.1:8881/crm/settings/services/",
+        "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55631,
+          "data_directory": "/tmp/motionmate-preview-session-7za2dvs_/after/pgdata",
+          "system_identifier": "7710374512921662121",
+          "database": "mm_preview_b86f30e581daeef8_after"
+        },
+        "django_process": {
+          "pid": 5393,
+          "start": "31432"
+        },
+        "postgres_pid": 4938
+      }
+    },
+    "equal_initial_fixture_inventory_sha256": "cc96761435dcfe109cabfee5bd4e5f4223fde60b669bdc7d3c85c63e0ace14f7",
+    "browser": {
+      "module": "catalogue",
+      "session": "/tmp/motionmate-preview-session-7za2dvs_",
+      "sides": {
+        "before": {
+          "report": "/tmp/motionmate-preview-session-7za2dvs_/before/evidence/catalogue-1795211557133556517/report.json",
+          "report_sha256": "7349dec9474bc1d674b3817f218863798c1aba54bb704d93367559bcd68db0da",
+          "source_sha256": "c9cbeaeefdea6a09a02cb5d00671d4461a98bd0b409c2c7f49ba37d4bd3b719c",
+          "core_cases": 40,
+          "state_cases": 5,
+          "role_cases": 10,
+          "core_module_violations": 40,
+          "core_incomplete_findings": 54,
+          "full_page_violations": [
+            {
+              "id": "color-contrast",
+              "targets": [
+                [
+                  ".nav-item:nth-child(2) > .navbar-vertical-label"
+                ],
+                [
+                  ".nav-item:nth-child(3) > .navbar-vertical-label"
+                ],
+                [
+                  ".breadcrumb-item:nth-child(1) > a[href$=\"dashboard/\"]"
+                ],
+                [
+                  ".breadcrumb-item:nth-child(2) > a[href$=\"settings/\"]"
+                ],
+                [
+                  ".col-auto > .btn-primary.btn[href$=\"create/\"]"
+                ],
+                [
+                  ".alert"
+                ],
+                [
+                  ".shadow-sm.border-0.mb-4 > .p-0.card-body > .table-responsive > table > tbody > tr:nth-child(2) > .text-end.pe-4 > .d-inline-flex.gap-2 > form > .btn-outline-danger[type=\"submit\"]"
+                ],
+                [
+                  "tr:nth-child(3) > .text-end.pe-4 > .d-inline-flex.gap-2 > form > .btn-outline-danger[type=\"submit\"]"
+                ],
+                [
+                  ".gap-3 > .btn-primary.btn"
+                ],
+                [
+                  "tr:nth-child(1) > .text-end.pe-4 > .d-inline-flex.gap-2 > form > .btn-outline-danger[type=\"submit\"]"
+                ],
+                [
+                  ".shadow-sm.border-0.card:nth-child(6) > .p-0.card-body > .table-responsive > table > tbody > tr:nth-child(2) > .text-end.pe-4 > .d-inline-flex.gap-2 > form > .btn-outline-danger[type=\"submit\"]"
+                ]
+              ]
+            }
+          ]
+        },
+        "after": {
+          "report": "/tmp/motionmate-preview-session-7za2dvs_/after/evidence/catalogue-1795211674778279354/report.json",
+          "report_sha256": "0410e664a49b628f69a8b4ae61f526467b2d7c44c5f1592854aab0461ddcd05b",
+          "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+          "core_cases": 40,
+          "state_cases": 5,
+          "role_cases": 10,
+          "core_module_violations": 0,
+          "core_incomplete_findings": 16,
+          "full_page_violations": [
+            {
+              "id": "color-contrast",
+              "targets": [
+                [
+                  ".nav-item:nth-child(2) > .navbar-vertical-label"
+                ],
+                [
+                  ".nav-item:nth-child(3) > .navbar-vertical-label"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "preservation": {
+      "before": {
+        "inventory_matches_initial": true,
+        "report": "/tmp/motionmate-preview-session-7za2dvs_/before/evidence/preservation-current.json"
+      },
+      "after": {
+        "inventory_matches_initial": true,
+        "report": "/tmp/motionmate-preview-session-7za2dvs_/after/evidence/preservation-current.json"
+      }
+    },
+    "gate_c_acceptance": null,
+    "review_binding_kind": "Supplemental current-resource review; original Gate C state, candidate and evidence are retained unchanged.",
+    "current_resource_review_sha256": "f777048ec0fe74a6f74946f6238cc8a38d59d51b4f322f3602d3c5ed93ba332a"
+  },
+  {
+    "module": "Data Import",
+    "task_id": "services-data-import-20261119",
+    "manifest_files": 31,
+    "candidate_sha256": "3419fa3e05be53706084a8482771b780452e3306d46eb0e58177a4bb640625fe",
+    "saved_helper_review_sha256": "b39740fdf66a38e425555d2a29d38975b18f340d3035bdc25d3c17177c2c714d",
+    "saved_runtime_record": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/runtime.json",
+    "current_session": "/tmp/motionmate-preview-session-g6z_174n",
+    "launcher": "http://127.0.0.1:8902/",
+    "pair": {
+      "before": {
+        "url": "http://127.0.0.1:8900/crm/staff/data-import/",
+        "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55640,
+          "data_directory": "/tmp/motionmate-preview-session-g6z_174n/before/pgdata",
+          "system_identifier": "7710374741803255185",
+          "database": "mm_preview_2cbf6c2abc631465_before"
+        },
+        "django_process": {
+          "pid": 6719,
+          "start": "39039"
+        },
+        "postgres_pid": 5555
+      },
+      "after": {
+        "url": "http://127.0.0.1:8901/crm/staff/data-import/",
+        "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55641,
+          "data_directory": "/tmp/motionmate-preview-session-g6z_174n/after/pgdata",
+          "system_identifier": "7710374851356153655",
+          "database": "mm_preview_2cbf6c2abc631465_after"
+        },
+        "django_process": {
+          "pid": 6768,
+          "start": "39243"
+        },
+        "postgres_pid": 6110
+      }
+    },
+    "equal_initial_fixture_inventory_sha256": "904a4023e415c69ba8ab41a9df5cb27243c687290b1479046f0b4b998b69a1ae",
+    "browser": {
+      "module": "data_import",
+      "session": "/tmp/motionmate-preview-session-g6z_174n",
+      "sides": {
+        "before": {
+          "report": "/tmp/motionmate-preview-session-g6z_174n/before/evidence/data_import-1795211774237062418/report.json",
+          "report_sha256": "ba0733ac07e097672866656425108a00b94dc1a59855178471b84fea428d3cf9",
+          "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+          "core_cases": 48,
+          "state_cases": 11,
+          "role_cases": 10,
+          "core_module_violations": 63,
+          "core_incomplete_findings": 47,
+          "full_page_violations": [
+            {
+              "id": "color-contrast",
+              "targets": [
+                [
+                  ".nav-item:nth-child(2) > .navbar-vertical-label"
+                ],
+                [
+                  ".nav-item:nth-child(3) > .navbar-vertical-label"
+                ],
+                [
+                  ".breadcrumb-item:nth-child(1) > a[href$=\"dashboard/\"]"
+                ],
+                [
+                  ".alert > .mb-0"
+                ],
+                [
+                  ".col-md-6.col-xl-3.col-12:nth-child(1) > .h-100.shadow-sm.card > .card-body.p-4.flex-column > .flex-wrap.gap-2.d-flex > .btn-primary.btn"
+                ],
+                [
+                  ".flex-wrap.gap-2.d-flex > a[href$=\"import/\"]"
+                ],
+                [
+                  "a[href$=\"leads/\"]"
+                ],
+                [
+                  ".btn-outline-primary"
+                ]
+              ]
+            }
+          ]
+        },
+        "after": {
+          "report": "/tmp/motionmate-preview-session-g6z_174n/after/evidence/data_import-1795211789343924722/report.json",
+          "report_sha256": "3821f6358b38a58936ed3959e1b32e9c76b7747520a03f5f6fb271aabbf9375c",
+          "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+          "core_cases": 48,
+          "state_cases": 11,
+          "role_cases": 10,
+          "core_module_violations": 0,
+          "core_incomplete_findings": 24,
+          "full_page_violations": [
+            {
+              "id": "color-contrast",
+              "targets": [
+                [
+                  ".nav-item:nth-child(2) > .navbar-vertical-label"
+                ],
+                [
+                  ".nav-item:nth-child(3) > .navbar-vertical-label"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "preservation": {
+      "before": {
+        "inventory_matches_initial": true,
+        "report": "/tmp/motionmate-preview-session-g6z_174n/before/evidence/preservation-current.json",
+        "job_audit_times_match_seed_clock": true
+      },
+      "after": {
+        "inventory_matches_initial": true,
+        "report": "/tmp/motionmate-preview-session-g6z_174n/after/evidence/preservation-current.json",
+        "job_audit_times_match_seed_clock": true
+      },
+      "full_44_jobs_equal_across_pair": true,
+      "jobs_sha256": "9e02777273f4e4b66c336530c44c44b0563df128283a96c3d3b203b48a3bf084",
+      "limitation": "Replacement full-job baseline was not captured before browser reads. Current complete pair equality and original seed audit timestamps supplement unchanged initial domain/financial inventory."
+    },
+    "gate_c_acceptance": null,
+    "review_binding_kind": "Supplemental current-resource review; original Gate C state, candidate and evidence are retained unchanged.",
+    "current_resource_review_sha256": "552a7a4f360de7c36a08b812858c08c9332ab2a063f83a15ef26bd83b3cbedf4"
+  },
+  {
+    "module": "Subscriptions & Billing",
+    "task_id": "services-subscriptions-billing-20261119",
+    "manifest_files": 16,
+    "candidate_sha256": "ec6791a414ad1c7435f07efd1481a8af9983beb42dbf1186bd049400991ccf0c",
+    "saved_helper_review_sha256": "16580d1e9aca403da16559b6ee135f653d9e21079667414a812f3ad3eda9eab9",
+    "saved_runtime_record": "docs/design/motionmate-ui-lab/workflows/services-subscriptions-billing-20261119/runtime.json",
+    "current_session": "/tmp/motionmate-preview-session-z9qu5gsy",
+    "launcher": "http://127.0.0.1:8912/",
+    "pair": {
+      "before": {
+        "url": "http://127.0.0.1:8910/businesses/subscription/",
+        "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55650,
+          "data_directory": "/tmp/motionmate-preview-session-z9qu5gsy/before/pgdata",
+          "system_identifier": "7710375086553205480",
+          "database": "mm_preview_a5154631498133cc_before"
+        },
+        "django_process": {
+          "pid": 8972,
+          "start": "51758"
+        },
+        "postgres_pid": 6961
+      },
+      "after": {
+        "url": "http://127.0.0.1:8911/businesses/subscription/",
+        "source_sha256": "b8cd3a376449b0a9360a0a0f8a67d4dc5899d9caeaee02e32eca98d30c2ae1c3",
+        "database": {
+          "host": "127.0.0.1",
+          "port": 55651,
+          "data_directory": "/tmp/motionmate-preview-session-z9qu5gsy/after/pgdata",
+          "system_identifier": "7710375265471126995",
+          "database": "mm_preview_a5154631498133cc_after"
+        },
+        "django_process": {
+          "pid": 24166,
+          "start": "169743"
+        },
+        "postgres_pid": 7753
+      }
+    },
+    "equal_initial_fixture_inventory_sha256": "554419a9d47d864d34a42b0f2e53f1df7d0a7cf4c46d5547a12164b873fbaf7f",
+    "browser": {
+      "module": "subscriptions",
+      "session": "/tmp/motionmate-preview-session-z9qu5gsy",
+      "sides": {
+        "before": {
+          "report": "/tmp/motionmate-preview-session-z9qu5gsy/before/evidence/subscriptions-1795211774320438180/report.json",
+          "report_sha256": "1e864e23dc7d7cd63ec7fda26f682ee2e83d2ec26c3640ec9536f0aaa58a56c6",
+          "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+          "core_cases": 8,
+          "state_cases": 26,
+          "role_cases": 10,
+          "core_module_violations": 8,
+          "core_incomplete_findings": 8,
+          "full_page_violations": [
+            {
+              "id": "color-contrast",
+              "targets": [
+                [
+                  ".nav-item:nth-child(2) > .navbar-vertical-label"
+                ],
+                [
+                  ".nav-item:nth-child(3) > .navbar-vertical-label"
+                ],
+                [
+                  ".alert-info"
+                ],
+                [
+                  ".col-lg-4.col-12:nth-child(1) > .card.h-100 > .card-body.p-4 > form > .btn-primary[type=\"submit\"]"
+                ],
+                [
+                  ".alert-primary"
+                ],
+                [
+                  ".col-lg-4.col-12:nth-child(3) > .card.h-100 > .card-body.p-4 > form > .btn-primary[type=\"submit\"]"
+                ]
+              ]
+            }
+          ]
+        },
+        "after": {
+          "report": "/tmp/motionmate-preview-session-z9qu5gsy/after/evidence/subscriptions-1795212986516647358/report.json",
+          "report_sha256": "07cde6b4b85e05d6b0943ab7cc8a3c7a91f5ca5e80d44f3f069214eca5ecfb6e",
+          "source_sha256": "b8cd3a376449b0a9360a0a0f8a67d4dc5899d9caeaee02e32eca98d30c2ae1c3",
+          "core_cases": 8,
+          "state_cases": 26,
+          "role_cases": 10,
+          "core_module_violations": 0,
+          "core_incomplete_findings": 0,
+          "full_page_violations": [
+            {
+              "id": "color-contrast",
+              "targets": [
+                [
+                  ".nav-item:nth-child(2) > .navbar-vertical-label"
+                ],
+                [
+                  ".nav-item:nth-child(3) > .navbar-vertical-label"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "preservation": {
+      "before": {
+        "identity": {
+          "host": "127.0.0.1",
+          "port": 55650,
+          "data_directory": "/tmp/motionmate-preview-session-z9qu5gsy/before/pgdata",
+          "system_identifier": "7710375086553205480",
+          "database": "mm_preview_a5154631498133cc_before"
+        },
+        "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+        "initial_inventory_unchanged": true,
+        "complete_business_plan_subscription_facts_unchanged": true,
+        "full_facts_sha256": "72b9e5632d372eaa30ee4829beec9dfe9da3685b6834fbb9cb4c6baaa73b9e22",
+        "evidence": "/tmp/motionmate-preview-session-z9qu5gsy/before/evidence/preservation-final.json"
+      },
+      "after": {
+        "identity": {
+          "host": "127.0.0.1",
+          "port": 55651,
+          "data_directory": "/tmp/motionmate-preview-session-z9qu5gsy/after/pgdata",
+          "system_identifier": "7710375265471126995",
+          "database": "mm_preview_a5154631498133cc_after"
+        },
+        "source_sha256": "b8cd3a376449b0a9360a0a0f8a67d4dc5899d9caeaee02e32eca98d30c2ae1c3",
+        "initial_inventory_unchanged": true,
+        "complete_business_plan_subscription_facts_unchanged": true,
+        "full_facts_sha256": "fe3d5182989240d9e87aa3cf2c53edaa41ad5c2d9af51ea2c50d625e778c5d62",
+        "evidence": "/tmp/motionmate-preview-session-z9qu5gsy/after/evidence/preservation-final.json"
+      }
+    },
+    "gate_c_acceptance": null,
+    "review_binding_kind": "Current workflow helper review; includes final current source and validation results.",
+    "current_resource_review_sha256": "16580d1e9aca403da16559b6ee135f653d9e21079667414a812f3ad3eda9eab9"
+  }
+]

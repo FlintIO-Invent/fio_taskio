@@ -1,0 +1,23 @@
+{
+  "before": {
+    "failures": [
+      "test_normal_ui_issues_protected_draft_without_modifying_lines (apps.logistics.test_financial_access.LogisticsFinancialAccessTests.test_normal_ui_issues_protected_draft_without_modifying_lines)",
+      "test_service_staff_keep_generic_invoice_management_without_location_assignments (apps.logistics.test_financial_access.LogisticsFinancialAccessTests.test_service_staff_keep_generic_invoice_management_without_location_assignments)",
+      "test_staff_keep_scoped_invoice_access_without_dashboard_summaries (apps.logistics.test_financial_access.LogisticsFinancialAccessTests.test_staff_keep_scoped_invoice_access_without_dashboard_summaries)",
+      "test_issued_currency_tax_totals_and_pdf_remain_stable_after_workspace_changes (apps.logistics.test_financial_coverage.FinancialCoverageTests.test_issued_currency_tax_totals_and_pdf_remain_stable_after_workspace_changes)"
+    ],
+    "errors": [],
+    "tests": "48"
+  },
+  "after": {
+    "failures": [
+      "test_normal_ui_issues_protected_draft_without_modifying_lines (apps.logistics.test_financial_access.LogisticsFinancialAccessTests.test_normal_ui_issues_protected_draft_without_modifying_lines)",
+      "test_service_staff_keep_generic_invoice_management_without_location_assignments (apps.logistics.test_financial_access.LogisticsFinancialAccessTests.test_service_staff_keep_generic_invoice_management_without_location_assignments)",
+      "test_staff_keep_scoped_invoice_access_without_dashboard_summaries (apps.logistics.test_financial_access.LogisticsFinancialAccessTests.test_staff_keep_scoped_invoice_access_without_dashboard_summaries)",
+      "test_issued_currency_tax_totals_and_pdf_remain_stable_after_workspace_changes (apps.logistics.test_financial_coverage.FinancialCoverageTests.test_issued_currency_tax_totals_and_pdf_remain_stable_after_workspace_changes)"
+    ],
+    "errors": [],
+    "tests": "48"
+  },
+  "same_failures": true
+}

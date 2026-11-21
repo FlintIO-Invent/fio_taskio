@@ -1,0 +1,8 @@
+<div class="content mm-services-settings">
+<header class="mm-page-header"><div><p class="mm-eyebrow">Motionmate Services · {{ business.name }}</p><h1>Booking rules &amp; availability</h1><p class="mm-supporting">Manage existing booking preferences and weekly working windows.</p></div><div class="mm-actions">{% if can_manage_booking_rules %}<a class="btn btn-phoenix-secondary" href="{% url 'business_settings' %}">Workspace Settings</a>{% endif %}{% if role_access.can_manage_services %}<a class="btn btn-phoenix-secondary" href="{% url 'business_service_list' %}">Services</a>{% endif %}<a class="btn btn-phoenix-secondary" href="{% url 'agent_dashboard' %}">Back to dashboard</a></div></header>
+{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>{% endfor %}
+{% if public_booking_allowed %}<div class="alert alert-info" role="status">{% if booking_settings.booking_enabled %}Online Booking is enabled. Customers can submit bookings for your team to review and confirm manually.{% else %}Online Booking requires setup. Enable online booking after preparing your rules and availability.{% endif %}</div>{% else %}<div class="alert alert-warning" role="status">{{ unavailable_message }} You can still prepare these settings now, but online booking remains unavailable until the workspace plan includes it.</div>{% endif %}
+<div class="mm-booking-editors">{% include 'businesses/services/settings/booking_rules.html' %}{% include 'businesses/services/settings/availability_entry.html' %}</div>
+{% include 'businesses/services/settings/availability_list.html' %}
+{% include 'businesses/services/settings/share_panel.html' %}
+</div>

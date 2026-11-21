@@ -1,0 +1,26 @@
+{
+  "source_repository": "https://github.com/googlefonts/manrope",
+  "commit": "6f81ebecdf65e4463b798cc07b16a4f8d5216917",
+  "verified_from": "GitHub public contents metadata at pinned commit; binary downloads pending Gate B",
+  "license": "OFL-1.1, exact upstream copyright retained in Manrope-PDF-OFL.txt",
+  "files": [
+    {
+      "path": "src/static/assets/fonts/manrope/manrope-regular.ttf",
+      "url": "https://raw.githubusercontent.com/googlefonts/manrope/6f81ebecdf65e4463b798cc07b16a4f8d5216917/fonts/ttf/manrope-regular.ttf",
+      "git_blob_sha1": "6f896ac502504d3dd2a0ec390f69c07dde603ef9",
+      "size": 143132
+    },
+    {
+      "path": "src/static/assets/fonts/manrope/manrope-bold.ttf",
+      "url": "https://raw.githubusercontent.com/googlefonts/manrope/6f81ebecdf65e4463b798cc07b16a4f8d5216917/fonts/ttf/manrope-bold.ttf",
+      "git_blob_sha1": "739112d4460c086a06c0a1cd4c84af979a9ec889",
+      "size": 145888
+    },
+    {
+      "path": "src/static/assets/fonts/manrope/Manrope-PDF-OFL.txt",
+      "url": "https://raw.githubusercontent.com/googlefonts/manrope/6f81ebecdf65e4463b798cc07b16a4f8d5216917/OFL.txt",
+      "git_blob_sha1": "472064afc4b8dec9079fab03b8ffafb617a1b2d8",
+      "size": 4384
+    }
+  ]
+}

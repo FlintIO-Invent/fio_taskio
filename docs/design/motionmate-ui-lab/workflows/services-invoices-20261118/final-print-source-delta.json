@@ -1,0 +1,10 @@
+{
+  "screen_matrix_source": "/tmp/motionmate-preview-session-7su4ughv/sources/after-1795049668611383715",
+  "final_source": "/tmp/motionmate-preview-session-7su4ughv/sources/after-1795049987598458527",
+  "changed_application_files": [
+    "src/static/assets/css/services-invoices.css"
+  ],
+  "exact_delta": "@media print{\n  .mm-services-invoices[data-invoice-workspace=detail] .card{color:#182235!important}\n}\n",
+  "screen_rules_and_other_application_files_identical": true,
+  "validation_driver": "Only test instrumentation changed outside src; latest print driver checks actual click, print visibility and axe."
+}

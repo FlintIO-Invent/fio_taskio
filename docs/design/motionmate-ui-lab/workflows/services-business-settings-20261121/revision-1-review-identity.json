@@ -1,0 +1,36 @@
+{
+  "task_id": "services-business-settings-20261121",
+  "candidate_sha256": "8362c35dd775edded30926bd32df525853c0794bfde59892cf26d0213253d8ea",
+  "review_sha256": "ccf3920e0f93958e508f8be1605a1ef6cf34df8d10d2cc037f8dc44b307b0250",
+  "design_sha256": "fda72105714e92f4723c17c68a1495877229fc6876470f7ae230f8360399ec39",
+  "manifest_sha256": "aa152af533dec2a8163f3cf089c20cbc09b236a9e96d74eba72f8c9171276a40",
+  "revision": "revision-1",
+  "status": "awaiting_user_approval",
+  "preview": {
+    "kind": "django",
+    "vertical": "SERVICE",
+    "synthetic_records": true,
+    "contracts": [
+      "templates",
+      "routes",
+      "authentication",
+      "forms",
+      "permissions"
+    ],
+    "before": {
+      "url": "http://127.0.0.1:8820/businesses/settings/",
+      "source_sha256": "29ee204efa0027842d410bfb010f9f8eb6209cdebcb61363424104ddb32cc751",
+      "initial_fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db",
+      "environment_id": "services-business-settings-20261121-before"
+    },
+    "after": {
+      "url": "http://127.0.0.1:8821/businesses/settings/",
+      "source_sha256": "39123574b8522345711fbf337b5ec3438a2790248cf790366afa700e8c27a2d0",
+      "initial_fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db",
+      "environment_id": "services-business-settings-20261121-after",
+      "candidate_sha256": "8362c35dd775edded30926bd32df525853c0794bfde59892cf26d0213253d8ea"
+    }
+  },
+  "acceptance": null,
+  "rejected_candidate_archive": "revisions/rejected-candidate-1/"
+}

@@ -1,0 +1,18 @@
+
+<div class="content mm-services-data-import" data-import-page="lead_unavailable">
+  <nav class="mb-3" aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'data_import' %}">Data Import</a></li>
+      <li class="breadcrumb-item active">Lead Preview Unavailable</li>
+    </ol>
+  </nav><ol class="mm-process" aria-label="Import progress"><li>1. Upload</li><li>2. Validate</li><li aria-current="step">3. Preview</li><li>4. Confirm</li><li>5. Result</li></ol>
+  <div class="card  ">
+    <div class="card-body">
+      <h1>Lead preview unavailable</h1>
+      <p class="mm-supporting">{{ message }}</p>
+      <div class="alert alert-info" role="note">The preview may have expired or workspace matches may have changed. Upload the CSV again, review the current results, and confirm from the new preview.</div>
+      <a class="btn btn-primary" href="{% url 'lead_import_upload' %}">Create a New Preview</a>
+      <a class="btn btn-phoenix-secondary" href="{% url 'data_import' %}">Import More Data</a>
+    </div>
+  </div>
+</div>

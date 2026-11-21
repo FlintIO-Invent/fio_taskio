@@ -1,0 +1,362 @@
+{
+  "schema_version": 2,
+  "task_id": "services-data-import-20261119",
+  "vertical": "SERVICE",
+  "candidate_sha256": "3419fa3e05be53706084a8482771b780452e3306d46eb0e58177a4bb640625fe",
+  "manifest_sha256": "72b9768c1ced456ded38c6b08b246336f7a0ff2fe7f07a87dd4749a2ce9d8050",
+  "review_sha256": "b39740fdf66a38e425555d2a29d38975b18f340d3035bdc25d3c17177c2c714d",
+  "current_resource_review_sha256": "552a7a4f360de7c36a08b812858c08c9332ab2a063f83a15ef26bd83b3cbedf4",
+  "recommendation": "One commit for this accepted redesign; explicit user commit authorization required.",
+  "preparation": {
+    "method": "Independent exact selection after explicit accepted-peer ownership reconciliation",
+    "stock_helper_result": "Blocked: broad protected-workspace snapshot includes later accepted sibling changes.",
+    "verification": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/commit-preparation-verification.json",
+    "original_baselines_unchanged": true,
+    "guard_unchanged": true
+  },
+  "files": [
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/acceptance.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "e4d3b430f79d847a82e390f9c2b5c2ecc74425981cef77a1a62e4638f434decf"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/approval-log.md",
+      "category": "documentation",
+      "purpose": "Actual user Gate A approval with context and explicit Gate B boundary.",
+      "sha256": "05fa1104680086db73aed1d040656f261e889205caeae601c850f3a68343ab76"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/brief.md",
+      "category": "documentation",
+      "purpose": "Approved design direction",
+      "sha256": "9c918d6b09f6f1e200a8eaf6895600705229c6301b54664c3ddd32e23b4c5e9c"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/commit-preparation-verification.json",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "158e317215ac46a1b1d2c487389e92ae876b9765ac8a179c9836dbfd774e1265"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/commit-preparation.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "f1f145f8f2c2020d6ae8b5e1f4e3e5de8cead397dbcca8c7d2675d16fdb0a128"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/evidence/after-hub-desktop.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "sha256": "fdbd9552162191566bb6bc3cc633f9573465b761ac8ef6a84ec9140c0f2b8d02"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/evidence/after-preview-mobile.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "sha256": "8d957db4fe6d557a017f0a30df4bb1938ac0e1c269537c905610b22b957df790"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/evidence/before-hub-desktop.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "sha256": "664150168f6485b9784a059474a1fcfedf819cea58ecf4f1d95ef1f5e5c3ea16"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/evidence/before-upload-mobile.png",
+      "category": "documentation",
+      "purpose": "Selected real Django review screenshot; durable evidence.",
+      "sha256": "ad2dbcd6502ee88553256997d3d0472f822766f00888322a34f9e3e3f3cf795e"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-a-review.md",
+      "category": "documentation",
+      "purpose": "Pending Gate A review with helper-derived design identity and artifact hashes.",
+      "sha256": "3f02d5fc86db80a69f674bc6c6fb5649cc51a4775271d63a57bfc07ddf6087ca"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-b-review.md",
+      "category": "documentation",
+      "purpose": "Concrete module Gate B review and bound identities.",
+      "sha256": "db2b4961156e853fb4a2804145946c033156e42ec1d2e3be1af5c388cdf3bff1"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/gate-c-review.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "040e96020e6faba082bc0cff9faeb3a77c9f76c46c5635bc8341832a23733d1f"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-baseline.json",
+      "category": "documentation",
+      "purpose": "Read-only integration source/worktree capture, separate from real BEFORE/helper activation.",
+      "sha256": "c286528284973f34a0c6cdf41039bd3d1d56f1e3515ca5306f4eb80836d48b0c"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation-manifest.json",
+      "category": "documentation",
+      "purpose": "Closed exact source/test/asset scope for Gate B.",
+      "sha256": "15aeba992ddb75ef00f1a351f07101528935b0e538536f4c74762f252e12abcf"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/implementation.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "71bfbb44f2358a14ce8ca5f74e5161b08e12a97bdcfb9b571df7b864f4e34bc5"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/integration.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "99e1842aeda2d199872c8f3876938e92e4a2c3e715e5c6e146d62708d6e9bc14"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/ownership-preflight.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "63c6dea279707e986fc5944ea8a233f55f7d3c13f0cb72750de24bc5060eca4e"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/runtime.json",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "8dc890477cce599ba611a6030c32a911a6925043c3cd6197ccc4457e270e1661"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/source-audit.json",
+      "category": "documentation",
+      "purpose": "Offline source evidence and audit hashes, not runtime or implementation baseline.",
+      "sha256": "487cc8768318c6e8fcdb1140d59aa5cd5045b2646b8aa2357fdc41b7f0add801"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/state.json",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "69517434a9ffaf44cd4e18a7a0ccab79e61aef27a4c41c011cf677d8b0752178"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation-resources.json",
+      "category": "documentation",
+      "purpose": "Proposed owned disposable resources/actions, not current runtime authority.",
+      "sha256": "248a6565ad56b6f61d806e81acad7d2920512fbbb181aca33fd2cfea150fbbba"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation-results.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "b6680f7b74f881c22d102d11df4911161178bc5fdc5c717321ffc0c27308fc1c"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/validation.md",
+      "category": "documentation",
+      "purpose": "Durable workflow record or selected evidence",
+      "sha256": "40e9720ee43dc57d259041282896f144eb0385698bd061bfe8895db550c51ecd"
+    },
+    {
+      "path": "scripts/services_data_import_browser_check.py",
+      "category": "tests",
+      "purpose": "Real guarded pair capture/interaction/accessibility plus isolated LiveServer form checks; no ordinary DB/provider calls.",
+      "sha256": "d08422ce2d9e4076816b5cf7a43ecb0a4b87d351a89ea80641d883a7bdf72690"
+    },
+    {
+      "path": "scripts/ui_preview/data_import_checks.py",
+      "category": "tests",
+      "purpose": "Allowlisted isolated tests/browser dispatch through unchanged existing source/database/network guards.",
+      "sha256": "db68eb8fe829b75dfb25dc3d9655def6b6ca026b5261d2612608a2caded48f24"
+    },
+    {
+      "path": "scripts/ui_preview/data_import_fixtures.py",
+      "category": "implementation",
+      "purpose": "Setup-only module synthetic fixtures and canonical initial parity through existing identity guards.",
+      "sha256": "a149f546b734a81b92905633cd2381ddf24b4d13dba59e1f34bef8564f5a9dca"
+    },
+    {
+      "path": "scripts/ui_preview/data_import_preview.py",
+      "category": "implementation",
+      "purpose": "Fresh module preview entrypoint using existing owned snapshot/session/cluster tools and proposed ports.",
+      "sha256": "0f3010f9843e661a193d2fed9869118ec82e734bcd6726647182706e794d1216"
+    },
+    {
+      "path": "scripts/ui_preview/test_data_import.py",
+      "category": "tests",
+      "purpose": "Refusal tests for wrong route/settings/phase/session/source/cluster and provider/network boundary; no database setup in offline tests.",
+      "sha256": "0e5076537cbe8923d8e7db96e95a8d4282c83033a7298416ff3cb7a032c66f52"
+    },
+    {
+      "path": "src/apps/crm/test_services_data_import_ui.py",
+      "category": "tests",
+      "purpose": "Meaningful real Django route/form/CSRF/permission/tenant/data-preservation and Logistics fallback regression checks.",
+      "sha256": "a06e2843be3eda9f08a8261286755d82f05d4494989ec433df8626652e6a523d"
+    },
+    {
+      "path": "src/static/assets/css/services-data-import.css",
+      "category": "required_asset",
+      "purpose": "Module-scoped Manrope/theme/record/form styles; retain Phoenix shell and global tokens.",
+      "sha256": "1c2ab99ad59137b034107463c4757199205d562f83b85b76d29d129c516989e4"
+    },
+    {
+      "path": "src/templates/crm/importing/data_import.html",
+      "category": "implementation",
+      "purpose": "Select Services task-choice hub with unchanged per-type/history guards.",
+      "sha256": "f42dcd13287328095b378ebaa56a35c8001cc42fc73bad3d45c211b1b47d53a8"
+    },
+    {
+      "path": "src/templates/crm/importing/history.html",
+      "category": "implementation",
+      "purpose": "Select Services metadata-only history with existing page size/links/guards.",
+      "sha256": "4b8b1414863c8fa3f44596255d06474ec48f349e7a1b1ef0a15a0ba187a36362"
+    },
+    {
+      "path": "src/templates/crm/importing/history_detail.html",
+      "category": "implementation",
+      "purpose": "Select Services terminal-job metadata detail without exposing preview/customer rows.",
+      "sha256": "acf3f1816895602c14a3f6a03792abf73dcac35cb0869cbbdfee16fdae970fa9"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_preview.html",
+      "category": "implementation",
+      "purpose": "Select Services read-only preview; preserve ready/blocked state, row data, issues and confirm POST.",
+      "sha256": "cef47fc6e3df19a96ee2513c398890a0b9605d42863f9adfd94aff25466feeb7"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_preview_unavailable.html",
+      "category": "implementation",
+      "purpose": "Select Services unavailable state; retain status, message and recovery links.",
+      "sha256": "3f0663d747637a8b8fe0c2322de3f9cdd9d3c93bdd6f90d5c225e16b2cbc8b2c"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_result.html",
+      "category": "implementation",
+      "purpose": "Select Services result composition with original codes/counts/next actions.",
+      "sha256": "e9e8d0b743a0ac29b8905ad3549d421de9947c2d33d933215a376018d92234e5"
+    },
+    {
+      "path": "src/templates/crm/importing/lead_upload.html",
+      "category": "implementation",
+      "purpose": "Select Services lead upload composition; preserve Logistics markup and multipart form contract.",
+      "sha256": "853da58681d79db724850033e04683217003eeb4bc08ff58aa002ba9c175ed86"
+    },
+    {
+      "path": "src/templates/crm/importing/service_preview.html",
+      "category": "implementation",
+      "purpose": "Select Services create/update/category preview with complete changes, notes and confirm contract.",
+      "sha256": "c94f8ef8a52db4a5a24d4e1979dc76b5635cc9775c2ac53474e7444d889bd4a1"
+    },
+    {
+      "path": "src/templates/crm/importing/service_preview_unavailable.html",
+      "category": "implementation",
+      "purpose": "Select Services unavailable state; retain original status/message/recovery.",
+      "sha256": "7b19b7ff573fdf7bea198f3953bf45656481422a598869075518b2a578ea5c66"
+    },
+    {
+      "path": "src/templates/crm/importing/service_result.html",
+      "category": "implementation",
+      "purpose": "Select Services result with exact execution messages/counts/recovery.",
+      "sha256": "7e9fecc0ab7251e034bc73f00fc8854eff172197f825221ae78aa231056370c3"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/assets.html",
+      "category": "implementation",
+      "purpose": "Load only this module CSS; no existing Clients assets are changed.",
+      "sha256": "cc46c46bcbc3e608fc9cbb5131c410dd7e864a62699030b21b88df5f7e626b78"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/base.html",
+      "category": "implementation",
+      "purpose": "Services-only assets on existing Phoenix shell.",
+      "sha256": "1cbbc954e9bde91bdfeeaef4266384b31cb2e148c6305dd1ad5dbe24a60b1596"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/history.html",
+      "category": "implementation",
+      "purpose": "Current metadata list and 50-job pagination with responsive labels.",
+      "sha256": "992d3cdae9800df2e437300f5ed6f0b11a04c9a45b0e002dc2e436ee242e423b"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/history_detail.html",
+      "category": "implementation",
+      "purpose": "Sanitized terminal-job metadata/counts; no uploaded rows or payloads.",
+      "sha256": "99fc2148e99ba5f748eea77d19b4d01d1adda568328219422b91038d652b0580"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/hub.html",
+      "category": "implementation",
+      "purpose": "Guarded three-type task rows, existing history link and five-stage process.",
+      "sha256": "268159e0341630cfe528177b56c4b8869bcf11f7ee88e0a160db408a9c2c25d1"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_preview.html",
+      "category": "implementation",
+      "purpose": "Read-only row results, exact summary/issues/statuses and existing confirmation.",
+      "sha256": "851b2967b00cf1cce6ecae302e953f95d6d7595ae73a314bbedc5f1431fc9545"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_result.html",
+      "category": "implementation",
+      "purpose": "Existing outcome codes/counts and permitted next actions.",
+      "sha256": "56c5389d504eabae1b59516127846b4d7541342100ff831abd17ca9699e20ed5"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_unavailable.html",
+      "category": "implementation",
+      "purpose": "Existing expired/unusable message and lead upload recovery.",
+      "sha256": "2c864dc1412ea6a5a116ce8afba2f8771d196d9950deacb211304f586b2cb8b0"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/lead_upload.html",
+      "category": "implementation",
+      "purpose": "Existing CSV multipart form and optional-field guidance.",
+      "sha256": "9ef04de89c56a1f63b696e1f6cc703a1f50924e45d9ea01dd6c2619132f1f4b7"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_preview.html",
+      "category": "implementation",
+      "purpose": "Complete server create/update/category changes/notes and existing confirm form.",
+      "sha256": "77f2e2319edc3650c41717c145d9d86f9c1a65c15bf64ebd6ea33b6054600dad"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_result.html",
+      "category": "implementation",
+      "purpose": "Exact service execution outcomes/counts/next links.",
+      "sha256": "2d3c32f848ece424635b66670a684627cbff6ed7f35a0736a6cbc40f8389e326"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_unavailable.html",
+      "category": "implementation",
+      "purpose": "Existing unusable message and service upload recovery.",
+      "sha256": "eca77b5fb1b91b6358c0ec935b0ccf0e7027739caf3840f4412eb8b33002564d"
+    },
+    {
+      "path": "src/templates/crm/services/data_import/service_upload.html",
+      "category": "implementation",
+      "purpose": "Existing bound CSV form, header/example disclosures and copyable sample text.",
+      "sha256": "5fedc93b374205fb606b0c0fd11866d88cbb20e013c3591b5c302718cc90993d"
+    },
+    {
+      "path": "src/templates/crm/settings/business_service_import.html",
+      "category": "implementation",
+      "purpose": "Select Services combined CSV upload/examples; retain Logistics fallback and exact fields/hooks.",
+      "sha256": "ad06601e4551da0ef8ea15968391e45d610a388624cac04108633c1f7b082975"
+    },
+    {
+      "path": "docs/design/motionmate-ui-lab/workflows/services-data-import-20261119/commit-manifest.json",
+      "category": "documentation",
+      "purpose": "Exact commit selection (self descriptor)",
+      "sha256": null
+    }
+  ],
+  "excluded": [],
+  "existing_tracked_runtime_dependencies": [
+    {
+      "path": "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2",
+      "sha256": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972"
+    },
+    {
+      "path": "src/static/assets/fonts/manrope/OFL.txt",
+      "sha256": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30"
+    }
+  ],
+  "external_generated_artifacts": "Browser output, logs, preview/test databases, caches and temporary snapshots remain outside Git selection; no cleanup.",
+  "notice": "Preparation only. Nothing staged, committed, pushed, merged, deployed or deleted. Stock helper warning is retained; no automated helper pass claimed."
+}

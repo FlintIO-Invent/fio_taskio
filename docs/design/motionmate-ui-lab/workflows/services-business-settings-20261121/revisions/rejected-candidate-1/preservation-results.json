@@ -1,0 +1,15 @@
+{
+  "team_candidate_sha256": "75eff468999c7f9360ba94327784190615d008be0a896cf7e49dbb57de587319",
+  "team_files_verified": 15,
+  "combined_source_paths": 36,
+  "modified_existing_paths": [
+    "scripts/ui_preview/guard.py",
+    "src/templates/businesses/booking_settings.html",
+    "src/templates/businesses/settings.html",
+    "src/templates/businesses/team_members.html"
+  ],
+  "reconstructed_original_tracked_tree_sha256": "b56a62b568b3800116f49fe61014d46201a6e2372ca89ec267f8f2a3d5c0e94a",
+  "tracked_file_count": 12866,
+  "git_index_empty": true,
+  "ordinary_database_access": false
+}

@@ -1,0 +1,32 @@
+{
+  "task_id": "services-team-20261121",
+  "status": "pass",
+  "evidence_type": "offline documentation/source consistency only",
+  "workflow_check": {
+    "task_id": "services-team-20261121",
+    "current_phase": "gate_b",
+    "gate": "B",
+    "next_permitted_action": "Stop for explicit Gate B approval; preserve completed work.",
+    "design_sha256": "edd7fd937770227d5e748b8bafa0a6bc3fdc4b26887fe412d094d8004fc54cf8",
+    "manifest_sha256": "c15fe8b9c3d87783d5d74a74e9eb9f8efefbb35f9e64ef4d8162c8902c176848",
+    "candidate_sha256": null,
+    "review_sha256": null,
+    "notice": "Offline consistency only; verify real user authorization and resource ownership."
+  },
+  "approved_design_artifacts_unchanged": true,
+  "exact_manifest_targets_match": true,
+  "cross_task_paths_overlap": false,
+  "all_prior_tracked_files_unchanged": 12866,
+  "protected_tracked_tree_sha256": "b56a62b568b3800116f49fe61014d46201a6e2372ca89ec267f8f2a3d5c0e94a",
+  "source_reference_dependencies_match": true,
+  "markdown_links_checked": 31,
+  "json_whitespace_pass": true,
+  "no_staged_changes": true,
+  "implementation_and_resources_authorized": false,
+  "runtime_database_browser_provider_checks_run": false,
+  "execution_helper_baseline": "Team first execution baseline captured and verified; Settings proposal records protected/frozen.",
+  "limitations": [
+    "No current runtime/preview/fixture/DB ownership or behavioral validation exists.",
+    "Passing static/metadata checks does not grant permission, reserve ports or establish runtime readiness."
+  ]
+}

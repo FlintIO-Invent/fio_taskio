@@ -1,0 +1,213 @@
+{
+  "task_id": "services-business-settings-20261121",
+  "revision": "revision-1",
+  "candidate_sha256": "8362c35dd775edded30926bd32df525853c0794bfde59892cf26d0213253d8ea",
+  "source_after_sha256": "39123574b8522345711fbf337b5ec3438a2790248cf790366afa700e8c27a2d0",
+  "initial_fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db",
+  "candidate_files": {
+    "src/templates/businesses/settings.html": "1db070aec8c7341624614c48879bb6819b70471096752b7bbe3f1125eca2b694",
+    "src/templates/businesses/booking_settings.html": "89f3197834dacf9e3e50b311145762b9089b308544e80be94e167820faf3573d",
+    "src/templates/businesses/services/settings/assets.html": "146fdcec0bffd07a91ddfc30f156a6942f24f38afc1e646270d743030c4c8cd5",
+    "src/templates/businesses/services/settings/page.html": "902eb12207b43b5185ce61d44b93c48b9a316f58bc1032cc257f43d3c7c1fb2a",
+    "src/templates/businesses/services/settings/business_form.html": "67ca016903ea127592826eb44e8b47969169b684d90e7a17f66f4ae956124f1b",
+    "src/templates/businesses/services/settings/account.html": "03273e2f95d1bc7d37a03ddb195a1c32ea9d936bfd97accf58c1b9e6bb134858",
+    "src/templates/businesses/services/settings/configuration.html": "03dadf678f8db5856d2ffddd8c965aa4142c7d8e282a389dc00d238d0c71165f",
+    "src/templates/businesses/services/settings/booking.html": "d4f5e73ba75f15806ca9af47b10bd0d87df1699a2ed24a5ebaf95595970a670c",
+    "src/templates/businesses/services/settings/booking_rules.html": "5344c600c7630b63de601d4d21dbfcdc1e1bfd70394dcb7d230b5e1ea1b310e6",
+    "src/templates/businesses/services/settings/availability_entry.html": "46b3b5b2ce35faef2e25c893e85fe2d4d84ade1ce7b24061c778926561a3ff23",
+    "src/templates/businesses/services/settings/availability_list.html": "f48aba2e2e42c80d69f8ad89af831fcb1bc68d4cbb3b577cc2eba8c65b9de723",
+    "src/templates/businesses/services/settings/share_panel.html": "aa40e92dc33855e6e419acbe3953666aee7b5cbd0bcd369d88cb130c9fcbc9b5",
+    "src/templates/businesses/services/settings/field.html": "6093290b1b2bbdf456f869e55088ed5d1ffb8a72179d5c70d428567927c61921",
+    "src/static/assets/css/services-settings.css": "e648239c9999edd761f8ad560c9eb6a2c16d8de494f66b938df3c7d84dcbbf77",
+    "src/apps/businesses/templatetags/services_settings.py": "f1a8939baef2e79a7ffdd0a9d51a89debc345f45f80652774041ed7d200f7c6d",
+    "src/apps/businesses/test_services_settings_ui.py": "5177f08ed1b71efb64dd9fb5d9c7e205fcec7c072eaaf463ef0ba5b38f6810a2",
+    "scripts/services_settings_browser_check.py": "a93424b8b0e745c393aa677e032093dbc69b11aaa636982a0910aa2b97fa1a17",
+    "scripts/ui_preview/business_settings_fixtures.py": "8af10ab85725d952aeaad3687088c71183c4bce4c72eae1b8a1ad688af9bc3f9",
+    "scripts/ui_preview/business_settings_preview.py": "b685180d357e3c387970f285321e8b7e09ded024f1473f50d77d83c1d8c0f76a",
+    "scripts/ui_preview/business_settings_checks.py": "59e750b61cbf383ec0d52019871d2be5069fc741600cc970ff4b66870e129fe5",
+    "scripts/ui_preview/test_business_settings.py": "f7d0ec6fbfc1719225aa31b8e4e78565699b3d9dec73d8ce529bf7b463e5c69c"
+  },
+  "revision_changed_paths": [
+    "src/templates/businesses/services/settings/page.html",
+    "src/templates/businesses/services/settings/business_form.html",
+    "src/templates/businesses/services/settings/account.html",
+    "src/templates/businesses/services/settings/configuration.html",
+    "src/templates/businesses/services/settings/field.html",
+    "src/static/assets/css/services-settings.css",
+    "scripts/services_settings_browser_check.py"
+  ],
+  "backend": "57 Django tests passed in 8.049s on owned disposable PostgreSQL, including independent saves, permissions, logo settings/rendering, booking and frozen BEFORE Logistics parity. No backend change in this revision.",
+  "boundary_tests": "3 passed",
+  "browser": {
+    "cases_per_side": 16,
+    "section_checks": 64,
+    "widths": [
+      1440,
+      768,
+      390,
+      320
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "scoped_axe_violations": 0,
+    "duplicate_ids": 0,
+    "small_targets": 0,
+    "roles": [
+      {
+        "role": "admin",
+        "business_form": 1,
+        "personal_form": 1
+      },
+      {
+        "role": "staff",
+        "business_form": 0,
+        "personal_form": 1
+      },
+      {
+        "role": "accountant",
+        "business_form": 0,
+        "personal_form": 1
+      },
+      {
+        "role": "viewer",
+        "business_form": 0,
+        "personal_form": 1
+      }
+    ],
+    "scenarios": [
+      {
+        "scenario": "empty",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "scenario": "long",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "scenario": "restricted",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "scenario": "locked",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "scenario": "eur",
+        "status": 200,
+        "overflow": false
+      }
+    ],
+    "logistics": {
+      "new_assets": 0,
+      "transport": 1
+    },
+    "journeys": {
+      "personal_save": true,
+      "business_logo_save": true,
+      "invalid_preserves_logo": true,
+      "remove_logo": true,
+      "theme_draft": true,
+      "keyboard": true,
+      "bulk_invalid_panel_ids": true,
+      "bulk_native_two_rows": true,
+      "deactivate": true,
+      "rtl": true,
+      "focused_section_navigation": true,
+      "cross_section_text_select_file_and_personal_drafts": true,
+      "deep_link_and_back_forward": true,
+      "hidden_section_server_errors_revealed": true,
+      "saved_logo_in_business_profile": true
+    },
+    "page_errors": []
+  },
+  "supplemental": {
+    "existing_copy_action": true,
+    "existing_open_action": {
+      "local_path": "/book/preview-populated/"
+    },
+    "personal_server_errors_revealed": true,
+    "javascript_disabled_native_forms": {
+      "visible_sections": 8,
+      "personal_save": true
+    },
+    "keyboard_navigation_heading_focus": true,
+    "final_synthetic_invoice_logo_saved_and_present_in_profile": true,
+    "rtl_desktop_and_mobile": true,
+    "page_errors": []
+  },
+  "accessibility_limits": {
+    "full_page_720": [
+      {
+        "path": "/businesses/settings/",
+        "violations": [
+          {
+            "rule": "link-name",
+            "nodes": 1
+          }
+        ]
+      },
+      {
+        "path": "/businesses/settings/booking/",
+        "violations": [
+          {
+            "rule": "link-name",
+            "nodes": 1
+          }
+        ]
+      }
+    ],
+    "blocked_requests": 26,
+    "console_errors": 26,
+    "incompletes": "Raw axe select-background contrast incompletes retained; not classified as passes."
+  },
+  "preservation": {
+    "team_candidate_sha256": "75eff468999c7f9360ba94327784190615d008be0a896cf7e49dbb57de587319",
+    "team_files_verified": 15,
+    "combined_source_paths": 36,
+    "modified_existing_paths": [
+      "scripts/ui_preview/guard.py",
+      "src/templates/businesses/booking_settings.html",
+      "src/templates/businesses/settings.html",
+      "src/templates/businesses/team_members.html"
+    ],
+    "reconstructed_original_tracked_tree_sha256": "b56a62b568b3800116f49fe61014d46201a6e2372ca89ec267f8f2a3d5c0e94a",
+    "tracked_file_count": 12866,
+    "git_index_empty": true,
+    "ordinary_database_access": false,
+    "revision_changed_paths": [
+      "src/templates/businesses/services/settings/page.html",
+      "src/templates/businesses/services/settings/business_form.html",
+      "src/templates/businesses/services/settings/account.html",
+      "src/templates/businesses/services/settings/configuration.html",
+      "src/templates/businesses/services/settings/field.html",
+      "src/static/assets/css/services-settings.css",
+      "scripts/services_settings_browser_check.py"
+    ],
+    "team_workflow_and_source_guard": "Protected-workspace helper verifies original Team source and workflow bytes; no Team edits in this revision."
+  },
+  "limitations": [
+    "Unchanged shared-header search link lacks an accessible name in full-page axe at 720px; scoped page checks pass. Prior Team shared-sidebar contrast findings remain outside scope.",
+    "External vendor URLs are intentionally blocked by preview routing/CSP; raw request and console errors retained. No page JavaScript exceptions.",
+    "Chromium synthetic preview uses debug allocator; ordinary runtime, live providers, assistive technology, other browsers and actual browser zoom are not certified. 720px CSS reflow is only a zoom proxy.",
+    "Initial fixtures matched; accumulated synthetic review writes differ independently. No resets or synchronization.",
+    "Team broad helper retains the previously documented sibling-workspace drift warning; Team candidate and protected workflow/source bytes remain unchanged."
+  ],
+  "review_writes": "Synthetic account name Browser, business name from the native-save journey, two additional availability rows with one deactivated, invoice-logo upload/remove/reupload. The final owner preview retains its synthetic saved invoice logo for review. No ordinary records changed.",
+  "session": "/tmp/motionmate-preview-session-6_a8stg9",
+  "evidence": {
+    "before": "/tmp/motionmate-preview-session-6_a8stg9/before/evidence/settings-revision-1",
+    "after": "/tmp/motionmate-preview-session-6_a8stg9/after/evidence/settings-revision-1",
+    "comparison": "/tmp/motionmate-preview-session-6_a8stg9/revision-1-comparison",
+    "backend": "/tmp/motionmate-preview-session-6_a8stg9/after/evidence/settings-revision-1-backend.log",
+    "boundary": "/tmp/motionmate-preview-session-6_a8stg9/after/evidence/settings-revision-1-boundary.log",
+    "supplemental_log": "/tmp/motionmate-preview-session-6_a8stg9/after/evidence/settings-revision-1-supplemental-final.log"
+  },
+  "rejected_review": "revisions/rejected-candidate-1/",
+  "acceptance": null
+}

@@ -1,0 +1,13 @@
+{
+  "source": "User approved original Gate B with \u201capproved all\u201d; subsequently answered the exact one-file extension question.",
+  "quote": "Approve the one-file guard extension",
+  "scope": "Authorize both Gate B manifests and their listed disposable resources, implementing Team first then Settings. Existing migrations only in fresh empty owned disposable PostgreSQL; synthetic fixtures/tests/real Django BEFORE-AFTER. No ordinary database, schema source, provider, release or cleanup actions. Additionally authorize the exact guard-extension.patch and scripts/ui_preview/guard.py as the only extra file, with symmetric owned review-tooling update and negative policy checks; frozen Django BEFORE unchanged.",
+  "design_version": "v1",
+  "manifest_sha256": "33e69031fe071d7091a93032557dc247ccda2afa6dee477b093cf5c5e90ed6ec",
+  "integration_artifacts_sha256": {
+    "docs/design/motionmate-ui-lab/workflows/services-team-20261121/integration.md": "79b73cb533aaea371abfdd579e7238e4e8db5510fb0bf679fc2086c1d17bd9fe",
+    "docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-manifest.json": "17e514494fa32196eedf67bf733d965f2647e6bd9a76e6cba5f8f72304edba5f",
+    "docs/design/motionmate-ui-lab/workflows/services-team-20261121/validation-resources.json": "7edd397e6d1fb6ea5969f03d706143535930ff4430648a1353cda6f9d234fd7f",
+    "docs/design/motionmate-ui-lab/workflows/services-team-20261121/implementation-baseline.json": "04f8cae2c89a8571e726fef8a11a6c1b1c476c9faf6f92b5ad607cef71878852"
+  }
+}

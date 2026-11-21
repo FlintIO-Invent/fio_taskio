@@ -1,0 +1,35 @@
+{
+  "reason": "Execution environment restart removed all prior /tmp resources and processes; no old resource was reset or reused.",
+  "method": "Fresh current runtime copy, remove exact later approved additions only in owned temporary copy, restore modified templates from Git blobs only after exact Gate B before_sha256 match; require aggregate original working-tree capture digests.",
+  "snapshots": [
+    {
+      "stage": 0,
+      "snapshot": "/tmp/motionmate-preview-snapshot-9l4odmfh",
+      "source_sha256": "c9cbeaeefdea6a09a02cb5d00671d4461a98bd0b409c2c7f49ba37d4bd3b719c",
+      "matches_original_capture": true,
+      "files": 6806
+    },
+    {
+      "stage": 1,
+      "snapshot": "/tmp/motionmate-preview-snapshot-7fzxinb6",
+      "source_sha256": "8c859600639b4fd4c4d3b9a8d26094142a9075264aac1921333830cdb8bf89e9",
+      "matches_original_capture": true,
+      "files": 6813
+    },
+    {
+      "stage": 2,
+      "snapshot": "/tmp/motionmate-preview-snapshot-2x69qd_l",
+      "source_sha256": "c310a29f7e32570246fa7034367da839eca435927f380b44a010423cd9839435",
+      "matches_original_capture": true,
+      "files": 6828
+    },
+    {
+      "stage": 3,
+      "snapshot": "/tmp/motionmate-preview-snapshot-bebev8np",
+      "source_sha256": "3ab89e740f536dae1b56ebc0c7b1244e3e2fba74cefe048c20767c0e6c0be2c2",
+      "matches_original_capture": false,
+      "files": 6838
+    }
+  ],
+  "previous_runtime_records_retained": true
+}

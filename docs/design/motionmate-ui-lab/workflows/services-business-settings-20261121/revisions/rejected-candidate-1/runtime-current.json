@@ -1,0 +1,36 @@
+{
+  "session": "/tmp/motionmate-preview-session-6_a8stg9",
+  "session_id": "7e575f86ce5aa2fb",
+  "identities": {
+    "before": {
+      "host": "127.0.0.1",
+      "port": 55520,
+      "data_directory": "/tmp/motionmate-preview-session-6_a8stg9/before/pgdata",
+      "system_identifier": "7710744224570980564",
+      "database": "mm_preview_7e575f86ce5aa2fb_before",
+      "http_origin": "http://127.0.0.1:8820",
+      "http_process": {
+        "pid": 674584,
+        "start": "8380952"
+      },
+      "source_sha256": "29ee204efa0027842d410bfb010f9f8eb6209cdebcb61363424104ddb32cc751",
+      "initial_fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db"
+    },
+    "after": {
+      "host": "127.0.0.1",
+      "port": 55521,
+      "data_directory": "/tmp/motionmate-preview-session-6_a8stg9/after/pgdata",
+      "system_identifier": "7710744321151920601",
+      "database": "mm_preview_7e575f86ce5aa2fb_after",
+      "http_origin": "http://127.0.0.1:8821",
+      "http_process": {
+        "pid": 686486,
+        "start": "8476588"
+      },
+      "source_sha256": "77a9687bdb245b87c5875ad8aa01127b58540b4f7259da0eeecb23680bce2268",
+      "initial_fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db"
+    }
+  },
+  "providers_and_email": "Disabled; local-memory/synthetic only",
+  "tooling_guard_sha256": "1e1982bc9f98c282adab089353cb04401fdf4666d011a7b8c652c74b0191d086"
+}

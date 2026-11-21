@@ -1,5 +1,22 @@
 # Motionmate UI review workflow
 
+For automated tasks, use [workflow v2](AUTOMATED-WORKFLOW.md): audit/brief →
+**Gate A design direction** → exact integration plan/manifest → **Gate B
+implementation and resources** → preserve actual BEFORE, implement and validate
+→ **one real Django BEFORE/AFTER review** → **Gate C final acceptance**.
+Capture BEFORE before implementation; its runtime setup may follow B so resource
+authorization can be reviewed with the integration plan. No standalone synthetic
+prototype is required. Use one only when explicitly requested or when a major
+design uncertainty is explained and the exploration authorized. Quick Change
+reuses an already authorized bounded repair without extra A/C gates.
+
+After C, automatically prepare the exact classified commit manifest, preserving
+runtime/reproducibility assets and essential records. Recommend one commit per
+redesign. Explicit commit authorization remains separate; never stage, commit,
+push, merge or deploy automatically. Completed historical records remain frozen.
+
+The general application-review lifecycle below also applies to manual reviews:
+
 **1. Request and scope → 2. Audit actual Django screen → 3. Capture interactive
 BEFORE → 4. Design proposal and approval → 5. Scoped implementation →
 6. Django/browser/accessibility/regression validation → 7. Interactive AFTER
@@ -134,6 +151,12 @@ No destructive Git operation, ordinary-database migration or release hook belong
 in this workflow.
 
 ## Optional prototype exploration
+
+This is an authorized exception, not a second mandatory interactive review.
+Use representative screenshots and compact validation summaries; disposable
+browser output, logs, builds and databases belong outside Git where practical.
+If a tool requires in-tree output, use a narrow new-task ignore, preserve required
+assets and leave all completed redesign evidence untouched.
 
 The separate [UI Lab](../../../ui-lab/README.md) is clearly a **prototype**.
 Its Step 4 dashboard, Step 5 Appointments composition, pinned Tailwind/DaisyUI

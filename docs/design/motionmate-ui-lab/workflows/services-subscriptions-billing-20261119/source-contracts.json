@@ -1,0 +1,77 @@
+[
+  {
+    "path": "src/templates/crm/settings/business_service_list.html",
+    "original_file_sha256": "0eb7440cd97efe1089ed4e645b9db48f901cccf26d84676560b39d820f1ae472",
+    "preserved_content_block_sha256": "6713cf16871277646c084597f51b95d864147e2b6e5ae5dc86fbc84499f8aaae"
+  },
+  {
+    "path": "src/templates/crm/settings/business_service_form.html",
+    "original_file_sha256": "5ab1858d149c17fc8906487ed6762121e026cfa15b72d858d2c1dba08e53188c",
+    "preserved_content_block_sha256": "f88326843b4dacfc4c196e3e229cb067e6b5361fd01add7e98df2ae9f3338b9f"
+  },
+  {
+    "path": "src/templates/crm/settings/service_category_form.html",
+    "original_file_sha256": "f76d7d3e686cd18fd66ec5bc2762779bcf28abe9d9493f09fa746d3ea72a26e1",
+    "preserved_content_block_sha256": "8a932a85b7a216a8ffea6fba957c988389d0d6eaf323c5a73d276e515e686f80"
+  },
+  {
+    "path": "src/templates/crm/importing/data_import.html",
+    "original_file_sha256": "11ed949faed9c3cac137f7421e5bf9836dfa7cbf3075168c50a01fae2dfdc86d",
+    "preserved_content_block_sha256": "d594c340d9258065d043796d9989f05c6f66e46837ef3b601fbd46668b651a66"
+  },
+  {
+    "path": "src/templates/crm/importing/lead_upload.html",
+    "original_file_sha256": "7fd6f68303ddb565a535d58c5e9e07e25f413c1b716d45f8c943a15d121ac3e8",
+    "preserved_content_block_sha256": "8e8aaec1e43347dfb57c330cce81280e362f4161fc68c845d8a04dfb56e2548e"
+  },
+  {
+    "path": "src/templates/crm/importing/lead_preview.html",
+    "original_file_sha256": "3ffbcd82e428cc8ff977090102ef42de2692ccdeba391937dbaea30fdf4f881b",
+    "preserved_content_block_sha256": "fb2bdbd7aedb27b4c93d4e86951ce4635c34438e5bf954d48757307a6b6808c0"
+  },
+  {
+    "path": "src/templates/crm/importing/lead_result.html",
+    "original_file_sha256": "e1b7def19c6b53b2bfcbbe4c484c5a8c65c7a6be245c69747c4cd325b098c520",
+    "preserved_content_block_sha256": "1042585abc11a5c1900e9c001723e57e71117f63579a80298bcff0ebea97f0fe"
+  },
+  {
+    "path": "src/templates/crm/importing/lead_preview_unavailable.html",
+    "original_file_sha256": "6b5b012a893cee6bdf4b0f148beec5edd3020f8fd44cf055fafed1782713150e",
+    "preserved_content_block_sha256": "ab8383de2e3f756a7e75687d2634266f6752da064d6ec9779a87ac5b1633ecb3"
+  },
+  {
+    "path": "src/templates/crm/settings/business_service_import.html",
+    "original_file_sha256": "c54adb6af73ae37c61bf6adbfe6a34b92d89cb677d3ca424e568b08f7833fb4a",
+    "preserved_content_block_sha256": "06db2022ee1f821e6289f86675c578e7c6271cbd190076a547d87ab684574885"
+  },
+  {
+    "path": "src/templates/crm/importing/service_preview.html",
+    "original_file_sha256": "fbbb03676df9e2520fe7eebc5e571beef8bb4781122e9ab9ecc80bf61358ee99",
+    "preserved_content_block_sha256": "bf960b58f3f9079e822789e281747e940a111fdf3c0483f19ac0fca2d876017a"
+  },
+  {
+    "path": "src/templates/crm/importing/service_result.html",
+    "original_file_sha256": "e11e189656bb15ee236a98ce1c5e660678ec9a1782367cc9af988fdb0d2c39f5",
+    "preserved_content_block_sha256": "c6c5333ba849dbf8e59a27ee5f9171213a92e3fa157e5891feaec17e9c6a6ff1"
+  },
+  {
+    "path": "src/templates/crm/importing/service_preview_unavailable.html",
+    "original_file_sha256": "e19fbe5e21285e26bd86cca280e0d1e406bd082c046bb94ed8bad1e2e85db03d",
+    "preserved_content_block_sha256": "b312fe8f37fb2e9fd3b3ebad108a1ebb1c47e314c72e7b4c9968babff823912e"
+  },
+  {
+    "path": "src/templates/crm/importing/history.html",
+    "original_file_sha256": "2831490ee3077eb0b726177d19276835ab30eb223a5bd0bb2612b5b8afda79f5",
+    "preserved_content_block_sha256": "1bc8b124b3286e3d57dee9d9b0b47b140ab639fa0affe98686ed015c7ba90dbc"
+  },
+  {
+    "path": "src/templates/crm/importing/history_detail.html",
+    "original_file_sha256": "2e3a62ebad01f6e1897cda7d1759f088f4c52febfb281097cbf7ce81c8c7876d",
+    "preserved_content_block_sha256": "7072e6458dd95d471a3bd0ce2ee8545536fdf1800de28dedbd5bd88cbd7806e1"
+  },
+  {
+    "path": "src/templates/businesses/subscription.html",
+    "original_file_sha256": "8b84696febb030d1baac22c321fce4fc9d2824ec7f49ad5d8c9334f960b5833c",
+    "preserved_content_block_sha256": "4db5f22d510b23eb5a13747696989c72195b86731e7995afce14efe3763c82e0"
+  }
+]
