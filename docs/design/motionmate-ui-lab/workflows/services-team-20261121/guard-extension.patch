@@ -1,0 +1,25 @@
+--- a/scripts/ui_preview/guard.py
++++ b/scripts/ui_preview/guard.py
+@@ -96,7 +96,21 @@
+         text,
+         re.I,
+     )
+-    if ddl or (write and financial):
++    # Capacity-managed invitation expiry uses read-only subscription joins.
++    # Allow only a single ORM invitation UPDATE with no nested write/DDL.
++    invitation = re.match(r'^UPDATE\s+"businesses_businessinvitation"\s+SET\s+', text, re.I)
++    safe_invitation_update = bool(
++        invitation
++        and ";" not in text
++        and "--" not in text
++        and "/*" not in text
++        and not re.search(
++            r"\b(?:INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|TRUNCATE|COPY|DO|GRANT)\b",
++            text[invitation.end():],
++            re.I,
++        )
++    )
++    if ddl or (write and financial and not safe_invitation_update):
+         audit({"kind": "financial-write", "operation": text.split()[0]})
+         raise PreviewWriteBlocked(
+             "Financial/platform subscription writes and schema operations are unavailable in a UI preview."

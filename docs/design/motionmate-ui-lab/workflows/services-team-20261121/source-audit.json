@@ -1,0 +1,79 @@
+{
+  "task_id": "services-team-20261121",
+  "evidence_kind": "offline_source_inspection",
+  "branch": "experiment/motionmate-ui-redesign",
+  "head": "17cb241ff17503db9cf04f51d050f19f899e9e29",
+  "initial_worktree_status": "clean",
+  "initial_staged_changes": false,
+  "application_runtime_accessed": false,
+  "database_accessed": false,
+  "browser_run": false,
+  "source_sha256": {
+    "AGENTS.md": "6db6648293db9a6294517120b197c5ae91e0c7c3ad58d6a1c6b16f7c24617d53",
+    "docs/logistics_location_access.md": "0ce3cd817924154761de2c712388516dbb5b858ed530f846f8d0b25b9f783347",
+    "scripts/ui_preview/fixtures.py": "cb9fba25c0dac49b6a0c4b6c8158af2cadf868e946ab2e59df8168ba3bf8461a",
+    "scripts/ui_preview/guard.py": "10bf7b91a508e339ec485c84ac9871bd269570a549b6a1f5fb31ae77f16a8de0",
+    "scripts/ui_preview/settings.py": "e4a2284ccdebde2822e878ba0550950e9aa90036a7f6ab7618dd21af48f4643f",
+    "src/apps/accounts/forms.py": "94a46bd7656b64d3b33198ff25af80d592f0904bf61cd2884ab8dec992c78708",
+    "src/apps/accounts/tests.py": "a31bc7507c5a245797ce0da965f8086d8f276060b0388ae9a36a3f3fa5a519bb",
+    "src/apps/accounts/urls.py": "55d7687698aaf27112f67f603e2e9d88c4c01a52ea801eb6d066b01363e71eb7",
+    "src/apps/accounts/views.py": "552f469e811a782e42c21ab4953abc0cc193fb72afd5ed33b6f4e3024484d61d",
+    "src/apps/businesses/context_processors.py": "ee319741e5dad3abda47884b73b05d420bff0464e88d886ba1afdc1cbc2fd1e2",
+    "src/apps/businesses/forms.py": "774b64d7a1c381f69260e9be13812bf55e65a5934f3d0271f41b50ac7431165c",
+    "src/apps/businesses/models.py": "8ed99e364e57cc9b1febbc248d70a370599cf406ae0fc88c9000db25f14247cf",
+    "src/apps/businesses/test_configuration_update.py": "7f539ace2208e72b9b4994158e38836493d8be8293a33a63b3290f2e0e5e117a",
+    "src/apps/businesses/tests.py": "e105dcc37db16d1a342d5cfb0812365d2f2333b269e9c01b3a26ee0915681d75",
+    "src/apps/businesses/urls.py": "80641d3ed9e02f7ddd64dad2927a5a4d48b7341da1ecf543edcb418da558e0b2",
+    "src/apps/businesses/utils.py": "15f105a81db47632353791eca9dc1a06a8e2496db51c25afc3890b75a7597892",
+    "src/apps/businesses/views.py": "028e736b9e4ec40b6b9cab7a666aa6010c90e2b1795c784bd41f9ec44055c0b8",
+    "src/apps/notifications/emails.py": "cdbc5e16c0c80d80c7e40d306ebe52ce445bd23f836269d7d3c0ca5b45e41c9f",
+    "src/taskio/urls.py": "910ca2f5c7099c61c52705df78fcc9adbeea93705b024a41e7a4b36f743998a4",
+    "src/templates/accounts/forms/accept_business_invitation.html": "cbbce7ac8df4f14ad8875cfc94c22e48390709d5bf043e8f82248179658e22a6",
+    "src/templates/businesses/team_members.html": "e7c4d9fc76c3fa148d4c0bae9dc4a0df91c4a1505ec3685dd0ab3aa38ab6b397",
+    "src/templates/emails/invitation_body.txt": "ce17fd8b82f556c6b7c422fb64b001ee04e7f813acffdceb71275dc81ac5d059",
+    "src/templates/emails/invitation_subject.txt": "e99aeeb7b845d8a0b1e0ebe10d121b12c12c71f98742fc3934e0460ae2c219d0",
+    "src/templates/inheritance/dashboard_parent.html": "24fb9822688e9ba7a504a6478424d689eb28f5c50e68713fd21a85da489ae929"
+  },
+  "design_reference_sha256": {
+    "docs/design/motionmate-design-system/DESIGN.md": "95099bfb5adff919f273b7c974eeb42c37e8d8f3e7bcb4cda5956b9b52fdb793",
+    "docs/design/motionmate-design-system/COMPONENTS.md": "ac3f5c839df75b672d2b7050ab24e00678437bd11858a23ca2ad32f7ece641b0",
+    "docs/design/motionmate-design-system/VERTICALS.md": "fe9e5e26aba9c83e6aeddd933537c2725d6be65d9d8bc71ddf987f9fa3df5207",
+    "docs/design/motionmate-ui-lab/AUTOMATED-WORKFLOW.md": "3c78249645ccf5678d3e6c02f69bbde80dd8be89df4f76f6097fb29c3e3eee75",
+    "docs/design/motionmate-ui-lab/PREVIEW-WORKFLOW.md": "c71ff3729ffa2d2b13a74383c8edba191df0c179fb1e28aa8312f85047a661b7",
+    "docs/design/motionmate-ui-lab/REPRODUCIBILITY.md": "84df486561f98f7ed64364fea70b3479b805d67f393737befde8c4b5f921a51b",
+    ".agents/skills/motionmate-ui-workflow/SKILL.md": "47c1e89276363189a3f21cbfa3592d262a35a5a43c491ecd38a00b4dc05596c0",
+    ".agents/skills/motionmate-ui/SKILL.md": "11c9b0569165ac76a40127581f4ebb33e2a93d0525b3357b44a55ba02a3309c1",
+    "ui-lab/services-dashboard/daisyui/README.md": "4b79aded2202e7fd387e6f617b48c3bd27b7726b6d988fe55e76d1d81b060eaf",
+    "src/templates/crm/services/catalogue/base.html": "43f5e0479d6c6b5342e722db6cc20acc4fc27f257da077eb760ed62dffd6f307",
+    "src/templates/crm/services/catalogue/assets.html": "983eb87b7149051e18cfa7a815c446c35ef55eb07923dce0683b8ecf1333130c",
+    "src/static/assets/css/services-catalogue.css": "02431631d5cb6e3d31bddcce323c39745016c28465683e492f8a4f1be1b94fd4",
+    "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "src/static/assets/fonts/manrope/OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30"
+  },
+  "phoenix_reference": {
+    "version": "1.23.0",
+    "read_only": true,
+    "paths": [
+      "design_references/phoenix/public/modules/tables/basic-tables.html",
+      "design_references/phoenix/public/apps/social/settings.html"
+    ]
+  },
+  "protected_tracked_tree": {
+    "file_count": 12866,
+    "sha256": "b56a62b568b3800116f49fe61014d46201a6e2372ca89ec267f8f2a3d5c0e94a",
+    "algorithm": "sha256 of sorted compact JSON mapping tracked existing file paths to worktree sha256; Git index unchanged"
+  },
+  "limitations": [
+    "Source inspection only; no browser, runtime, database, email or provider checks.",
+    "This is not an implementation manifest, Gate B baseline or frozen interactive BEFORE.",
+    "Existing approvals for other tasks grant no approval or resource scope here."
+  ],
+  "evidence_type": "offline current-Django source audit; not runtime or browser evidence",
+  "git_baseline": {
+    "branch": "experiment/motionmate-ui-redesign",
+    "head": "17cb241ff17503db9cf04f51d050f19f899e9e29",
+    "initial_tracked_and_untracked_status": [],
+    "initial_staged_diff": [],
+    "observation": "Initial git status --short was empty before either workflow directory was initialized."
+  }
+}

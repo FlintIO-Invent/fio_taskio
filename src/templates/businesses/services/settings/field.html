@@ -1,0 +1,9 @@
+{% load services_settings %}{% settings_control field dom_prefix as control %}
+<div class="mm-field">
+{% if control.fieldset %}<fieldset aria-describedby="{{ control.describedby }}"><legend class="form-label">{{ label|default:field.label }}</legend>{{ control.widget }}
+{% elif control.checkbox %}<div class="mm-checkbox">{{ control.widget }}<label for="{{ control.id }}">{{ label|default:field.label }}</label></div>
+{% else %}<label class="form-label" for="{{ control.id }}">{{ label|default:field.label }}</label>{{ control.widget }}{% endif %}
+{% if field.help_text %}<div class="form-text" id="{{ control.help_id }}">{{ field.help_text }}</div>{% endif %}
+{% if field.errors %}<div class="invalid-feedback d-block" id="{{ control.error_id }}">{{ field.errors|striptags }}</div>{% endif %}
+{% if control.fieldset %}</fieldset>{% endif %}
+</div>

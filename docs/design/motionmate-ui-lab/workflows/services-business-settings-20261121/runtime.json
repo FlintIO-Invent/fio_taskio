@@ -1,0 +1,36 @@
+{
+  "session": "/tmp/motionmate-preview-session-6_a8stg9",
+  "session_id": "7e575f86ce5aa2fb",
+  "before_snapshot": "/tmp/motionmate-preview-snapshot-qlz24bva",
+  "identities": {
+    "before": {
+      "host": "127.0.0.1",
+      "port": 55520,
+      "data_directory": "/tmp/motionmate-preview-session-6_a8stg9/before/pgdata",
+      "system_identifier": "7710744224570980564",
+      "database": "mm_preview_7e575f86ce5aa2fb_before",
+      "http_process": {
+        "pid": 674584,
+        "start": "8380952"
+      },
+      "source_sha256": "29ee204efa0027842d410bfb010f9f8eb6209cdebcb61363424104ddb32cc751",
+      "fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db"
+    },
+    "after": {
+      "host": "127.0.0.1",
+      "port": 55521,
+      "data_directory": "/tmp/motionmate-preview-session-6_a8stg9/after/pgdata",
+      "system_identifier": "7710744321151920601",
+      "database": "mm_preview_7e575f86ce5aa2fb_after",
+      "http_process": {
+        "pid": 674627,
+        "start": "8381134"
+      },
+      "source_sha256": "29ee204efa0027842d410bfb010f9f8eb6209cdebcb61363424104ddb32cc751",
+      "fixture_sha256": "b611cf5386e43b0c5dac8c5d3b1a9441cf530ef444a31dc5240b6f5fb1c130db"
+    }
+  },
+  "existing_task_invocation_resumed": "Exact requested ports belong to this fresh task session; frozen snapshot/source and identical complete synthetic fixtures verified before any use. Duplicate creation refused; no process stopped or reseed.",
+  "peer_guard_extension": "Uses explicitly approved Team guard fix, without additional changes.",
+  "ordinary_database_access": false
+}

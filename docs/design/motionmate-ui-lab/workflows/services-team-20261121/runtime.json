@@ -1,0 +1,44 @@
+{
+  "session": "/tmp/motionmate-preview-session-g2_q9ufd",
+  "session_id": "c019c960b5d5b1d6",
+  "before_snapshot": "/tmp/motionmate-preview-snapshot-3xtx81af",
+  "identities": {
+    "before": {
+      "host": "127.0.0.1",
+      "port": 55510,
+      "data_directory": "/tmp/motionmate-preview-session-g2_q9ufd/before/pgdata",
+      "system_identifier": "7710740220260401578",
+      "database": "mm_preview_c019c960b5d5b1d6_before",
+      "source_sha256": "b8cd3a376449b0a9360a0a0f8a67d4dc5899d9caeaee02e32eca98d30c2ae1c3",
+      "initial_fixture_sha256": "616bf86a5fb61099c28c0a6df268191c68d9a08be279ff2cd788896a65526b5b",
+      "http_process": {
+        "pid": 664528,
+        "start": "8288252"
+      },
+      "http_port": 8810
+    },
+    "after": {
+      "host": "127.0.0.1",
+      "port": 55511,
+      "data_directory": "/tmp/motionmate-preview-session-g2_q9ufd/after/pgdata",
+      "system_identifier": "7710740312077472401",
+      "database": "mm_preview_c019c960b5d5b1d6_after",
+      "source_sha256": "a9b3fcb83efe9fd8e9850952cdb8bfc0c956ec9b8b28615b50fa4c3e32c1edd4",
+      "initial_fixture_sha256": "616bf86a5fb61099c28c0a6df268191c68d9a08be279ff2cd788896a65526b5b",
+      "http_process": {
+        "pid": 664572,
+        "start": "8288437"
+      },
+      "http_port": 8811
+    }
+  },
+  "failed_setup_sessions_retained_stopped": [
+    "/tmp/motionmate-preview-session-66cizc_y",
+    "/tmp/motionmate-preview-session-3ua7w9km"
+  ],
+  "initial_setup_failures": [
+    "Synthetic long surname exceeded existing 30-character limit; transaction rolled back.",
+    "Synthetic Logistics subscription lacked required yearly interval; transaction rolled back."
+  ],
+  "ordinary_database_access": false
+}
