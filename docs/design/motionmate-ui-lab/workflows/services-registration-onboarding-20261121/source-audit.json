@@ -1,0 +1,176 @@
+{
+  "task_id": "services-registration-onboarding-20261121",
+  "evidence_class": "offline_source_audit",
+  "captured_at_utc": "2026-11-21T23:01:21.578720+00:00",
+  "git": {
+    "branch": "experiment/motionmate-ui-redesign",
+    "head": "71cc5b55879c94525adb2b85e682596d53d1c3e8",
+    "initial_status": "clean (observed before task initialization)",
+    "status_excluding_task": "",
+    "staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "tracked_workspace": {
+    "file_count": 12972,
+    "content_map_sha256": "86656bc9fc26f17047135c4cf1c6b0ef06cbf84856650f11997c34d08d41e32c",
+    "algorithm": "SHA256 of canonical JSON exact repository path to SHA256 of current tracked regular-file bytes; no task files were tracked at capture"
+  },
+  "protected_trees": {
+    "src/apps/logistics/": {
+      "file_count": 182,
+      "sha256": "bc9eb71784f0b9465862822cf816714fdc79e323b0c0d1a1900dc18560fcba7d"
+    },
+    "src/templates/logistics/": {
+      "file_count": 46,
+      "sha256": "ffdde73f74d4efe1ccc4d7784645b3fd408cc10fd9863c0c85aadf4deb282b74"
+    },
+    "docs/design/motionmate-ui-lab/workflows/": {
+      "file_count": 204,
+      "sha256": "bfb7a1022d22ea8751538d602876081a7d141ba0719fad2ba8fd42a75613c11c"
+    },
+    "ui-lab/services-dashboard/": {
+      "file_count": 65,
+      "sha256": "9ec0a8a74ee14609abfcfe33551cfefd8527b29c6c0e3db3a2ddf702a6eb9b42"
+    },
+    "ui-lab/design-system/": {
+      "file_count": 5,
+      "sha256": "16471d0c98d9eba6b9004543a5bb91cad7e39b4ca5a80723256fc06970069c1c"
+    }
+  },
+  "selected_source_sha256": {
+    "AGENTS.md": "6db6648293db9a6294517120b197c5ae91e0c7c3ad58d6a1c6b16f7c24617d53",
+    ".agents/skills/motionmate-ui-workflow/SKILL.md": "47c1e89276363189a3f21cbfa3592d262a35a5a43c491ecd38a00b4dc05596c0",
+    ".agents/skills/motionmate-ui/SKILL.md": "11c9b0569165ac76a40127581f4ebb33e2a93d0525b3357b44a55ba02a3309c1",
+    "src/taskio/urls.py": "910ca2f5c7099c61c52705df78fcc9adbeea93705b024a41e7a4b36f743998a4",
+    "src/apps/accounts/urls.py": "55d7687698aaf27112f67f603e2e9d88c4c01a52ea801eb6d066b01363e71eb7",
+    "src/apps/accounts/views.py": "552f469e811a782e42c21ab4953abc0cc193fb72afd5ed33b6f4e3024484d61d",
+    "src/apps/accounts/forms.py": "94a46bd7656b64d3b33198ff25af80d592f0904bf61cd2884ab8dec992c78708",
+    "src/apps/accounts/beta_registration.py": "0713181b2c0139d0159de6f9253f157eaa5a2277f15a9612d4772d6a4d401cfc",
+    "src/apps/accounts/free_test_registration.py": "5370c447d4a239d79debdac6c4ce1920eac1b63cd655ca4483385a797cd75cb9",
+    "src/apps/accounts/management/commands/beta_registration_link.py": "4f7fae2a12c18f65a5d74cde2a25c19f8a57ac518c67b5086aef262f93f0b68e",
+    "src/apps/accounts/tests.py": "a31bc7507c5a245797ce0da965f8086d8f276060b0388ae9a36a3f3fa5a519bb",
+    "src/apps/accounts/test_logistics_free_test_registration.py": "eba89a1e90b912ced588ddffa209bee64eeb8e381db84e9b3c0881f3b1508c0d",
+    "src/apps/businesses/urls.py": "80641d3ed9e02f7ddd64dad2927a5a4d48b7341da1ecf543edcb418da558e0b2",
+    "src/apps/businesses/views.py": "028e736b9e4ec40b6b9cab7a666aa6010c90e2b1795c784bd41f9ec44055c0b8",
+    "src/apps/businesses/forms.py": "774b64d7a1c381f69260e9be13812bf55e65a5934f3d0271f41b50ac7431165c",
+    "src/apps/businesses/utils.py": "15f105a81db47632353791eca9dc1a06a8e2496db51c25afc3890b75a7597892",
+    "src/apps/businesses/models.py": "8ed99e364e57cc9b1febbc248d70a370599cf406ae0fc88c9000db25f14247cf",
+    "src/apps/businesses/onboarding.py": "4de4061427b04a0bc0a0bd04596544823cf2664a98cb2099ae6e4b0c0870f2c1",
+    "src/apps/businesses/plan_catalog.py": "e3fb467471b75f9bfe30336c55aaa2ca9803fbca7c509f04135e7eb4198de310",
+    "src/apps/businesses/localization.py": "c8380a172bdfcc70648419b177c65d798c358e4659c8ee8c98f9560f8440a168",
+    "src/apps/businesses/billing_policy.py": "017ebeeb1ed054986a0e04f8d9a5fb32d301383e79907d65045a70d43764da8c",
+    "src/apps/businesses/stripe_checkout.py": "acce95d76d83138daec18e9cc2daed03d835d8a66c6d049167579cd8da16b4a1",
+    "src/apps/businesses/stripe_webhooks.py": "30707ab4ee493cdc8fbe1b4eca6eceea0b5e016bc5e8b71e67e214d81e063025",
+    "src/apps/businesses/stripe_config.py": "a1ddcec5e7ee6a68858d8c002fa92f0cf5d8a8066e21ffcb39e905a8346d5d7f",
+    "src/apps/businesses/tests.py": "e105dcc37db16d1a342d5cfb0812365d2f2333b269e9c01b3a26ee0915681d75",
+    "src/apps/businesses/test_services_subscriptions_ui.py": "9dfdb3609e723b51a020be60cd1697a92b99f2a3642f4b239d7e0a244c74cb49",
+    "src/apps/businesses/migrations/0035_services_allowances.py": "d62e0e08d65d725f0461b217e3ec65d9c1217f58257a4478ab723f12035dab18",
+    "src/apps/crm/views.py": "240f014d65dacf9d0247a92c918fbc0b21af744f7f661a4fe333e01cccc68160",
+    "src/apps/crm/urls.py": "550691300e8700a83c1d86f38a0e94bb1acd7951bafa342cd33e4f476e1198d3",
+    "src/apps/crm/tests.py": "90c6365e6ee3099e07a43135a33a1890b2a1b14dd66048b0b04a2b46199b8399",
+    "src/templates/public_site/base.html": "7e7a7cf88a46bf93abe90c1a2104155af92603340d629e7d4932867ea67eb010",
+    "src/templates/public_site/home.html": "8c4d47d224cab51822471e6168f1f248d2c1b0cde179342a5515d8dfe6c49f03",
+    "src/templates/inheritance/authentication_parent.html": "d7028549c6c55aa7f4bcfe950985022c9140ff9a96abdd0a5b1f32e054a2e3ca",
+    "src/templates/inheritance/dashboard_parent.html": "24fb9822688e9ba7a504a6478424d689eb28f5c50e68713fd21a85da489ae929",
+    "src/templates/accounts/forms/business_registration.html": "73af84572961966fc68982ca169c1bab912e96e06aac5cb4c8d2b453fddf735f",
+    "src/templates/accounts/forms/accept_business_invitation.html": "cbbce7ac8df4f14ad8875cfc94c22e48390709d5bf043e8f82248179658e22a6",
+    "src/templates/businesses/checkout_status.html": "abe282730e62ab44ebd9685647b8476b97057ff673a21b20ebbaad74b7af44ce",
+    "src/templates/businesses/setup_required.html": "b1d34ed037edb21f691313978fe19e9c8559461e718a9270744bf654f88d23b2",
+    "src/templates/businesses/includes/services_plan_features.html": "319bbc1d7641172761b2c388a69158fad293a3b9fd530476fb4f90337d1f4b09",
+    "src/templates/businesses/services/subscriptions/plans.html": "a9def9d44f9f4d8d8423733891deedb24c09b34445ea18bb0efbec1bca8e9e9b",
+    "src/templates/crm/agent_dashboard/agent_dashboard.html": "9d76055586dc85f69e8f1669f416a31a4712081ae064e98ef080c9092ae43f94",
+    "src/templates/crm/agent_dashboard/includes/services_overview.html": "32a2ae989019b1a74a45ed41767630ac807407f2cfe6045d15e67a073bf14000",
+    "src/templates/crm/agent_dashboard/includes/onboarding_welcome_modal.html": "0039fb01592c25ecf65a493f17cf82eb0fe2b4cf074381ff0eb44c5d07d4a96c",
+    "src/templates/crm/agent_dashboard/includes/onboarding_guide_panel.html": "1ef0c5136c68ca4f799e5e5f92b532f459060970aa95816290b33295826bfe79",
+    "src/static/assets/js/onboarding-guide.js": "ac5b7272aa3bfa7736b392465bcb9072ca322f7294cff9fce36e6078d925618b",
+    "src/static/assets/css/user.css": "bfcf56ccaec2b65e5b36e3d6d06cfa77123a43edb1ff95cb9c973d52ec600576",
+    "src/static/assets/css/services-dashboard.css": "b6ddc6f3c876751cce29f163c0fed903e7c230e5d0bfb5944dcb6d8a0e0a3a15",
+    "src/static/assets/css/services-subscriptions.css": "908a8a46dc75443b0f2703961508aadf0e2f64db73facdd638d0614603700d3b",
+    "src/static/assets/fonts/manrope/manrope-latin-wght-normal.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "src/static/assets/fonts/manrope/OFL.txt": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30",
+    "scripts/motionmate_preview.py": "bed3c12a39849611b9fe2d0865ae30ccd9bffb16e92b0e66d0b4cef3b208d6d3",
+    "scripts/ui_preview/guard.py": "1e1982bc9f98c282adab089353cb04401fdf4666d011a7b8c652c74b0191d086",
+    "scripts/ui_preview/settings.py": "e4a2284ccdebde2822e878ba0550950e9aa90036a7f6ab7618dd21af48f4643f",
+    "docs/design/motionmate-design-system/DESIGN.md": "95099bfb5adff919f273b7c974eeb42c37e8d8f3e7bcb4cda5956b9b52fdb793",
+    "docs/design/motionmate-design-system/COMPONENTS.md": "ac3f5c839df75b672d2b7050ab24e00678437bd11858a23ca2ad32f7ece641b0",
+    "docs/design/motionmate-design-system/VERTICALS.md": "fe9e5e26aba9c83e6aeddd933537c2725d6be65d9d8bc71ddf987f9fa3df5207",
+    "docs/design/motionmate-ui-lab/PREVIEW-WORKFLOW.md": "c71ff3729ffa2d2b13a74383c8edba191df0c179fb1e28aa8312f85047a661b7",
+    "docs/design/motionmate-ui-lab/REPRODUCIBILITY.md": "84df486561f98f7ed64364fea70b3479b805d67f393737befde8c4b5f921a51b",
+    "docs/unified_business_settings.md": "f37fbfea8be554cd707d51f2450a2beb77899d94023fbfbdf13be84a7ca649a6",
+    "docs/invoice_payment_terminology.md": "7bc4a31d1cd91a9e310fe0f0d68d4fcf19e0f1f3962e8c0c7854fccec7312f44",
+    "docs/service_pricing_and_imports.md": "8026e11212a269926e446e7628ac2c20deace70ba717737b9c05079c55075aed",
+    "design_references/phoenix/src/pug/pages/authentication/split/sign-up.pug": "927271bae8e3db44bb41c88b611494636e784a069478bd418d69aca75231ee46",
+    "design_references/phoenix/src/pug/pages/pricing/pricing-column.pug": "77f8e93075ed8e744e6bd08ba6a93e97021fee59887ac89b52c507355f056cf5",
+    "design_references/phoenix/src/pug/mixins/pages/pricing/PricingGrid.pug": "a23fc16def47a4d161bdb07aa243af8f7498157f712d768b458e2b81e3d3d67a"
+  },
+  "existing_workflow_states": {
+    "services-business-settings-20261121": {
+      "current_phase": "gate_c",
+      "approvals_present": {
+        "design": true,
+        "implementation": true,
+        "acceptance": false
+      },
+      "state_sha256": "00b98e3d051fa62d13d325b6be5f314d05e33badc777be9c1a463c91dbb707eb"
+    },
+    "services-catalogue-20261119": {
+      "current_phase": "done",
+      "approvals_present": {
+        "design": true,
+        "implementation": true,
+        "acceptance": true
+      },
+      "state_sha256": "b2d6ec63e2ee5ef571d0f3b584efc061fdaeb37444c8cef9b148a465f423591a"
+    },
+    "services-clients-20261117": {
+      "current_phase": "done",
+      "approvals_present": {
+        "design": true,
+        "implementation": true,
+        "acceptance": true
+      },
+      "state_sha256": "4be342d5358be70de1a371a423f03e7def7b5f2eac28ad9ff7e6b2e0c8f750b5"
+    },
+    "services-data-import-20261119": {
+      "current_phase": "done",
+      "approvals_present": {
+        "design": true,
+        "implementation": true,
+        "acceptance": true
+      },
+      "state_sha256": "69517434a9ffaf44cd4e18a7a0ccab79e61aef27a4c41c011cf677d8b0752178"
+    },
+    "services-invoices-20261118": {
+      "current_phase": "done",
+      "approvals_present": {
+        "design": true,
+        "implementation": true,
+        "acceptance": true
+      },
+      "state_sha256": "baabba7bba846f37dd5b71b4b060c6a3f4fc12f00540c9ac0e3213bf4cf5f8cb"
+    },
+    "services-subscriptions-billing-20261119": {
+      "current_phase": "done",
+      "approvals_present": {
+        "design": true,
+        "implementation": true,
+        "acceptance": true
+      },
+      "state_sha256": "84cdbf07d6cada2753daaeb46fbdf45b724c188a46ae70ca570056b67bdb5596"
+    },
+    "services-team-20261121": {
+      "current_phase": "gate_c",
+      "approvals_present": {
+        "design": true,
+        "implementation": true,
+        "acceptance": false
+      },
+      "state_sha256": "9c14a623f33d588c17ae0a297d79fd5a3d4339e74e68a62b0bddd06da88985e1"
+    }
+  },
+  "limitations": [
+    "No Django settings loaded, database accessed, runtime started, browser visited, form submitted or provider contacted.",
+    "Source audit hashes do not constitute interactive BEFORE. Freeze actual working tree after Gate B and before edits.",
+    "Existing workflow records are read-only evidence, not transferable authorization.",
+    "No ordinary .env, uploads, connection strings, token values or customer data read or copied."
+  ]
+}

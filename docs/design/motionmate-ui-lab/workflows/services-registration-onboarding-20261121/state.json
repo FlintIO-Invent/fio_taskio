@@ -1,0 +1,121 @@
+{
+  "schema_version": 2,
+  "task_id": "services-registration-onboarding-20261121",
+  "vertical": "SERVICE",
+  "mode": "full",
+  "route": "/accounts/register-business/",
+  "objective": "Modernize the existing Services registration, pricing, checkout return and onboarding presentation while preserving registration, subscription, private-access and tenant contracts; stop at Gate A.",
+  "current_phase": "gate_a",
+  "completed_phases": [
+    "audit",
+    "brief"
+  ],
+  "next_permitted_action": "Stop for explicit Gate A approval; preserve completed work.",
+  "design_version": "v1",
+  "design_artifacts": {
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/brief.md": "02bf479410a5d2fb8c89f437fa27cf0daf008002e147c963bf6de82394ff0a2e",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/audit.md": "07b63bb7cb01b48ac5e3435cbe3204c1c1cc7fbf11f644a56d1f150e5285e2a0",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/source-audit.json": "2905a895e3ec19b6b1b1de8694458e7013109fce888ac03ec1376afb32b76c0e",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/validation.md": "96d51bfb7964505b84c5beeed27f8d1bf1cf496dade0336835639198514c1cff"
+  },
+  "manifest": [],
+  "approvals": {
+    "design": null,
+    "implementation": null,
+    "acceptance": null
+  },
+  "baseline": null,
+  "resource_authorizations": [],
+  "environments": [],
+  "deferred_decisions": [
+    {
+      "decision": "Exact production manifest, baseline, shared regression impact and disposable resource proposal",
+      "status": "Prepare after Gate A approval; no Gate B authorization exists."
+    },
+    {
+      "decision": "Provider verification, signup/subscription/token/onboarding policy and new capabilities",
+      "status": "Excluded from v1; separate proposal/authorization required."
+    }
+  ],
+  "known_issues": [
+    {
+      "id": "preview-journey-adapter",
+      "summary": "Existing preview blocks checkout routes/subscription writes and disables private access. Gate B must resolve a bounded isolated validation adapter without weakening shared guards.",
+      "reference": "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/validation.md"
+    },
+    {
+      "id": "billing-vs-workspace-currency",
+      "summary": "Subscription EUR/USD choice does not set workspace invoice currency/timezone/locale; preserve this separation.",
+      "reference": "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/audit.md"
+    },
+    {
+      "id": "beta-existing-selection",
+      "summary": "Valid Beta route exposes public plans plus Beta and does not automatically force Beta; retain current options/defaults/behavior.",
+      "reference": "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/audit.md"
+    },
+    {
+      "id": "public-interval-reset",
+      "summary": "Public region navigation reloads the monthly initial presentation; retaining yearly selection across that navigation is deferred behavior work.",
+      "reference": "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/audit.md"
+    }
+  ],
+  "validation": [],
+  "evidence": {
+    "audit": [
+      {
+        "kind": "source",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/audit.md",
+        "summary": "Actual Django routes, forms, save/checkout/private-access branches, onboarding state/actions, shared consumers and source-only limitations audited."
+      },
+      {
+        "kind": "source_identity",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/source-audit.json",
+        "summary": "Clean initial working tree; branch/HEAD; tracked source digest; selected shared sources, Logistics and existing redesign records protected. No runtime accessed."
+      }
+    ],
+    "brief": [
+      {
+        "kind": "design",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/brief.md",
+        "summary": "V1 scoped compositions, interactions, private/checkout/onboarding truthfulness, Phoenix/Silicon integration, responsive/themes/accessibility and deferred functional choices."
+      },
+      {
+        "kind": "validation_plan",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/validation.md",
+        "summary": "Prospective isolated/backend/browser/Logistics regression checks and one real Django comparison; no runtime evidence claimed."
+      },
+      {
+        "kind": "offline_check",
+        "reference": "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/offline-checks.json",
+        "summary": "Workflow/hash/link/document checks passed; all 12972 tracked files and 64 selected sources/reference files unchanged. Runtime/browser/provider checks not performed."
+      }
+    ]
+  },
+  "updated_at": "2026-11-21T23:10:16.285952+00:00",
+  "optional_prototype": {
+    "enabled": false,
+    "reason": null,
+    "authorization": null
+  },
+  "artifact_inventory": [],
+  "protected_workspace": null,
+  "implementation_checkpoint": null,
+  "preview": null,
+  "before_identity_sha256": null,
+  "planning_authorization": {
+    "source": "User request invoking motionmate-ui-workflow for Services Registration & Onboarding",
+    "quote": "Automatically complete the audit and design planning.\nStop at Gate A for design-direction approval.",
+    "scope": "Offline actual Django source audit and saved v1 design/workflow records only. Stop at Gate A; preserve Logistics, existing Services redesigns and records. No production edits or runtime/database/provider/release actions."
+  },
+  "related_routes": [
+    "/home/#pricing",
+    "/site-preview/#pricing",
+    "/accounts/register-business/beta/<token>/",
+    "/accounts/free-test/<tier>/<token>/",
+    "/billing/checkout/success/",
+    "/billing/checkout/cancelled/",
+    "/billing/checkout/resume/",
+    "/crm/agent/dashboard/",
+    "/businesses/setup/"
+  ]
+}

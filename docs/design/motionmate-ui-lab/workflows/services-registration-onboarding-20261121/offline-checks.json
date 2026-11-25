@@ -1,0 +1,99 @@
+{
+  "task_id": "services-registration-onboarding-20261121",
+  "evidence_class": "offline_documentation_and_source_consistency",
+  "checked_at_utc": "2026-11-21T23:09:59.858441+00:00",
+  "checks": [
+    {
+      "check": "Workflow v2 consistency",
+      "status": "pass",
+      "evidence": {
+        "task_id": "services-registration-onboarding-20261121",
+        "current_phase": "gate_a",
+        "gate": "A",
+        "next_permitted_action": "Stop for explicit Gate A approval; preserve completed work.",
+        "design_sha256": "3ef0dfeb90ad954709856ed6759d9338ab509910372720d4de1ea846c75efa83",
+        "manifest_sha256": "9a62de6051601e02e651f8bd7ba35bfdaf0a2f9577cd6f8c3e4152147e56565a",
+        "candidate_sha256": null,
+        "review_sha256": null,
+        "notice": "Offline consistency only; verify real user authorization and resource ownership."
+      }
+    },
+    {
+      "check": "Bound design and selected source SHA256",
+      "status": "pass",
+      "evidence": {
+        "bound_artifacts": 4,
+        "selected_sources": 64
+      }
+    },
+    {
+      "check": "Tracked workspace and prior redesign/Logistics preservation",
+      "status": "pass",
+      "evidence": {
+        "tracked_file_count": 12972,
+        "content_map_sha256": "86656bc9fc26f17047135c4cf1c6b0ef06cbf84856650f11997c34d08d41e32c",
+        "matches_source_audit": true
+      }
+    },
+    {
+      "check": "Branch/HEAD/index and task-only scope",
+      "status": "pass",
+      "evidence": {
+        "branch": "experiment/motionmate-ui-redesign",
+        "head": "71cc5b55879c94525adb2b85e682596d53d1c3e8",
+        "outside_task_status": "clean",
+        "staged_diff_changed": false
+      }
+    },
+    {
+      "check": "Task JSON, Markdown links and authored whitespace",
+      "status": "pass",
+      "evidence": {
+        "local_links_checked": 24,
+        "task_files": 9,
+        "git_diff_check_exit_code": 0
+      }
+    },
+    {
+      "check": "Consent/runtime boundaries",
+      "status": "pass",
+      "evidence": "All approvals null; manifest/resources/environments empty; no candidate/preview/baseline."
+    },
+    {
+      "check": "Django/backend tests",
+      "status": "not_performed",
+      "limitation": "Planning-only Gate A; no runtime/resource/provider authorization. No passing claim."
+    },
+    {
+      "check": "Actual Django/browser BEFORE",
+      "status": "not_performed",
+      "limitation": "Planning-only Gate A; no runtime/resource/provider authorization. No passing claim."
+    },
+    {
+      "check": "Responsive/themes/accessibility measurements",
+      "status": "not_performed",
+      "limitation": "Planning-only Gate A; no runtime/resource/provider authorization. No passing claim."
+    },
+    {
+      "check": "Provider checkout/webhooks/email",
+      "status": "not_performed",
+      "limitation": "Planning-only Gate A; no runtime/resource/provider authorization. No passing claim."
+    }
+  ],
+  "task_artifacts": [
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/approval-log.md",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/audit.md",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/brief.md",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/gate-a-review.md",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/integration.md",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/offline-checks.json",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/source-audit.json",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/state.json",
+    "docs/design/motionmate-ui-lab/workflows/services-registration-onboarding-20261121/validation.md"
+  ],
+  "limitations": [
+    "This is not an interactive BEFORE, Django test pass, rendered accessibility result or provider verification.",
+    "No ordinary database/settings or application runtime was accessed.",
+    "Existing preview guard limitations must be resolved in the future exact Gate B proposal."
+  ]
+}
